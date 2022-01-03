@@ -215,6 +215,7 @@ public class TaskController {
             taskDto.setName(task.getName());
             taskDto.setCreated(task.getCreated());
             taskDto.setActive(task.isActive());
+            taskDto.setParameters(task.getTaskParameterList());
 
             taskResponseDTOList.add(taskDto);
         }

@@ -4,14 +4,16 @@
 const yargs = require("yargs");
 const http = require('http');
 
-function callBackend(path, data) {
+function callBackend(path, method, data, callbackResult) {
 
-
+    if(data == null || data == undefined) {
+        data = "";
+    }
     const httpOptions = {
         hostname: 'localhost',
         port: 8090,
         path: path,
-        method: 'POST',
+        method: method,
         headers: {
             'Content-Type': 'application/json',
             'Content-Length': data.length
@@ -19,21 +21,17 @@ function callBackend(path, data) {
     }
 
     const req = http.request(httpOptions, res => {
-        console.log(`statusCode: ${res.statusCode}`)
 
         let resultData = "";
         res.on('data', d => {
             resultData += d;
-
         })
 
         res.on("end", function () {
 
             const obj = JSON.parse(resultData);
 
-            obj.output.forEach(element => {
-                console.log(element)
-            });
+            callbackResult(obj);
         })
     })
 
@@ -52,17 +50,24 @@ const options = yargs
     command: "run [taskname] [parameters...]",
     describe: "Run a task",
     demandOption: true,
+    builder: (yargs) => yargs.option('d', {
+        alias: 'detach',
+      desc: 'Run task in background and print task checksum',
+      type: 'boolean',
+      global: true 
+    }),
     handler(argv) {
-        console.log(argv)
-
+   
         // Prepare parameters variable
         let taskParameters = {};
 
         // Read all parameters
-        argv.parameters.forEach(parameter => {
-            let fragmentedArray = parameter.split("=");
-            taskParameters[fragmentedArray[0]] = fragmentedArray[1];
-        })
+        if(argv.parameters != undefined) {
+            argv.parameters.forEach(parameter => {
+                let fragmentedArray = parameter.split("=");
+                taskParameters[fragmentedArray[0]] = fragmentedArray[1];
+            })
+        }
 
         // Construct final data that will be sent to the backend
         const data = JSON.stringify({
@@ -70,7 +75,28 @@ const options = yargs
             parameters: taskParameters
         });
 
-        callBackend("/schedule/directtask", data);
+
+        if(argv.taskname != undefined) {
+            if(argv.d) {
+                callBackend("/schedule/task", "POST", data, function(obj) {
+                    if(obj != undefined) {
+                        console.log(obj.id)
+                    }
+                });
+            }
+            else {
+                callBackend("/schedule/directtask", "POST", data, function(obj) {
+                    if(obj != undefined) {
+                        obj.output.forEach(element => {
+                            console.log(element)
+                        });
+                    }
+                });
+            }  
+        }
+        else {
+            console.log("Please enter a task name");
+        }
     }
 })
 .command({
@@ -78,8 +104,50 @@ const options = yargs
     describe: "List all tasks",
     demandOption: true,
     handler(argv) {
-        console.log(`Running task: ${argv.taskname}`);
+        callBackend("/task", "GET", null, function(obj) {
+
+            var out = obj.map(function (el) {
+                let parameters = []
+                el.parameters.forEach(parameter => {
+                    console.log(parameter)
+                    parameters.push(parameter.name)
+                });
+
+                return {
+                  name: el.name,
+                  checksum: el.checksum,
+                  active: el.active,
+                  created: el.created,
+                  parameters: parameters
+                };
+              });
+
+            console.table(out)
+        });
     }
-}).strict().demandCommand().help().argv;
+})
+.command({
+    command: "ps",
+    describe: "List all executions",
+    demandOption: true,
+    handler(argv) {
+        callBackend("/executions", "GET", null, function(obj) {
+
+            var out = obj.executions.map(function (el) {
+
+                return {
+                  executionId: el.executionId,
+                  taskName: el.taskName,
+                  startDate: el.startDate,
+                  endDate: el.endDate,
+                  status: el.status
+                };
+              });
+
+            console.table(out)
+        });
+    }
+})
+.strict().demandCommand().help().argv;
 
 
