@@ -579,13 +579,13 @@ class MainApp extends React.Component {
 
                             <br/><br/>
 
-                            Triggers active: {this.state.active ? "Activated" : "Not active"}
-                            <div className="btn-group-toggle" data-toggle="buttons">
-                                <label className="btn btn-secondary active">
-                                    <input type="checkbox" onClick={this.activateTask}
-                                           autoComplete="off"/> Toggle triggers
-                                </label>
-                            </div>
+
+                            <label className="custom-control custom-switch">
+                                <input type="checkbox" onChange={this.activateTask}
+                                       autoComplete="off"  id="customSwitches"  className="custom-control-input" checked={this.state.active ? true : false} />
+                                <label className="custom-control-label" htmlFor="customSwitches">Activated triggers</label>
+                            </label>
+
                         </div>
                         <div className="col-sm-10 col-md-10 col-lg-10 m-0 p-0">
                             <div id="canvas" className="w-100 h-100"></div>
