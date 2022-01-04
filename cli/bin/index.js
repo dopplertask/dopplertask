@@ -3,6 +3,7 @@
 
 const yargs = require("yargs");
 const http = require('http');
+const Stomp = require('stompjs')
 
 function callBackend(path, method, data, callbackResult) {
 
@@ -46,6 +47,19 @@ function callBackend(path, method, data, callbackResult) {
 
 
 const options = yargs
+.command({
+    command: "logs [executionid]",
+    describe: "See the logs of an execution",
+    demandOption: true,
+    handler(argv) {
+        callBackend("/execution/" + argv.executionid, "GET", null, function(obj) {
+            obj.output.forEach(e => {
+                console.log(e)
+            })
+            
+        });
+    }
+})
  .command({
     command: "run [taskname] [parameters...]",
     describe: "Run a task",
@@ -77,22 +91,53 @@ const options = yargs
 
 
         if(argv.taskname != undefined) {
-            if(argv.d) {
-                callBackend("/schedule/task", "POST", data, function(obj) {
-                    if(obj != undefined) {
-                        console.log(obj.id)
-                    }
-                });
-            }
-            else {
-                callBackend("/schedule/directtask", "POST", data, function(obj) {
-                    if(obj != undefined) {
-                        obj.output.forEach(element => {
-                            console.log(element)
+            
+            callBackend("/schedule/task", "POST", data, function(obj) {
+
+                if(obj != undefined) {
+                    console.log(obj.id)
+                    if(argv.d == undefined) {
+                        let client = Stomp.overWS("ws://localhost:61614/stomp");
+                        let headers = {
+                            id: 'JUST.FCX',
+                            ack: 'client',
+                            selector: 'executionId=' + obj.id
+                        };
+
+                        client.connect("admin", "admin", function () {
+                            client.subscribe("/queue/taskexecution_destination",
+                                             function (message) {
+                                                 let messageBody = JSON.parse(message.body);
+                                                 var tagsToReplace = {
+                                                     '&': '&amp;',
+                                                     '<': '&lt;',
+                                                     '>': '&gt;'
+                                                 };
+
+                                                 function replaceTag(tag) {
+                                                     return tagsToReplace[tag] || tag;
+                                                 }
+
+                                                 function safe_tags_replace(str) {
+                                                     return str.replace(/[&<>]/g, replaceTag);
+                                                 }
+
+                                                 console.log(safe_tags_replace(messageBody.output) + "");
+                                                 message.ack();
+
+                                                 if (message.headers["lastMessage"] == "true"
+                                                     && message.headers["executionId"] == obj.id) {
+                                                     client.disconnect();
+                                                 }
+                                             }, headers);
+                        }, function(e) {
+                            console.log(e)
                         });
-                    }
-                });
-            }  
+                    }  
+                }
+            });
+
+           
         }
         else {
             console.log("Please enter a task name");
