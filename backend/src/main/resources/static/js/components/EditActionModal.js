@@ -63,7 +63,6 @@ class EditActionModal extends React.Component {
      */
     mapValueChange(name, index, attrName, value) {
         this.props.selectedAction.userData.customData[name][index][attrName] = value;
-        this.forceUpdate();
     }
 
     /**
