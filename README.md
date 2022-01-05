@@ -24,11 +24,11 @@ After install, access the GUI on:
 
 Install JDK 11 and gradle.
 
-To run the backend, go to backend and run:
-```gradle clean build bootRun```
+(Optional) Install CLI:
+```npm install -g dopplertask-cli```
 
-To compile and run the cli:
-```cd cli && go build . && ./cli tasks```
+(Optional) Or to install the CLI from the cli directory, run:
+```npm install -g .```
 
 ## Docker
 To run the built docker image:
@@ -36,6 +36,14 @@ To run the built docker image:
  
 To rebuild the docker image:
 ```docker build -t dopplertask/dopplertask .```
+
+## Run
+To run the backend, go to the backend folder and run:
+```gradle clean build bootRun```
+
+If CLI is installed as mentioned in the prerequisites, it can be run like so (See CLI help by typing dopplertask --help):
+```dopplertask run [taskname]```
+
 
 ## Usage
 
