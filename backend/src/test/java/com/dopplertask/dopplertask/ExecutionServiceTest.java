@@ -219,7 +219,7 @@ public class ExecutionServiceTest {
         // Run test with data
         TaskExecutionRequest request = createTaskRequest("ExampleTask", "123123", 10L);
         request.setTriggerInfo(
-                new TriggerInfo("SomeTrigger", "", "sdaasdf", Map.of())
+                new TriggerInfo("SomeTrigger", "sdaasdf", Map.of())
         );
         TaskExecution resultExecution = executionService.startExecution(request, taskService, true);
 
