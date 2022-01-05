@@ -48,7 +48,9 @@ public class ExecutionServiceImpl implements ExecutionService {
 
     private static final Logger LOG = LoggerFactory.getLogger(ExecutionServiceImpl.class);
     private static final String DOPPLERTASK_WORKFLOW_DOWNLOAD = "https://www.dopplertask.com/getworkflow.php";
-    private static final int MAX_ACTION_ACCESS_LIMIT = 1000;
+    private static final int MAX_ACTION_ACCESS_LIMIT = 2000;
+    public static final String CHECKSUM_ALGORITHM = "SHA-256";
+    private static final String TRIGGER_PARAMETER_PREFIX = "TRIGGER";
 
     private JmsTemplate jmsTemplate;
     private TaskDao taskDao;
@@ -98,6 +100,8 @@ public class ExecutionServiceImpl implements ExecutionService {
 
             // Check if task is started by trigger when the active is set to false, if so, fail.
             if (startedByTrigger && !task.isActive()) {
+                execution.setSuccess(false);
+                execution.setStatus(TaskExecutionStatus.FAILED);
                 addLog(execution, "Task is not active. Please set task to active to respond to webhooks", OutputType.STRING, true, false);
                 return execution;
             }
@@ -204,7 +208,7 @@ public class ExecutionServiceImpl implements ExecutionService {
                     TaskCreationDTO taskCreationDTO = mapper.readValue(response.body(), TaskCreationDTO.class);
 
                     // Create checksum
-                    MessageDigest digest = MessageDigest.getInstance("SHA-256");
+                    MessageDigest digest = MessageDigest.getInstance(CHECKSUM_ALGORITHM);
                     byte[] encodedhash = digest.digest(response.body().getBytes(StandardCharsets.UTF_8));
                     String sha256 = bytesToHex(encodedhash);
 
@@ -261,7 +265,7 @@ public class ExecutionServiceImpl implements ExecutionService {
                 TaskCreationDTO taskCreationDTO = mapper.readValue(response.body(), TaskCreationDTO.class);
 
                 // Create checksum
-                MessageDigest digest = MessageDigest.getInstance("SHA-256");
+                MessageDigest digest = MessageDigest.getInstance(CHECKSUM_ALGORITHM);
                 byte[] encodedhash = digest.digest(response.body().getBytes(StandardCharsets.UTF_8));
                 String sha256 = bytesToHex(encodedhash);
 
@@ -310,7 +314,7 @@ public class ExecutionServiceImpl implements ExecutionService {
                     TaskCreationDTO taskCreationDTO = mapper.readValue(response.body(), TaskCreationDTO.class);
 
                     // Create checksum
-                    MessageDigest digest = MessageDigest.getInstance("SHA-256");
+                    MessageDigest digest = MessageDigest.getInstance(CHECKSUM_ALGORITHM);
                     byte[] encodedhash = digest.digest(response.body().getBytes(StandardCharsets.UTF_8));
                     String sha256 = bytesToHex(encodedhash);
 
@@ -369,7 +373,9 @@ public class ExecutionServiceImpl implements ExecutionService {
 
             // Set params
             if (triggerInfo.getTriggerParameters() != null) {
-                ((Trigger) action).setParameters(triggerInfo.getTriggerParameters());
+                triggerInfo.getTriggerParameters().forEach((key, value) -> {
+                    execution.getParameters().put(TRIGGER_PARAMETER_PREFIX + "_" + key, value);
+                });
             }
 
             execution.setCurrentAction(action);

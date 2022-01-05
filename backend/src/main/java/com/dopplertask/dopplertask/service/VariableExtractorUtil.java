@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.io.StringWriter;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
@@ -46,7 +47,7 @@ public class VariableExtractorUtil {
             }
 
             // Easy access to lastLog
-            if (execution != null && execution.getLogs() != null && !execution.getLogs().isEmpty()) {
+            if (execution.getLogs() != null && !execution.getLogs().isEmpty()) {
                 context.put("lastLog", execution.getLogs().get(execution.getLogs().size() - 1));
             }
 
@@ -100,7 +101,7 @@ public class VariableExtractorUtil {
             }
 
             // Easy access to lastLog
-            if (execution != null && execution.getLogs() != null && !execution.getLogs().isEmpty()) {
+            if (execution.getLogs() != null && !execution.getLogs().isEmpty()) {
                 context.getBindings("js").putMember("lastLog", execution.getLogs().get(execution.getLogs().size() - 1));
             }
 
@@ -120,7 +121,7 @@ public class VariableExtractorUtil {
         tools.put("numberTool", new NumberTool());
         tools.put("renderTool", new RenderTool());
         tools.put("collectionTool", new CollectionTool());
-        tools.put("valueParser", new ValueParser(new HashMap<String, Object>()));
+        tools.put("valueParser", new ValueParser(new HashMap<>()));
         tools.put("stringUtils", new StringUtils());
         tools.put("base64Helper", new Base64Helper());
         return tools;
@@ -132,7 +133,7 @@ public class VariableExtractorUtil {
         }
 
         public String decode(String text) {
-            return Base64.getDecoder().decode(text).toString();
+            return Arrays.toString(Base64.getDecoder().decode(text));
         }
     }
 }
