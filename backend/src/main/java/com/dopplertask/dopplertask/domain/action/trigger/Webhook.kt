@@ -14,6 +14,9 @@ import javax.persistence.Entity
 @Entity
 class Webhook : Trigger() {
 
+    @Column
+    var path = ""
+
     @Throws(IOException::class)
     override fun run(taskService: TaskService, execution: TaskExecution, variableExtractorUtil: VariableExtractorUtil, broadcastListener: BroadcastListener?): ActionResult {
         val result = ActionResult()
@@ -27,6 +30,13 @@ class Webhook : Trigger() {
         // Do nothing.
         return TriggerResult(mutableMapOf())
     }
+
+    override val actionInfo: MutableList<PropertyInformation>
+        get() {
+            val actionInfo = super.actionInfo
+            actionInfo.add(PropertyInformation("path", "Path", PropertyInformation.PropertyInformationType.STRING))
+            return actionInfo
+        }
 
     override val description: String
         get() = "Starts the workflow when the webhook URL is called."

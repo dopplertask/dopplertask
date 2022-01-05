@@ -124,7 +124,7 @@ public class Task {
         this.taskParameterList = taskParameterList;
     }
 
-    public Action getStartAction() {
+    public Action getWebhookStartAction() {
         List<Action> actions = actionList.stream().filter(action -> action instanceof StartAction).collect(Collectors.toList());
         if (actions.isEmpty()) {
             return null;
@@ -132,8 +132,16 @@ public class Task {
         return actions.get(0);
     }
 
-    public Action getStartAction(String triggerName, String triggerSuffix, String path) {
-        List<Action> actions = actionList.stream().filter(action -> action.getClass().getSimpleName().equalsIgnoreCase(triggerName) && action instanceof Trigger && ((Trigger) action).getPath().equals(path == null ? "" : path) && ((Trigger) action).getTriggerSuffix().equals(triggerSuffix == null ? "" : triggerSuffix)).collect(Collectors.toList());
+    public Action getStartAction(String triggerName, String triggerSuffix) {
+        List<Action> actions = actionList.stream().filter(action -> action.getClass().getSimpleName().equalsIgnoreCase(triggerName) && action instanceof Trigger && ((Trigger) action).getTriggerSuffix().equals(triggerSuffix == null ? "" : triggerSuffix)).collect(Collectors.toList());
+        if (actions.isEmpty()) {
+            return null;
+        }
+        return actions.get(0);
+    }
+
+    public Action getWebhookStartAction(String triggerName, String triggerSuffix, String path) {
+        List<Action> actions = actionList.stream().filter(action -> action.getClass().getSimpleName().equalsIgnoreCase(triggerName) && action instanceof Webhook && ((Webhook) action).getPath().equals(path == null ? "" : path) && ((Webhook) action).getTriggerSuffix().equals(triggerSuffix == null ? "" : triggerSuffix)).collect(Collectors.toList());
         if (actions.isEmpty()) {
             return null;
         }

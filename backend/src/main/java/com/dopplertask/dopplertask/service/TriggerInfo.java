@@ -7,13 +7,11 @@ import java.util.Map;
  */
 public class TriggerInfo {
     private String triggerName;
-    private String triggerPath;
     private String triggerSuffix;
     private Map<String, String> triggerParameters;
 
-    public TriggerInfo(String triggerName, String triggerPath, String triggerSuffix, Map<String, String> triggerParameters) {
+    public TriggerInfo(String triggerName, String triggerSuffix, Map<String, String> triggerParameters) {
         this.triggerName = triggerName;
-        this.triggerPath = triggerPath;
         this.triggerSuffix = triggerSuffix;
         this.triggerParameters = triggerParameters;
     }
@@ -26,13 +24,6 @@ public class TriggerInfo {
         this.triggerName = triggerName;
     }
 
-    public String getTriggerPath() {
-        return triggerPath;
-    }
-
-    public void setTriggerPath(String triggerPath) {
-        this.triggerPath = triggerPath;
-    }
 
     public Map<String, String> getTriggerParameters() {
         return triggerParameters;
@@ -49,4 +40,6 @@ public class TriggerInfo {
     public void setTriggerSuffix(String triggerSuffix) {
         this.triggerSuffix = triggerSuffix;
     }
+
+
 }

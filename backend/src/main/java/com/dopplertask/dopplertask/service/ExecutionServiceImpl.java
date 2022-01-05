@@ -336,7 +336,7 @@ public class ExecutionServiceImpl implements ExecutionService {
             Task task = taskRequest.get();
             TaskExecution execution = executionReq.get();
 
-            execution.setCurrentAction(task.getStartAction());
+            execution.setCurrentAction(task.getWebhookStartAction());
 
             return executeActions(taskService, task, execution);
         }
@@ -351,7 +351,15 @@ public class ExecutionServiceImpl implements ExecutionService {
         if (taskRequest.isPresent() && executionReq.isPresent()) {
             Task task = taskRequest.get();
             TaskExecution execution = executionReq.get();
-            Action action = task.getStartAction(triggerInfo.getTriggerName(), triggerInfo.getTriggerSuffix(), triggerInfo.getTriggerPath());
+
+            Action action;
+            // Check if this is a general trigger or a webhook
+            if (triggerInfo instanceof WebhookTriggerInfo info) {
+                action = task.getWebhookStartAction(info.getTriggerName(), info.getTriggerSuffix(), info.getPath());
+            } else {
+                action = task.getStartAction(triggerInfo.getTriggerName(), triggerInfo.getTriggerSuffix());
+            }
+
 
             // Check if the trigger exists
             if (action == null) {
@@ -450,10 +458,9 @@ public class ExecutionServiceImpl implements ExecutionService {
                 }
                 actionResult = currentAction.run(taskService, execution, variableExtractorUtil, (output, outputType) -> addLog(execution, output, outputType, true));
 
-                if(!actionResult.getOutput().isEmpty()) {
+                if (!actionResult.getOutput().isEmpty()) {
                     addLog(execution, actionResult.getOutput(), actionResult.getOutputType(), actionResult.isBroadcastMessage());
-                }
-                else {
+                } else {
                     addLog(execution, actionResult.getErrorMsg(), actionResult.getOutputType(), actionResult.isBroadcastMessage());
                 }
                 // Handle failOn

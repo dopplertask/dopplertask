@@ -20,11 +20,7 @@ import com.dopplertask.dopplertask.dto.TaskExecutionLogResponseDTO;
 import com.dopplertask.dopplertask.dto.TaskNameDTO;
 import com.dopplertask.dopplertask.dto.TaskRequestDTO;
 import com.dopplertask.dopplertask.dto.TaskResponseSingleDTO;
-import com.dopplertask.dopplertask.service.ExecutionService;
-import com.dopplertask.dopplertask.service.TaskRequest;
-import com.dopplertask.dopplertask.service.TaskService;
-import com.dopplertask.dopplertask.service.TriggerInfo;
-import com.dopplertask.dopplertask.service.VariableExtractorUtil;
+import com.dopplertask.dopplertask.service.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.velocity.app.VelocityEngine;
 import org.reflections.Reflections;
@@ -125,7 +121,7 @@ public class TaskController {
 
         Map<String, String> triggerParameters = new HashMap<>(headers);
         triggerParameters.put("body", body);
-        TriggerInfo triggerInfo = new TriggerInfo(triggerName, path, triggerSuffix, triggerParameters);
+        TriggerInfo triggerInfo = new WebhookTriggerInfo(triggerName, path, triggerSuffix, triggerParameters, HttpMethod.POST);
         request.setTriggerInfo(triggerInfo);
 
         TaskExecution execution = taskService.runRequest(request);

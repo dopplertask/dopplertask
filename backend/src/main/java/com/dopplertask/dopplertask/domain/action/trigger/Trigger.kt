@@ -9,8 +9,6 @@ import javax.persistence.Transient
 
 @MappedSuperclass
 abstract class Trigger : Action() {
-    @Column
-    var path = ""
 
     @Column
     var triggerSuffix = ""
@@ -24,7 +22,7 @@ abstract class Trigger : Action() {
     override val actionInfo: MutableList<PropertyInformation>
         get() {
             val actionInfo = super.actionInfo
-            actionInfo.add(PropertyInformation("path", "Path", PropertyInformationType.STRING))
+
             return actionInfo
         }
 }

@@ -195,7 +195,7 @@ public class TaskServiceImpl implements TaskService {
         task.setActive(active);
 
         // Check if action is available
-        if (task.getStartAction() == null) {
+        if (task.getWebhookStartAction() == null) {
             throw new NoStartActionFoundException("No start action is found in the task. Please create one.");
         }
 
