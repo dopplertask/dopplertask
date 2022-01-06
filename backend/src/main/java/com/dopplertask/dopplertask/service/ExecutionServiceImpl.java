@@ -359,7 +359,7 @@ public class ExecutionServiceImpl implements ExecutionService {
             Action action;
             // Check if this is a general trigger or a webhook
             if (triggerInfo instanceof WebhookTriggerInfo info) {
-                action = task.getWebhookStartAction(info.getTriggerName(), info.getTriggerSuffix(), info.getPath());
+                action = task.getWebhookStartAction(info.getTriggerName(), info.getTriggerSuffix(), info.getPath(), info.getMethod().name());
             } else {
                 action = task.getStartAction(triggerInfo.getTriggerName(), triggerInfo.getTriggerSuffix());
             }
@@ -367,7 +367,7 @@ public class ExecutionServiceImpl implements ExecutionService {
 
             // Check if the trigger exists
             if (action == null) {
-                addLog(execution, "The selected trigger was not found. Cannot start task", OutputType.STRING, true);
+                addLog(execution, "The selected trigger or webhook was not found. Cannot start task", OutputType.STRING, true);
                 return execution;
             }
 

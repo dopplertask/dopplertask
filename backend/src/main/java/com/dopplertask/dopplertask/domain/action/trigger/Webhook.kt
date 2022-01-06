@@ -17,8 +17,16 @@ class Webhook : Trigger() {
     @Column
     var path = ""
 
+    @Column
+    var method = "GET"
+
     @Throws(IOException::class)
-    override fun run(taskService: TaskService, execution: TaskExecution, variableExtractorUtil: VariableExtractorUtil, broadcastListener: BroadcastListener?): ActionResult {
+    override fun run(
+        taskService: TaskService,
+        execution: TaskExecution,
+        variableExtractorUtil: VariableExtractorUtil,
+        broadcastListener: BroadcastListener?
+    ): ActionResult {
         val result = ActionResult()
         result.output = "Webhook triggered"
         result.statusCode = StatusCode.SUCCESS
@@ -34,6 +42,18 @@ class Webhook : Trigger() {
     override val actionInfo: MutableList<PropertyInformation>
         get() {
             val actionInfo = super.actionInfo
+            actionInfo.add(
+                PropertyInformation(
+                    "method", "Method", PropertyInformation.PropertyInformationType.DROPDOWN, "GET", "HTTP Method",
+                    java.util.List.of(
+                        PropertyInformation("GET", "GET"),
+                        PropertyInformation("POST", "POST"),
+                        PropertyInformation("PUT", "PUT"),
+                        PropertyInformation("PATCH", "PATCH"),
+                        PropertyInformation("DELETE", "DELETE")
+                    )
+                )
+            )
             actionInfo.add(PropertyInformation("path", "Path", PropertyInformation.PropertyInformationType.STRING))
             return actionInfo
         }

@@ -140,8 +140,8 @@ public class Task {
         return actions.get(0);
     }
 
-    public Action getWebhookStartAction(String triggerName, String triggerSuffix, String path) {
-        List<Action> actions = actionList.stream().filter(action -> action.getClass().getSimpleName().equalsIgnoreCase(triggerName) && action instanceof Webhook && ((Webhook) action).getPath().equals(path == null ? "" : path) && ((Webhook) action).getTriggerSuffix().equals(triggerSuffix == null ? "" : triggerSuffix)).collect(Collectors.toList());
+    public Action getWebhookStartAction(String triggerName, String triggerSuffix, String path, String method) {
+        List<Action> actions = actionList.stream().filter(action -> action.getClass().getSimpleName().equalsIgnoreCase(triggerName) && action instanceof Webhook && ((Webhook) action).getPath().equals(path == null ? "" : path) && ((Webhook) action).getTriggerSuffix().equals(triggerSuffix == null ? "" : triggerSuffix) && ((Webhook) action).getMethod().equals(method == null ? "" : method)).collect(Collectors.toList());
         if (actions.isEmpty()) {
             return null;
         }
