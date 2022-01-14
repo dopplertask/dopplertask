@@ -3,39 +3,40 @@
 ![DopplerTask - Open-source Workflow Automation](https://github.com/dopplertask/dopplertask/blob/2b88c494bc774023ecd41a92b685c980fb29158f/docs/images/dopplertask_logo.png)
 
 
-[![Build Status](https://travis-ci.org/dopplertask/dopplertask.svg?branch=master)](https://travis-ci.org/dopplertask/dopplertask) [![Dependencies](https://img.shields.io/david/dopplertask/dopplertask?path=backend/src/main/resources/static)](https://david-dm.org/dopplertask/dopplertask) [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fdopplertask%2Fdopplertask.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fdopplertask%2Fdopplertask?ref=badge_shield)
-
 <h1>DopplerTask - Task Automation</h1>
 
 DopplerTask is a revolutionary open-source software that allows you to easily automate tasks. Whether it’s a bunch of bash scripts or just starting your car remotely, you can automate it. Build, run, reuse and share automations with anyone around the globe.
 
 On top of all of this life-simplifying project, we are striving to make an climate friendly software that is fast, easy and consumes as little resources as possible.
 
-![DopplerTask - GUI](https://raw.githubusercontent.com/dopplertask/doppler/master/docs/images/dopplertask_gui.png)
+![DopplerTask - GUI](https://github.com/dopplertask/dopplertask/blob/ce7050284e58eb90f8b76f28d6b1214aab8471ea/docs/images/dopplertask_gui.png)
 </div>
 
-## Simple install
-Using snap:
-```snap install dopplertask```
 
-After install, access the GUI on: 
+## Docker
+To run the built docker image:
+```docker run -p 8090:8090 -p 61614:61614 dopplertask/dopplertask ```
+
+To rebuild the docker image:
+```docker build -t dopplertask/dopplertask .```
+
+Access the GUI on:
 ```http://localhost:8090/public/index.html```
+
+
+## CLI (Optional)
+Install the CLI via NPM:
+```npm install -g dopplertask-cli```
+
 ## Prerequisites
 
-Install JDK 11 and gradle.
+Install JDK 17 and gradle.
 
 (Optional) Install CLI:
 ```npm install -g dopplertask-cli```
 
 (Optional) Or to install the CLI from the cli directory, run:
 ```npm install -g .```
-
-## Docker
-To run the built docker image:
-```docker run -p 8090:8090 -p 61614:61614 dopplertask/dopplertask ```
- 
-To rebuild the docker image:
-```docker build -t dopplertask/dopplertask .```
 
 ## Run
 To run the backend, go to the backend folder and run:
