@@ -123,8 +123,13 @@ Example of the call:
 
 ```curl -X POST http://localhost:8090/schedule/task -H "Content-Type: application/json" -d @run_task.json```
 
-### Required parameters
-To require certain parameters to be provided the following can be added:
+### Task parameters
+Task paramters are used to indicate what initial variables are needed to run a task.
+They can be either required or not required, and can also have a default value.
+
+All task parameters are put into the $parameters variable (see Important Variables).
+
+To add task parameters manually using JSON:
 ```
 "parameters": [
     {"name": "testVar", "description": "This is just a test var", "required": true, "defaultValue": "testasdasdasas"}
@@ -272,12 +277,24 @@ http://localhost:8090/webhook/taskName/triggerName/triggerSuffix/path
 * triggerName: Name of the webhook trigger, like Webhook.
 * triggerSuffix: A random string to make every webhook unique.
 * path: The specific path for the desired webhook.
+* method: HTTP Method which this webhook will respond to.
 
 #### Webhook
 This webhook will respond to a REST call and start the flow.
 
-## Authors
+## Important variables
 
+* $lastLog.output / lastLog.getOutput(): Gets the last actions output
+* $parameters.get("paramname") / parameters.get("paramname"): Retrieves a stored parameter value. All Task paramters are stored here.
+* $logs / logs: A list of all task action logs. Can be traversed to look up specific values.
+* $executionId / executionId: It's the ID of the current execution.
+
+## Contribution
+If you would like to contribute to this project, you can create pull requests, open issues and features and join discussions.
+Our mission is to great open-source software to everyone.
+The basic node in each task is an action. Our focus will be partially on improving the software and the other part will be to expand the library of actions.
+
+## Authors
 * **Feras Wilson**
 
 ## License
