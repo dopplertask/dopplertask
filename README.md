@@ -15,7 +15,7 @@ On top of all of this life-simplifying project, we are striving to make an clima
 
 ## Docker
 To run the built docker image:
-```docker run -p 8090:8090 -p 61614:61614 dopplertask/dopplertask ```
+```docker run -d -p 8090:8090 -p 61614:61614 dopplertask/dopplertask ```
 
 To rebuild the docker image:
 ```docker build -t dopplertask/dopplertask .```
