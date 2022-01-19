@@ -367,7 +367,7 @@ class EditActionModal extends React.Component {
 
         return (<div className="modal fade" id="actionEditModal" tabIndex="-1" role="dialog"
                      aria-labelledby="actionEditModalLabel" aria-hidden="true">
-            <div className="modal-dialog modal-lg" role="document">
+            <div className="modal-dialog modal-xl" role="document">
                 <div className="modal-content">
                     <div className="modal-header">
                         <h5 className="modal-title" id="actionEditModalLabel">Edit action</h5>
