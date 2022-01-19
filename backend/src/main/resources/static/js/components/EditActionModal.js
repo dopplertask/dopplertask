@@ -1,5 +1,6 @@
 import * as React from "react";
 import Editor from "./Editor";
+import {Tab, TabList, TabPanel, Tabs} from "react-tabs";
 
 class EditActionModal extends React.Component {
 
@@ -77,7 +78,7 @@ class EditActionModal extends React.Component {
     }
 
     renderFields() {
-        let fields = [];
+        let propertiesField = [];
         if (this.props.selectedAction.userData !== undefined && this.props.selectedAction.userData.propertyInformationList
             !== undefined) {
             // See if this is a trigger
@@ -90,7 +91,7 @@ class EditActionModal extends React.Component {
                                                                                                                                                                                                     && this.props.selectedAction.userData.customData.path}</div>
                 </div>;
 
-                fields.push(triggerSuffix);
+                propertiesField["PROPERTY"] = {...propertiesField["PROPERTY"], triggerSuffix}
             }
 
             this.props.selectedAction.userData.propertyInformationList.map(propertyInformation => {
@@ -215,10 +216,23 @@ class EditActionModal extends React.Component {
                         break;
                 }
 
-                fields.push(temp);
+
+                propertiesField[propertyInformation.category] = {...propertiesField[propertyInformation.category], temp};
             })
         }
-        return fields;
+
+
+        let finalTabPanels = [];
+       propertiesField.forEach((value, index) => {
+           finalTabPanels.push(<TabPanel>
+               {propertiesField[index]}
+           </TabPanel>);
+           console.log(propertiesField[index] + " " + index)
+       })
+
+        console.log(propertiesField);
+
+        return "";
     }
 
     /**
@@ -341,6 +355,7 @@ class EditActionModal extends React.Component {
                     </div>
                     <div className="modal-footer">
                         <button type="button" className="btn btn-primary" onClick={this.props.executeAction}>Execute node</button>
+
                     </div>
                 </div>
             </div>

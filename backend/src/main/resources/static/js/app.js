@@ -6,6 +6,8 @@ import "script-loader!./common/jquery.layout.js";
 import React from 'react';
 import ReactDOM from 'react-dom';
 import MainApp from "./components/MainApp";
+import { Tab, Tabs, TabList, TabPanel } from 'react-tabs';
+import 'react-tabs/style/react-tabs.css';
 
 import "script-loader!./common/draw2d.js";
 

@@ -108,13 +108,12 @@ abstract class Action {
     @get:JsonIgnore
     open val actionInfo: MutableList<PropertyInformation>
         get() = mutableListOf(
-                PropertyInformation("continueOnFailure", "Continue on failure", PropertyInformationType.BOOLEAN, "false", "true or false. Lets the action continue on failure, ignoring any retry."),
+                PropertyInformation("continueOnFailure", "Continue on failure", PropertyInformationType.BOOLEAN, "false", "true or false. Lets the action continue on failure, ignoring any retry.", mutableListOf(), PropertyInformation.PropertyInformationCategory.SETTING),
                 PropertyInformation("scriptLanguage", "Script Language", PropertyInformationType.DROPDOWN, "VELOCITY", "VELOCITY (default), JAVASCRIPT.",
-                        java.util.List.of(PropertyInformation("VELOCITY", "Velocity"), PropertyInformation("JAVASCRIPT", "Javascript"))
-                ),
-                PropertyInformation("retries", "Max. Retries", PropertyInformationType.NUMBER, "0", "Amount of retries."),
-                PropertyInformation("retryWait", "Wait between retries", PropertyInformationType.STRING, "1000", "Milliseconds to wait before next retry."),
-                PropertyInformation("failOn", "Fail on", PropertyInformationType.STRING, "", "The current action will fail if this evaluates to anything.")
+                        mutableListOf(PropertyInformation("VELOCITY", "Velocity"), PropertyInformation("JAVASCRIPT", "Javascript")), PropertyInformation.PropertyInformationCategory.SETTING),
+                PropertyInformation("retries", "Max. Retries", PropertyInformationType.NUMBER, "0", "Amount of retries.", mutableListOf(), PropertyInformation.PropertyInformationCategory.SETTING),
+                PropertyInformation("retryWait", "Wait between retries", PropertyInformationType.STRING, "1000", "Milliseconds to wait before next retry.", mutableListOf(), PropertyInformation.PropertyInformationCategory.SETTING),
+                PropertyInformation("failOn", "Fail on", PropertyInformationType.STRING, "", "The current action will fail if this evaluates to anything.", mutableListOf(), PropertyInformation.PropertyInformationCategory.SETTING)
         )
 
     /**
@@ -131,10 +130,14 @@ abstract class Action {
      *
      * @param name
      * @param displayName
-     */ @JvmOverloads constructor(var name: String, var displayName: String, var type: PropertyInformationType = PropertyInformationType.STRING, var defaultValue: String = "", var description: String = "", var options: List<PropertyInformation> = java.util.List.of()) {
+     */ @JvmOverloads constructor(var name: String, var displayName: String, var type: PropertyInformationType = PropertyInformationType.STRING, var defaultValue: String = "", var description: String = "", var options: List<PropertyInformation> = java.util.List.of(), var category: PropertyInformationCategory = PropertyInformationCategory.PROPERTY) {
 
         enum class PropertyInformationType {
             STRING, MULTILINE, BOOLEAN, NUMBER, DROPDOWN, MAP
+        }
+
+        enum class PropertyInformationCategory {
+            PROPERTY, SETTING
         }
 
     }
