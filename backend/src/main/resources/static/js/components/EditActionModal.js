@@ -1,5 +1,6 @@
 import * as React from "react";
 import Editor from "./Editor";
+import Pluralize from 'pluralize';
 import {Tab, TabList, TabPanel, Tabs} from "react-tabs";
 
 class EditActionModal extends React.Component {
@@ -15,6 +16,7 @@ class EditActionModal extends React.Component {
         this.getDropdownField = this.getDropdownField.bind(this);
         this.getStringField = this.getStringField.bind(this);
         this.getNumberField = this.getNumberField.bind(this);
+        this.firstLetterCapitalAndPluralize = this.firstLetterCapitalAndPluralize.bind(this);
         this.state = {
             customData: this.props.selectedAction.userData.customData
         }
@@ -77,36 +79,55 @@ class EditActionModal extends React.Component {
         this.forceUpdate();
     }
 
+    firstLetterCapitalAndPluralize(phrase) {
+        return Pluralize(phrase
+            .toLowerCase()
+            .split(' ')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' '));
+    }
+
     renderFields() {
-        let propertiesField = [];
+        let propertiesField = {Properties: []};
         if (this.props.selectedAction.userData !== undefined && this.props.selectedAction.userData.propertyInformationList
             !== undefined) {
             // See if this is a trigger
-            if (this.props.selectedAction.userData.customData.triggerSuffix != undefined) {
+            if (this.props.selectedAction.userData.customData.triggerSuffix != undefined && this.props.selectedAction.userData.name == "Webhook") {
                 let triggerSuffix = <div className="form-group"><label
                     htmlFor="triggerSuffix">Webhook URL ({this.props.selectedAction.userData.customData.method})</label>
                     <div
-                        style={{wordWrap: "break-word", fontSize: "small"}}>{location.protocol}//{window.location.hostname}:{location.port}/webhook/{this.props.taskName}/{this.props.selectedAction.userData.name}/{this.props.selectedAction.userData.customData.triggerSuffix}/{this.props.selectedAction.userData.customData.path
-                                                                                                                                                                                                    != null
-                                                                                                                                                                                                    && this.props.selectedAction.userData.customData.path}</div>
+                        style={{
+                            wordWrap: "break-word",
+                            fontSize: "small"
+                        }}>{location.protocol}//{window.location.hostname}:{location.port}/webhook/{this.props.taskName}/{this.props.selectedAction.userData.name}/{this.props.selectedAction.userData.customData.triggerSuffix}/{this.props.selectedAction.userData.customData.path
+                    != null
+                    && this.props.selectedAction.userData.customData.path}</div>
                 </div>;
 
-                propertiesField["PROPERTY"] = {...propertiesField["PROPERTY"], triggerSuffix}
+                if (propertiesField["Properties"] == undefined) {
+                    propertiesField["Properties"] = [];
+                }
+                propertiesField["Properties"].push(triggerSuffix)
             }
 
             this.props.selectedAction.userData.propertyInformationList.map(propertyInformation => {
+                // Make sure that we have an array
+                if (propertiesField[this.firstLetterCapitalAndPluralize(propertyInformation.category)] == undefined) {
+                    propertiesField[this.firstLetterCapitalAndPluralize(propertyInformation.category)] = [];
+                }
+
                 let temp;
                 let actionProperty = this.props.selectedAction.userData.customData[propertyInformation.name];
                 switch (propertyInformation.type) {
                     case "STRING":
                         temp =
                             this.getStringField(propertyInformation,
-                                                actionProperty, true);
+                                actionProperty, true);
                         break;
                     case "MULTILINE":
                         temp =
                             this.getStringField(propertyInformation,
-                                                actionProperty, false);
+                                actionProperty, false);
                         break;
                     case "NUMBER":
                         temp = this.getNumberField(propertyInformation, actionProperty)
@@ -119,11 +140,12 @@ class EditActionModal extends React.Component {
                         temp =
                             <div className="form-group" key={propertyInformation.name}><label
                                 htmlFor={propertyInformation.name}>{propertyInformation.displayName}</label><small
-                                className="form-text text-muted">{propertyInformation.description}</small> <input type="checkbox"
-                                                                                                                  id={propertyInformation.name}
-                                                                                                                  checked={booleanCheckedValue
-                                                                                                                           || false}
-                                                                                                                  onChange={this.valueChange}/>
+                                className="form-text text-muted">{propertyInformation.description}</small> <input
+                                type="checkbox"
+                                id={propertyInformation.name}
+                                checked={booleanCheckedValue
+                                || false}
+                                onChange={this.valueChange}/>
 
                             </div>;
                         break;
@@ -169,41 +191,43 @@ class EditActionModal extends React.Component {
                                                         if (selectOption.type == "DROPDOWN") {
                                                             return (<td className="col-sm">
                                                                 {this.getDropdownField(selectOption, header[selectOption.name],
-                                                                                       false,
-                                                                                       (value) => {
-                                                                                           this.mapValueChange(
-                                                                                               propertyInformation.name, index,
-                                                                                               selectOption.name,
-                                                                                               value.target.value)
-                                                                                       },
-                                                                                       header.id + "_" + header[selectOption.name]
-                                                                                       + "_"
-                                                                                       + selectOption.name
-                                                                                       + "_" + index)}
+                                                                    false,
+                                                                    (value) => {
+                                                                        this.mapValueChange(
+                                                                            propertyInformation.name, index,
+                                                                            selectOption.name,
+                                                                            value.target.value)
+                                                                    },
+                                                                    header.id + "_" + header[selectOption.name]
+                                                                    + "_"
+                                                                    + selectOption.name
+                                                                    + "_" + index)}
                                                             </td>)
                                                         } else {
                                                             return (
                                                                 <td className="col-sm">
-                                                                    <Editor key={header[selectOption.name] + "_" + selectOption.name
-                                                                    + "_" + index  + "_" + (this.props.selectedAction.userData.customData["scriptLanguage"].toLowerCase()
-                                                                    || "velocity")} simple={true}
-                                                                            id={header[selectOption.name] + "_" + selectOption.name
-                                                                                + "_" + index}
-                                                                            onChange={(value) => {
-                                                                                this.mapValueChange(propertyInformation.name, index,
-                                                                                                    selectOption.name, value)
-                                                                            }}
-                                                                            value={header[selectOption.name]
-                                                                                   || ""}
-                                                                            scriptLanguage={this.props.selectedAction.userData.customData["scriptLanguage"].toLowerCase()
-                                                                                            || "velocity"} extraSuggestions={this.props.taskParameters}/>
+                                                                    <Editor
+                                                                        key={header[selectOption.name] + "_" + selectOption.name
+                                                                        + "_" + index + "_" + (this.props.selectedAction.userData.customData["scriptLanguage"].toLowerCase()
+                                                                            || "velocity")} simple={true}
+                                                                        id={header[selectOption.name] + "_" + selectOption.name
+                                                                        + "_" + index}
+                                                                        onChange={(value) => {
+                                                                            this.mapValueChange(propertyInformation.name, index,
+                                                                                selectOption.name, value)
+                                                                        }}
+                                                                        value={header[selectOption.name]
+                                                                        || ""}
+                                                                        scriptLanguage={this.props.selectedAction.userData.customData["scriptLanguage"].toLowerCase()
+                                                                        || "velocity"}
+                                                                        extraSuggestions={this.props.taskParameters}/>
                                                                 </td>
                                                             )
                                                         }
                                                     })}
                                                     <td><a href="#" className="btn btn-danger"
                                                            onClick={() => this.removeMapKey(propertyInformation.name,
-                                                                                            index)}>Delete</a></td>
+                                                               index)}>Delete</a></td>
                                                 </tr>
                                             ))
                                     }
@@ -217,22 +241,37 @@ class EditActionModal extends React.Component {
                 }
 
 
-                propertiesField[propertyInformation.category] = {...propertiesField[propertyInformation.category], temp};
+                propertiesField[this.firstLetterCapitalAndPluralize(propertyInformation.category)].push(temp);
             })
         }
 
-
+        // Create tabs with the dynamic values from the properties
+        let finalTabHeaders = [];
         let finalTabPanels = [];
-       propertiesField.forEach((value, index) => {
-           finalTabPanels.push(<TabPanel>
-               {propertiesField[index]}
-           </TabPanel>);
-           console.log(propertiesField[index] + " " + index)
-       })
+        Object.entries(propertiesField).forEach((value, index) => {
+            finalTabHeaders.push(<Tab>{value[0]}</Tab>);
 
-        console.log(propertiesField);
+            let properties = [];
+            value[1].forEach(property => {
+                properties.push(property)
+            });
 
-        return "";
+            finalTabPanels.push(<TabPanel>
+                {properties}
+            </TabPanel>);
+
+        })
+
+
+        return (
+            <Tabs>
+                <TabList>
+                    {finalTabHeaders}
+                </TabList>
+
+                {finalTabPanels}
+            </Tabs>
+        );
     }
 
     /**
@@ -261,11 +300,11 @@ class EditActionModal extends React.Component {
             <select className="form-control" id={fieldName}
                     onChange={callBack}
                     value={actionProperty
-                           || "VELOCITY"}>
+                    || "VELOCITY"}>
                 {propertyInformation.options.map(selectOption => {
                     return (<option key={selectOption.name}
                                     checked={actionProperty
-                                             || propertyInformation.defaultValue || false}
+                                    || propertyInformation.defaultValue || false}
                                     value={selectOption.name}>{selectOption.displayName}</option>)
                 })}
             </select>
@@ -282,8 +321,9 @@ class EditActionModal extends React.Component {
      * @returns {*}
      */
     getStringField(propertyInformation, actionProperty, singleLine) {
-        return <div className="form-group" key={propertyInformation.name + " " + (this.props.selectedAction.userData.customData["scriptLanguage"].toLowerCase()
-            || "velocity")}><label
+        return <div className="form-group"
+                    key={propertyInformation.name + " " + (this.props.selectedAction.userData.customData["scriptLanguage"].toLowerCase()
+                        || "velocity")}><label
             htmlFor={propertyInformation.name}>{propertyInformation.displayName}</label>
             <small className="form-text text-muted">{propertyInformation.description}</small>
             <Editor id={propertyInformation.name} onChange={(value) => {
@@ -292,9 +332,9 @@ class EditActionModal extends React.Component {
             }}
                     simple={singleLine}
                     value={actionProperty || propertyInformation.defaultValue
-                           || ""}
+                    || ""}
                     scriptLanguage={this.props.selectedAction.userData.customData["scriptLanguage"].toLowerCase()
-                                    || "velocity"} extraSuggestions={this.props.taskParameters}/>
+                    || "velocity"} extraSuggestions={this.props.taskParameters}/>
 
         </div>;
     }
@@ -307,8 +347,9 @@ class EditActionModal extends React.Component {
      * @returns {*}
      */
     getNumberField(propertyInformation, actionProperty) {
-        return <div className="form-group" key={propertyInformation.name + " " + (this.props.selectedAction.userData.customData["scriptLanguage"].toLowerCase()
-            || "velocity")}><label
+        return <div className="form-group"
+                    key={propertyInformation.name + " " + (this.props.selectedAction.userData.customData["scriptLanguage"].toLowerCase()
+                        || "velocity")}><label
             htmlFor={propertyInformation.name}>{propertyInformation.displayName}</label>
             <small className="form-text text-muted">{propertyInformation.description}</small>
             <input
@@ -316,7 +357,7 @@ class EditActionModal extends React.Component {
                 type="number"
                 id={propertyInformation.name}
                 value={actionProperty
-                       || propertyInformation.defaultValue || ""}
+                || propertyInformation.defaultValue || ""}
                 onChange={this.valueChange}/>
 
         </div>;
@@ -354,7 +395,9 @@ class EditActionModal extends React.Component {
                         </div>
                     </div>
                     <div className="modal-footer">
-                        <button type="button" className="btn btn-primary" onClick={this.props.executeAction}>Execute node</button>
+                        <button type="button" className="btn btn-primary" onClick={this.props.executeAction}>Execute
+                            node
+                        </button>
 
                     </div>
                 </div>
