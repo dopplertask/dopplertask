@@ -12,9 +12,18 @@ module.exports = {
             {
                 test: /\.(js|jsx)$/,
                 exclude: /node_modules/,
-                use: {
-                    loader: "babel-loader"
-                }
+                use: [
+                     "babel-loader"
+                ]
+            },
+            {
+                test: /react\-tabs\.css$/i,
+                use: [
+                    "style-loader",
+                    {
+                        loader: "css-loader",
+                    }
+                ]
             }
         ]
     },
