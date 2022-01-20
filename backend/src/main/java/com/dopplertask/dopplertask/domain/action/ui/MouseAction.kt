@@ -60,27 +60,15 @@ class MouseAction : Action() {
                     return actionResult
                 }
                 MouseActionType.CLICK -> {
-                    if (localPositionX != null && localPositionY != null) {
-                        robot.mouseMove(localPositionX.toInt(), localPositionY.toInt())
-                        actionResult.output = "Mouse was moved to X: $localPositionX, Y: $localPositionY"
-                    }
                     robot.mousePress(selectedButton)
                     robot.mouseRelease(selectedButton)
                     actionResult.output = "Mouse $selectedButton was clicked."
                 }
                 MouseActionType.PRESS -> {
-                    if (localPositionX != null && localPositionY != null) {
-                        robot.mouseMove(localPositionX.toInt(), localPositionY.toInt())
-                        actionResult.output = "Mouse was moved to X: $localPositionX, Y: $localPositionY"
-                    }
                     robot.mousePress(selectedButton)
                     actionResult.output = "Mouse $selectedButton was pressed."
                 }
                 MouseActionType.RELEASE -> {
-                    if (localPositionX != null && localPositionY != null) {
-                        robot.mouseMove(localPositionX.toInt(), localPositionY.toInt())
-                        actionResult.output = "Mouse was moved to X: $localPositionX, Y: $localPositionY"
-                    }
                     robot.mouseRelease(selectedButton)
                     actionResult.output = "Mouse $selectedButton was released."
                 }
@@ -103,13 +91,14 @@ class MouseAction : Action() {
                     PropertyInformation("RIGHT", "Right click")
             )))
             actionInfo.add(PropertyInformation("action", "Action", PropertyInformationType.DROPDOWN, "MOVE", "", listOf(
-                    PropertyInformation("MOVE", "Move"),
+                    PropertyInformation("MOVE", "Move", mutableListOf(
+                        PropertyInformation("positionX", "Position X", PropertyInformationType.STRING, "0", "Move mouse to this X pos."),
+                        PropertyInformation("positionY", "Position Y", PropertyInformationType.STRING, "0", "Move mouse to this Y pos.")
+                    )),
                     PropertyInformation("CLICK", "Click"),
                     PropertyInformation("PRESS", "Press"),
                     PropertyInformation("RELEASE", "Release")
             )))
-            actionInfo.add(PropertyInformation("positionX", "Position X", PropertyInformationType.STRING, "0", "Move mouse to this X pos."))
-            actionInfo.add(PropertyInformation("positionY", "Position Y", PropertyInformationType.STRING, "0", "Move mouse to this Y pos."))
             return actionInfo
         }
 

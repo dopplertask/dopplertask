@@ -130,7 +130,47 @@ abstract class Action {
      *
      * @param name
      * @param displayName
-     */ @JvmOverloads constructor(var name: String, var displayName: String, var type: PropertyInformationType = PropertyInformationType.STRING, var defaultValue: String = "", var description: String = "", var options: List<PropertyInformation> = java.util.List.of(), var category: PropertyInformationCategory = PropertyInformationCategory.PROPERTY) {
+     */
+    {
+
+        var name: String
+        var displayName: String
+        var type: PropertyInformationType = PropertyInformationType.STRING
+        var defaultValue: String = ""
+        var description: String = ""
+        var options: List<PropertyInformation>
+        var category: PropertyInformationCategory = PropertyInformationCategory.PROPERTY
+
+
+        @JvmOverloads
+        constructor(
+            name: String,
+            displayName: String,
+            type: PropertyInformationType = PropertyInformationType.STRING,
+            defaultValue: String = "",
+            description: String = "",
+            options: List<PropertyInformation> = java.util.List.of(),
+            category: PropertyInformationCategory = PropertyInformationCategory.PROPERTY
+        ) {
+            this.name = name
+            this.displayName = displayName
+            this.type = type
+            this.defaultValue = defaultValue
+            this.description = description
+            this.options = options
+            this.category = category
+            this.category = category
+        }
+
+        constructor(
+            name: String,
+            displayName: String,
+            options: List<PropertyInformation>
+        ) {
+            this.name = name
+            this.displayName = displayName
+            this.options = options
+        }
 
         enum class PropertyInformationType {
             STRING, MULTILINE, BOOLEAN, NUMBER, DROPDOWN, MAP
