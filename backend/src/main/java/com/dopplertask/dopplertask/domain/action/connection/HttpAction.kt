@@ -14,7 +14,6 @@ import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
-import java.util.*
 import java.util.function.Consumer
 import javax.persistence.*
 
@@ -36,25 +35,36 @@ class HttpAction : Action() {
     var body: String? = null
 
     @Throws(IOException::class)
-    override fun run(taskService: TaskService, execution: TaskExecution, variableExtractorUtil: VariableExtractorUtil, broadcastListener: BroadcastListener?): ActionResult { // Extract variables
+    override fun run(
+        taskService: TaskService,
+        execution: TaskExecution,
+        variableExtractorUtil: VariableExtractorUtil,
+        broadcastListener: BroadcastListener?
+    ): ActionResult { // Extract variables
         val urlVariable = variableExtractorUtil.extract(url, execution, scriptLanguage)
         val bodyVariable = variableExtractorUtil.extract(body, execution, scriptLanguage)
         val actionResult = ActionResult()
         var builder = HttpRequest.newBuilder()
-                .uri(URI.create(urlVariable))
-                .timeout(Duration.ofMinutes(1))
+            .uri(URI.create(urlVariable))
+            .timeout(Duration.ofMinutes(1))
         when (method) {
             "POST" -> builder = builder.POST(HttpRequest.BodyPublishers.ofString(bodyVariable))
             "PUT" -> builder = builder.PUT(HttpRequest.BodyPublishers.ofString(bodyVariable))
             "DELETE" -> builder = builder.DELETE()
             "GET" -> builder = builder.GET()
+            "PATCH" -> builder = builder.method("PATCH", HttpRequest.BodyPublishers.ofString(bodyVariable))
+            "HEAD" -> builder = builder.method("HEAD", HttpRequest.BodyPublishers.ofString(bodyVariable))
+            "OPTIONS" -> builder = builder.method("OPTIONS", HttpRequest.BodyPublishers.ofString(bodyVariable))
             else -> {
                 actionResult.errorMsg = "HTTP method is not supported! [method=$method]"
                 actionResult.statusCode = StatusCode.FAILURE
             }
         }
         for (entry in headers) {
-            builder = builder.header(variableExtractorUtil.extract(entry.headerName, execution, scriptLanguage), variableExtractorUtil.extract(entry.headerValue, execution, scriptLanguage))
+            builder = builder.header(
+                variableExtractorUtil.extract(entry.headerName, execution, scriptLanguage),
+                variableExtractorUtil.extract(entry.headerValue, execution, scriptLanguage)
+            )
         }
         val client = HttpClient.newHttpClient()
         val request = builder.build()
@@ -77,18 +87,60 @@ class HttpAction : Action() {
         get() {
             val actionInfo = super.actionInfo
             actionInfo.add(PropertyInformation("url", "URL", PropertyInformationType.STRING, "", "Hostname or IP"))
-            actionInfo.add(PropertyInformation("method", "Method", PropertyInformationType.DROPDOWN, "GET", "HTTP Method",
-                    java.util.List.of(PropertyInformation("GET", "GET"),
-                            PropertyInformation("POST", "POST"),
-                            PropertyInformation("PUT", "PUT"),
-                            PropertyInformation("DELETE", "DELETE")
+            actionInfo.add(
+                PropertyInformation(
+                    "method", "Method", PropertyInformationType.DROPDOWN, "GET", "HTTP Method",
+                    mutableListOf(
+                        PropertyInformation("GET", "GET"),
+                        PropertyInformation(
+                            "POST", "POST", mutableListOf(
+                                PropertyInformation(
+                                    "body",
+                                    "Body",
+                                    PropertyInformationType.MULTILINE,
+                                    "",
+                                    "Contents to send"
+                                )
+                            )
+                        ),
+                        PropertyInformation(
+                            "PUT", "PUT", mutableListOf(
+                                PropertyInformation(
+                                    "body",
+                                    "Body",
+                                    PropertyInformationType.MULTILINE,
+                                    "",
+                                    "Contents to send"
+                                )
+                            )
+                        ),
+                        PropertyInformation(
+                            "PATCH", "PATCH", mutableListOf(
+                                PropertyInformation(
+                                    "body",
+                                    "Body",
+                                    PropertyInformationType.MULTILINE,
+                                    "",
+                                    "Contents to send"
+                                )
+                            )
+                        ),
+                        PropertyInformation("DELETE", "DELETE"),
+                        PropertyInformation("OPTIONS", "OPTIONS"),
+                        PropertyInformation("HEAD", "HEAD")
                     )
-            ))
-            actionInfo.add(PropertyInformation("body", "Body", PropertyInformationType.MULTILINE, "", "Contents to send"))
-            actionInfo.add(PropertyInformation("headers", "Headers", PropertyInformationType.MAP, "", "Username",
-                    java.util.List.of(PropertyInformation("headerName", "Key"),
-                            PropertyInformation("headerValue", "Value")
-                    )))
+                )
+            )
+
+            actionInfo.add(
+                PropertyInformation(
+                    "headers", "Headers", PropertyInformationType.MAP, "", "Headers",
+                    java.util.List.of(
+                        PropertyInformation("headerName", "Key"),
+                        PropertyInformation("headerValue", "Value")
+                    )
+                )
+            )
             return actionInfo
         }
 
