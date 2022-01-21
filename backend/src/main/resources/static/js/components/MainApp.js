@@ -45,6 +45,7 @@ class MainApp extends React.Component {
         this.applyJSONToCanvas = this.applyJSONToCanvas.bind(this);
         this.generateString = this.generateString.bind(this);
         this.activateTask = this.activateTask.bind(this);
+        this.populateCustomData = this.populateCustomData.bind(this);
     }
 
     executeAction() {
@@ -144,6 +145,26 @@ class MainApp extends React.Component {
         }
     }
 
+    populateCustomData(customData, propertyInformationList) {
+        propertyInformationList.map(pi => {
+            if (pi.type === "MAP") {
+                customData[pi.name] = []
+            } else if (pi.type === "BOOLEAN") {
+                if (pi.defaultValue == "true") {
+                    customData[pi.name] = true || "";
+                } else {
+                    customData[pi.name] = false || "";
+                }
+            } else {
+                customData[pi.name] = pi.defaultValue || "";
+            }
+
+            if(pi.options != undefined) {
+                this.populateCustomData(customData, pi.options)
+            }
+        });
+    }
+
     componentDidMount() {
         let app = this.initApp();
 
@@ -153,19 +174,8 @@ class MainApp extends React.Component {
                 data.actions.forEach(element => {
                     element.customData = [];
                     element.lastSingleActionExecutionOutput = "";
-                    element.propertyInformationList.map(pi => {
-                        if (pi.type === "MAP") {
-                            element.customData[pi.name] = []
-                        } else if (pi.type === "BOOLEAN") {
-                            if (pi.defaultValue == "true") {
-                                element.customData[pi.name] = true || "";
-                            } else {
-                                element.customData[pi.name] = false || "";
-                            }
-                        } else {
-                            element.customData[pi.name] = pi.defaultValue || "";
-                        }
-                    })
+
+                    this.populateCustomData(element.customData, element.propertyInformationList)
 
                     actions.push(element);
 
@@ -582,8 +592,10 @@ class MainApp extends React.Component {
 
                             <label className="custom-control custom-switch">
                                 <input type="checkbox" onChange={this.activateTask}
-                                       autoComplete="off"  id="customSwitches"  className="custom-control-input" checked={this.state.active ? true : false} />
-                                <label className="custom-control-label" htmlFor="customSwitches">Activated triggers</label>
+                                       autoComplete="off" id="customSwitches" className="custom-control-input"
+                                       checked={this.state.active ? true : false}/>
+                                <label className="custom-control-label" htmlFor="customSwitches">Activated
+                                    triggers</label>
                             </label>
 
                         </div>
