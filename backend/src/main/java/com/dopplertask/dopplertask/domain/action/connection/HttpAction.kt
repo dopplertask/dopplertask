@@ -72,6 +72,10 @@ class HttpAction : Action() {
         try {
             response = client.send(request, HttpResponse.BodyHandlers.ofString())
             actionResult.output = response.body()
+            response.headers().map().forEach { (key, value) ->
+                actionResult.outputVariables[key] = value[0]
+            }
+
             actionResult.statusCode = StatusCode.SUCCESS
         } catch (e: IOException) {
             actionResult.errorMsg = "Exception when sending http request: $e"
@@ -80,6 +84,8 @@ class HttpAction : Action() {
             actionResult.errorMsg = "Exception when sending http request: $e"
             actionResult.statusCode = StatusCode.FAILURE
         }
+
+
         return actionResult
     }
 

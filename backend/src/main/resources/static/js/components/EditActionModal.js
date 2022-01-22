@@ -144,14 +144,14 @@ class EditActionModal extends React.Component {
         );
     }
 
-    initializeField(propertiesField, propertyInformation) {
+    initializeField(propertiesField, propertyInformation, currentValue) {
         // Make sure that we have an array
         if (propertiesField[this.firstLetterCapitalAndPluralize(propertyInformation.category)] == undefined) {
             propertiesField[this.firstLetterCapitalAndPluralize(propertyInformation.category)] = [];
         }
 
         let temp;
-        let actionProperty = this.props.selectedAction.userData.customData[propertyInformation.name];
+        let actionProperty = this.props.selectedAction.userData.customData[propertyInformation.name] || currentValue;
         switch (propertyInformation.type) {
             case "STRING":
                 temp =
@@ -180,7 +180,7 @@ class EditActionModal extends React.Component {
                         className="form-text text-muted">{propertyInformation.description}</small> <input
                         type="checkbox"
                         id={propertyInformation.name}
-                        checked={booleanCheckedValue
+                        defaultChecked={booleanCheckedValue
                         || false}
                         onChange={this.valueChange}/>
 
@@ -194,10 +194,10 @@ class EditActionModal extends React.Component {
 
             {
                 propertyInformation.options.map(selectOption => {
-
+                    console.log(actionProperty + " " + selectOption.name)
                     if (actionProperty == selectOption.name) {
                         selectOption.options.map(subOption => {
-                            this.initializeField(propertiesField, subOption);
+                            this.initializeField(propertiesField, subOption, subOption.defaultValue);
                         })
                     }
 
@@ -241,6 +241,7 @@ class EditActionModal extends React.Component {
                                         <tr key={header.id} className="d-flex">
                                             {propertyInformation.options.map(selectOption => {
                                                 if (selectOption.type == "DROPDOWN") {
+                                                    console.log(selectOption + " " + JSON.stringify(selectOption) + " "  + header[selectOption.name])
                                                     return (<td className="col-sm">
                                                         {this.getDropdownField(selectOption, header[selectOption.name],
                                                             false,
@@ -321,11 +322,11 @@ class EditActionModal extends React.Component {
             <small className="form-text text-muted">{propertyInformation.description}</small>
             <select className="form-control" id={fieldName}
                     onChange={callBack}
-                    value={actionProperty
+                    defaultValue={actionProperty
                     || "VELOCITY"}>
                 {propertyInformation.options.map(selectOption => {
                     return (<option key={selectOption.name}
-                                    checked={actionProperty
+                                    defaultChecked={actionProperty
                                     || propertyInformation.defaultValue || false}
                                     value={selectOption.name}>{selectOption.displayName}</option>)
                 })}
@@ -355,7 +356,7 @@ class EditActionModal extends React.Component {
                     simple={singleLine}
                     value={actionProperty || propertyInformation.defaultValue
                     || ""}
-                    scriptLanguage={this.props.selectedAction.userData.customData["scriptLanguage"].toLowerCase()
+                    scriptLanguage={(propertyInformation.category == "CREDENTIAL" ? "velocity" : this.props.selectedAction.userData.customData["scriptLanguage"].toLowerCase())
                     || "velocity"} extraSuggestions={this.props.taskParameters}/>
 
         </div>;
@@ -393,9 +394,15 @@ class EditActionModal extends React.Component {
                 <div className="modal-content">
                     <div className="modal-header">
                         <h5 className="modal-title" id="actionEditModalLabel">Edit action</h5>
-                        <button type="button" className="close" data-dismiss="modal" aria-label="Close">
-                            <span aria-hidden="true">&times;</span>
-                        </button>
+
+                        <div>
+                            <button type="button" className="btn btn-primary" onClick={this.props.executeAction}>Execute
+                                node
+                            </button>
+                            <button type="button" className="close" style={{marginTop: "-0.6rem", marginBottom: "-1rem"}} data-dismiss="modal" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
                     </div>
                     <div className="modal-body" id="actionEditModalBody">
                         <div className="container">
@@ -415,12 +422,6 @@ class EditActionModal extends React.Component {
                                 </div>
                             </div>
                         </div>
-                    </div>
-                    <div className="modal-footer">
-                        <button type="button" className="btn btn-primary" onClick={this.props.executeAction}>Execute
-                            node
-                        </button>
-
                     </div>
                 </div>
             </div>

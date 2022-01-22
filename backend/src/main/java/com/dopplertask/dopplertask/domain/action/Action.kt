@@ -7,6 +7,7 @@ import com.dopplertask.dopplertask.domain.action.connection.HttpAction
 import com.dopplertask.dopplertask.domain.action.connection.MySQLAction
 import com.dopplertask.dopplertask.domain.action.connection.SSHAction
 import com.dopplertask.dopplertask.domain.action.connection.SecureCopyAction
+import com.dopplertask.dopplertask.domain.action.integration.JenkinsAction
 import com.dopplertask.dopplertask.domain.action.io.ReadFileAction
 import com.dopplertask.dopplertask.domain.action.io.WriteFileAction
 import com.dopplertask.dopplertask.domain.action.trigger.ActiveMQTrigger
@@ -33,7 +34,7 @@ import javax.persistence.*
 @DiscriminatorColumn(name = "action_type", length = 255)
 @DiscriminatorValue("noop")
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = As.PROPERTY)
-@JsonSubTypes(JsonSubTypes.Type(value = BrowseWebAction::class, name = "BrowseWebAction"), JsonSubTypes.Type(value = HttpAction::class, name = "HttpAction"), JsonSubTypes.Type(value = LinkedTaskAction::class, name = "LinkedTaskAction"), JsonSubTypes.Type(value = MySQLAction::class, name = "MySQLAction"), JsonSubTypes.Type(value = PrintAction::class, name = "PrintAction"), JsonSubTypes.Type(value = ReadFileAction::class, name = "ReadFileAction"), JsonSubTypes.Type(value = SecureCopyAction::class, name = "SecureCopyAction"), JsonSubTypes.Type(value = SSHAction::class, name = "SSHAction"), JsonSubTypes.Type(value = TimedWait::class, name = "TimedWait"), JsonSubTypes.Type(value = ExecuteCommandAction::class, name = "ExecuteCommandAction"), JsonSubTypes.Type(value = SetVariableAction::class, name = "SetVariableAction"), JsonSubTypes.Type(value = ScriptAction::class, name = "ScriptAction"), JsonSubTypes.Type(value = IfAction::class, name = "IfAction"), JsonSubTypes.Type(value = MouseAction::class, name = "MouseAction"), JsonSubTypes.Type(value = StartAction::class, name = "StartAction"), JsonSubTypes.Type(value = WriteFileAction::class, name = "WriteFileAction"), JsonSubTypes.Type(value = SwitchAction::class, name = "SwitchAction"), JsonSubTypes.Type(value = XMLAction::class, name = "XMLAction"), JsonSubTypes.Type(value = Webhook::class, name = "Webhook"), JsonSubTypes.Type(value = ActiveMQTrigger::class, name = "ActiveMQTrigger"), JsonSubTypes.Type(value = IntervalTrigger::class, name = "IntervalTrigger"))
+@JsonSubTypes(JsonSubTypes.Type(value = BrowseWebAction::class, name = "BrowseWebAction"), JsonSubTypes.Type(value = HttpAction::class, name = "HttpAction"), JsonSubTypes.Type(value = LinkedTaskAction::class, name = "LinkedTaskAction"), JsonSubTypes.Type(value = MySQLAction::class, name = "MySQLAction"), JsonSubTypes.Type(value = PrintAction::class, name = "PrintAction"), JsonSubTypes.Type(value = ReadFileAction::class, name = "ReadFileAction"), JsonSubTypes.Type(value = SecureCopyAction::class, name = "SecureCopyAction"), JsonSubTypes.Type(value = SSHAction::class, name = "SSHAction"), JsonSubTypes.Type(value = TimedWait::class, name = "TimedWait"), JsonSubTypes.Type(value = ExecuteCommandAction::class, name = "ExecuteCommandAction"), JsonSubTypes.Type(value = SetVariableAction::class, name = "SetVariableAction"), JsonSubTypes.Type(value = ScriptAction::class, name = "ScriptAction"), JsonSubTypes.Type(value = IfAction::class, name = "IfAction"), JsonSubTypes.Type(value = MouseAction::class, name = "MouseAction"), JsonSubTypes.Type(value = StartAction::class, name = "StartAction"), JsonSubTypes.Type(value = WriteFileAction::class, name = "WriteFileAction"), JsonSubTypes.Type(value = SwitchAction::class, name = "SwitchAction"), JsonSubTypes.Type(value = XMLAction::class, name = "XMLAction"), JsonSubTypes.Type(value = Webhook::class, name = "Webhook"), JsonSubTypes.Type(value = ActiveMQTrigger::class, name = "ActiveMQTrigger"), JsonSubTypes.Type(value = IntervalTrigger::class, name = "IntervalTrigger"), JsonSubTypes.Type(value = JenkinsAction::class, name = "JenkinsAction"))
 @JsonIgnoreProperties(ignoreUnknown = true)
 abstract class Action {
     @Id
@@ -144,13 +145,13 @@ abstract class Action {
 
         @JvmOverloads
         constructor(
-            name: String,
-            displayName: String,
-            type: PropertyInformationType = PropertyInformationType.STRING,
-            defaultValue: String = "",
-            description: String = "",
-            options: List<PropertyInformation> = java.util.List.of(),
-            category: PropertyInformationCategory = PropertyInformationCategory.PROPERTY
+                name: String,
+                displayName: String,
+                type: PropertyInformationType = PropertyInformationType.STRING,
+                defaultValue: String = "",
+                description: String = "",
+                options: List<PropertyInformation> = java.util.List.of(),
+                category: PropertyInformationCategory = PropertyInformationCategory.PROPERTY
         ) {
             this.name = name
             this.displayName = displayName
@@ -163,9 +164,9 @@ abstract class Action {
         }
 
         constructor(
-            name: String,
-            displayName: String,
-            options: List<PropertyInformation>
+                name: String,
+                displayName: String,
+                options: List<PropertyInformation>
         ) {
             this.name = name
             this.displayName = displayName
@@ -177,7 +178,7 @@ abstract class Action {
         }
 
         enum class PropertyInformationCategory {
-            PROPERTY, SETTING
+            PROPERTY, CREDENTIAL, SETTING
         }
 
     }
