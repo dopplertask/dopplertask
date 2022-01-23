@@ -195,11 +195,8 @@ class EditActionModal extends React.Component {
             {
                 let foundSelection = false;
                 propertyInformation.options.map(selectOption => {
-                    console.log("Looking for actionProperty Match - PI: " + actionProperty + " Select: " + selectOption.name)
-
                     if (actionProperty == selectOption.name) {
                         selectOption.options.map(subOption => {
-                            console.log("Suboption: " + JSON.stringify(subOption))
                             this.initializeField(propertiesField, subOption, subOption.defaultValue);
                         })
                         foundSelection = true;
@@ -211,7 +208,6 @@ class EditActionModal extends React.Component {
                 if (!foundSelection && propertyInformation.options != undefined && propertyInformation.options.length != 0 && propertyInformation.options[0] != undefined) {
                     this.props.selectedAction.userData.customData[propertyInformation.name] = propertyInformation.options[0].name;
                     propertyInformation.options[0].options.map(subOption => {
-                        console.log("Suboption Alternative: " + subOption.name)
                         this.initializeField(propertiesField, subOption, subOption.defaultValue);
                     })
                 }
