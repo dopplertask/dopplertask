@@ -81,9 +81,26 @@ public class JenkinsAction extends Action {
 
         switch (resourceTypeVariable) {
             case "Build":
-
+                switch (operationVariable) {
+                    case "GetAll":
+                        return callJenkinsAction(credUsername, credApiToken, credJenkinsUrl, "job/" + jobNameVariable + "/api/json?tree=builds[*]", "POST", Map.of(), "", taskService, variableExtractorUtil);
+                }
                 break;
             case "Instance":
+                switch (operationVariable) {
+                    case "CancelQuietDown":
+                        return callJenkinsAction(credUsername, credApiToken, credJenkinsUrl, "cancelQuietDown", "POST", Map.of(), "", taskService, variableExtractorUtil);
+                    case "QuietDown":
+                        return callJenkinsAction(credUsername, credApiToken, credJenkinsUrl, "quietDown", "POST", Map.of(), "", taskService, variableExtractorUtil);
+                    case "Restart":
+                        return callJenkinsAction(credUsername, credApiToken, credJenkinsUrl, "restart", "POST", Map.of(), "", taskService, variableExtractorUtil);
+                    case "SafelyRestart":
+                        return callJenkinsAction(credUsername, credApiToken, credJenkinsUrl, "safeRestart", "POST", Map.of(), "", taskService, variableExtractorUtil);
+                    case "SafelyShutdown":
+                        return callJenkinsAction(credUsername, credApiToken, credJenkinsUrl, "safeExit", "POST", Map.of(), "", taskService, variableExtractorUtil);
+                    case "Shutdown":
+                        return callJenkinsAction(credUsername, credApiToken, credJenkinsUrl, "exit", "POST", Map.of(), "", taskService, variableExtractorUtil);
+                }
 
                 break;
             case "Job":
@@ -228,22 +245,23 @@ public class JenkinsAction extends Action {
                                 ))
                         ))
                 )),
-                // TODO: Add explanation to each of the choices
                 new PropertyInformation("Instance", "Instance", List.of(
-                        new PropertyInformation("operation", "Operation", PropertyInformation.PropertyInformationType.DROPDOWN, "Create", "", List.of(
-                                new PropertyInformation("CancelQuietDown", "Cancel Quiet Down"),
-                                new PropertyInformation("QuietDown", "Quiet Down", List.of(
-                                        new PropertyInformation("reason","Reason")
+                        new PropertyInformation("operation", "Operation", PropertyInformation.PropertyInformationType.DROPDOWN, "CancelQuietDown", "", List.of(
+                                new PropertyInformation("CancelQuietDown", "Cancel Quiet Down", PropertyInformation.PropertyInformationType.STRING, "", "Cancel quiet down state"),
+                                new PropertyInformation("QuietDown", "Quiet Down", PropertyInformation.PropertyInformationType.STRING, "", "Put Jenkins in a Quiet mode, in preparation for a restart. In that mode Jenkins don’t start any build", List.of(
+                                        new PropertyInformation("reason", "Reason")
                                 )),
-                                new PropertyInformation("Restart", "Restart"),
-                                new PropertyInformation("SafelyRestart", "Safely Restart"),
-                                new PropertyInformation("SafelyShutdown", "Safely Shutdown"),
-                                new PropertyInformation("Shutdown", "Shutdown")
+                                new PropertyInformation("Restart", "Restart", PropertyInformation.PropertyInformationType.STRING, "", "Restart Jenkins instance immediately"),
+                                new PropertyInformation("SafelyRestart", "Safely Restart", PropertyInformation.PropertyInformationType.STRING, "", "Puts Jenkins into the quiet mode, wait for existing builds to be completed, and then restart Jenkins"),
+                                new PropertyInformation("SafelyShutdown", "Safely Shutdown", PropertyInformation.PropertyInformationType.STRING, "", "Puts Jenkins into the quiet mode, wait for existing builds to be completed, and then shut down Jenkins"),
+                                new PropertyInformation("Shutdown", "Shutdown", PropertyInformation.PropertyInformationType.STRING, "", "Shut down Jenkins immediately")
                         ))
                 )),
                 new PropertyInformation("Build", "Build", List.of(
-                        new PropertyInformation("operation", "Operation", PropertyInformation.PropertyInformationType.DROPDOWN, "Get All", "", List.of(
-                                new PropertyInformation("GetAll", "Get All")
+                        new PropertyInformation("operation", "Operation", PropertyInformation.PropertyInformationType.DROPDOWN, "GetAll", "", List.of(
+                                new PropertyInformation("GetAll", "Get All", List.of(
+                                        new PropertyInformation("jobName", "Job Name")
+                                ))
                         ))
                 ))
 

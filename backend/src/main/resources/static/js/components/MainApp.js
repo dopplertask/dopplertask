@@ -147,19 +147,21 @@ class MainApp extends React.Component {
 
     populateCustomData(customData, propertyInformationList) {
         propertyInformationList.map(pi => {
-            if (pi.type === "MAP") {
-                customData[pi.name] = []
-            } else if (pi.type === "BOOLEAN") {
-                if (pi.defaultValue == "true") {
-                    customData[pi.name] = true || "";
+            if (customData[pi.name] == undefined) {
+                if (pi.type === "MAP") {
+                    customData[pi.name] = []
+                } else if (pi.type === "BOOLEAN") {
+                    if (pi.defaultValue == "true") {
+                        customData[pi.name] = true || "";
+                    } else {
+                        customData[pi.name] = false || "";
+                    }
                 } else {
-                    customData[pi.name] = false || "";
+                    customData[pi.name] = pi.defaultValue || "";
                 }
-            } else {
-                customData[pi.name] = pi.defaultValue || "";
             }
 
-            if(pi.options != undefined) {
+            if (pi.options != undefined) {
                 this.populateCustomData(customData, pi.options)
             }
         });
