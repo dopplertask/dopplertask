@@ -89,6 +89,7 @@ public class JenkinsAction extends Action {
                     case "Trigger":
                         return callJenkinsAction(credUsername, credApiToken, credJenkinsUrl, "job/" + jobNameVariable + "/build", "POST", Map.of(), "", taskService, variableExtractorUtil);
                     case "TriggerWithParameters":
+                        //TODO: Variable Extractor Util for params is missing. Add it.
                         return callJenkinsAction(credUsername, credApiToken, credJenkinsUrl, "job/" + jobNameVariable + "/buildWithParameters", "POST", Map.of(), "", taskService, variableExtractorUtil);
                     case "Copy":
                         return callJenkinsAction(credUsername, credApiToken, credJenkinsUrl, "createItem", "POST", Map.of("name", newJobNameVariable, "mode", "copy", "from", jobNameVariable), "", taskService, variableExtractorUtil);
