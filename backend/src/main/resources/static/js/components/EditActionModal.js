@@ -151,7 +151,7 @@ class EditActionModal extends React.Component {
         }
 
         let temp;
-        let actionProperty = this.props.selectedAction.userData.customData[propertyInformation.name] || currentValue;
+        let actionProperty = this.props.selectedAction.userData.customData[propertyInformation.name] || currentValue || "";
         switch (propertyInformation.type) {
             case "STRING":
                 temp =
@@ -193,15 +193,24 @@ class EditActionModal extends React.Component {
                 propertiesField[this.firstLetterCapitalAndPluralize(propertyInformation.category)].push(temp);
 
             {
+                let foundSelection = false;
                 propertyInformation.options.map(selectOption => {
-                    console.log(actionProperty + " " + selectOption.name)
                     if (actionProperty == selectOption.name) {
                         selectOption.options.map(subOption => {
                             this.initializeField(propertiesField, subOption, subOption.defaultValue);
                         })
+                        foundSelection = true;
                     }
 
                 })
+
+                // Set default value as the first item in the dropdown if nothing is found.
+                if (!foundSelection && propertyInformation.options != undefined && propertyInformation.options.length != 0 && propertyInformation.options[0] != undefined) {
+                    this.props.selectedAction.userData.customData[propertyInformation.name] = propertyInformation.options[0].name;
+                    propertyInformation.options[0].options.map(subOption => {
+                        this.initializeField(propertiesField, subOption, subOption.defaultValue);
+                    })
+                }
             }
 
                 break;
@@ -241,7 +250,7 @@ class EditActionModal extends React.Component {
                                         <tr key={header.id} className="d-flex">
                                             {propertyInformation.options.map(selectOption => {
                                                 if (selectOption.type == "DROPDOWN") {
-                                                    console.log(selectOption + " " + JSON.stringify(selectOption) + " "  + header[selectOption.name])
+                                                    console.log(selectOption + " " + JSON.stringify(selectOption) + " " + header[selectOption.name])
                                                     return (<td className="col-sm">
                                                         {this.getDropdownField(selectOption, header[selectOption.name],
                                                             false,
@@ -399,7 +408,9 @@ class EditActionModal extends React.Component {
                             <button type="button" className="btn btn-primary" onClick={this.props.executeAction}>Execute
                                 node
                             </button>
-                            <button type="button" className="close" style={{marginTop: "-0.6rem", marginBottom: "-1rem"}} data-dismiss="modal" aria-label="Close">
+                            <button type="button" className="close"
+                                    style={{marginTop: "-0.6rem", marginBottom: "-1rem"}} data-dismiss="modal"
+                                    aria-label="Close">
                                 <span aria-hidden="true">&times;</span>
                             </button>
                         </div>
