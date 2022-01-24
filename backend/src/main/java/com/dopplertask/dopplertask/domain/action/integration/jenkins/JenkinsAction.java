@@ -106,6 +106,13 @@ public class JenkinsAction extends Action {
             case "Job":
             default:
                 switch (operationVariable) {
+                    case "GetAllJobs":
+                        ActionResult actionResult = callJenkinsAction(credUsername, credApiToken, credJenkinsUrl, "api/json", "GET", Map.of(), "", taskService, variableExtractorUtil);
+                        ObjectMapper mapper = new ObjectMapper();
+                        JsonNode rootNode = mapper.readTree(actionResult.getOutput());
+                        actionResult.setOutput(rootNode.get("jobs").toPrettyString());
+
+                        return actionResult;
                     case "Trigger":
                         return callJenkinsAction(credUsername, credApiToken, credJenkinsUrl, "job/" + jobNameVariable + "/build", "POST", Map.of(), "", taskService, variableExtractorUtil);
                     case "TriggerWithParameters":
@@ -242,7 +249,8 @@ public class JenkinsAction extends Action {
                                                 new PropertyInformation("name", "Name"),
                                                 new PropertyInformation("value", "Value")
                                         ))
-                                ))
+                                )),
+                                new PropertyInformation("GetAllJobs", "Get all jobs")
                         ))
                 )),
                 new PropertyInformation("Instance", "Instance", List.of(
