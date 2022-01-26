@@ -8,6 +8,7 @@ import com.dopplertask.dopplertask.domain.action.common.ScriptLanguage;
 import com.dopplertask.dopplertask.domain.action.connection.HttpAction;
 import com.dopplertask.dopplertask.domain.action.connection.HttpHeader;
 import com.dopplertask.dopplertask.service.BroadcastListener;
+import com.dopplertask.dopplertask.service.ColumnEncryptor;
 import com.dopplertask.dopplertask.service.TaskService;
 import com.dopplertask.dopplertask.service.VariableExtractorUtil;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -27,7 +28,10 @@ import java.util.*;
 public class JenkinsAction extends Action {
 
     // Credentials
+    @Convert(converter = ColumnEncryptor.class)
     private String username;
+
+    @Convert(converter = ColumnEncryptor.class)
     private String apiToken;
     private String jenkinsUrl;
 

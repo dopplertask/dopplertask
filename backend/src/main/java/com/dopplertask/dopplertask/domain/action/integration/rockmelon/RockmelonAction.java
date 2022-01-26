@@ -6,6 +6,7 @@ import com.dopplertask.dopplertask.domain.action.Action;
 import com.dopplertask.dopplertask.domain.action.common.ScriptLanguage;
 import com.dopplertask.dopplertask.domain.action.connection.HttpAction;
 import com.dopplertask.dopplertask.service.BroadcastListener;
+import com.dopplertask.dopplertask.service.ColumnEncryptor;
 import com.dopplertask.dopplertask.service.TaskService;
 import com.dopplertask.dopplertask.service.VariableExtractorUtil;
 import org.jetbrains.annotations.NotNull;
@@ -26,7 +27,9 @@ public class RockmelonAction extends Action {
 
     private static final String ROCKMELON_API_URL = "https://www.rockmelon.app/api/link-group/create";
 
+    @Convert(converter = ColumnEncryptor.class)
     private String apiKey;
+
     private String name;
 
     @OneToMany(mappedBy = "rockmelonAction", cascade = CascadeType.ALL)

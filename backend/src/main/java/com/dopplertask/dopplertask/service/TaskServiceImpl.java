@@ -16,6 +16,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jms.annotation.JmsListener;
 import org.springframework.jms.core.JmsTemplate;
 import org.springframework.stereotype.Service;
@@ -59,6 +60,9 @@ public class TaskServiceImpl implements TaskService {
     @Autowired
     private TriggerListenerServiceImpl triggerListenerService;
 
+    @Value("${dopplertask.encryptionKey}")
+    private String encryptionKey;
+
 
     @Override
     public TaskExecution delegate(TaskRequest request) {
@@ -89,6 +93,7 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     public TaskExecution runRequest(TaskExecutionRequest taskExecutionRequest) {
+
         boolean isTrigger = taskExecutionRequest.getTriggerInfo() != null && taskExecutionRequest.getTriggerInfo().getTriggerName() != null && !taskExecutionRequest.getTriggerInfo().getTriggerName().isEmpty();
 
         TaskExecution execution = executionService.startExecution(taskExecutionRequest, this, isTrigger);
@@ -383,5 +388,9 @@ public class TaskServiceImpl implements TaskService {
         taskExecutionRequest.setTriggerInfo(request.getTriggerInfo());
 
         return this.runRequest(taskExecutionRequest);
+    }
+
+    public String getEncryptionKey() {
+        return encryptionKey;
     }
 }
