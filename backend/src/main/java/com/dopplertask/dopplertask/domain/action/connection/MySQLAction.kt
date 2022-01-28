@@ -62,7 +62,7 @@ class MySQLAction : Action() {
                 e.printStackTrace()
             }
         }
-        if (!localTimezone.isEmpty()) {
+        if (localTimezone.isNotEmpty()) {
             try {
                 dataSource.serverTimezone = localTimezone
             } catch (e: SQLException) {

@@ -58,8 +58,7 @@ public class RockmelonAction extends Action {
         HttpAction rockmelonHttpRequest = new HttpAction();
         rockmelonHttpRequest.setUrl(ROCKMELON_API_URL + "?name=" + URLEncoder.encode(nameVariable, StandardCharsets.UTF_8) + "&" + linksStr + "&api_key=" + apiKeyVariable + "&rc_identifier="+ URLEncoder.encode(rcIdentifierVariable, StandardCharsets.UTF_8));
         rockmelonHttpRequest.setMethod("POST");
-        ActionResult actionResult = rockmelonHttpRequest.run(taskService, new TaskExecution(), variableExtractorUtil, null);
-        return actionResult;
+        return rockmelonHttpRequest.run(taskService, new TaskExecution(), variableExtractorUtil, null);
 
     }
 
@@ -104,9 +103,7 @@ public class RockmelonAction extends Action {
 
     public void setLinks(List<RockmelonParameter> rockmelonParameters) {
         this.links = rockmelonParameters;
-        this.links.forEach(rockmelonParameter -> {
-            rockmelonParameter.setRockmelonAction(this);
-        });
+        this.links.forEach(rockmelonParameter -> rockmelonParameter.setRockmelonAction(this));
     }
 
     public String getRcIdentifier() {

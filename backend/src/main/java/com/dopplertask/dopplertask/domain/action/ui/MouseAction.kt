@@ -72,8 +72,6 @@ class MouseAction : Action() {
                     robot.mouseRelease(selectedButton)
                     actionResult.output = "Mouse $selectedButton was released."
                 }
-                else -> {
-                }
             }
         } catch (e: AWTException) {
             throw RuntimeException(e)

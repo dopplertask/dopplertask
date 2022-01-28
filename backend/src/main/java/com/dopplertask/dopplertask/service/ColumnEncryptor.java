@@ -6,21 +6,23 @@ import org.springframework.stereotype.Component;
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 import javax.crypto.spec.SecretKeySpec;
 import javax.persistence.AttributeConverter;
 import java.security.InvalidKeyException;
 import java.security.Key;
+import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
 
 @Component
 public class ColumnEncryptor implements AttributeConverter<String, String> {
 
-    private static final String AES = "AES";
+    private static final String AES = "AES/GCM/NoPadding";
 
     private final Key key;
     private final Cipher cipher;
 
-    public ColumnEncryptor(@Value("${dopplertask.encryptionKey}") String secret) throws Exception {
+    public ColumnEncryptor(@Value("${dopplertask.encryptionKey}") String secret) throws NoSuchPaddingException, NoSuchAlgorithmException {
         key = new SecretKeySpec(secret.getBytes(), AES);
         cipher = Cipher.getInstance(AES);
     }

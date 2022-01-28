@@ -85,9 +85,8 @@ public class JenkinsAction extends Action {
 
         switch (resourceTypeVariable) {
             case "Build":
-                switch (operationVariable) {
-                    case "GetAll":
-                        return callJenkinsAction(credUsername, credApiToken, credJenkinsUrl, "job/" + jobNameVariable + "/api/json?tree=builds[*]", "POST", Map.of(), "", taskService, variableExtractorUtil);
+                if ("GetAll".equals(operationVariable)) {
+                    return callJenkinsAction(credUsername, credApiToken, credJenkinsUrl, "job/" + jobNameVariable + "/api/json?tree=builds[*]", "POST", Map.of(), "", taskService, variableExtractorUtil);
                 }
                 break;
             case "Instance":
