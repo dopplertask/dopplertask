@@ -26,7 +26,12 @@ class MouseAction : Action() {
     var button: String? = null
 
     @Throws(IOException::class)
-    override fun run(taskService: TaskService, execution: TaskExecution, variableExtractorUtil: VariableExtractorUtil, broadcastListener: BroadcastListener?): ActionResult {
+    override fun run(
+        taskService: TaskService,
+        execution: TaskExecution,
+        variableExtractorUtil: VariableExtractorUtil,
+        broadcastListener: BroadcastListener?
+    ): ActionResult {
         val localPositionX = variableExtractorUtil.extract(positionX, execution, scriptLanguage)
         val localPositionY = variableExtractorUtil.extract(positionY, execution, scriptLanguage)
         val localButton = variableExtractorUtil.extract(button, execution, scriptLanguage)
@@ -84,19 +89,55 @@ class MouseAction : Action() {
     override val actionInfo: MutableList<PropertyInformation>
         get() {
             val actionInfo = super.actionInfo
-            actionInfo.add(PropertyInformation("button", "Button", PropertyInformationType.DROPDOWN, "LEFT", "Button to press", listOf(
-                    PropertyInformation("LEFT", "Left click"),
-                    PropertyInformation("RIGHT", "Right click")
-            )))
-            actionInfo.add(PropertyInformation("action", "Action", PropertyInformationType.DROPDOWN, "MOVE", "", listOf(
-                    PropertyInformation("MOVE", "Move", mutableListOf(
-                        PropertyInformation("positionX", "Position X", PropertyInformationType.STRING, "0", "Move mouse to this X pos."),
-                        PropertyInformation("positionY", "Position Y", PropertyInformationType.STRING, "0", "Move mouse to this Y pos.")
-                    )),
-                    PropertyInformation("CLICK", "Click"),
-                    PropertyInformation("PRESS", "Press"),
-                    PropertyInformation("RELEASE", "Release")
-            )))
+            actionInfo.add(
+                PropertyInformation(
+                    "button", "Button", PropertyInformationType.DROPDOWN, "LEFT", "Button to press", listOf(
+                        PropertyInformation("LEFT", "Left click"),
+                        PropertyInformation("RIGHT", "Right click")
+                    )
+                )
+            )
+            actionInfo.add(
+                PropertyInformation(
+                    "action", "Action", PropertyInformationType.DROPDOWN, "MOVE", "", listOf(
+                        PropertyInformation("MOVE", "Move"),
+                        PropertyInformation("CLICK", "Click"),
+                        PropertyInformation("PRESS", "Press"),
+                        PropertyInformation("RELEASE", "Release")
+                    )
+                )
+            )
+
+
+            actionInfo.add(
+                PropertyInformation(
+                    "positionX",
+                    "Position X",
+                    PropertyInformationType.STRING,
+                    "0",
+                    "Move mouse to this X pos.",
+                    mutableListOf(),
+                    PropertyInformation.PropertyInformationCategory.PROPERTY,
+                    mapOf(
+                        "action" to arrayOf("MOVE")
+                    )
+                )
+            )
+            actionInfo.add(
+                PropertyInformation(
+                    "positionY",
+                    "Position Y",
+                    PropertyInformationType.STRING,
+                    "0",
+                    "Move mouse to this Y pos.",
+                    mutableListOf(),
+                    PropertyInformation.PropertyInformationCategory.PROPERTY,
+                    mapOf(
+                        "action" to arrayOf("MOVE")
+                    )
+                )
+            )
+
             return actionInfo
         }
 

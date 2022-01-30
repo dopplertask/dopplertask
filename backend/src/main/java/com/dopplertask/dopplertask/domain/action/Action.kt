@@ -27,6 +27,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo.As
 import org.hibernate.annotations.Fetch
 import org.hibernate.annotations.FetchMode
 import java.io.IOException
+import java.util.*
 import java.util.stream.Collectors
 import javax.persistence.*
 
@@ -35,7 +36,31 @@ import javax.persistence.*
 @DiscriminatorColumn(name = "action_type", length = 255)
 @DiscriminatorValue("noop")
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = As.PROPERTY)
-@JsonSubTypes(JsonSubTypes.Type(value = BrowseWebAction::class, name = "BrowseWebAction"), JsonSubTypes.Type(value = HttpAction::class, name = "HttpAction"), JsonSubTypes.Type(value = LinkedTaskAction::class, name = "LinkedTaskAction"), JsonSubTypes.Type(value = MySQLAction::class, name = "MySQLAction"), JsonSubTypes.Type(value = PrintAction::class, name = "PrintAction"), JsonSubTypes.Type(value = ReadFileAction::class, name = "ReadFileAction"), JsonSubTypes.Type(value = SecureCopyAction::class, name = "SecureCopyAction"), JsonSubTypes.Type(value = SSHAction::class, name = "SSHAction"), JsonSubTypes.Type(value = TimedWait::class, name = "TimedWait"), JsonSubTypes.Type(value = ExecuteCommandAction::class, name = "ExecuteCommandAction"), JsonSubTypes.Type(value = SetVariableAction::class, name = "SetVariableAction"), JsonSubTypes.Type(value = ScriptAction::class, name = "ScriptAction"), JsonSubTypes.Type(value = IfAction::class, name = "IfAction"), JsonSubTypes.Type(value = MouseAction::class, name = "MouseAction"), JsonSubTypes.Type(value = StartAction::class, name = "StartAction"), JsonSubTypes.Type(value = WriteFileAction::class, name = "WriteFileAction"), JsonSubTypes.Type(value = SwitchAction::class, name = "SwitchAction"), JsonSubTypes.Type(value = XMLAction::class, name = "XMLAction"), JsonSubTypes.Type(value = Webhook::class, name = "Webhook"), JsonSubTypes.Type(value = ActiveMQTrigger::class, name = "ActiveMQTrigger"), JsonSubTypes.Type(value = IntervalTrigger::class, name = "IntervalTrigger"), JsonSubTypes.Type(value = JenkinsAction::class, name = "JenkinsAction"), JsonSubTypes.Type(value = RockmelonAction::class, name = "RockmelonAction"))
+@JsonSubTypes(
+    JsonSubTypes.Type(value = BrowseWebAction::class, name = "BrowseWebAction"),
+    JsonSubTypes.Type(value = HttpAction::class, name = "HttpAction"),
+    JsonSubTypes.Type(value = LinkedTaskAction::class, name = "LinkedTaskAction"),
+    JsonSubTypes.Type(value = MySQLAction::class, name = "MySQLAction"),
+    JsonSubTypes.Type(value = PrintAction::class, name = "PrintAction"),
+    JsonSubTypes.Type(value = ReadFileAction::class, name = "ReadFileAction"),
+    JsonSubTypes.Type(value = SecureCopyAction::class, name = "SecureCopyAction"),
+    JsonSubTypes.Type(value = SSHAction::class, name = "SSHAction"),
+    JsonSubTypes.Type(value = TimedWait::class, name = "TimedWait"),
+    JsonSubTypes.Type(value = ExecuteCommandAction::class, name = "ExecuteCommandAction"),
+    JsonSubTypes.Type(value = SetVariableAction::class, name = "SetVariableAction"),
+    JsonSubTypes.Type(value = ScriptAction::class, name = "ScriptAction"),
+    JsonSubTypes.Type(value = IfAction::class, name = "IfAction"),
+    JsonSubTypes.Type(value = MouseAction::class, name = "MouseAction"),
+    JsonSubTypes.Type(value = StartAction::class, name = "StartAction"),
+    JsonSubTypes.Type(value = WriteFileAction::class, name = "WriteFileAction"),
+    JsonSubTypes.Type(value = SwitchAction::class, name = "SwitchAction"),
+    JsonSubTypes.Type(value = XMLAction::class, name = "XMLAction"),
+    JsonSubTypes.Type(value = Webhook::class, name = "Webhook"),
+    JsonSubTypes.Type(value = ActiveMQTrigger::class, name = "ActiveMQTrigger"),
+    JsonSubTypes.Type(value = IntervalTrigger::class, name = "IntervalTrigger"),
+    JsonSubTypes.Type(value = JenkinsAction::class, name = "JenkinsAction"),
+    JsonSubTypes.Type(value = RockmelonAction::class, name = "RockmelonAction")
+)
 @JsonIgnoreProperties(ignoreUnknown = true)
 abstract class Action {
     @Id
@@ -79,17 +104,23 @@ abstract class Action {
     @get:JsonIgnore
     val outputPorts: List<ActionPort>
         get() = if (ports != null) {
-            ports!!.stream().filter { actionPort: ActionPort -> actionPort.portType == ActionPortType.OUTPUT }.collect(Collectors.toList())
+            ports!!.stream().filter { actionPort: ActionPort -> actionPort.portType == ActionPortType.OUTPUT }
+                .collect(Collectors.toList())
         } else emptyList()
 
     @get:JsonIgnore
     val inputPorts: List<ActionPort>
         get() = if (ports != null) {
-            ports!!.stream().filter { actionPort: ActionPort -> actionPort.portType == ActionPortType.INPUT }.collect(Collectors.toList())
+            ports!!.stream().filter { actionPort: ActionPort -> actionPort.portType == ActionPortType.INPUT }
+                .collect(Collectors.toList())
         } else emptyList()
 
     @Throws(IOException::class)
-    fun run(taskService: TaskService, execution: TaskExecution, variableExtractorUtil: VariableExtractorUtil): ActionResult {
+    fun run(
+        taskService: TaskService,
+        execution: TaskExecution,
+        variableExtractorUtil: VariableExtractorUtil
+    ): ActionResult {
         return run(taskService, execution, variableExtractorUtil, null)
     }
 
@@ -103,19 +134,68 @@ abstract class Action {
      * @return an action result which represents the outcome of the executed action.
      */
     @Throws(IOException::class)
-    open fun run(taskService: TaskService, execution: TaskExecution, variableExtractorUtil: VariableExtractorUtil, broadcastListener: BroadcastListener?): ActionResult {
+    open fun run(
+        taskService: TaskService,
+        execution: TaskExecution,
+        variableExtractorUtil: VariableExtractorUtil,
+        broadcastListener: BroadcastListener?
+    ): ActionResult {
         return ActionResult()
     }
 
     @get:JsonIgnore
     open val actionInfo: MutableList<PropertyInformation>
         get() = mutableListOf(
-                PropertyInformation("continueOnFailure", "Continue on failure", PropertyInformationType.BOOLEAN, "false", "true or false. Lets the action continue on failure, ignoring any retry.", mutableListOf(), PropertyInformation.PropertyInformationCategory.SETTING),
-                PropertyInformation("scriptLanguage", "Script Language", PropertyInformationType.DROPDOWN, "VELOCITY", "VELOCITY (default), JAVASCRIPT.",
-                        mutableListOf(PropertyInformation("VELOCITY", "Velocity"), PropertyInformation("JAVASCRIPT", "Javascript")), PropertyInformation.PropertyInformationCategory.SETTING),
-                PropertyInformation("retries", "Max. Retries", PropertyInformationType.NUMBER, "0", "Amount of retries.", mutableListOf(), PropertyInformation.PropertyInformationCategory.SETTING),
-                PropertyInformation("retryWait", "Wait between retries", PropertyInformationType.STRING, "1000", "Milliseconds to wait before next retry.", mutableListOf(), PropertyInformation.PropertyInformationCategory.SETTING),
-                PropertyInformation("failOn", "Fail on", PropertyInformationType.STRING, "", "The current action will fail if this evaluates to anything.", mutableListOf(), PropertyInformation.PropertyInformationCategory.SETTING)
+            PropertyInformation(
+                "continueOnFailure",
+                "Continue on failure",
+                PropertyInformationType.BOOLEAN,
+                "false",
+                "true or false. Lets the action continue on failure, ignoring any retry.",
+                mutableListOf(),
+                PropertyInformation.PropertyInformationCategory.SETTING
+            ),
+            PropertyInformation(
+                "scriptLanguage",
+                "Script Language",
+                PropertyInformationType.DROPDOWN,
+                "VELOCITY",
+                "VELOCITY (default), JAVASCRIPT.",
+                mutableListOf(
+                    PropertyInformation("VELOCITY", "Velocity"), PropertyInformation(
+                        "JAVASCRIPT",
+                        "Javascript"
+                    )
+                ),
+                PropertyInformation.PropertyInformationCategory.SETTING
+            ),
+            PropertyInformation(
+                "retries",
+                "Max. Retries",
+                PropertyInformationType.NUMBER,
+                "0",
+                "Amount of retries.",
+                mutableListOf(),
+                PropertyInformation.PropertyInformationCategory.SETTING
+            ),
+            PropertyInformation(
+                "retryWait",
+                "Wait between retries",
+                PropertyInformationType.STRING,
+                "1000",
+                "Milliseconds to wait before next retry.",
+                mutableListOf(),
+                PropertyInformation.PropertyInformationCategory.SETTING
+            ),
+            PropertyInformation(
+                "failOn",
+                "Fail on",
+                PropertyInformationType.STRING,
+                "",
+                "The current action will fail if this evaluates to anything.",
+                mutableListOf(),
+                PropertyInformation.PropertyInformationCategory.SETTING
+            )
         )
 
     /**
@@ -142,17 +222,19 @@ abstract class Action {
         var description: String = ""
         var options: List<PropertyInformation>
         var category: PropertyInformationCategory = PropertyInformationCategory.PROPERTY
+        var displayOptions: Map<String, Array<String>> = mutableMapOf()
 
 
         @JvmOverloads
         constructor(
-                name: String,
-                displayName: String,
-                type: PropertyInformationType = PropertyInformationType.STRING,
-                defaultValue: String = "",
-                description: String = "",
-                options: List<PropertyInformation> = java.util.List.of(),
-                category: PropertyInformationCategory = PropertyInformationCategory.PROPERTY
+            name: String,
+            displayName: String,
+            type: PropertyInformationType = PropertyInformationType.STRING,
+            defaultValue: String = "",
+            description: String = "",
+            options: List<PropertyInformation> = java.util.List.of(),
+            category: PropertyInformationCategory = PropertyInformationCategory.PROPERTY,
+            displayOptions: Map<String, Array<String>> = mutableMapOf()
         ) {
             this.name = name
             this.displayName = displayName
@@ -161,17 +243,29 @@ abstract class Action {
             this.description = description
             this.options = options
             this.category = category
-            this.category = category
+            this.displayOptions = displayOptions
         }
 
         constructor(
-                name: String,
-                displayName: String,
-                options: List<PropertyInformation>
+            name: String,
+            displayName: String,
+            options: List<PropertyInformation>,
         ) {
             this.name = name
             this.displayName = displayName
             this.options = options
+        }
+
+        constructor(
+            name: String,
+            displayName: String,
+            options: List<PropertyInformation>,
+            displayOptions: Map<String, Array<String>> = mutableMapOf()
+        ) {
+            this.name = name
+            this.displayName = displayName
+            this.options = options
+            this.displayOptions = displayOptions
         }
 
         enum class PropertyInformationType {

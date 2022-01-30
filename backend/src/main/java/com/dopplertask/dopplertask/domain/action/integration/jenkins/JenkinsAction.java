@@ -84,41 +84,41 @@ public class JenkinsAction extends Action {
 
 
         switch (resourceTypeVariable) {
-            case "Build":
-                if ("GetAll".equals(operationVariable)) {
+            case "build":
+                if ("getAll".equals(operationVariable)) {
                     return callJenkinsAction(credUsername, credApiToken, credJenkinsUrl, "job/" + jobNameVariable + "/api/json?tree=builds[*]", "POST", Map.of(), "", taskService, variableExtractorUtil);
                 }
                 break;
-            case "Instance":
+            case "instance":
                 switch (operationVariable) {
-                    case "CancelQuietDown":
+                    case "cancelQuietDown":
                         return callJenkinsAction(credUsername, credApiToken, credJenkinsUrl, "cancelQuietDown", "POST", Map.of(), "", taskService, variableExtractorUtil);
-                    case "QuietDown":
+                    case "quietDown":
                         return callJenkinsAction(credUsername, credApiToken, credJenkinsUrl, "quietDown", "POST", Map.of(), "", taskService, variableExtractorUtil);
-                    case "Restart":
+                    case "restart":
                         return callJenkinsAction(credUsername, credApiToken, credJenkinsUrl, "restart", "POST", Map.of(), "", taskService, variableExtractorUtil);
-                    case "SafelyRestart":
+                    case "safelyRestart":
                         return callJenkinsAction(credUsername, credApiToken, credJenkinsUrl, "safeRestart", "POST", Map.of(), "", taskService, variableExtractorUtil);
-                    case "SafelyShutdown":
+                    case "safelyShutdown":
                         return callJenkinsAction(credUsername, credApiToken, credJenkinsUrl, "safeExit", "POST", Map.of(), "", taskService, variableExtractorUtil);
-                    case "Shutdown":
+                    case "shutdown":
                         return callJenkinsAction(credUsername, credApiToken, credJenkinsUrl, "exit", "POST", Map.of(), "", taskService, variableExtractorUtil);
                 }
 
                 break;
-            case "Job":
+            case "job":
             default:
                 switch (operationVariable) {
-                    case "GetAllJobs":
+                    case "getAll":
                         ActionResult actionResult = callJenkinsAction(credUsername, credApiToken, credJenkinsUrl, "api/json", "GET", Map.of(), "", taskService, variableExtractorUtil);
                         ObjectMapper mapper = new ObjectMapper();
                         JsonNode rootNode = mapper.readTree(actionResult.getOutput());
                         actionResult.setOutput(rootNode.get("jobs").toPrettyString());
 
                         return actionResult;
-                    case "Trigger":
+                    case "trigger":
                         return callJenkinsAction(credUsername, credApiToken, credJenkinsUrl, "job/" + jobNameVariable + "/build", "POST", Map.of(), "", taskService, variableExtractorUtil);
-                    case "TriggerWithParameters":
+                    case "triggerWithParameters":
                         Map<String, String> queryParameters = new HashMap<>();
                         jenkinsParameters.forEach(jenkinsParameter -> {
                             try {
@@ -128,9 +128,9 @@ public class JenkinsAction extends Action {
                             }
                         });
                         return callJenkinsAction(credUsername, credApiToken, credJenkinsUrl, "job/" + jobNameVariable + "/buildWithParameters", "POST", queryParameters, "", taskService, variableExtractorUtil);
-                    case "Copy":
+                    case "copy":
                         return callJenkinsAction(credUsername, credApiToken, credJenkinsUrl, "createItem", "POST", Map.of("name", newJobNameVariable, "mode", "copy", "from", jobNameVariable), "", taskService, variableExtractorUtil);
-                    case "Create":
+                    case "create":
                     default:
                         return callJenkinsAction(credUsername, credApiToken, credJenkinsUrl, "createItem", "POST", Map.of("name", newJobNameVariable), newJobXMLVariable, taskService, variableExtractorUtil);
                 }
@@ -232,51 +232,66 @@ public class JenkinsAction extends Action {
         actionList.add(new PropertyInformation("jenkinsUrl", "Jenkins URL", PropertyInformation.PropertyInformationType.STRING, "", "Jenkins URL", Collections.emptyList(), PropertyInformation.PropertyInformationCategory.CREDENTIAL));
         actionList.add(new PropertyInformation("useCrumb", "Use Crumb", PropertyInformation.PropertyInformationType.BOOLEAN, "true", "If CSRF protection is on, leave this activated", Collections.emptyList(), PropertyInformation.PropertyInformationCategory.CREDENTIAL));
 
-        actionList.add(new PropertyInformation("resourceType", "Resource type", PropertyInformation.PropertyInformationType.DROPDOWN, "Job", "", List.of(
-                new PropertyInformation("Job", "Job", List.of(
-                        new PropertyInformation("operation", "Operation", PropertyInformation.PropertyInformationType.DROPDOWN, "Create", "", List.of(
-                                new PropertyInformation("Create", "Create", List.of(
-                                        new PropertyInformation("newJobName", "New Job Name"),
-                                        new PropertyInformation("newJobXML", "New Job XML", PropertyInformation.PropertyInformationType.MULTILINE, "", "XML for the new job. Add config.xml to the end of the job URL to create a clone of an existing job")
-                                )),
-                                new PropertyInformation("Copy", "Copy", List.of(
-                                        new PropertyInformation("jobName", "Existing Job Name"),
-                                        new PropertyInformation("newJobName", "New Job Name")
-                                )),
-                                new PropertyInformation("Trigger", "Trigger", List.of(
-                                        new PropertyInformation("jobName", "Job Name")
-                                )),
-                                new PropertyInformation("TriggerWithParameters", "Trigger With Parameters", List.of(
-                                        new PropertyInformation("jobName", "Job Name"),
-                                        new PropertyInformation("jenkinsParameters", "Parameters", PropertyInformation.PropertyInformationType.MAP, "", "", List.of(
-                                                new PropertyInformation("name", "Name"),
-                                                new PropertyInformation("value", "Value")
-                                        ))
-                                )),
-                                new PropertyInformation("GetAllJobs", "Get all jobs")
-                        ))
-                )),
-                new PropertyInformation("Instance", "Instance", List.of(
-                        new PropertyInformation("operation", "Operation", PropertyInformation.PropertyInformationType.DROPDOWN, "CancelQuietDown", "", List.of(
-                                new PropertyInformation("CancelQuietDown", "Cancel Quiet Down", PropertyInformation.PropertyInformationType.STRING, "", "Cancel quiet down state"),
-                                new PropertyInformation("QuietDown", "Quiet Down", PropertyInformation.PropertyInformationType.STRING, "", "Put Jenkins in a Quiet mode, in preparation for a restart. In that mode Jenkins don’t start any build", List.of(
-                                        new PropertyInformation("reason", "Reason")
-                                )),
-                                new PropertyInformation("Restart", "Restart", PropertyInformation.PropertyInformationType.STRING, "", "Restart Jenkins instance immediately"),
-                                new PropertyInformation("SafelyRestart", "Safely Restart", PropertyInformation.PropertyInformationType.STRING, "", "Puts Jenkins into the quiet mode, wait for existing builds to be completed, and then restart Jenkins"),
-                                new PropertyInformation("SafelyShutdown", "Safely Shutdown", PropertyInformation.PropertyInformationType.STRING, "", "Puts Jenkins into the quiet mode, wait for existing builds to be completed, and then shut down Jenkins"),
-                                new PropertyInformation("Shutdown", "Shutdown", PropertyInformation.PropertyInformationType.STRING, "", "Shut down Jenkins immediately")
-                        ))
-                )),
-                new PropertyInformation("Build", "Build", List.of(
-                        new PropertyInformation("operation", "Operation", PropertyInformation.PropertyInformationType.DROPDOWN, "GetAll", "", List.of(
-                                new PropertyInformation("GetAll", "Get All", List.of(
-                                        new PropertyInformation("jobName", "Job Name")
-                                ))
-                        ))
-                ))
 
+        actionList.add(new PropertyInformation("resourceType", "Resource Type", PropertyInformation.PropertyInformationType.DROPDOWN, "job", "", List.of(
+                new PropertyInformation("job", "Job"),
+                new PropertyInformation("build", "Build"),
+                new PropertyInformation("instance", "Instance")), PropertyInformation.PropertyInformationCategory.PROPERTY, Map.of(
         )));
+        actionList.add(new PropertyInformation("operation", "Operation", PropertyInformation.PropertyInformationType.DROPDOWN, "getAll", "", List.of(
+                new PropertyInformation("getAll", "Get All"),
+                new PropertyInformation("copy", "Copy"),
+                new PropertyInformation("create", "Create"),
+                new PropertyInformation("trigger", "Trigger"),
+                new PropertyInformation("triggerParams", "Trigger with Parameters")), PropertyInformation.PropertyInformationCategory.PROPERTY, Map.of(
+                "resourceType", new String[]{"job"})));
+        actionList.add(new PropertyInformation("jobName", "Job Name", PropertyInformation.PropertyInformationType.STRING, "", "", List.of(
+        ), PropertyInformation.PropertyInformationCategory.PROPERTY, Map.of(
+                "resourceType", new String[]{"job"},
+                "operation", new String[]{"trigger", "triggerParams", "copy"})));
+        actionList.add(new PropertyInformation("param", "Parameters", PropertyInformation.PropertyInformationType.MAP, "", "", List.of(
+                new PropertyInformation("name", "Name"),
+                new PropertyInformation("value", "Value")), PropertyInformation.PropertyInformationCategory.PROPERTY, Map.of(
+                "resourceType", new String[]{"job"},
+                "operation", new String[]{"triggerParams"})));
+        actionList.add(new PropertyInformation("newJob", "New Job Name", PropertyInformation.PropertyInformationType.STRING, "", "", List.of(
+        ), PropertyInformation.PropertyInformationCategory.PROPERTY, Map.of(
+                "resourceType", new String[]{"job"},
+                "operation", new String[]{"copy", "create"})));
+        actionList.add(new PropertyInformation("newJobXML", "XML", PropertyInformation.PropertyInformationType.MULTILINE, "", "", List.of(
+        ), PropertyInformation.PropertyInformationCategory.PROPERTY, Map.of(
+                "resourceType", new String[]{"job"},
+                "operation", new String[]{"create"})));
+        actionList.add(new PropertyInformation("operation", "Operation", PropertyInformation.PropertyInformationType.DROPDOWN, "safeRestart", "", List.of(
+                new PropertyInformation("cancelQuietDown", "Cancel Quiet Down"),
+                new PropertyInformation("quietDown", "Quiet Down"),
+                new PropertyInformation("restart", "Restart"),
+                new PropertyInformation("safeRestart", "Safely Restart"),
+                new PropertyInformation("safeExit", "Safely Shutdown"),
+                new PropertyInformation("exit", "Shutdown")), PropertyInformation.PropertyInformationCategory.PROPERTY, Map.of(
+                "resourceType", new String[]{"instance"})));
+        actionList.add(new PropertyInformation("reason", "Reason", PropertyInformation.PropertyInformationType.STRING, "", "", List.of(
+        ), PropertyInformation.PropertyInformationCategory.PROPERTY, Map.of(
+                "resourceType", new String[]{"instance"},
+                "operation", new String[]{"quietDown"})));
+
+        actionList.add(new PropertyInformation("operation", "Operation", PropertyInformation.PropertyInformationType.DROPDOWN, "getAll", "", List.of(
+                new PropertyInformation("getAll", "Get All")), PropertyInformation.PropertyInformationCategory.PROPERTY, Map.of(
+                "resourceType", new String[]{"build"})));
+        actionList.add(new PropertyInformation("jobName", "Job Name", PropertyInformation.PropertyInformationType.STRING, "", "", List.of(
+        ), PropertyInformation.PropertyInformationCategory.PROPERTY, Map.of(
+                "resourceType", new String[]{"build"},
+                "operation", new String[]{"getAll"})));
+        actionList.add(new PropertyInformation("returnAll", "Return All", PropertyInformation.PropertyInformationType.BOOLEAN, "false", "", List.of(
+        ), PropertyInformation.PropertyInformationCategory.PROPERTY, Map.of(
+                "resourceType", new String[]{"build"},
+                "operation", new String[]{"getAll"})));
+        actionList.add(new PropertyInformation("limit", "Limit", PropertyInformation.PropertyInformationType.STRING, "50", "", List.of(
+        ), PropertyInformation.PropertyInformationCategory.PROPERTY, Map.of(
+                "resourceType", new String[]{"build"},
+                "operation", new String[]{"getAll"},
+                "returnAll", new String[]{"false"})));
+
 
         return actionList;
     }

@@ -94,9 +94,10 @@ class SwitchAction : Action() {
         get() {
             val actionInfo = super.actionInfo
             actionInfo.add(PropertyInformation("value", "Value", PropertyInformationType.STRING, "", "Value to compare"))
-            actionInfo.add(PropertyInformation("switchCases", "Cases", PropertyInformationType.MAP, "", "Cases to match the value", java.util.List.of(
+            actionInfo.add(PropertyInformation("switchCases", "Cases", PropertyInformationType.MAP, "", "Cases to match the value", mutableListOf(
                     PropertyInformation("currentCase", "Case")
-            )))
+            )
+            ))
             return actionInfo
         }
 

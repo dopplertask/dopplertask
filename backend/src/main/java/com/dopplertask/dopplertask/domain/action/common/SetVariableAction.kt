@@ -45,7 +45,7 @@ class SetVariableAction : Action() {
     override val actionInfo: MutableList<PropertyInformation>
         get() {
             val actionInfo = super.actionInfo
-            actionInfo.add(PropertyInformation("setVariableList", "Variables", PropertyInformationType.MAP, "", "", java.util.List.of(
+            actionInfo.add(PropertyInformation("setVariableList", "Variables", PropertyInformationType.MAP, "", "", mutableListOf(
                     PropertyInformation("name", "Name"),
                     PropertyInformation("value", "Value")
             )))
