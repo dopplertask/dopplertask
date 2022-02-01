@@ -11,16 +11,14 @@ import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import java.io.*
 import java.util.function.Consumer
-import javax.persistence.Column
-import javax.persistence.DiscriminatorValue
-import javax.persistence.Entity
-import javax.persistence.Table
+import javax.persistence.*
 
 @Entity
 @Table(name = "ExecuteCommandAction")
 @DiscriminatorValue("executecommand_action")
 class ExecuteCommandAction : Action() {
-    @Column
+    @Lob
+    @Column(columnDefinition = "TEXT")
     var command: String? = null
 
     @Throws(IOException::class)
