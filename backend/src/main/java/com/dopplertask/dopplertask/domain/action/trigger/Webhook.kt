@@ -45,7 +45,7 @@ class Webhook : Trigger() {
             actionInfo.add(
                 PropertyInformation(
                     "method", "Method", PropertyInformation.PropertyInformationType.DROPDOWN, "GET", "HTTP Method",
-                    java.util.List.of(
+                    mutableListOf(
                         PropertyInformation("GET", "GET"),
                         PropertyInformation("POST", "POST"),
                         PropertyInformation("PUT", "PUT"),

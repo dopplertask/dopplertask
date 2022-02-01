@@ -149,160 +149,173 @@ class EditActionModal extends React.Component {
         if (propertiesField[this.firstLetterCapitalAndPluralize(propertyInformation.category)] == undefined) {
             propertiesField[this.firstLetterCapitalAndPluralize(propertyInformation.category)] = [];
         }
+        let show = true;
+        console.log("Current Field: "+ propertyInformation.name)
+        for (const [key, value] of Object.entries(propertyInformation.displayOptions)) {
+            console.log(`${key}: ${value}`);
 
-        let temp;
-        let actionProperty = this.props.selectedAction.userData.customData[propertyInformation.name] || currentValue || "";
-        switch (propertyInformation.type) {
-            case "STRING":
-                temp =
-                    this.getStringField(propertyInformation,
-                        actionProperty, true);
-                propertiesField[this.firstLetterCapitalAndPluralize(propertyInformation.category)].push(temp);
+            if (!value.includes(this.props.selectedAction.userData.customData[key])) {
+                console.log("Value do not match!" + key + " " + value + " != currentValue: " + this.props.selectedAction.userData.customData[key])
+                show = false;
                 break;
-            case "MULTILINE":
-                temp =
-                    this.getStringField(propertyInformation,
-                        actionProperty, false);
-                propertiesField[this.firstLetterCapitalAndPluralize(propertyInformation.category)].push(temp);
-                break;
-            case "NUMBER":
-                temp = this.getNumberField(propertyInformation, actionProperty)
-                propertiesField[this.firstLetterCapitalAndPluralize(propertyInformation.category)].push(temp);
-                break;
-            case "BOOLEAN":
-                let booleanCheckedValue = propertyInformation.defaultValue === "true";
-                if (actionProperty !== undefined) {
-                    booleanCheckedValue = actionProperty;
-                }
-                temp =
-                    <div className="form-group" key={propertyInformation.name}><label
-                        htmlFor={propertyInformation.name}>{propertyInformation.displayName}</label><small
-                        className="form-text text-muted">{propertyInformation.description}</small> <input
-                        type="checkbox"
-                        id={propertyInformation.name}
-                        defaultChecked={booleanCheckedValue
-                        || false}
-                        onChange={this.valueChange}/>
-
-                    </div>;
-                propertiesField[this.firstLetterCapitalAndPluralize(propertyInformation.category)].push(temp);
-                break;
-            case "DROPDOWN":
-                temp =
-                    this.getDropdownField(propertyInformation, actionProperty, true);
-                propertiesField[this.firstLetterCapitalAndPluralize(propertyInformation.category)].push(temp);
-
-            {
-                let foundSelection = false;
-                propertyInformation.options.map(selectOption => {
-                    if (actionProperty == selectOption.name) {
-                        selectOption.options.map(subOption => {
-                            this.initializeField(propertiesField, subOption, subOption.defaultValue);
-                        })
-                        foundSelection = true;
-                    }
-
-                })
-
-                // Set default value as the first item in the dropdown if nothing is found.
-                if (!foundSelection && propertyInformation.options != undefined && propertyInformation.options.length != 0 && propertyInformation.options[0] != undefined) {
-                    this.props.selectedAction.userData.customData[propertyInformation.name] = propertyInformation.options[0].name;
-                    propertyInformation.options[0].options.map(subOption => {
-                        this.initializeField(propertiesField, subOption, subOption.defaultValue);
-                    })
-                }
             }
-
-                break;
-
-            case "MAP":
-                // Initialize Map if it does not exist.
-                if (actionProperty === undefined) {
-                    actionProperty = []
-                }
-
-                // Construct object
-                let newMapObject = {};
-                propertyInformation.options.map(selectOption => {
-                    newMapObject[selectOption.name] = selectOption.defaultValue || "";
-                });
-
-                temp =
-                    <div className="form-group" key={propertyInformation.name}><label
-                        htmlFor={propertyInformation.name}>{propertyInformation.displayName}</label> <a href="#"
-                                                                                                        onClick={() => this.addMap(
-                                                                                                            propertyInformation.name,
-                                                                                                            newMapObject)}>Add</a>
-                        <table className="table">
-                            <thead>
-                            <tr className="d-flex">
-                                {propertyInformation.options.map(selectOption => {
-                                    return (<th className="col-sm" key={selectOption.name}
-                                                value={selectOption.name}>{selectOption.displayName}</th>)
-                                })}
-                                <th>Actions</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            {
-                                actionProperty.map(
-                                    (header, index) => (
-                                        <tr key={header.id} className="d-flex">
-                                            {propertyInformation.options.map(selectOption => {
-                                                if (selectOption.type == "DROPDOWN") {
-                                                    console.log(selectOption + " " + JSON.stringify(selectOption) + " " + header[selectOption.name])
-                                                    return (<td className="col-sm">
-                                                        {this.getDropdownField(selectOption, header[selectOption.name],
-                                                            false,
-                                                            (value) => {
-                                                                this.mapValueChange(
-                                                                    propertyInformation.name, index,
-                                                                    selectOption.name,
-                                                                    value.target.value)
-                                                            },
-                                                            header.id + "_" + header[selectOption.name]
-                                                            + "_"
-                                                            + selectOption.name
-                                                            + "_" + index)}
-                                                    </td>)
-                                                } else {
-                                                    return (
-                                                        <td className="col-sm">
-                                                            <Editor
-                                                                key={header[selectOption.name] + "_" + selectOption.name
-                                                                + "_" + index + "_" + (this.props.selectedAction.userData.customData["scriptLanguage"].toLowerCase()
-                                                                    || "velocity")} simple={true}
-                                                                id={header[selectOption.name] + "_" + selectOption.name
-                                                                + "_" + index}
-                                                                onChange={(value) => {
-                                                                    this.mapValueChange(propertyInformation.name, index,
-                                                                        selectOption.name, value)
-                                                                }}
-                                                                value={header[selectOption.name]
-                                                                || ""}
-                                                                scriptLanguage={this.props.selectedAction.userData.customData["scriptLanguage"].toLowerCase()
-                                                                || "velocity"}
-                                                                extraSuggestions={this.props.taskParameters}/>
-                                                        </td>
-                                                    )
-                                                }
-                                            })}
-                                            <td><a href="#" className="btn btn-danger"
-                                                   onClick={() => this.removeMapKey(propertyInformation.name,
-                                                       index)}>Delete</a></td>
-                                        </tr>
-                                    ))
-                            }
-                            </tbody>
-
-                        </table>
-
-
-                    </div>;
-                propertiesField[this.firstLetterCapitalAndPluralize(propertyInformation.category)].push(temp);
-                break;
         }
 
+        if (show) {
+            let temp;
+            let actionProperty = this.props.selectedAction.userData.customData[propertyInformation.name] || currentValue || "";
+            switch (propertyInformation.type) {
+                case "STRING":
+                    temp =
+                        this.getStringField(propertyInformation,
+                            actionProperty, true);
+                    propertiesField[this.firstLetterCapitalAndPluralize(propertyInformation.category)].push(temp);
+                    break;
+                case "MULTILINE":
+                    temp =
+                        this.getStringField(propertyInformation,
+                            actionProperty, false);
+                    propertiesField[this.firstLetterCapitalAndPluralize(propertyInformation.category)].push(temp);
+                    break;
+                case "NUMBER":
+                    temp = this.getNumberField(propertyInformation, actionProperty)
+                    propertiesField[this.firstLetterCapitalAndPluralize(propertyInformation.category)].push(temp);
+                    break;
+                case "BOOLEAN":
+                    let booleanCheckedValue = propertyInformation.defaultValue === "true";
+                    if (actionProperty !== undefined) {
+                        booleanCheckedValue = actionProperty;
+                    }
+                    temp =
+                        <div className="form-group" key={propertyInformation.name}><label
+                            htmlFor={propertyInformation.name}>{propertyInformation.displayName}</label><small
+                            className="form-text text-muted">{propertyInformation.description}</small> <input
+                            type="checkbox"
+                            id={propertyInformation.name}
+                            defaultChecked={booleanCheckedValue
+                            || false}
+                            onChange={this.valueChange}/>
+
+                        </div>;
+                    propertiesField[this.firstLetterCapitalAndPluralize(propertyInformation.category)].push(temp);
+                    break;
+                case "DROPDOWN":
+                    temp =
+                        this.getDropdownField(propertyInformation, actionProperty, true);
+                    propertiesField[this.firstLetterCapitalAndPluralize(propertyInformation.category)].push(temp);
+
+                {
+                    let foundSelection = false;
+                    propertyInformation.options.map(selectOption => {
+                        if (actionProperty == selectOption.name) {
+                            selectOption.options.map(subOption => {
+                                this.initializeField(propertiesField, subOption, subOption.defaultValue);
+                            })
+                            foundSelection = true;
+                        }
+
+                    })
+
+                    // Set default value as the first item in the dropdown if nothing is found.
+                    if (!foundSelection && propertyInformation.options != undefined && propertyInformation.options.length != 0 && propertyInformation.options[0] != undefined) {
+                        this.props.selectedAction.userData.customData[propertyInformation.name] = propertyInformation.options[0].name;
+                        propertyInformation.options[0].options.map(subOption => {
+                            this.initializeField(propertiesField, subOption, subOption.defaultValue);
+                        })
+                    }
+                }
+
+                    break;
+
+                case "MAP":
+                    // Initialize Map if it does not exist.
+                    if (actionProperty === undefined) {
+                        actionProperty = []
+                    }
+
+                    // Construct object
+                    let newMapObject = {};
+                    propertyInformation.options.map(selectOption => {
+                        newMapObject[selectOption.name] = selectOption.defaultValue || "";
+                    });
+
+                    temp =
+                        <div className="form-group" key={propertyInformation.name}><label
+                            htmlFor={propertyInformation.name}>{propertyInformation.displayName}</label> <a href="#"
+                                                                                                            onClick={() => this.addMap(
+                                                                                                                propertyInformation.name,
+                                                                                                                newMapObject)}>Add</a>
+                            <table className="table">
+                                <thead>
+                                <tr className="d-flex">
+                                    {propertyInformation.options.map(selectOption => {
+                                        return (<th className="col-sm" key={selectOption.name}
+                                                    value={selectOption.name}>{selectOption.displayName}</th>)
+                                    })}
+                                    <th>Actions</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                {
+                                    actionProperty.map(
+                                        (header, index) => (
+                                            <tr key={header.id} className="d-flex">
+                                                {propertyInformation.options.map(selectOption => {
+                                                    if (selectOption.type == "DROPDOWN") {
+                                                        console.log(selectOption + " " + JSON.stringify(selectOption) + " " + header[selectOption.name])
+                                                        return (<td className="col-sm">
+                                                            {this.getDropdownField(selectOption, header[selectOption.name],
+                                                                false,
+                                                                (value) => {
+                                                                    this.mapValueChange(
+                                                                        propertyInformation.name, index,
+                                                                        selectOption.name,
+                                                                        value.target.value)
+                                                                },
+                                                                header.id + "_" + header[selectOption.name]
+                                                                + "_"
+                                                                + selectOption.name
+                                                                + "_" + index)}
+                                                        </td>)
+                                                    } else {
+                                                        return (
+                                                            <td className="col-sm">
+                                                                <Editor
+                                                                    key={header[selectOption.name] + "_" + selectOption.name
+                                                                    + "_" + index + "_" + (this.props.selectedAction.userData.customData["scriptLanguage"].toLowerCase()
+                                                                        || "velocity")} simple={true}
+                                                                    id={header[selectOption.name] + "_" + selectOption.name
+                                                                    + "_" + index}
+                                                                    onChange={(value) => {
+                                                                        this.mapValueChange(propertyInformation.name, index,
+                                                                            selectOption.name, value)
+                                                                    }}
+                                                                    value={header[selectOption.name]
+                                                                    || ""}
+                                                                    scriptLanguage={this.props.selectedAction.userData.customData["scriptLanguage"].toLowerCase()
+                                                                    || "velocity"}
+                                                                    extraSuggestions={this.props.taskParameters}/>
+                                                            </td>
+                                                        )
+                                                    }
+                                                })}
+                                                <td><a href="#" className="btn btn-danger"
+                                                       onClick={() => this.removeMapKey(propertyInformation.name,
+                                                           index)}>Delete</a></td>
+                                            </tr>
+                                        ))
+                                }
+                                </tbody>
+
+                            </table>
+
+
+                        </div>;
+                    propertiesField[this.firstLetterCapitalAndPluralize(propertyInformation.category)].push(temp);
+                    break;
+            }
+
+        }
 
     }
 

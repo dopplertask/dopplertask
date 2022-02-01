@@ -17,7 +17,7 @@ import java.util.Base64;
 @Component
 public class ColumnEncryptor implements AttributeConverter<String, String> {
 
-    private static final String AES = "AES/GCM/NoPadding";
+    private static final String AES = "AES";
 
     private final Key key;
     private final Cipher cipher;
