@@ -75,23 +75,27 @@ class MySQLAction : Action() {
         try {
             dataSource.connection.use { conn ->
                 stmt = conn.createStatement()
-                rs = stmt?.executeQuery(localCommand)
-                val rsmd = rs?.getMetaData()
-                val builder = StringBuilder()
-                builder.append("Quering: $localCommand\n")
-                builder.append("Result: \n\n")
-                val columnsNumber = rsmd?.columnCount
-                while (rs!!.next()) {
-                    for (i in 1..columnsNumber!!) {
-                        if (i > 1) {
-                            builder.append(",  ")
+                if (stmt?.execute(localCommand) == true) {
+                    rs = stmt?.resultSet;
+                    val rsmd = rs?.metaData
+
+                    val builder = StringBuilder()
+                    builder.append("Quering: $localCommand\n")
+                    builder.append("Result: \n\n")
+                    val columnsNumber = rsmd?.columnCount
+                    while (rs!!.next()) {
+                        for (i in 1..columnsNumber!!) {
+                            if (i > 1) {
+                                builder.append(", ")
+                            }
+                            val columnValue = rs?.getString(i)
+                            builder.append(rsmd.getColumnName(i) + ": " + columnValue)
                         }
-                        val columnValue = rs?.getString(i)
-                        builder.append(columnValue + " " + rsmd.getColumnName(i))
+                        builder.append("\n")
                     }
-                    builder.append("\n")
+
+                    actionResult.output = builder.toString()
                 }
-                actionResult.output = builder.toString()
                 actionResult.statusCode = StatusCode.SUCCESS
                 return actionResult
             }
