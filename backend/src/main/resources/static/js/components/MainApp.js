@@ -545,6 +545,7 @@ class MainApp extends React.Component {
                                         <span><img src="images/logo.png" alt=""
                                         /></span>
                                 </div>
+                                <div className="text-center"><small>Version: 0.11.2</small></div>
                                 <ul className="sidebar-nav nav">
 
                                     <li><a href="#" onClick={this.newWorkflow}><i className="fas fa-file"></i> New task</a>
