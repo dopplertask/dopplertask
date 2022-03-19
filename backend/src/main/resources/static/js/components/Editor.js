@@ -14,6 +14,7 @@ class Editor extends React.Component {
 
     componentDidMount() {
 
+        console.log("Value: " + this.props.value);
         ace.config.set("basePath", "/");
         this.editor = window.ace.edit(this.containerId);
 

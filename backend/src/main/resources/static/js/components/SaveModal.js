@@ -1,4 +1,5 @@
 import * as React from "react";
+import Editor from "./Editor";
 
 class SaveModal extends React.Component {
 
@@ -22,7 +23,12 @@ class SaveModal extends React.Component {
                             htmlFor="taskNameInput">Task name</label>
                         <input type="text" className="form-control" id="taskNameInput" value={this.props.taskName}
                                onChange={this.props.handleSaveModalField}/>
+                        <label
+                            htmlFor="descriptionInput">Description</label>
+                        <Editor id="descriptionInput" onChange={(value) => this.props.handleSaveModalDescriptionField(value)} value={this.props.description}
+                                simple={false} />
                     </div>
+                    {this.props.description}
                     <div className="modal-footer">
                         <button type="button" className="btn btn-secondary" data-dismiss="modal"
                                 onClick={this.props.closeSaveDialog}>Close
