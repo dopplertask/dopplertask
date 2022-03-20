@@ -4,6 +4,7 @@ import com.dopplertask.dopplertask.domain.*
 import com.dopplertask.dopplertask.domain.action.Action
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
 import com.dopplertask.dopplertask.service.BroadcastListener
+import com.dopplertask.dopplertask.service.ColumnEncryptor
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import java.io.IOException
@@ -17,9 +18,11 @@ class SSHAction : Action() {
     var hostname: String? = null
 
     @Column
+    @Convert(converter = ColumnEncryptor::class)
     var username: String? = null
 
     @Column
+    @Convert(converter = ColumnEncryptor::class)
     var password: String? = null
 
     @Lob

@@ -18,6 +18,7 @@ class MainApp extends React.Component {
             selectedAction: {userData: {customData: {}, lastSingleActionExecutionOutput: ""}},
             saveDialogVisible: false,
             taskName: "task" + unsavedTaskNamePrefix,
+            description: "",
             start: false,
             saved: false,
             active: false
@@ -33,6 +34,7 @@ class MainApp extends React.Component {
         this.saveWorkflow = this.saveWorkflow.bind(this);
         this.closeSaveDialog = this.closeSaveDialog.bind(this);
         this.handleSaveModalField = this.handleSaveModalField.bind(this);
+        this.handleSaveModalDescriptionField = this.handleSaveModalDescriptionField.bind(this);
         this.downloadWorkflow = this.downloadWorkflow.bind(this);
         this.updateFieldData = this.updateFieldData.bind(this);
         this.setStart = this.setStart.bind(this);
@@ -311,7 +313,7 @@ class MainApp extends React.Component {
         let outputBody = {
             name: this.state.taskName,
             active: this.state.active,
-            description: "",
+            description: this.state.description,
             parameters: this.state.parameters,
             actions: [],
             connections: []
@@ -448,6 +450,7 @@ class MainApp extends React.Component {
 
         mainApp.setState({
             taskName: task.name,
+            description: task.description,
             parameters: task.parameters,
             saved: true,
             active: task.active
@@ -471,6 +474,17 @@ class MainApp extends React.Component {
 
         this.setState({saved: false});
 
+    }
+
+    handleSaveModalDescriptionField(event) {
+        const target = event.target;
+        let value = target.value;
+
+        this.setState(prevState => ({
+            description: value
+        }));
+
+        this.setState({saved: false});
     }
 
     saveActionSettings() {
@@ -545,7 +559,7 @@ class MainApp extends React.Component {
                                         <span><img src="images/logo.png" alt=""
                                         /></span>
                                 </div>
-                                <div className="text-center"><small>Version: 0.11.2</small></div>
+                                <div className="text-center"><small>Version: 0.12.0</small></div>
                                 <ul className="sidebar-nav nav">
 
                                     <li><a href="#" onClick={this.newWorkflow}><i className="fas fa-file"></i> New task</a>
@@ -625,7 +639,8 @@ class MainApp extends React.Component {
             <SaveModal
                 saveWorkflow={this.saveWorkflow} closeSaveDialog={this.closeSaveDialog}
                 taskName={this.state.taskName}
-                handleSaveModalField={this.handleSaveModalField}/>
+                description={this.state.description}
+                handleSaveModalField={this.handleSaveModalField} handleSaveModalDescriptionField={this.handleSaveModalDescriptionField}/>
 
             <RunTaskModal prepareJSON={this.prepareJSON} saved={this.state.saved}
                           taskName={this.state.taskName} start={this.state.start}
@@ -700,6 +715,10 @@ class MainApp extends React.Component {
         // Validate
         if (startActions > 1) {
             this.showNotification("Only one start action is allowed.");
+            return;
+        }
+        else if(startActions < 1) {
+            this.showNotification("A start action is always needed.");
             return;
         }
 

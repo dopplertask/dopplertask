@@ -6,6 +6,7 @@ import com.dopplertask.dopplertask.domain.TaskExecution
 import com.dopplertask.dopplertask.domain.action.Action
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
 import com.dopplertask.dopplertask.service.BroadcastListener
+import com.dopplertask.dopplertask.service.ColumnEncryptor
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import com.mysql.cj.jdbc.MysqlDataSource
@@ -20,21 +21,27 @@ import javax.persistence.*
 @DiscriminatorValue("mysql_action")
 class MySQLAction : Action() {
     @Column
+    @Convert(converter = ColumnEncryptor::class)
     var hostname: String? = null
 
     @Column
+    @Convert(converter = ColumnEncryptor::class)
     var username: String? = null
 
     @Column
+    @Convert(converter = ColumnEncryptor::class)
     var password: String? = null
 
     @Column
+    @Convert(converter = ColumnEncryptor::class)
     var port: String? = null
 
     @Column
+    @Convert(converter = ColumnEncryptor::class)
     var database: String? = null
 
     @Column
+    @Convert(converter = ColumnEncryptor::class)
     var timezone: String? = null
 
     @Lob
@@ -42,7 +49,12 @@ class MySQLAction : Action() {
     var command: String? = null
 
     @Throws(IOException::class)
-    override fun run(taskService: TaskService, execution: TaskExecution, variableExtractorUtil: VariableExtractorUtil, broadcastListener: BroadcastListener?): ActionResult {
+    override fun run(
+        taskService: TaskService,
+        execution: TaskExecution,
+        variableExtractorUtil: VariableExtractorUtil,
+        broadcastListener: BroadcastListener?
+    ): ActionResult {
         val localHostname = variableExtractorUtil.extract(hostname, execution, scriptLanguage)
         val localUsername = variableExtractorUtil.extract(username, execution, scriptLanguage)
         val localPassword = variableExtractorUtil.extract(password, execution, scriptLanguage)
@@ -122,13 +134,57 @@ class MySQLAction : Action() {
     override val actionInfo: MutableList<PropertyInformation>
         get() {
             val actionInfo = super.actionInfo
-            actionInfo.add(PropertyInformation("hostname", "Hostname", PropertyInformationType.STRING, "", "Hostname or IP"))
-            actionInfo.add(PropertyInformation("username", "Username", PropertyInformationType.STRING, "", "Username"))
-            actionInfo.add(PropertyInformation("password", "Password", PropertyInformationType.STRING, "", "Password"))
-            actionInfo.add(PropertyInformation("database", "Database", PropertyInformationType.STRING, "", "Database name"))
-            actionInfo.add(PropertyInformation("port", "Port", PropertyInformationType.STRING, "3306", "Default is 3306"))
-            actionInfo.add(PropertyInformation("timezone", "Timezone", PropertyInformationType.STRING, "", "Specify timezone. Example CET"))
-            actionInfo.add(PropertyInformation("command", "MySQL Statement", PropertyInformationType.STRING, "", "Statement to execute"))
+            actionInfo.add(
+                PropertyInformation(
+                    "hostname", "Hostname", PropertyInformationType.STRING, "", "Hostname or IP", emptyList(),
+                    PropertyInformation.PropertyInformationCategory.CREDENTIAL
+                )
+            )
+            actionInfo.add(
+                PropertyInformation(
+                    "username", "Username", PropertyInformationType.STRING, "", "Username",
+                    emptyList(),
+                    PropertyInformation.PropertyInformationCategory.CREDENTIAL
+                )
+            )
+            actionInfo.add(
+                PropertyInformation(
+                    "password", "Password", PropertyInformationType.STRING, "", "Password", emptyList(),
+                    PropertyInformation.PropertyInformationCategory.CREDENTIAL
+                )
+            )
+            actionInfo.add(
+                PropertyInformation(
+                    "database", "Database", PropertyInformationType.STRING, "", "Database name", emptyList(),
+                    PropertyInformation.PropertyInformationCategory.CREDENTIAL
+                )
+            )
+            actionInfo.add(
+                PropertyInformation(
+                    "port", "Port", PropertyInformationType.STRING, "3306", "Default is 3306", emptyList(),
+                    PropertyInformation.PropertyInformationCategory.CREDENTIAL
+                )
+            )
+            actionInfo.add(
+                PropertyInformation(
+                    "timezone",
+                    "Timezone",
+                    PropertyInformationType.STRING,
+                    "",
+                    "Specify timezone. Example CET",
+                    emptyList(),
+                    PropertyInformation.PropertyInformationCategory.CREDENTIAL
+                )
+            )
+            actionInfo.add(
+                PropertyInformation(
+                    "command",
+                    "MySQL Statement",
+                    PropertyInformationType.MULTILINE,
+                    "",
+                    "Statement to execute"
+                )
+            )
             return actionInfo
         }
 
