@@ -33,9 +33,13 @@ public class JenkinsAction extends Action {
 
     @Convert(converter = ColumnEncryptor.class)
     private String apiToken;
+
+    @Convert(converter = ColumnEncryptor.class)
     private String jenkinsUrl;
 
     @Column(columnDefinition = "BOOLEAN")
+
+    @Convert(converter = ColumnEncryptor.class)
     private boolean useCrumb = true;
 
     private String resourceType;
