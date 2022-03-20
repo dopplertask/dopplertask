@@ -476,13 +476,15 @@ class MainApp extends React.Component {
 
     }
 
-    handleSaveModalDescriptionField(value) {
+    handleSaveModalDescriptionField(event) {
+        const target = event.target;
+        let value = target.value;
+
         this.setState(prevState => ({
             description: value
         }));
 
         this.setState({saved: false});
-
     }
 
     saveActionSettings() {

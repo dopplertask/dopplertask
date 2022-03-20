@@ -1,11 +1,12 @@
 import * as React from "react";
-import Editor from "./Editor";
 
 class SaveModal extends React.Component {
+
 
     constructor(props) {
         super(props);
     }
+
 
     render() {
         return (<div className="modal fade" id="saveModal" tabIndex="-1" role="dialog"
@@ -25,10 +26,9 @@ class SaveModal extends React.Component {
                                onChange={this.props.handleSaveModalField}/>
                         <label
                             htmlFor="descriptionInput">Description</label>
-                        <Editor id="descriptionInput" onChange={(value) => this.props.handleSaveModalDescriptionField(value)} value={this.props.description}
-                                simple={false} />
+
+                        <input type="text" className="form-control" id="descriptionInput" onChange={this.props.handleSaveModalDescriptionField} value={this.props.description}/>
                     </div>
-                    {this.props.description}
                     <div className="modal-footer">
                         <button type="button" className="btn btn-secondary" data-dismiss="modal"
                                 onClick={this.props.closeSaveDialog}>Close
