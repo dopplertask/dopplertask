@@ -192,7 +192,33 @@ const options = yargs
             console.table(out)
         });
     }
-})
+}).command({
+        command: "push [taskname]",
+        describe: "Push task to the DopplerTask hub",
+        demandOption: true,
+        handler(argv) {
+            const data = JSON.stringify({
+                taskName: argv.taskname,
+            });
+            callBackend("/task/push", "POST", data, function(e) {
+                console.log(e.message);
+            });
+        }
+    })
+    .command({
+        command: "login [username] [password]",
+        describe: "Login to DopplerTask hub",
+        demandOption: true,
+        handler(argv) {
+            const data = JSON.stringify({
+                username: argv.username,
+                password: argv.password,
+            });
+            callBackend("/login", "POST", data, function(e) {
+                console.log(e.message);
+            });
+        }
+    })
 .strict().demandCommand().help().argv;
 
 
