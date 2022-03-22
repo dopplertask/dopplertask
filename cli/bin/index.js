@@ -205,20 +205,38 @@ const options = yargs
             });
         }
     })
-    .command({
-        command: "login [username] [password]",
-        describe: "Login to DopplerTask hub",
-        demandOption: true,
-        handler(argv) {
-            const data = JSON.stringify({
-                username: argv.username,
-                password: argv.password,
-            });
-            callBackend("/login", "POST", data, function(e) {
-                console.log(e.message);
-            });
-        }
-    })
+.command({
+    command: "login [username] [password]",
+    describe: "Login to DopplerTask hub",
+    demandOption: true,
+    handler(argv) {
+        const data = JSON.stringify({
+            username: argv.username,
+            password: argv.password,
+        });
+        callBackend("/login", "POST", data, function(e) {
+            console.log(e.message);
+        });
+    }
+}).command({
+    command: "pull [taskname]",
+    describe: "Download task from DopplerTask hub",
+    demandOption: true,
+    handler(argv) {
+        callBackend("/task/download?taskName=" + argv.taskname, "GET", null, function(e) {
+            console.log(e.checksum);
+        });
+    }
+}).command({
+    command: "rm [tasknameOrChecksum]",
+    describe: "Delete task from local instance by task name or checksum",
+    demandOption: true,
+    handler(argv) {
+        callBackend("/task/" + argv.tasknameOrChecksum, "DELETE", null, function(e) {
+            console.log(e.message);
+        });
+    }
+})
 .strict().demandCommand().help().argv;
 
 
