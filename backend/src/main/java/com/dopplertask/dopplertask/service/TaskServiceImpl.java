@@ -185,6 +185,7 @@ public class TaskServiceImpl implements TaskService {
 
 
             for (ActionPort actionPort : action.getPorts()) {
+                actionPort.setId(null);
                 actionPort.setAction(action);
                 portMap.put(actionPort.getExternalId(), actionPort);
             }
@@ -316,6 +317,8 @@ public class TaskServiceImpl implements TaskService {
                     throw new AuthenticationException("Task could not be uploaded. You've provided wrong credentials.");
                 } else if (response.body().equals("{\"message\": \"A workflow with the same checksum exists. Aborting.\"}")) {
                     throw new TaskAlreadyUploadedException("This task is already uploaded.");
+                } else if (response.body().equals("{\"message\": \"A workflow name must start with a username followed by a forward slash followed by the task name.\"}")) {
+                    throw new TaskAlreadyUploadedException("A workflow name must start with a username followed by a forward slash followed by the task name.");
                 }
 
             } catch (IOException | InterruptedException e) {

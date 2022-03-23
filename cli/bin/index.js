@@ -201,7 +201,7 @@ const options = yargs
                 taskName: argv.taskname,
             });
             callBackend("/task/push", "POST", data, function(e) {
-                console.log(e.message);
+                console.log(e.taskName);
             });
         }
     })

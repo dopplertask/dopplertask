@@ -2,21 +2,11 @@ package com.dopplertask.dopplertask.service;
 
 import com.dopplertask.dopplertask.dao.TaskDao;
 import com.dopplertask.dopplertask.dao.TaskExecutionDao;
-import com.dopplertask.dopplertask.domain.ActionPort;
-import com.dopplertask.dopplertask.domain.ActionResult;
-import com.dopplertask.dopplertask.domain.OutputType;
-import com.dopplertask.dopplertask.domain.StatusCode;
-import com.dopplertask.dopplertask.domain.Task;
-import com.dopplertask.dopplertask.domain.TaskExecution;
-import com.dopplertask.dopplertask.domain.TaskExecutionLog;
-import com.dopplertask.dopplertask.domain.TaskExecutionStatus;
-import com.dopplertask.dopplertask.domain.TaskParameter;
+import com.dopplertask.dopplertask.domain.*;
 import com.dopplertask.dopplertask.domain.action.Action;
-import com.dopplertask.dopplertask.domain.action.trigger.Trigger;
 import com.dopplertask.dopplertask.dto.TaskCreationDTO;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,12 +23,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
