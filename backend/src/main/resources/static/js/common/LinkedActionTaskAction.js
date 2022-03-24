@@ -12,8 +12,11 @@ let LinkedActionTaskAction = draw2d.shape.node.Between.extend({
         })
 
         // Add LinkedTaskAction name based on Task name input
-
-        let label = new draw2d.shape.basic.Label({text: this.userData.name});
+        let extraNameParameter = "";
+        if(this.userData.customData.name !== undefined && this.userData.customData.name.length > 0) {
+            extraNameParameter = " (" + extraNameParameter + ")";
+        }
+        let label = new draw2d.shape.basic.Label({text: this.userData.name + extraNameParameter});
         label.setStroke(0);
 
         this.add(label, new draw2d.layout.locator.BottomLocator(this));
