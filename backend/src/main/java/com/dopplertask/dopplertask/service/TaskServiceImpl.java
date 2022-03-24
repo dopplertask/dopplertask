@@ -185,7 +185,6 @@ public class TaskServiceImpl implements TaskService {
 
 
             for (ActionPort actionPort : action.getPorts()) {
-                actionPort.setId(null);
                 actionPort.setAction(action);
                 portMap.put(actionPort.getExternalId(), actionPort);
             }
