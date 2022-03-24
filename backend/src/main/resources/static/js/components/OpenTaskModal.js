@@ -80,7 +80,7 @@ class openTaskModal extends React.Component {
                                         <td><a href="#" className="btn btn-primary"
                                                onClick={() => {
                                                    $("#openTaskModal").modal("hide");
-                                                   this.props.openTask($("#" + task + "_versions").val())
+                                                   this.props.openTask($("#" + $.escapeSelector(task) + "_versions").val())
                                                }}>Open</a></td>
                                     </tr>)
                                 })

@@ -277,8 +277,10 @@ class MainApp extends React.Component {
                     availableAction => availableAction.name == actionName)
             });
             action.onDoubleClick = () => this.editModelForFigure();
-        } else {
+        }
+        else {
             let currentActionDetails = this.state.availableActions.find(availableAction => availableAction.name == actionName);
+            console.log(JSON.stringify(currentActionDetails))
             if (currentActionDetails.trigger) {
                 action = new StartFigure({
                     x: 550,
