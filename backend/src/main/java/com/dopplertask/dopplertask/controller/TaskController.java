@@ -14,6 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
@@ -167,10 +168,16 @@ public class TaskController {
 
     @PostMapping(path = "/task/push")
     public ResponseEntity<TaskNameDTO> pushTask(@RequestBody TaskNameDTO taskNameDTO) {
-        boolean pushed = taskService.pushTask(taskNameDTO.getTaskName());
+        try {
+            boolean pushed = taskService.pushTask(taskNameDTO.getTaskName());
 
-        if (pushed) {
-            return new ResponseEntity<>(taskNameDTO, HttpStatus.OK);
+            if (pushed) {
+                return new ResponseEntity<>(taskNameDTO, HttpStatus.OK);
+            }
+        } catch (RuntimeException e) {
+            TaskNameDTO errorMsg = new TaskNameDTO();
+            errorMsg.setTaskName(e.getMessage());
+            return new ResponseEntity<>(errorMsg, HttpStatus.BAD_REQUEST);
         }
 
         return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
@@ -390,10 +397,11 @@ public class TaskController {
         return new ResponseEntity<>(new SimpleMessageResponseDTO("Successfully logged in"), HttpStatus.OK);
     }
 
-    @DeleteMapping("/task/{taskNameOrChecksum}")
-    public ResponseEntity<SimpleMessageResponseDTO> deleteTask(@PathVariable String taskNameOrChecksum) {
+    @DeleteMapping("/task/**")
+    public ResponseEntity<SimpleMessageResponseDTO> deleteTask(HttpServletRequest request) {
 
-        Task task = taskService.deleteTask(taskNameOrChecksum);
+        Task task = taskService.deleteTask(request.getRequestURI()
+                .split(request.getContextPath() + "/task/")[1]);
 
         if (task != null) {
             SimpleMessageResponseDTO messageDto = new SimpleMessageResponseDTO("Task has been deleted " + task.getChecksum());

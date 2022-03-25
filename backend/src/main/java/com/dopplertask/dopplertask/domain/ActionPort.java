@@ -27,6 +27,7 @@ public class ActionPort {
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
     @Column(name = "id", updatable = false, nullable = false)
+    @JsonIgnore
     private Long id;
 
     @Column

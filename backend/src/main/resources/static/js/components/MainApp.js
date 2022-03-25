@@ -247,14 +247,17 @@ class MainApp extends React.Component {
 
     createNode(actionName) {
         let action;
+        let currentActionDetails = this.state.availableActions.find(availableAction => availableAction.name == actionName);
+        // Make a copy to avoid using the same reference, overwriting each others values
+        currentActionDetails = Object.assign({}, currentActionDetails);
+
         if (actionName == "IfAction") {
             action = new IfAction({
                 x: 550,
                 y: 340,
                 width: 120,
                 height: 120,
-                userData: this.state.availableActions.find(
-                    availableAction => availableAction.name == actionName)
+                userData: currentActionDetails
             });
             action.onDoubleClick = () => this.editModelForFigure();
         } else if (actionName == "SwitchAction") {
@@ -263,8 +266,7 @@ class MainApp extends React.Component {
                 y: 340,
                 width: 120,
                 height: 120,
-                userData: this.state.availableActions.find(
-                    availableAction => availableAction.name == actionName)
+                userData: currentActionDetails
             });
             action.onDoubleClick = () => this.editModelForFigure();
         } else if (actionName == "StartAction") {
@@ -273,12 +275,21 @@ class MainApp extends React.Component {
                 y: 340,
                 width: 120,
                 height: 120,
-                userData: this.state.availableActions.find(
-                    availableAction => availableAction.name == actionName)
+                userData: currentActionDetails
             });
             action.onDoubleClick = () => this.editModelForFigure();
-        } else {
-            let currentActionDetails = this.state.availableActions.find(availableAction => availableAction.name == actionName);
+        }
+        else if (actionName == "LinkedTaskAction") {
+            action = new LinkedActionTaskAction({
+                x: 550,
+                y: 340,
+                width: 120,
+                height: 120,
+                userData: currentActionDetails
+            });
+            action.onDoubleClick = () => this.editModelForFigure();
+        }
+        else {
             if (currentActionDetails.trigger) {
                 action = new StartFigure({
                     x: 550,
