@@ -9,10 +9,9 @@ import com.dopplertask.dopplertask.service.TaskRequest
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import com.fasterxml.jackson.annotation.JsonIgnore
-import javax.persistence.Column
-import javax.persistence.DiscriminatorValue
-import javax.persistence.Entity
-import javax.persistence.Table
+import java.io.IOException
+import java.util.function.Consumer
+import javax.persistence.*
 
 @Entity
 @Table(name = "LinkedTaskAction")
@@ -25,6 +24,10 @@ class LinkedTaskAction : Action() {
     @JsonIgnore
     var checksum: String? = null
 
+    @Column
+    @OneToMany(mappedBy = "linkedTaskAction", cascade = [CascadeType.ALL])
+    private var parameters: List<LinkedTaskParameter> = ArrayList()
+
     override fun run(taskService: TaskService, execution: TaskExecution, variableExtractorUtil: VariableExtractorUtil, broadcastListener: BroadcastListener?): ActionResult {
         if (execution.depth < MAX_LINKED_TASK_DEPTH) {
             val taskRequest = TaskRequest()
@@ -32,7 +35,16 @@ class LinkedTaskAction : Action() {
             taskRequest.checksum = checksum
             // Increase depth by one
             taskRequest.depth = execution.depth + 1
-            taskRequest.parameters = execution.parameters
+
+            val passedLinkedTaskParameters: MutableMap<String, String> = mutableMapOf()
+            parameters.forEach(Consumer { linkedActionParameter: LinkedTaskParameter ->
+                try {
+                    passedLinkedTaskParameters[variableExtractorUtil.extract(linkedActionParameter.parameterName, execution, scriptLanguage)] = variableExtractorUtil.extract(linkedActionParameter.parameterValue, execution, scriptLanguage)
+                } catch (e: IOException) {
+                    e.printStackTrace()
+                }
+            })
+            taskRequest.parameters = passedLinkedTaskParameters
             val taskExecution = taskService.runRequest(taskRequest)
             if (taskExecution != null) {
                 var standardOutput = StringBuilder()
@@ -82,6 +94,15 @@ class LinkedTaskAction : Action() {
         get() {
             val actionInfo = super.actionInfo
             actionInfo.add(PropertyInformation("name", "Task name"))
+            actionInfo.add(
+                    PropertyInformation(
+                            "parameters", "Parameters", PropertyInformation.PropertyInformationType.MAP, "", "Parameters for the linked task",
+                            listOf(
+                                    PropertyInformation("parameterName", "Name"),
+                                    PropertyInformation("parameterValue", "Value ")
+                            )
+                    )
+            )
             return actionInfo
         }
 
@@ -90,5 +111,14 @@ class LinkedTaskAction : Action() {
 
     companion object {
         private const val MAX_LINKED_TASK_DEPTH = 100
+    }
+
+    fun getParameters(): List<LinkedTaskParameter> {
+        return parameters;
+    }
+
+    fun setParameters(parameters: List<LinkedTaskParameter>) {
+        parameters.forEach(Consumer { parameter: LinkedTaskParameter -> parameter.linkedTaskAction = this })
+        this.parameters = parameters
     }
 }
