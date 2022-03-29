@@ -24,6 +24,7 @@ import org.springframework.jms.core.JmsTemplate;
 import org.springframework.test.context.junit4.SpringRunner;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -166,7 +167,7 @@ public class ExecutionServiceTest {
         Assert.assertEquals(10L, resultExecution.getId().longValue());
         Assert.assertEquals(exampleTask, resultExecution.getTask());
         Assert.assertEquals(1, resultExecution.getParameters().size());
-        Assert.assertEquals("testValue One two three 10", resultExecution.getParameters().get("testVar"));
+        Assert.assertEquals("testValue One two three 10", new String(resultExecution.getParameters().get("testVar"), StandardCharsets.UTF_8));
     }
 
 

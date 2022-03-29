@@ -54,7 +54,13 @@ public class TaskController {
             this.taskService.createTask(taskRequestDTO.getTask().getName() + token, taskRequestDTO.getTask().getParameters(), taskRequestDTO.getTask().getActions(), taskRequestDTO.getTask().getDescription(), taskRequestDTO.getTask().getConnections(), taskRequestDTO.getTask().getName() + token, taskRequestDTO.getTask().isActive());
             removeTaskAfterExecution = true;
         }
-        TaskRequest request = new TaskRequest(removeTaskAfterExecution ? taskRequestDTO.getTaskName() + token : taskRequestDTO.getTaskName(), taskRequestDTO.getParameters(), removeTaskAfterExecution);
+
+        Map<String, byte[]> parameters = new HashMap<>();
+        taskRequestDTO.getParameters().forEach((parameterName, parameterValue) -> {
+            parameters.put(parameterName, parameterValue.getBytes(StandardCharsets.UTF_8));
+        });
+
+        TaskRequest request = new TaskRequest(removeTaskAfterExecution ? taskRequestDTO.getTaskName() + token : taskRequestDTO.getTaskName(), parameters, removeTaskAfterExecution);
         request.setChecksum(taskRequestDTO.getTaskName());
         TaskExecution taskExecution = taskService.delegate(request);
 
@@ -70,7 +76,12 @@ public class TaskController {
 
     @PostMapping(path = "/schedule/directtask")
     public ResponseEntity<TaskExecutionLogResponseDTO> runTask(@RequestBody TaskRequestDTO taskRequestDTO) {
-        TaskRequest request = new TaskRequest(taskRequestDTO.getTaskName(), taskRequestDTO.getParameters());
+        Map<String, byte[]> parameters = new HashMap<>();
+        taskRequestDTO.getParameters().forEach((parameterName, parameterValue) -> {
+            parameters.put(parameterName, parameterValue.getBytes(StandardCharsets.UTF_8));
+        });
+
+        TaskRequest request = new TaskRequest(taskRequestDTO.getTaskName(), parameters);
         request.setChecksum(taskRequestDTO.getTaskName());
         TaskExecution execution = taskService.runRequest(request);
 

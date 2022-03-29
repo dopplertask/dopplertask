@@ -25,7 +25,7 @@ class SetVariableAction : Action() {
         for (setVariable in setVariableList!!) {
             if (setVariable.value != null) {
                 val evaluatedValue = variableExtractorUtil.extract(setVariable.value, execution, scriptLanguage)
-                execution.parameters[setVariable.name] = evaluatedValue
+                execution.parameters[setVariable.name] = evaluatedValue.encodeToByteArray()
                 builder.append("Setting variable [key=" + setVariable.name + ", value=" + evaluatedValue + "]\n")
             }
         }

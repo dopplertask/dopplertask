@@ -13,6 +13,8 @@ import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Paths
 import java.nio.file.StandardOpenOption
+import java.util.List
+import java.util.Map
 import javax.persistence.*
 
 @Entity
@@ -21,6 +23,9 @@ import javax.persistence.*
 class WriteFileAction : Action() {
     @Column
     var filename: String? = null
+
+    @Column
+    var outputType: String? = null
 
     @Lob
     @Column(columnDefinition = "TEXT")
@@ -34,7 +39,21 @@ class WriteFileAction : Action() {
             if (filenameVariable.contains("~/") && filenameVariable.startsWith("~")) {
                 filenameVariable = filenameVariable.replace("~/", System.getProperty("user.home") + "/")
             }
-            Files.writeString(Paths.get(filenameVariable), contentsVariable, StandardOpenOption.CREATE, StandardOpenOption.WRITE)
+            if(outputType.equals("clearText")) {
+                Files.writeString(Paths.get(filenameVariable), contentsVariable, StandardOpenOption.CREATE, StandardOpenOption.WRITE)
+            } else {
+                try {
+                    Files.write(Paths.get(filenameVariable), execution.parameters[contentsVariable], StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)
+                }
+                catch (e: NullPointerException) {
+                    val actionResult = ActionResult()
+                    actionResult.output = "Content variable is not set, does not exist, or is a wrong value"
+                    actionResult.outputType = OutputType.STRING
+                    actionResult.statusCode = StatusCode.FAILURE
+                    return actionResult
+                }
+            }
+
             val actionResult = ActionResult()
             actionResult.output = contents!!
             actionResult.outputType = OutputType.STRING
@@ -53,7 +72,11 @@ class WriteFileAction : Action() {
         get() {
             val actionInfo = super.actionInfo
             actionInfo.add(PropertyInformation("filename", "File location", PropertyInformationType.STRING, "", "File path. eg. /home/user/file.txt"))
-            actionInfo.add(PropertyInformation("contents", "Contents", PropertyInformationType.MULTILINE, "", "Contents of the file"))
+            actionInfo.add(PropertyInformation("outputType", "Output Type", PropertyInformationType.DROPDOWN, "clearText", "Choose binary input or clear text", mutableListOf(PropertyInformation("clearText", "Clear text"), PropertyInformation("binaryVar", "Binary")), PropertyInformation.PropertyInformationCategory.PROPERTY))
+            actionInfo.add(PropertyInformation("contents", "Contents", PropertyInformationType.STRING, "", "Property name containing the binary data", mutableListOf(), PropertyInformation.PropertyInformationCategory.PROPERTY, Map.of(
+                    "outputType", arrayOf("binaryVar"))))
+            actionInfo.add(PropertyInformation("contents", "Contents", PropertyInformationType.MULTILINE, "", "Contents of the file", mutableListOf(), PropertyInformation.PropertyInformationCategory.PROPERTY, Map.of(
+                    "outputType", arrayOf("clearText"))))
             return actionInfo
         }
 

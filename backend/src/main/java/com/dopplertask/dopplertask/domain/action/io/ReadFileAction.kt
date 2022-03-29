@@ -36,10 +36,10 @@ class ReadFileAction : Action() {
             if (filenameVariable.contains("~/") && filenameVariable.startsWith("~")) {
                 filenameVariable = filenameVariable.replace("~/", System.getProperty("user.home") + "/")
             }
-            val fileContents = Files.readString(Paths.get(filenameVariable), StandardCharsets.UTF_8)
+            val fileContents = Files.readAllBytes(Paths.get(filenameVariable))
             execution.parameters[parameterNameVariable] = fileContents
             val actionResult = ActionResult()
-            actionResult.output = fileContents
+            actionResult.output = String(fileContents)
             actionResult.outputType = OutputType.STRING
             actionResult.statusCode = StatusCode.SUCCESS
             actionResult

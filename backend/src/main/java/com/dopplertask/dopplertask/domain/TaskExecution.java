@@ -36,9 +36,9 @@ public class TaskExecution {
 
     @ElementCollection
     @MapKeyColumn(name = "paramName")
-    @Column(name = "paramValue", length = 100000)
+    @Column(name = "paramValue", length = 100000, columnDefinition="BLOB NOT NULL")
     @CollectionTable(name = "execution_parameters", joinColumns = @JoinColumn(name = "execution_id"))
-    private Map<String, String> parameters = new HashMap<String, String>();
+    private Map<String, byte[]> parameters = new HashMap<String, byte[]>();
 
     @ManyToOne
     @JoinColumn
@@ -72,11 +72,11 @@ public class TaskExecution {
         this.id = id;
     }
 
-    public Map<String, String> getParameters() {
+    public Map<String, byte[]> getParameters() {
         return parameters;
     }
 
-    public void setParameters(Map<String, String> parameters) {
+    public void setParameters(Map<String, byte[]> parameters) {
         this.parameters = parameters;
     }
 

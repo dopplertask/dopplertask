@@ -5,14 +5,14 @@ import java.util.Map;
 public class TaskRequest {
     private String taskName;
     private String checksum;
-    private Map<String, String> parameters;
+    private Map<String, byte[]> parameters;
     private int depth = 0;
     private boolean removeTaskAfterExecution;
 
     // If defined then automation starts from a trigger
     private TriggerInfo triggerInfo;
 
-    public TaskRequest(String taskName, Map<String, String> parameters) {
+    public TaskRequest(String taskName, Map<String, byte[]> parameters) {
         this(taskName, parameters, false);
     }
 
@@ -20,7 +20,7 @@ public class TaskRequest {
         this.removeTaskAfterExecution = false;
     }
 
-    public TaskRequest(String taskName, Map<String, String> parameters, boolean removeTaskAfterExecution) {
+    public TaskRequest(String taskName, Map<String, byte[]> parameters, boolean removeTaskAfterExecution) {
         this.taskName = taskName;
         this.parameters = parameters;
         this.removeTaskAfterExecution = removeTaskAfterExecution;
@@ -34,11 +34,11 @@ public class TaskRequest {
         this.taskName = taskName;
     }
 
-    public Map<String, String> getParameters() {
+    public Map<String, byte[]> getParameters() {
         return parameters;
     }
 
-    public void setParameters(Map<String, String> parameters) {
+    public void setParameters(Map<String, byte[]> parameters) {
         this.parameters = parameters;
     }
 

@@ -98,7 +98,7 @@ public class ExecutionServiceImpl implements ExecutionService {
                     missingParameters.add(taskParameter.getName());
                 } else if (execution.getParameters().get(taskParameter.getName()) == null && taskParameter.getDefaultValue() != null) {
                     // Add default value to parameter if it exists
-                    execution.getParameters().put(taskParameter.getName(), taskParameter.getDefaultValue());
+                    execution.getParameters().put(taskParameter.getName(), taskParameter.getDefaultValue().getBytes(StandardCharsets.UTF_8));
                 }
             }
 
@@ -359,7 +359,7 @@ public class ExecutionServiceImpl implements ExecutionService {
             // Set params
             if (triggerInfo.getTriggerParameters() != null) {
                 triggerInfo.getTriggerParameters().forEach((key, value) -> {
-                    execution.getParameters().put(TRIGGER_PARAMETER_PREFIX + "_" + key, value);
+                    execution.getParameters().put(TRIGGER_PARAMETER_PREFIX + "_" + key, value.getBytes(StandardCharsets.UTF_8));
                 });
             }
 

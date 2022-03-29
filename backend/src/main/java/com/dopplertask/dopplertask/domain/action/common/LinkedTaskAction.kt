@@ -36,10 +36,10 @@ class LinkedTaskAction : Action() {
             // Increase depth by one
             taskRequest.depth = execution.depth + 1
 
-            val passedLinkedTaskParameters: MutableMap<String, String> = mutableMapOf()
+            val passedLinkedTaskParameters: MutableMap<String, ByteArray> = mutableMapOf()
             parameters.forEach(Consumer { linkedActionParameter: LinkedTaskParameter ->
                 try {
-                    passedLinkedTaskParameters[variableExtractorUtil.extract(linkedActionParameter.parameterName, execution, scriptLanguage)] = variableExtractorUtil.extract(linkedActionParameter.parameterValue, execution, scriptLanguage)
+                    passedLinkedTaskParameters[variableExtractorUtil.extract(linkedActionParameter.parameterName, execution, scriptLanguage)] = variableExtractorUtil.extract(linkedActionParameter.parameterValue, execution, scriptLanguage).toByteArray()
                 } catch (e: IOException) {
                     e.printStackTrace()
                 }
