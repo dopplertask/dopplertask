@@ -9,7 +9,11 @@ import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import java.io.IOException
 import java.util.function.Consumer
-import javax.persistence.*
+import javax.persistence.CascadeType
+import javax.persistence.DiscriminatorValue
+import javax.persistence.Entity
+import javax.persistence.OneToMany
+import javax.persistence.Table
 
 @Entity
 @Table(name = "SetVariableAction")
@@ -19,7 +23,12 @@ class SetVariableAction : Action() {
     private var setVariableList: List<SetVariable>? = null
 
     @Throws(IOException::class)
-    override fun run(taskService: TaskService, execution: TaskExecution, variableExtractorUtil: VariableExtractorUtil, broadcastListener: BroadcastListener?): ActionResult {
+    override fun run(
+        taskService: TaskService,
+        execution: TaskExecution,
+        variableExtractorUtil: VariableExtractorUtil,
+        broadcastListener: BroadcastListener?
+    ): ActionResult {
         val actionResult = ActionResult()
         val builder = StringBuilder()
         for (setVariable in setVariableList!!) {
@@ -45,10 +54,14 @@ class SetVariableAction : Action() {
     override val actionInfo: MutableList<PropertyInformation>
         get() {
             val actionInfo = super.actionInfo
-            actionInfo.add(PropertyInformation("setVariableList", "Variables", PropertyInformationType.MAP, "", "", mutableListOf(
-                    PropertyInformation("name", "Name"),
-                    PropertyInformation("value", "Value")
-            )))
+            actionInfo.add(
+                PropertyInformation(
+                    "setVariableList", "Variables", PropertyInformationType.MAP, "", "", mutableListOf(
+                        PropertyInformation("name", "Name"),
+                        PropertyInformation("value", "Value")
+                    )
+                )
+            )
             return actionInfo
         }
 

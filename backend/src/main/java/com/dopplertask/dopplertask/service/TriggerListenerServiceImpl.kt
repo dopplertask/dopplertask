@@ -32,7 +32,7 @@ open class TriggerListenerServiceImpl : TriggerListenerService {
 
     @Autowired
     @Qualifier("transactionManager")
-    protected var txManager: PlatformTransactionManager? = null
+    protected lateinit var txManager: PlatformTransactionManager
 
     @Autowired
     @Lazy
@@ -86,7 +86,7 @@ open class TriggerListenerServiceImpl : TriggerListenerService {
                 threadPoolMap[currentTask.name]!!.shutdownNow()
             }
 
-            if(currentTask.isActive) {
+            if (currentTask.isActive) {
                 threadPoolMap[currentTask.name] = Executors.newFixedThreadPool(40)
 
                 startTriggers(currentTask)
@@ -106,7 +106,8 @@ open class TriggerListenerServiceImpl : TriggerListenerService {
                         val triggerResult = trigger.trigger()
 
                         var taskRequest = TaskRequest()
-                        taskRequest.triggerInfo = TriggerInfo(trigger.javaClass.simpleName, trigger.triggerSuffix, triggerResult.resultMap)
+                        taskRequest.triggerInfo =
+                            TriggerInfo(trigger.javaClass.simpleName, trigger.triggerSuffix, triggerResult.resultMap)
                         taskRequest.taskName = trigger.task?.name
                         taskRequest.parameters = mutableMapOf()
 

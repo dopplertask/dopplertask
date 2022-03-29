@@ -18,9 +18,13 @@ import org.openqa.selenium.support.ui.ExpectedConditions
 import org.openqa.selenium.support.ui.Select
 import org.openqa.selenium.support.ui.WebDriverWait
 import java.io.IOException
-import java.util.*
 import java.util.function.Consumer
-import javax.persistence.*
+import javax.persistence.CascadeType
+import javax.persistence.Column
+import javax.persistence.DiscriminatorValue
+import javax.persistence.Entity
+import javax.persistence.OneToMany
+import javax.persistence.Table
 
 @Entity
 @Table(name = "BrowseWebAction")
@@ -41,7 +45,12 @@ class BrowseWebAction : Action {
     }
 
     @Throws(IOException::class)
-    override fun run(taskService: TaskService, execution: TaskExecution, variableExtractorUtil: VariableExtractorUtil, broadcastListener: BroadcastListener?): ActionResult {
+    override fun run(
+        taskService: TaskService,
+        execution: TaskExecution,
+        variableExtractorUtil: VariableExtractorUtil,
+        broadcastListener: BroadcastListener?
+    ): ActionResult {
         val urlVariable = variableExtractorUtil.extract(url, execution, scriptLanguage)
         val actionResult = ActionResult()
         val os = System.getProperty("os.name")
@@ -70,11 +79,16 @@ class BrowseWebAction : Action {
         webDriver[urlVariable]
         // Go through all actions
         for (uiAction in actionList) {
-            val uiActionValueVariable = variableExtractorUtil.extract(if (uiAction.value != null) uiAction.value else "", execution, scriptLanguage)
+            val uiActionValueVariable = variableExtractorUtil.extract(
+                if (uiAction.value != null) uiAction.value else "",
+                execution,
+                scriptLanguage
+            )
             if (uiAction.action == UIActionType.WAIT) {
                 try {
                     Thread.sleep(uiActionValueVariable.toLong())
-                    actionResult.output = actionResult.output + "Slept a specific amount of time [time=" + uiActionValueVariable + "]\n"
+                    actionResult.output =
+                        actionResult.output + "Slept a specific amount of time [time=" + uiActionValueVariable + "]\n"
                 } catch (e: Exception) {
                     actionResult.errorMsg = "Exception occurred during sleeping in UI Action"
                     actionResult.statusCode = StatusCode.FAILURE
@@ -112,7 +126,13 @@ class BrowseWebAction : Action {
                 UIFieldFindByType.ID -> wait.until(ExpectedConditions.visibilityOfElementLocated(By.id(uiAction.fieldName)))
                 UIFieldFindByType.NAME -> wait.until(ExpectedConditions.visibilityOfElementLocated(By.name(uiAction.fieldName)))
                 UIFieldFindByType.XPATH -> wait.until(ExpectedConditions.visibilityOfElementLocated(By.xpath(uiAction.fieldName)))
-                UIFieldFindByType.CSS -> wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(uiAction.fieldName)))
+                UIFieldFindByType.CSS -> wait.until(
+                    ExpectedConditions.visibilityOfElementLocated(
+                        By.cssSelector(
+                            uiAction.fieldName
+                        )
+                    )
+                )
             }
         } catch (e: Exception) { // Could not find element, ignore, add to action result
             actionResult.errorMsg = "Exception occured: $e"
@@ -121,7 +141,13 @@ class BrowseWebAction : Action {
         return element
     }
 
-    private fun executeUIAction(uiActionType: UIActionType?, fieldName: String?, uiActionValueVariable: String, element: WebElement?, actionResult: ActionResult) {
+    private fun executeUIAction(
+        uiActionType: UIActionType?,
+        fieldName: String?,
+        uiActionValueVariable: String,
+        element: WebElement?,
+        actionResult: ActionResult
+    ) {
         if (element != null) {
             when (uiActionType) {
                 UIActionType.PRESS -> {
@@ -130,13 +156,16 @@ class BrowseWebAction : Action {
                 }
                 UIActionType.WRITE -> {
                     element.sendKeys(uiActionValueVariable)
-                    actionResult.output = actionResult.output + "Wrote text to an element [element=" + fieldName + ", text=" + uiActionValueVariable + "]\n"
+                    actionResult.output =
+                        actionResult.output + "Wrote text to an element [element=" + fieldName + ", text=" + uiActionValueVariable + "]\n"
                 }
                 UIActionType.SELECT -> {
                     (element as Select).selectByVisibleText(uiActionValueVariable)
-                    actionResult.output = actionResult.output + "Selected item from dropdown [element=" + fieldName + ", text=" + uiActionValueVariable + "]\n"
+                    actionResult.output =
+                        actionResult.output + "Selected item from dropdown [element=" + fieldName + ", text=" + uiActionValueVariable + "]\n"
                 }
                 else -> {
+                    actionResult.output + "Non-existant UI action type.\n"
                 }
             }
         }
@@ -155,24 +184,40 @@ class BrowseWebAction : Action {
         get() {
             val actionInfo = super.actionInfo
             actionInfo.add(PropertyInformation("url", "URL", PropertyInformationType.STRING, "", "URL of the web page"))
-            actionInfo.add(PropertyInformation("headless", "Headless mode", PropertyInformationType.BOOLEAN, "true", "Start web driver without graphics"))
-            actionInfo.add(PropertyInformation("actionList", "Action list", PropertyInformationType.MAP, "", "", java.util.List.of(
-                    PropertyInformation("fieldName", "Field name"),
-                    PropertyInformation("action", "Action", PropertyInformationType.DROPDOWN, "PRESS", "", java.util.List.of(
-                            PropertyInformation("PRESS", "Press"),
-                            PropertyInformation("SELECT", "Select"),
-                            PropertyInformation("WRITE", "Write"),
-                            PropertyInformation("WAIT", "Wait"),
-                            PropertyInformation("ACCEPT_ALERT", "Accept alert")
-                    )),
-                    PropertyInformation("findByType", "Find By Type", PropertyInformationType.DROPDOWN, "ID", "", java.util.List.of(
-                            PropertyInformation("ID", "Id"),
-                            PropertyInformation("NAME", "Name"),
-                            PropertyInformation("XPATH", "XPath"),
-                            PropertyInformation("CSS", "CSS")
-                    )),
-                    PropertyInformation("value", "Value")
-            )))
+            actionInfo.add(
+                PropertyInformation(
+                    "headless",
+                    "Headless mode",
+                    PropertyInformationType.BOOLEAN,
+                    "true",
+                    "Start web driver without graphics"
+                )
+            )
+            actionInfo.add(
+                PropertyInformation(
+                    "actionList", "Action list", PropertyInformationType.MAP, "", "", java.util.List.of(
+                        PropertyInformation("fieldName", "Field name"),
+                        PropertyInformation(
+                            "action", "Action", PropertyInformationType.DROPDOWN, "PRESS", "", java.util.List.of(
+                                PropertyInformation("PRESS", "Press"),
+                                PropertyInformation("SELECT", "Select"),
+                                PropertyInformation("WRITE", "Write"),
+                                PropertyInformation("WAIT", "Wait"),
+                                PropertyInformation("ACCEPT_ALERT", "Accept alert")
+                            )
+                        ),
+                        PropertyInformation(
+                            "findByType", "Find By Type", PropertyInformationType.DROPDOWN, "ID", "", java.util.List.of(
+                                PropertyInformation("ID", "Id"),
+                                PropertyInformation("NAME", "Name"),
+                                PropertyInformation("XPATH", "XPath"),
+                                PropertyInformation("CSS", "CSS")
+                            )
+                        ),
+                        PropertyInformation("value", "Value")
+                    )
+                )
+            )
             return actionInfo
         }
 

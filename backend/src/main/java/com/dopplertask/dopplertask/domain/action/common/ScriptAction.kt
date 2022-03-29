@@ -8,7 +8,11 @@ import com.dopplertask.dopplertask.service.BroadcastListener
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import java.io.IOException
-import javax.persistence.*
+import javax.persistence.Column
+import javax.persistence.DiscriminatorValue
+import javax.persistence.Entity
+import javax.persistence.Lob
+import javax.persistence.Table
 
 @Entity
 @Table(name = "ScriptAction")
@@ -19,7 +23,12 @@ class ScriptAction : Action() {
     var script: String? = null
 
     @Throws(IOException::class)
-    override fun run(taskService: TaskService, execution: TaskExecution, variableExtractorUtil: VariableExtractorUtil, broadcastListener: BroadcastListener?): ActionResult {
+    override fun run(
+        taskService: TaskService,
+        execution: TaskExecution,
+        variableExtractorUtil: VariableExtractorUtil,
+        broadcastListener: BroadcastListener?
+    ): ActionResult {
         val actionResult = ActionResult()
         actionResult.output = variableExtractorUtil.extract(script, execution, scriptLanguage)
         return actionResult
@@ -28,7 +37,15 @@ class ScriptAction : Action() {
     override val actionInfo: MutableList<PropertyInformation>
         get() {
             val actionInfo = super.actionInfo
-            actionInfo.add(PropertyInformation("script", "Script", PropertyInformationType.MULTILINE, "", "Command to execute."))
+            actionInfo.add(
+                PropertyInformation(
+                    "script",
+                    "Script",
+                    PropertyInformationType.MULTILINE,
+                    "",
+                    "Command to execute."
+                )
+            )
             return actionInfo
         }
 

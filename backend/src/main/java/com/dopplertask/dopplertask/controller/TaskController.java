@@ -1,10 +1,32 @@
 package com.dopplertask.dopplertask.controller;
 
-import com.dopplertask.dopplertask.domain.*;
+import com.dopplertask.dopplertask.domain.ActionResult;
+import com.dopplertask.dopplertask.domain.StatusCode;
+import com.dopplertask.dopplertask.domain.Task;
+import com.dopplertask.dopplertask.domain.TaskExecution;
+import com.dopplertask.dopplertask.domain.TaskExecutionLog;
 import com.dopplertask.dopplertask.domain.action.Action;
 import com.dopplertask.dopplertask.domain.action.trigger.Trigger;
-import com.dopplertask.dopplertask.dto.*;
-import com.dopplertask.dopplertask.service.*;
+import com.dopplertask.dopplertask.dto.ActionInfoDto;
+import com.dopplertask.dopplertask.dto.ActionListResponseDto;
+import com.dopplertask.dopplertask.dto.LoginParameters;
+import com.dopplertask.dopplertask.dto.SimpleChecksumResponseDto;
+import com.dopplertask.dopplertask.dto.SimpleIdResponseDto;
+import com.dopplertask.dopplertask.dto.SimpleMessageResponseDTO;
+import com.dopplertask.dopplertask.dto.TaskCreationDTO;
+import com.dopplertask.dopplertask.dto.TaskExecutionDTO;
+import com.dopplertask.dopplertask.dto.TaskExecutionListDTO;
+import com.dopplertask.dopplertask.dto.TaskExecutionLogResponseDTO;
+import com.dopplertask.dopplertask.dto.TaskNameDTO;
+import com.dopplertask.dopplertask.dto.TaskRequestDTO;
+import com.dopplertask.dopplertask.dto.TaskResponseSingleDTO;
+import com.dopplertask.dopplertask.service.ExecutionService;
+import com.dopplertask.dopplertask.service.HttpMethod;
+import com.dopplertask.dopplertask.service.TaskRequest;
+import com.dopplertask.dopplertask.service.TaskService;
+import com.dopplertask.dopplertask.service.TriggerInfo;
+import com.dopplertask.dopplertask.service.VariableExtractorUtil;
+import com.dopplertask.dopplertask.service.WebhookTriggerInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.velocity.app.VelocityEngine;
 import org.jetbrains.annotations.NotNull;
@@ -12,7 +34,16 @@ import org.reflections.Reflections;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
@@ -21,7 +52,14 @@ import java.lang.reflect.Modifier;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 @RestController
 public class TaskController {
@@ -35,7 +73,7 @@ public class TaskController {
     }
 
     private static String bytesToHex(byte[] hash) {
-        StringBuffer hexString = new StringBuffer();
+        StringBuilder hexString = new StringBuilder();
         for (int i = 0; i < hash.length; i++) {
             String hex = Integer.toHexString(0xff & hash[i]);
             if (hex.length() == 1) {
@@ -56,9 +94,7 @@ public class TaskController {
         }
 
         Map<String, byte[]> parameters = new HashMap<>();
-        taskRequestDTO.getParameters().forEach((parameterName, parameterValue) -> {
-            parameters.put(parameterName, parameterValue.getBytes(StandardCharsets.UTF_8));
-        });
+        taskRequestDTO.getParameters().forEach((parameterName, parameterValue) -> parameters.put(parameterName, parameterValue.getBytes(StandardCharsets.UTF_8)));
 
         TaskRequest request = new TaskRequest(removeTaskAfterExecution ? taskRequestDTO.getTaskName() + token : taskRequestDTO.getTaskName(), parameters, removeTaskAfterExecution);
         request.setChecksum(taskRequestDTO.getTaskName());
@@ -77,9 +113,7 @@ public class TaskController {
     @PostMapping(path = "/schedule/directtask")
     public ResponseEntity<TaskExecutionLogResponseDTO> runTask(@RequestBody TaskRequestDTO taskRequestDTO) {
         Map<String, byte[]> parameters = new HashMap<>();
-        taskRequestDTO.getParameters().forEach((parameterName, parameterValue) -> {
-            parameters.put(parameterName, parameterValue.getBytes(StandardCharsets.UTF_8));
-        });
+        taskRequestDTO.getParameters().forEach((parameterName, parameterValue) -> parameters.put(parameterName, parameterValue.getBytes(StandardCharsets.UTF_8)));
 
         TaskRequest request = new TaskRequest(taskRequestDTO.getTaskName(), parameters);
         request.setChecksum(taskRequestDTO.getTaskName());
@@ -207,13 +241,13 @@ public class TaskController {
         // Create checksum
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
         byte[] encodedhash = digest.digest(compactJSON.getBytes(StandardCharsets.UTF_8));
-        String sha3_256hex = bytesToHex(encodedhash);
+        String sha256Hex = bytesToHex(encodedhash);
 
-        Long id = taskService.createTask(taskCreationDTO.getName(), taskCreationDTO.getParameters(), taskCreationDTO.getActions(), taskCreationDTO.getDescription(), taskCreationDTO.getConnections(), sha3_256hex, taskCreationDTO.isActive());
+        Long id = taskService.createTask(taskCreationDTO.getName(), taskCreationDTO.getParameters(), taskCreationDTO.getActions(), taskCreationDTO.getDescription(), taskCreationDTO.getConnections(), sha256Hex, taskCreationDTO.isActive());
 
         if (id != null) {
             SimpleChecksumResponseDto checksumResponseDto = new SimpleChecksumResponseDto();
-            checksumResponseDto.setChecksum(sha3_256hex);
+            checksumResponseDto.setChecksum(sha256Hex);
             return new ResponseEntity<>(checksumResponseDto, HttpStatus.OK);
         }
 
@@ -276,9 +310,7 @@ public class TaskController {
         }
 
         // Sort tasks
-        groupedTasks.forEach((s, taskResponseSingleDTOS) -> {
-            Collections.sort(taskResponseSingleDTOS, Comparator.comparing(TaskResponseSingleDTO::getCreated).reversed());
-        });
+        groupedTasks.forEach((s, taskResponseSingleDTOS) -> Collections.sort(taskResponseSingleDTOS, Comparator.comparing(TaskResponseSingleDTO::getCreated).reversed()));
 
         return new ResponseEntity<>(groupedTasks, HttpStatus.OK);
     }
@@ -436,7 +468,7 @@ public class TaskController {
                 continue;
             }
             Action instance = currentClass.getDeclaredConstructor().newInstance();
-            boolean trigger = instance.getClass().getSuperclass().getSimpleName().equals(Trigger.class.getSimpleName()) ? true : false;
+            boolean trigger = instance.getClass().getSuperclass().getSimpleName().equals(Trigger.class.getSimpleName());
             actionListResponseDto.getActions().add(new ActionInfoDto(currentClass.getSimpleName(), instance.getDescription(), instance.getActionInfo(), trigger));
         }
 

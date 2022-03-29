@@ -2,7 +2,15 @@ package com.dopplertask.dopplertask.service;
 
 import com.dopplertask.dopplertask.dao.TaskDao;
 import com.dopplertask.dopplertask.dao.TaskExecutionDao;
-import com.dopplertask.dopplertask.domain.*;
+import com.dopplertask.dopplertask.domain.ActionPort;
+import com.dopplertask.dopplertask.domain.ActionResult;
+import com.dopplertask.dopplertask.domain.OutputType;
+import com.dopplertask.dopplertask.domain.StatusCode;
+import com.dopplertask.dopplertask.domain.Task;
+import com.dopplertask.dopplertask.domain.TaskExecution;
+import com.dopplertask.dopplertask.domain.TaskExecutionLog;
+import com.dopplertask.dopplertask.domain.TaskExecutionStatus;
+import com.dopplertask.dopplertask.domain.TaskParameter;
 import com.dopplertask.dopplertask.domain.action.Action;
 import com.dopplertask.dopplertask.dto.TaskCreationDTO;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -23,7 +31,12 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
@@ -31,10 +44,10 @@ import java.util.concurrent.Executors;
 public class ExecutionServiceImpl implements ExecutionService {
 
 
+    public static final String CHECKSUM_ALGORITHM = "SHA-256";
     private static final Logger LOG = LoggerFactory.getLogger(ExecutionServiceImpl.class);
     private static final String DOPPLERTASK_WORKFLOW_DOWNLOAD = "https://www.dopplertask.com/getworkflow.php";
     private static final int MAX_ACTION_ACCESS_LIMIT = 2000;
-    public static final String CHECKSUM_ALGORITHM = "SHA-256";
     private static final String TRIGGER_PARAMETER_PREFIX = "TRIGGER";
 
     private JmsTemplate jmsTemplate;
@@ -66,7 +79,6 @@ public class ExecutionServiceImpl implements ExecutionService {
 
     @Transactional
     public TaskExecution startExecution(TaskExecutionRequest taskExecutionRequest, TaskService taskService, boolean startedByTrigger) {
-
         // Look up by checksum first
         Optional<Task> taskRequest = lookupTask(taskExecutionRequest, taskService);
 
@@ -123,11 +135,9 @@ public class ExecutionServiceImpl implements ExecutionService {
             executionStarted.setOutput("Task execution started [taskId=" + task.getId() + ", executionId=" + execution.getId() + "]");
             execution.addLog(executionStarted);
 
-
             taskExecutionDao.save(execution);
 
             LOG.info("Task execution started [taskId={}, executionId={}]", task.getId(), execution.getId());
-
 
             broadcastResults(executionStarted);
 
@@ -358,9 +368,7 @@ public class ExecutionServiceImpl implements ExecutionService {
 
             // Set params
             if (triggerInfo.getTriggerParameters() != null) {
-                triggerInfo.getTriggerParameters().forEach((key, value) -> {
-                    execution.getParameters().put(TRIGGER_PARAMETER_PREFIX + "_" + key, value.getBytes(StandardCharsets.UTF_8));
-                });
+                triggerInfo.getTriggerParameters().forEach((key, value) -> execution.getParameters().put(TRIGGER_PARAMETER_PREFIX + "_" + key, value.getBytes(StandardCharsets.UTF_8)));
             }
 
             execution.setCurrentAction(action);
@@ -421,7 +429,6 @@ public class ExecutionServiceImpl implements ExecutionService {
 
         execution.setEnddate(new Date());
         execution.setStatus(execution.isSuccess() ? TaskExecutionStatus.FINISHED : TaskExecutionStatus.FAILED);
-
 
         return execution;
     }

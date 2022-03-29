@@ -10,7 +10,6 @@ import com.dopplertask.dopplertask.service.BroadcastListener
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import java.io.IOException
-import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Paths
 import javax.persistence.Column
@@ -29,7 +28,12 @@ class ReadFileAction : Action() {
     var parameterName: String? = null
 
     @Throws(IOException::class)
-    override fun run(taskService: TaskService, execution: TaskExecution, variableExtractorUtil: VariableExtractorUtil, broadcastListener: BroadcastListener?): ActionResult {
+    override fun run(
+        taskService: TaskService,
+        execution: TaskExecution,
+        variableExtractorUtil: VariableExtractorUtil,
+        broadcastListener: BroadcastListener?
+    ): ActionResult {
         var filenameVariable = variableExtractorUtil.extract(filename, execution, scriptLanguage)
         val parameterNameVariable = variableExtractorUtil.extract(parameterName, execution, scriptLanguage)
         return try { // Support shell ~ for home directory
@@ -55,8 +59,24 @@ class ReadFileAction : Action() {
     override val actionInfo: MutableList<PropertyInformation>
         get() {
             val actionInfo = super.actionInfo
-            actionInfo.add(PropertyInformation("filename", "File location", PropertyInformationType.STRING, "", "File path. eg. /home/user/file.txt"))
-            actionInfo.add(PropertyInformation("parameterName", "Parameter Name", PropertyInformationType.STRING, "", "Parameter name to store contents."))
+            actionInfo.add(
+                PropertyInformation(
+                    "filename",
+                    "File location",
+                    PropertyInformationType.STRING,
+                    "",
+                    "File path. eg. /home/user/file.txt"
+                )
+            )
+            actionInfo.add(
+                PropertyInformation(
+                    "parameterName",
+                    "Parameter Name",
+                    PropertyInformationType.STRING,
+                    "",
+                    "Parameter name to store contents."
+                )
+            )
             return actionInfo
         }
 

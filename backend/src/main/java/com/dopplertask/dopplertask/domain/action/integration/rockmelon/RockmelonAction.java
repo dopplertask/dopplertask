@@ -12,7 +12,12 @@ import com.dopplertask.dopplertask.service.VariableExtractorUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import javax.persistence.*;
+import javax.persistence.CascadeType;
+import javax.persistence.Convert;
+import javax.persistence.DiscriminatorValue;
+import javax.persistence.Entity;
+import javax.persistence.OneToMany;
+import javax.persistence.Table;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -56,7 +61,7 @@ public class RockmelonAction extends Action {
 
         // Call Rockmelon API
         HttpAction rockmelonHttpRequest = new HttpAction();
-        rockmelonHttpRequest.setUrl(ROCKMELON_API_URL + "?name=" + URLEncoder.encode(nameVariable, StandardCharsets.UTF_8) + "&" + linksStr + "&api_key=" + apiKeyVariable + "&rc_identifier="+ URLEncoder.encode(rcIdentifierVariable, StandardCharsets.UTF_8));
+        rockmelonHttpRequest.setUrl(ROCKMELON_API_URL + "?name=" + URLEncoder.encode(nameVariable, StandardCharsets.UTF_8) + "&" + linksStr + "&api_key=" + apiKeyVariable + "&rc_identifier=" + URLEncoder.encode(rcIdentifierVariable, StandardCharsets.UTF_8));
         rockmelonHttpRequest.setMethod("POST");
         return rockmelonHttpRequest.run(taskService, new TaskExecution(), variableExtractorUtil, null);
 

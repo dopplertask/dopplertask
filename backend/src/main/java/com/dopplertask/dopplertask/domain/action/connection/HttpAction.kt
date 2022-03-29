@@ -15,7 +15,13 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
 import java.util.function.Consumer
-import javax.persistence.*
+import javax.persistence.CascadeType
+import javax.persistence.Column
+import javax.persistence.DiscriminatorValue
+import javax.persistence.Entity
+import javax.persistence.Lob
+import javax.persistence.OneToMany
+import javax.persistence.Table
 
 @Entity
 @Table(name = "HttpAction")

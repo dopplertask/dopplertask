@@ -1,6 +1,10 @@
 package com.dopplertask.dopplertask.domain.action.connection
 
-import com.dopplertask.dopplertask.domain.*
+import com.dopplertask.dopplertask.domain.ActionResult
+import com.dopplertask.dopplertask.domain.OutputType
+import com.dopplertask.dopplertask.domain.SSHManager
+import com.dopplertask.dopplertask.domain.StatusCode
+import com.dopplertask.dopplertask.domain.TaskExecution
 import com.dopplertask.dopplertask.domain.action.Action
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
 import com.dopplertask.dopplertask.service.BroadcastListener
@@ -8,7 +12,12 @@ import com.dopplertask.dopplertask.service.ColumnEncryptor
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import java.io.IOException
-import javax.persistence.*
+import javax.persistence.Column
+import javax.persistence.Convert
+import javax.persistence.DiscriminatorValue
+import javax.persistence.Entity
+import javax.persistence.Lob
+import javax.persistence.Table
 
 @Entity
 @Table(name = "SSHAction")
@@ -30,7 +39,12 @@ class SSHAction : Action() {
     var command: String? = null
 
     @Throws(IOException::class)
-    override fun run(taskService: TaskService, execution: TaskExecution, variableExtractorUtil: VariableExtractorUtil, broadcastListener: BroadcastListener?): ActionResult {
+    override fun run(
+        taskService: TaskService,
+        execution: TaskExecution,
+        variableExtractorUtil: VariableExtractorUtil,
+        broadcastListener: BroadcastListener?
+    ): ActionResult {
         val connectionIP = variableExtractorUtil.extract(hostname, execution, scriptLanguage)
         val userName = variableExtractorUtil.extract(username, execution, scriptLanguage)
         val password = variableExtractorUtil.extract(password, execution, scriptLanguage)
@@ -59,10 +73,26 @@ class SSHAction : Action() {
     override val actionInfo: MutableList<PropertyInformation>
         get() {
             val actionInfo = super.actionInfo
-            actionInfo.add(PropertyInformation("hostname", "Hostname", PropertyInformationType.STRING, "", "Hostname or IP"))
+            actionInfo.add(
+                PropertyInformation(
+                    "hostname",
+                    "Hostname",
+                    PropertyInformationType.STRING,
+                    "",
+                    "Hostname or IP"
+                )
+            )
             actionInfo.add(PropertyInformation("username", "Username", PropertyInformationType.STRING, "", "Username"))
             actionInfo.add(PropertyInformation("password", "Password", PropertyInformationType.STRING, "", "Password"))
-            actionInfo.add(PropertyInformation("command", "Command", PropertyInformationType.MULTILINE, "", "Eg. echo \"Hello world\""))
+            actionInfo.add(
+                PropertyInformation(
+                    "command",
+                    "Command",
+                    PropertyInformationType.MULTILINE,
+                    "",
+                    "Eg. echo \"Hello world\""
+                )
+            )
             return actionInfo
         }
 

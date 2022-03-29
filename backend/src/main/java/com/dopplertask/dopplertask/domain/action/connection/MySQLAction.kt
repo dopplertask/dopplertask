@@ -14,7 +14,12 @@ import java.io.IOException
 import java.sql.ResultSet
 import java.sql.SQLException
 import java.sql.Statement
-import javax.persistence.*
+import javax.persistence.Column
+import javax.persistence.Convert
+import javax.persistence.DiscriminatorValue
+import javax.persistence.Entity
+import javax.persistence.Lob
+import javax.persistence.Table
 
 @Entity
 @Table(name = "MySQLAction")

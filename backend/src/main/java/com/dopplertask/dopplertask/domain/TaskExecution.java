@@ -2,12 +2,6 @@ package com.dopplertask.dopplertask.domain;
 
 import com.dopplertask.dopplertask.domain.action.Action;
 
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import javax.persistence.CascadeType;
 import javax.persistence.CollectionTable;
 import javax.persistence.Column;
@@ -20,11 +14,17 @@ import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.JoinColumn;
+import javax.persistence.Lob;
 import javax.persistence.ManyToOne;
 import javax.persistence.MapKeyColumn;
 import javax.persistence.OneToMany;
 import javax.persistence.Table;
 import javax.persistence.Transient;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @Entity
 @Table(name = "TaskExecution")
@@ -36,9 +36,10 @@ public class TaskExecution {
 
     @ElementCollection
     @MapKeyColumn(name = "paramName")
-    @Column(name = "paramValue", length = 100000, columnDefinition="BLOB NOT NULL")
+    @Lob
+    @Column(name = "paramValue", columnDefinition = "LONGBLOB NOT NULL")
     @CollectionTable(name = "execution_parameters", joinColumns = @JoinColumn(name = "execution_id"))
-    private Map<String, byte[]> parameters = new HashMap<String, byte[]>();
+    private Map<String, byte[]> parameters = new HashMap<>();
 
     @ManyToOne
     @JoinColumn
@@ -60,7 +61,7 @@ public class TaskExecution {
     private Action currentAction;
 
     @Transient
-    private Map<Long, Integer> actionAccessCountMap = new HashMap<Long, Integer>();
+    private Map<Long, Integer> actionAccessCountMap = new HashMap<>();
 
     private boolean success = true;
 
