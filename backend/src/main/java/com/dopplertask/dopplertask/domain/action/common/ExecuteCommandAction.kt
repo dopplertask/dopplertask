@@ -9,9 +9,18 @@ import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.Prop
 import com.dopplertask.dopplertask.service.BroadcastListener
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
-import java.io.*
+import java.io.BufferedReader
+import java.io.File
+import java.io.IOException
+import java.io.InputStream
+import java.io.InputStreamReader
+import java.util.*
 import java.util.function.Consumer
-import javax.persistence.*
+import javax.persistence.Column
+import javax.persistence.DiscriminatorValue
+import javax.persistence.Entity
+import javax.persistence.Lob
+import javax.persistence.Table
 
 @Entity
 @Table(name = "ExecuteCommandAction")
@@ -30,7 +39,7 @@ class ExecuteCommandAction : Action() {
     ): ActionResult {
         val commandVar = variableExtractorUtil.extract(command, execution, scriptLanguage)
         val isWindows = System.getProperty("os.name")
-            .toLowerCase().startsWith("windows")
+            .lowercase(Locale.getDefault()).startsWith("windows")
         val builder = ProcessBuilder()
         if (isWindows) {
             builder.command("cmd.exe", "/c", commandVar)

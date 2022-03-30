@@ -2,29 +2,12 @@ package com.dopplertask.dopplertask.domain;
 
 import com.dopplertask.dopplertask.domain.action.Action;
 
+import javax.persistence.*;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import javax.persistence.CascadeType;
-import javax.persistence.CollectionTable;
-import javax.persistence.Column;
-import javax.persistence.ElementCollection;
-import javax.persistence.Entity;
-import javax.persistence.EnumType;
-import javax.persistence.Enumerated;
-import javax.persistence.FetchType;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
-import javax.persistence.JoinColumn;
-import javax.persistence.ManyToOne;
-import javax.persistence.MapKeyColumn;
-import javax.persistence.OneToMany;
-import javax.persistence.Table;
-import javax.persistence.Transient;
 
 @Entity
 @Table(name = "TaskExecution")
@@ -34,11 +17,11 @@ public class TaskExecution {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ElementCollection
-    @MapKeyColumn(name = "paramName")
-    @Column(name = "paramValue", length = 100000)
-    @CollectionTable(name = "execution_parameters", joinColumns = @JoinColumn(name = "execution_id"))
-    private Map<String, String> parameters = new HashMap<String, String>();
+
+    @OneToMany(cascade = CascadeType.ALL)
+    @JoinTable(name = "execution_parameter_mapping", joinColumns = @JoinColumn(name = "execution_id", referencedColumnName = "id"), inverseJoinColumns = @JoinColumn(name = "parameter_id", referencedColumnName = "id"))
+    @MapKey(name = "paramName")
+    private Map<String, ExecutionParameter> parameters = new HashMap<>();
 
     @ManyToOne
     @JoinColumn
@@ -60,7 +43,7 @@ public class TaskExecution {
     private Action currentAction;
 
     @Transient
-    private Map<Long, Integer> actionAccessCountMap = new HashMap<Long, Integer>();
+    private Map<Long, Integer> actionAccessCountMap = new HashMap<>();
 
     private boolean success = true;
 
@@ -72,11 +55,11 @@ public class TaskExecution {
         this.id = id;
     }
 
-    public Map<String, String> getParameters() {
+    public Map<String, ExecutionParameter> getParameters() {
         return parameters;
     }
 
-    public void setParameters(Map<String, String> parameters) {
+    public void setParameters(Map<String, ExecutionParameter> parameters) {
         this.parameters = parameters;
     }
 

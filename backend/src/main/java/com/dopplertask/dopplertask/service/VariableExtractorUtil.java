@@ -6,7 +6,14 @@ import com.dopplertask.dopplertask.domain.action.common.ScriptLanguage;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.velocity.VelocityContext;
 import org.apache.velocity.app.VelocityEngine;
-import org.apache.velocity.tools.generic.*;
+import org.apache.velocity.tools.generic.CollectionTool;
+import org.apache.velocity.tools.generic.DateTool;
+import org.apache.velocity.tools.generic.EscapeTool;
+import org.apache.velocity.tools.generic.LoopTool;
+import org.apache.velocity.tools.generic.MathTool;
+import org.apache.velocity.tools.generic.NumberTool;
+import org.apache.velocity.tools.generic.RenderTool;
+import org.apache.velocity.tools.generic.ValueParser;
 import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.Source;
 import org.graalvm.polyglot.Value;
@@ -38,7 +45,7 @@ public class VariableExtractorUtil {
             context.put("logs", execution.getLogs());
 
             if (extraTools != null && extraTools.size() > 0) {
-                extraTools.forEach((toolName, toolValue) -> context.put(toolName, toolValue));
+                extraTools.forEach(context::put);
             }
 
             // Useful for retry

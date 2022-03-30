@@ -20,7 +20,12 @@ import javax.persistence.Table
 @DiscriminatorValue("start_action")
 class StartAction : Action() {
     @Throws(IOException::class)
-    override fun run(taskService: TaskService, execution: TaskExecution, variableExtractorUtil: VariableExtractorUtil, broadcastListener: BroadcastListener?): ActionResult {
+    override fun run(
+        taskService: TaskService,
+        execution: TaskExecution,
+        variableExtractorUtil: VariableExtractorUtil,
+        broadcastListener: BroadcastListener?
+    ): ActionResult {
         val result = ActionResult()
         result.output = "--- Task execution started ---"
         result.statusCode = StatusCode.SUCCESS

@@ -1,18 +1,20 @@
 package com.dopplertask.dopplertask.service;
 
+import com.dopplertask.dopplertask.domain.ExecutionParameter;
+
 import java.util.Map;
 
 public class TaskRequest {
     private String taskName;
     private String checksum;
-    private Map<String, String> parameters;
+    private Map<String, ExecutionParameter> parameters;
     private int depth = 0;
     private boolean removeTaskAfterExecution;
 
     // If defined then automation starts from a trigger
     private TriggerInfo triggerInfo;
 
-    public TaskRequest(String taskName, Map<String, String> parameters) {
+    public TaskRequest(String taskName, Map<String, ExecutionParameter> parameters) {
         this(taskName, parameters, false);
     }
 
@@ -20,7 +22,7 @@ public class TaskRequest {
         this.removeTaskAfterExecution = false;
     }
 
-    public TaskRequest(String taskName, Map<String, String> parameters, boolean removeTaskAfterExecution) {
+    public TaskRequest(String taskName, Map<String, ExecutionParameter> parameters, boolean removeTaskAfterExecution) {
         this.taskName = taskName;
         this.parameters = parameters;
         this.removeTaskAfterExecution = removeTaskAfterExecution;
@@ -34,11 +36,11 @@ public class TaskRequest {
         this.taskName = taskName;
     }
 
-    public Map<String, String> getParameters() {
+    public Map<String, ExecutionParameter> getParameters() {
         return parameters;
     }
 
-    public void setParameters(Map<String, String> parameters) {
+    public void setParameters(Map<String, ExecutionParameter> parameters) {
         this.parameters = parameters;
     }
 

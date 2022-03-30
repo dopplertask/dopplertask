@@ -12,7 +12,12 @@ import java.awt.AWTException
 import java.awt.Robot
 import java.awt.event.InputEvent
 import java.io.IOException
-import javax.persistence.*
+import javax.persistence.Column
+import javax.persistence.DiscriminatorValue
+import javax.persistence.Entity
+import javax.persistence.EnumType
+import javax.persistence.Enumerated
+import javax.persistence.Table
 
 @Entity
 @Table(name = "MouseAction")
@@ -76,6 +81,9 @@ class MouseAction : Action() {
                 MouseActionType.RELEASE -> {
                     robot.mouseRelease(selectedButton)
                     actionResult.output = "Mouse $selectedButton was released."
+                }
+                else -> {
+                    actionResult.output = "Non-existent action selected"
                 }
             }
         } catch (e: AWTException) {

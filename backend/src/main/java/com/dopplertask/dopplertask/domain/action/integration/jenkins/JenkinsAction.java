@@ -16,11 +16,23 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import javax.persistence.*;
+import javax.persistence.CascadeType;
+import javax.persistence.Column;
+import javax.persistence.Convert;
+import javax.persistence.DiscriminatorValue;
+import javax.persistence.Entity;
+import javax.persistence.Lob;
+import javax.persistence.OneToMany;
+import javax.persistence.Table;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @Entity
 @Table(name = "JenkinsAction")
@@ -153,9 +165,7 @@ public class JenkinsAction extends Action {
         HttpAction action = new HttpAction();
 
         StringBuilder queryParamSB = new StringBuilder();
-        queryParameters.forEach((key, value) -> {
-            queryParamSB.append(URLEncoder.encode(key, StandardCharsets.UTF_8) + "=" + URLEncoder.encode(value, StandardCharsets.UTF_8) + "&");
-        });
+        queryParameters.forEach((key, value) -> queryParamSB.append(URLEncoder.encode(key, StandardCharsets.UTF_8) + "=" + URLEncoder.encode(value, StandardCharsets.UTF_8) + "&"));
         if (queryParamSB.length() > 0) {
             queryParamSB.setLength(queryParamSB.length() - 1);
         }
@@ -384,9 +394,7 @@ public class JenkinsAction extends Action {
 
     public void setJenkinsParameters(List<JenkinsParameter> jenkinsParameters) {
         this.jenkinsParameters = jenkinsParameters;
-        this.jenkinsParameters.forEach(jenkinsParameter -> {
-            jenkinsParameter.setJenkinsAction(this);
-        });
+        this.jenkinsParameters.forEach(jenkinsParameter -> jenkinsParameter.setJenkinsAction(this));
     }
 
     public String getReason() {

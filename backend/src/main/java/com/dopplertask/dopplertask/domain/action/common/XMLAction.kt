@@ -11,7 +11,11 @@ import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.dataformat.xml.XmlMapper
 import java.io.IOException
-import javax.persistence.*
+import javax.persistence.Column
+import javax.persistence.DiscriminatorValue
+import javax.persistence.Entity
+import javax.persistence.Lob
+import javax.persistence.Table
 
 @Entity
 @Table(name = "XMLAction")
@@ -25,7 +29,12 @@ class XMLAction : Action() {
     var type = XMLActionType.JSON_TO_XML
 
     @Throws(IOException::class)
-    override fun run(taskService: TaskService, execution: TaskExecution, variableExtractorUtil: VariableExtractorUtil, broadcastListener: BroadcastListener?): ActionResult {
+    override fun run(
+        taskService: TaskService,
+        execution: TaskExecution,
+        variableExtractorUtil: VariableExtractorUtil,
+        broadcastListener: BroadcastListener?
+    ): ActionResult {
         val contentVariable = variableExtractorUtil.extract(content, execution, scriptLanguage)
         val actionResult = ActionResult()
         if (contentVariable != null && !contentVariable.isEmpty()) {
@@ -52,10 +61,14 @@ class XMLAction : Action() {
         get() {
             val actionInfo = super.actionInfo
             actionInfo.add(PropertyInformation("content", "Content", PropertyInformationType.MULTILINE))
-            actionInfo.add(PropertyInformation("type", "Mode", PropertyInformationType.DROPDOWN, "JSON_TO_XML", "Convert from and to XML", listOf(
-                    PropertyInformation("JSON_TO_XML", "JSON to XML"),
-                    PropertyInformation("XML_TO_JSON", "XML to JSON")
-            )))
+            actionInfo.add(
+                PropertyInformation(
+                    "type", "Mode", PropertyInformationType.DROPDOWN, "JSON_TO_XML", "Convert from and to XML", listOf(
+                        PropertyInformation("JSON_TO_XML", "JSON to XML"),
+                        PropertyInformation("XML_TO_JSON", "XML to JSON")
+                    )
+                )
+            )
             return actionInfo
         }
 

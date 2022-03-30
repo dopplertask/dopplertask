@@ -19,7 +19,11 @@ import javax.persistence.OrderBy;
 import javax.persistence.Table;
 import javax.persistence.Temporal;
 import javax.persistence.TemporalType;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Date;
+import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Entity
@@ -125,7 +129,7 @@ public class Task {
     }
 
     public Action getWebhookStartAction() {
-        List<Action> actions = actionList.stream().filter(action -> action instanceof StartAction).collect(Collectors.toList());
+        List<Action> actions = actionList.stream().filter(StartAction.class::isInstance).collect(Collectors.toList());
         if (actions.isEmpty()) {
             return null;
         }
@@ -149,9 +153,9 @@ public class Task {
     }
 
     public List<Trigger> getTriggerActions() {
-        List<Trigger> triggers = actionList.stream().filter(action -> action instanceof Trigger && !(action instanceof Webhook)).map(action -> (Trigger) action).collect(Collectors.toList());
+        List<Trigger> triggers = actionList.stream().filter(action -> action instanceof Trigger && !(action instanceof Webhook)).map(Trigger.class::cast).collect(Collectors.toList());
         if (triggers.isEmpty()) {
-            return Collections.EMPTY_LIST;
+            return Collections.emptyList();
         }
         return triggers;
     }

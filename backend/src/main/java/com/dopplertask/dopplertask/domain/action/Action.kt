@@ -67,39 +67,39 @@ abstract class Action {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", updatable = false, nullable = false)
     @JsonIgnore
-    var id: Long? = null
+    open var id: Long? = null
 
     @ManyToOne
     @JoinColumn
     @JsonIgnore
-    var task: Task? = null
+    open var task: Task? = null
 
     @Column
     @JsonIgnore
-    var orderPosition: Int? = null
+    open var orderPosition: Int? = null
 
     @Column(nullable = false, columnDefinition = "TINYINT(1)")
-    var isContinueOnFailure = false
+    open var isContinueOnFailure = false
 
     @Column(length = 4096)
-    var failOn: String? = null
-    var retries = 0
+    open var failOn: String? = null
+    open var retries = 0
 
     @Column(length = 4096)
-    var retryWait: String? = null
-    var guiXPos: Int? = null
-    var guiYPos: Int? = null
+    open var retryWait: String? = null
+    open var guiXPos: Int? = null
+    open var guiYPos: Int? = null
 
     /**
      * All action values are evaluated with VELOCITY as standard, but can be changed to other languages.
      */
     @Enumerated(EnumType.STRING)
     @Column
-    var scriptLanguage = ScriptLanguage.VELOCITY
+    open var scriptLanguage = ScriptLanguage.VELOCITY
 
     @OneToMany(mappedBy = "action", cascade = [CascadeType.ALL])
     @Fetch(value = FetchMode.JOIN)
-    var ports: MutableList<ActionPort>? = ArrayList()
+    open var ports: MutableList<ActionPort>? = ArrayList()
 
     @get:JsonIgnore
     val outputPorts: List<ActionPort>

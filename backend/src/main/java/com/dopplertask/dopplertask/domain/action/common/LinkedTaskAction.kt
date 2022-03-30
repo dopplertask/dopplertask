@@ -1,6 +1,7 @@
 package com.dopplertask.dopplertask.domain.action.common
 
 import com.dopplertask.dopplertask.domain.ActionResult
+import com.dopplertask.dopplertask.domain.ExecutionParameter
 import com.dopplertask.dopplertask.domain.StatusCode
 import com.dopplertask.dopplertask.domain.TaskExecution
 import com.dopplertask.dopplertask.domain.action.Action
@@ -11,7 +12,12 @@ import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import com.fasterxml.jackson.annotation.JsonIgnore
 import java.io.IOException
 import java.util.function.Consumer
-import javax.persistence.*
+import javax.persistence.CascadeType
+import javax.persistence.Column
+import javax.persistence.DiscriminatorValue
+import javax.persistence.Entity
+import javax.persistence.OneToMany
+import javax.persistence.Table
 
 @Entity
 @Table(name = "LinkedTaskAction")
@@ -28,7 +34,12 @@ class LinkedTaskAction : Action() {
     @OneToMany(mappedBy = "linkedTaskAction", cascade = [CascadeType.ALL])
     private var parameters: List<LinkedTaskParameter> = ArrayList()
 
-    override fun run(taskService: TaskService, execution: TaskExecution, variableExtractorUtil: VariableExtractorUtil, broadcastListener: BroadcastListener?): ActionResult {
+    override fun run(
+        taskService: TaskService,
+        execution: TaskExecution,
+        variableExtractorUtil: VariableExtractorUtil,
+        broadcastListener: BroadcastListener?
+    ): ActionResult {
         if (execution.depth < MAX_LINKED_TASK_DEPTH) {
             val taskRequest = TaskRequest()
             taskRequest.taskName = name
@@ -36,10 +47,15 @@ class LinkedTaskAction : Action() {
             // Increase depth by one
             taskRequest.depth = execution.depth + 1
 
-            val passedLinkedTaskParameters: MutableMap<String, String> = mutableMapOf()
+            val passedLinkedTaskParameters: MutableMap<String, ExecutionParameter> = mutableMapOf()
             parameters.forEach(Consumer { linkedActionParameter: LinkedTaskParameter ->
                 try {
-                    passedLinkedTaskParameters[variableExtractorUtil.extract(linkedActionParameter.parameterName, execution, scriptLanguage)] = variableExtractorUtil.extract(linkedActionParameter.parameterValue, execution, scriptLanguage)
+                    val parameterName = variableExtractorUtil.extract(
+                            linkedActionParameter.parameterName,
+                            execution,
+                            scriptLanguage
+                    );
+                    passedLinkedTaskParameters[parameterName] = ExecutionParameter(parameterName, variableExtractorUtil.extract(linkedActionParameter.parameterValue, execution, scriptLanguage).toByteArray(), false)
                 } catch (e: IOException) {
                     e.printStackTrace()
                 }
@@ -95,13 +111,17 @@ class LinkedTaskAction : Action() {
             val actionInfo = super.actionInfo
             actionInfo.add(PropertyInformation("name", "Task name"))
             actionInfo.add(
-                    PropertyInformation(
-                            "parameters", "Parameters", PropertyInformation.PropertyInformationType.MAP, "", "Parameters for the linked task",
-                            listOf(
-                                    PropertyInformation("parameterName", "Name"),
-                                    PropertyInformation("parameterValue", "Value ")
-                            )
+                PropertyInformation(
+                    "parameters",
+                    "Parameters",
+                    PropertyInformation.PropertyInformationType.MAP,
+                    "",
+                    "Parameters for the linked task",
+                    listOf(
+                        PropertyInformation("parameterName", "Name"),
+                        PropertyInformation("parameterValue", "Value ")
                     )
+                )
             )
             return actionInfo
         }

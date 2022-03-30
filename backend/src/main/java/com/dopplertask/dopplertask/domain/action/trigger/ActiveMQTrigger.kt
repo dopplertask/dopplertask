@@ -10,7 +10,12 @@ import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import org.apache.activemq.ActiveMQConnectionFactory
 import java.io.IOException
-import javax.jms.*
+import javax.jms.Connection
+import javax.jms.Destination
+import javax.jms.Message
+import javax.jms.MessageConsumer
+import javax.jms.Session
+import javax.jms.TextMessage
 import javax.persistence.Column
 import javax.persistence.Entity
 
@@ -28,12 +33,23 @@ class ActiveMQTrigger : Trigger() {
         get() {
             val actionInfo = super.actionInfo
             actionInfo.add(PropertyInformation("url", "Url", PropertyInformation.PropertyInformationType.STRING))
-            actionInfo.add(PropertyInformation("queue", "Queue/Topic", PropertyInformation.PropertyInformationType.STRING))
+            actionInfo.add(
+                PropertyInformation(
+                    "queue",
+                    "Queue/Topic",
+                    PropertyInformation.PropertyInformationType.STRING
+                )
+            )
             return actionInfo
         }
 
     @Throws(IOException::class)
-    override fun run(taskService: TaskService, execution: TaskExecution, variableExtractorUtil: VariableExtractorUtil, broadcastListener: BroadcastListener?): ActionResult {
+    override fun run(
+        taskService: TaskService,
+        execution: TaskExecution,
+        variableExtractorUtil: VariableExtractorUtil,
+        broadcastListener: BroadcastListener?
+    ): ActionResult {
         val result = ActionResult()
         result.output = "ActiveMQ triggered"
         result.statusCode = StatusCode.SUCCESS
@@ -63,20 +79,32 @@ class ActiveMQTrigger : Trigger() {
             // Wait for a message
             val message: Message = consumer.receive()
             if (message is TextMessage) {
-                val textMessage: TextMessage = message as TextMessage
+                val textMessage: TextMessage = message
                 val text: String = textMessage.text
 
+                closeAllConnections(consumer, session, connection)
                 return TriggerResult(mutableMapOf(Pair("Message", text)))
             } else {
+
+                closeAllConnections(consumer, session, connection)
                 return TriggerResult(mutableMapOf(Pair("Message", "Message is an object.")))
             }
-            consumer.close()
-            session.close()
-            connection.close()
+
+
         } catch (e: Exception) {
-            throw TriggerException(e);
+            throw TriggerException();
         }
-        return TriggerResult(mutableMapOf())
+
+    }
+
+    private fun closeAllConnections(
+        consumer: MessageConsumer,
+        session: Session,
+        connection: Connection
+    ) {
+        consumer.close()
+        session.close()
+        connection.close()
     }
 
     override val description: String

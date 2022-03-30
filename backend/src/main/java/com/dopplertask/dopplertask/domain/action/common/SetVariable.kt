@@ -2,7 +2,14 @@ package com.dopplertask.dopplertask.domain.action.common
 
 import com.fasterxml.jackson.annotation.JsonIgnore
 import java.util.*
-import javax.persistence.*
+import javax.persistence.Entity
+import javax.persistence.GeneratedValue
+import javax.persistence.GenerationType
+import javax.persistence.Id
+import javax.persistence.JoinColumn
+import javax.persistence.Lob
+import javax.persistence.ManyToOne
+import javax.persistence.Table
 
 @Entity
 @Table(name = "SetVariable")
@@ -21,14 +28,14 @@ class SetVariable {
     @JsonIgnore
     var setVariableAction: SetVariableAction? = null
 
-    override fun equals(o: Any?): Boolean {
-        if (this === o) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) {
             return true
         }
-        if (o == null || javaClass != o.javaClass) {
+        if (other == null || javaClass != other.javaClass) {
             return false
         }
-        val that = o as SetVariable
+        val that = other as SetVariable
         return name == that.name &&
                 value == that.value
     }

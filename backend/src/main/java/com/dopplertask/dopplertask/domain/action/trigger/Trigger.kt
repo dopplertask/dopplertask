@@ -1,7 +1,6 @@
 package com.dopplertask.dopplertask.domain.action.trigger
 
 import com.dopplertask.dopplertask.domain.action.Action
-import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
 import com.fasterxml.jackson.annotation.JsonIgnore
 import javax.persistence.Column
 import javax.persistence.MappedSuperclass
@@ -27,4 +26,4 @@ abstract class Trigger : Action() {
         }
 }
 
-data class TriggerResult(val resultMap : MutableMap<String, String>)
+data class TriggerResult(val resultMap: MutableMap<String, String>)

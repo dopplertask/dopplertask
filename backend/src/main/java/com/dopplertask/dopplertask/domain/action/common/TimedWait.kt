@@ -27,7 +27,12 @@ class TimedWait : Action {
     }
 
     @Throws(IOException::class)
-    override fun run(taskService: TaskService, execution: TaskExecution, variableExtractorUtil: VariableExtractorUtil, broadcastListener: BroadcastListener?): ActionResult {
+    override fun run(
+        taskService: TaskService,
+        execution: TaskExecution,
+        variableExtractorUtil: VariableExtractorUtil,
+        broadcastListener: BroadcastListener?
+    ): ActionResult {
         val amountOfSeconds = variableExtractorUtil.extract("" + seconds, execution, scriptLanguage)
         val actionResult = ActionResult()
         try {
@@ -47,7 +52,15 @@ class TimedWait : Action {
     override val actionInfo: MutableList<PropertyInformation>
         get() {
             val actionInfo = super.actionInfo
-            actionInfo.add(PropertyInformation("seconds", "Time (Seconds)", PropertyInformationType.NUMBER, "", "Amount of seconds to wait"))
+            actionInfo.add(
+                PropertyInformation(
+                    "seconds",
+                    "Time (Seconds)",
+                    PropertyInformationType.NUMBER,
+                    "",
+                    "Amount of seconds to wait"
+                )
+            )
             return actionInfo
         }
 

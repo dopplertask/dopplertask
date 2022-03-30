@@ -9,9 +9,12 @@ import com.dopplertask.dopplertask.service.BroadcastListener
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import java.io.IOException
-import java.util.*
 import java.util.function.Consumer
-import javax.persistence.*
+import javax.persistence.CascadeType
+import javax.persistence.DiscriminatorValue
+import javax.persistence.Entity
+import javax.persistence.OneToMany
+import javax.persistence.Table
 
 @Entity
 @Table(name = "SwitchAction")
@@ -23,7 +26,12 @@ class SwitchAction : Action() {
     private var switchCases: List<SwitchCase> = ArrayList()
 
     @Throws(IOException::class)
-    override fun run(taskService: TaskService, execution: TaskExecution, variableExtractorUtil: VariableExtractorUtil, broadcastListener: BroadcastListener?): ActionResult {
+    override fun run(
+        taskService: TaskService,
+        execution: TaskExecution,
+        variableExtractorUtil: VariableExtractorUtil,
+        broadcastListener: BroadcastListener?
+    ): ActionResult {
         val actionResult = ActionResult()
         val localCondition: String
         val evaluatedCases: MutableList<String> = ArrayList()
@@ -33,14 +41,19 @@ class SwitchAction : Action() {
             when (scriptLanguage) {
                 ScriptLanguage.VELOCITY -> {
                     for (switchCase in switchCases) {
-                        val evaluatedCase = variableExtractorUtil.extract(switchCase.currentCase, execution, scriptLanguage)
+                        val evaluatedCase =
+                            variableExtractorUtil.extract(switchCase.currentCase, execution, scriptLanguage)
                         evaluatedCases.add(evaluatedCase)
                         if (i == 0) {
-                            statement.append("#if(\"" + value + "\" == \"" + evaluatedCase + "\")" +
-                                    "0")
+                            statement.append(
+                                "#if(\"" + value + "\" == \"" + evaluatedCase + "\")" +
+                                        "0"
+                            )
                         } else {
-                            statement.append("#elseif(\"" + value + "\" == \"" + evaluatedCase + "\")" +
-                                    "" + i)
+                            statement.append(
+                                "#elseif(\"" + value + "\" == \"" + evaluatedCase + "\")" +
+                                        "" + i
+                            )
                         }
                         i++
                     }
@@ -52,14 +65,22 @@ class SwitchAction : Action() {
                 ScriptLanguage.JAVASCRIPT -> {
                     statement.append("var outputPort = 0;")
                     for (switchCase in switchCases) {
-                        val evaluatedCase = variableExtractorUtil.extract("\"" + switchCase.currentCase + "\"", execution, scriptLanguage)
+                        val evaluatedCase = variableExtractorUtil.extract(
+                            "\"" + switchCase.currentCase + "\"",
+                            execution,
+                            scriptLanguage
+                        )
                         evaluatedCases.add(evaluatedCase)
                         if (i == 0) {
-                            statement.append("if(\"" + value + "\" == \"" + evaluatedCase + "\") {" +
-                                    "outputPort = 0; }")
+                            statement.append(
+                                "if(\"" + value + "\" == \"" + evaluatedCase + "\") {" +
+                                        "outputPort = 0; }"
+                            )
                         } else {
-                            statement.append("\nelse if(\"" + value + "\" == \"" + evaluatedCase + "\") {" +
-                                    "outputPort = " + i + ";}")
+                            statement.append(
+                                "\nelse if(\"" + value + "\" == \"" + evaluatedCase + "\") {" +
+                                        "outputPort = " + i + ";}"
+                            )
                         }
                         i++
                     }
@@ -93,11 +114,22 @@ class SwitchAction : Action() {
     override val actionInfo: MutableList<PropertyInformation>
         get() {
             val actionInfo = super.actionInfo
-            actionInfo.add(PropertyInformation("value", "Value", PropertyInformationType.STRING, "", "Value to compare"))
-            actionInfo.add(PropertyInformation("switchCases", "Cases", PropertyInformationType.MAP, "", "Cases to match the value", mutableListOf(
-                    PropertyInformation("currentCase", "Case")
+            actionInfo.add(
+                PropertyInformation(
+                    "value",
+                    "Value",
+                    PropertyInformationType.STRING,
+                    "",
+                    "Value to compare"
+                )
             )
-            ))
+            actionInfo.add(
+                PropertyInformation(
+                    "switchCases", "Cases", PropertyInformationType.MAP, "", "Cases to match the value", mutableListOf(
+                        PropertyInformation("currentCase", "Case")
+                    )
+                )
+            )
             return actionInfo
         }
 

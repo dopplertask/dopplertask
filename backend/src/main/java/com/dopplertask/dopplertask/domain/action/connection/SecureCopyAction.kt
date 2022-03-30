@@ -14,7 +14,11 @@ import com.jcraft.jsch.ChannelSftp
 import com.jcraft.jsch.JSchException
 import com.jcraft.jsch.SftpException
 import java.io.IOException
-import javax.persistence.*
+import javax.persistence.Column
+import javax.persistence.Convert
+import javax.persistence.DiscriminatorValue
+import javax.persistence.Entity
+import javax.persistence.Table
 
 @Entity
 @Table(name = "SecureCopyAction")
@@ -38,7 +42,12 @@ class SecureCopyAction : Action() {
     var destinationFilename: String? = null
 
     @Throws(IOException::class)
-    override fun run(taskService: TaskService, execution: TaskExecution, variableExtractorUtil: VariableExtractorUtil, broadcastListener: BroadcastListener?): ActionResult {
+    override fun run(
+        taskService: TaskService,
+        execution: TaskExecution,
+        variableExtractorUtil: VariableExtractorUtil,
+        broadcastListener: BroadcastListener?
+    ): ActionResult {
         val connectionIP = variableExtractorUtil.extract(hostname, execution, scriptLanguage)
         val localUsername = variableExtractorUtil.extract(username, execution, scriptLanguage)
         val localPassword = variableExtractorUtil.extract(password, execution, scriptLanguage)
@@ -60,7 +69,8 @@ class SecureCopyAction : Action() {
             // close only after all commands are sent
             instance.close()
             val actionResult = ActionResult()
-            actionResult.output = "File transfer completed [sourceFilename=$localSourceFilename, destinationFilename=$localDestinationFilename]"
+            actionResult.output =
+                "File transfer completed [sourceFilename=$localSourceFilename, destinationFilename=$localDestinationFilename]"
             actionResult.statusCode = StatusCode.SUCCESS
             actionResult
         } catch (e: JSchException) {
@@ -79,11 +89,35 @@ class SecureCopyAction : Action() {
     override val actionInfo: MutableList<PropertyInformation>
         get() {
             val actionInfo = super.actionInfo
-            actionInfo.add(PropertyInformation("hostname", "Hostname", PropertyInformationType.STRING, "", "Hostname or IP"))
+            actionInfo.add(
+                PropertyInformation(
+                    "hostname",
+                    "Hostname",
+                    PropertyInformationType.STRING,
+                    "",
+                    "Hostname or IP"
+                )
+            )
             actionInfo.add(PropertyInformation("username", "Username", PropertyInformationType.STRING, "", "Username"))
             actionInfo.add(PropertyInformation("password", "Password", PropertyInformationType.STRING, "", "Password"))
-            actionInfo.add(PropertyInformation("sourceFilename", "Source filename", PropertyInformationType.STRING, "", "Eg. /home/user/myfile"))
-            actionInfo.add(PropertyInformation("destinationFilename", "Destination filename", PropertyInformationType.STRING, "", "Eg. on the remote server /home/remote/myfile"))
+            actionInfo.add(
+                PropertyInformation(
+                    "sourceFilename",
+                    "Source filename",
+                    PropertyInformationType.STRING,
+                    "",
+                    "Eg. /home/user/myfile"
+                )
+            )
+            actionInfo.add(
+                PropertyInformation(
+                    "destinationFilename",
+                    "Destination filename",
+                    PropertyInformationType.STRING,
+                    "",
+                    "Eg. on the remote server /home/remote/myfile"
+                )
+            )
             return actionInfo
         }
 

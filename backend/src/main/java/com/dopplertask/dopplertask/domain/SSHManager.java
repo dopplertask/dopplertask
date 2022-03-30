@@ -119,7 +119,7 @@ public class SSHManager {
                     outputBuffer.append((char) readByte);
                     line.append((char) readByte);
                     // If it is a new line then we send the result
-                    if(readByte == 10) {
+                    if (readByte == 10) {
                         listener.execute(line.toString());
                         line.setLength(0);
                     }

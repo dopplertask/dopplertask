@@ -51,7 +51,7 @@ class IntervalTrigger : Trigger() {
             return TriggerResult(mutableMapOf())
         } catch (e: InterruptedException) {
             e.printStackTrace()
-            throw TriggerException(e)
+            throw TriggerException()
         }
     }
 

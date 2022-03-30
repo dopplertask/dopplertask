@@ -1,12 +1,10 @@
 package com.dopplertask.dopplertask.controller;
 
-import com.dopplertask.dopplertask.domain.Task;
 import com.dopplertask.dopplertask.domain.TaskExecution;
 import com.dopplertask.dopplertask.domain.TaskExecutionLog;
 import com.dopplertask.dopplertask.dto.TaskExecutionLogResponseDTO;
 import com.dopplertask.dopplertask.dto.TaskResponseSingleDTO;
 import com.dopplertask.dopplertask.service.ExecutionService;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

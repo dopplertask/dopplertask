@@ -9,7 +9,11 @@ import com.dopplertask.dopplertask.service.BroadcastListener
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import java.io.IOException
-import javax.persistence.*
+import javax.persistence.Column
+import javax.persistence.DiscriminatorValue
+import javax.persistence.Entity
+import javax.persistence.Lob
+import javax.persistence.Table
 
 @Entity
 @Table(name = "PrintAction")
@@ -25,7 +29,12 @@ class PrintAction : Action {
     }
 
     @Throws(IOException::class)
-    override fun run(taskService: TaskService, execution: TaskExecution, variableExtractorUtil: VariableExtractorUtil, broadcastListener: BroadcastListener?): ActionResult {
+    override fun run(
+        taskService: TaskService,
+        execution: TaskExecution,
+        variableExtractorUtil: VariableExtractorUtil,
+        broadcastListener: BroadcastListener?
+    ): ActionResult {
         val messageVariable = variableExtractorUtil.extract(message, execution, scriptLanguage)
         val actionResult = ActionResult()
         actionResult.isBroadcastMessage = true

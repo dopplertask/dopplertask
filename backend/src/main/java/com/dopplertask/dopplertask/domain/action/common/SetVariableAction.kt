@@ -1,6 +1,7 @@
 package com.dopplertask.dopplertask.domain.action.common
 
 import com.dopplertask.dopplertask.domain.ActionResult
+import com.dopplertask.dopplertask.domain.ExecutionParameter
 import com.dopplertask.dopplertask.domain.TaskExecution
 import com.dopplertask.dopplertask.domain.action.Action
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
@@ -9,7 +10,11 @@ import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import java.io.IOException
 import java.util.function.Consumer
-import javax.persistence.*
+import javax.persistence.CascadeType
+import javax.persistence.DiscriminatorValue
+import javax.persistence.Entity
+import javax.persistence.OneToMany
+import javax.persistence.Table
 
 @Entity
 @Table(name = "SetVariableAction")
@@ -19,13 +24,19 @@ class SetVariableAction : Action() {
     private var setVariableList: List<SetVariable>? = null
 
     @Throws(IOException::class)
-    override fun run(taskService: TaskService, execution: TaskExecution, variableExtractorUtil: VariableExtractorUtil, broadcastListener: BroadcastListener?): ActionResult {
+    override fun run(
+        taskService: TaskService,
+        execution: TaskExecution,
+        variableExtractorUtil: VariableExtractorUtil,
+        broadcastListener: BroadcastListener?
+    ): ActionResult {
         val actionResult = ActionResult()
         val builder = StringBuilder()
         for (setVariable in setVariableList!!) {
             if (setVariable.value != null) {
                 val evaluatedValue = variableExtractorUtil.extract(setVariable.value, execution, scriptLanguage)
-                execution.parameters[setVariable.name] = evaluatedValue
+
+                execution.parameters[setVariable.name] = ExecutionParameter(setVariable.name, evaluatedValue.encodeToByteArray(), false)
                 builder.append("Setting variable [key=" + setVariable.name + ", value=" + evaluatedValue + "]\n")
             }
         }
@@ -45,10 +56,14 @@ class SetVariableAction : Action() {
     override val actionInfo: MutableList<PropertyInformation>
         get() {
             val actionInfo = super.actionInfo
-            actionInfo.add(PropertyInformation("setVariableList", "Variables", PropertyInformationType.MAP, "", "", mutableListOf(
-                    PropertyInformation("name", "Name"),
-                    PropertyInformation("value", "Value")
-            )))
+            actionInfo.add(
+                PropertyInformation(
+                    "setVariableList", "Variables", PropertyInformationType.MAP, "", "", mutableListOf(
+                        PropertyInformation("name", "Name"),
+                        PropertyInformation("value", "Value")
+                    )
+                )
+            )
             return actionInfo
         }
 
