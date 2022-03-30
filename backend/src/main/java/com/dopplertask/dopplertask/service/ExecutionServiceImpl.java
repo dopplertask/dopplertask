@@ -360,7 +360,7 @@ public class ExecutionServiceImpl implements ExecutionService {
 
             // Set params
             if (triggerInfo.getTriggerParameters() != null) {
-                triggerInfo.getTriggerParameters().forEach((key, value) -> execution.getParameters().put(TRIGGER_PARAMETER_PREFIX + "_" + key, new ExecutionParameter(TRIGGER_PARAMETER_PREFIX + "_" + key,  value.getBytes(StandardCharsets.UTF_8), false)));
+                triggerInfo.getTriggerParameters().forEach((key, value) -> execution.getParameters().put(TRIGGER_PARAMETER_PREFIX + "_" + key, new ExecutionParameter(TRIGGER_PARAMETER_PREFIX + "_" + key,  value != null ? value.getBytes(StandardCharsets.UTF_8) : new byte[0], false)));
             }
 
             execution.setCurrentAction(action);

@@ -1,6 +1,11 @@
 package com.dopplertask.dopplertask.controller;
 
-import com.dopplertask.dopplertask.domain.*;
+import com.dopplertask.dopplertask.domain.ActionResult;
+import com.dopplertask.dopplertask.domain.ExecutionParameter;
+import com.dopplertask.dopplertask.domain.StatusCode;
+import com.dopplertask.dopplertask.domain.Task;
+import com.dopplertask.dopplertask.domain.TaskExecution;
+import com.dopplertask.dopplertask.domain.TaskExecutionLog;
 import com.dopplertask.dopplertask.domain.action.Action;
 import com.dopplertask.dopplertask.domain.action.trigger.Trigger;
 import com.dopplertask.dopplertask.dto.ActionInfoDto;
@@ -129,36 +134,38 @@ public class TaskController {
     }
 
     @PostMapping(path = "/webhook/{taskName}/{triggerName}/{triggerSuffix}/{path}")
-    public ResponseEntity<TaskExecutionLogResponseDTO> runWebhookPost(@RequestHeader(required = false) Map<String, String> headers, @RequestBody(required = false) String body, @PathVariable("taskName") String taskName, @PathVariable("triggerName") String triggerName, @PathVariable("triggerSuffix") String triggerSuffix, @PathVariable("path") String path) {
-        return runWebhookTrigger(headers, body, taskName, triggerName, triggerSuffix, path, HttpMethod.POST);
+    public ResponseEntity<TaskExecutionLogResponseDTO> runWebhookPost(@RequestParam Map<String, String> allRequestParams, @RequestHeader(required = false) Map<String, String> headers, @RequestBody(required = false) String body, @PathVariable("taskName") String taskName, @PathVariable("triggerName") String triggerName, @PathVariable("triggerSuffix") String triggerSuffix, @PathVariable("path") String path) {
+        return runWebhookTrigger(allRequestParams, headers, body, taskName, triggerName, triggerSuffix, path, HttpMethod.POST);
     }
 
     @PutMapping(path = "/webhook/{taskName}/{triggerName}/{triggerSuffix}/{path}")
-    public ResponseEntity<TaskExecutionLogResponseDTO> runWebhookPut(@RequestHeader(required = false) Map<String, String> headers, @RequestBody(required = false) String body, @PathVariable("taskName") String taskName, @PathVariable("triggerName") String triggerName, @PathVariable("triggerSuffix") String triggerSuffix, @PathVariable("path") String path) {
-        return runWebhookTrigger(headers, body, taskName, triggerName, triggerSuffix, path, HttpMethod.PUT);
+    public ResponseEntity<TaskExecutionLogResponseDTO> runWebhookPut(@RequestParam Map<String, String> allRequestParams, @RequestHeader(required = false) Map<String, String> headers, @RequestBody(required = false) String body, @PathVariable("taskName") String taskName, @PathVariable("triggerName") String triggerName, @PathVariable("triggerSuffix") String triggerSuffix, @PathVariable("path") String path) {
+        return runWebhookTrigger(allRequestParams, headers, body, taskName, triggerName, triggerSuffix, path, HttpMethod.PUT);
     }
 
     @DeleteMapping(path = "/webhook/{taskName}/{triggerName}/{triggerSuffix}/{path}")
-    public ResponseEntity<TaskExecutionLogResponseDTO> runWebhookDelete(@RequestHeader(required = false) Map<String, String> headers, @RequestBody(required = false) String body, @PathVariable("taskName") String taskName, @PathVariable("triggerName") String triggerName, @PathVariable("triggerSuffix") String triggerSuffix, @PathVariable("path") String path) {
-        return runWebhookTrigger(headers, body, taskName, triggerName, triggerSuffix, path, HttpMethod.DELETE);
+    public ResponseEntity<TaskExecutionLogResponseDTO> runWebhookDelete(@RequestParam Map<String, String> allRequestParams, @RequestHeader(required = false) Map<String, String> headers, @RequestBody(required = false) String body, @PathVariable("taskName") String taskName, @PathVariable("triggerName") String triggerName, @PathVariable("triggerSuffix") String triggerSuffix, @PathVariable("path") String path) {
+        return runWebhookTrigger(allRequestParams, headers, body, taskName, triggerName, triggerSuffix, path, HttpMethod.DELETE);
     }
 
     @PatchMapping(path = "/webhook/{taskName}/{triggerName}/{triggerSuffix}/{path}")
-    public ResponseEntity<TaskExecutionLogResponseDTO> runWebhookPatch(@RequestHeader(required = false) Map<String, String> headers, @RequestBody(required = false) String body, @PathVariable("taskName") String taskName, @PathVariable("triggerName") String triggerName, @PathVariable("triggerSuffix") String triggerSuffix, @PathVariable("path") String path) {
-        return runWebhookTrigger(headers, body, taskName, triggerName, triggerSuffix, path, HttpMethod.PATCH);
+    public ResponseEntity<TaskExecutionLogResponseDTO> runWebhookPatch(@RequestParam Map<String, String> allRequestParams, @RequestHeader(required = false) Map<String, String> headers, @RequestBody(required = false) String body, @PathVariable("taskName") String taskName, @PathVariable("triggerName") String triggerName, @PathVariable("triggerSuffix") String triggerSuffix, @PathVariable("path") String path) {
+        return runWebhookTrigger(allRequestParams, headers, body, taskName, triggerName, triggerSuffix, path, HttpMethod.PATCH);
     }
 
     @GetMapping(path = "/webhook/{taskName}/{triggerName}/{triggerSuffix}/{path}")
-    public ResponseEntity<TaskExecutionLogResponseDTO> runWebhookGet(@RequestHeader(required = false) Map<String, String> headers, @RequestBody(required = false) String body, @PathVariable("taskName") String taskName, @PathVariable("triggerName") String triggerName, @PathVariable("triggerSuffix") String triggerSuffix, @PathVariable("path") String path) {
-        return runWebhookTrigger(headers, body, taskName, triggerName, triggerSuffix, path, HttpMethod.GET);
+    public ResponseEntity<TaskExecutionLogResponseDTO> runWebhookGet(@RequestParam Map<String, String> allRequestParams, @RequestHeader(required = false) Map<String, String> headers, @RequestBody(required = false) String body, @PathVariable("taskName") String taskName, @PathVariable("triggerName") String triggerName, @PathVariable("triggerSuffix") String triggerSuffix, @PathVariable("path") String path) {
+        return runWebhookTrigger(allRequestParams, headers, body, taskName, triggerName, triggerSuffix, path, HttpMethod.GET);
     }
 
     @NotNull
-    private ResponseEntity<TaskExecutionLogResponseDTO> runWebhookTrigger(Map<String, String> headers, String body, String taskName, String triggerName, String triggerSuffix, String path, HttpMethod httpMethod) {
+    private ResponseEntity<TaskExecutionLogResponseDTO> runWebhookTrigger(Map<String, String> allRequestParams, Map<String, String> headers, String body, String taskName, String triggerName, String triggerSuffix, String path, HttpMethod httpMethod) {
         TaskRequest request = new TaskRequest(taskName, Collections.emptyMap());
 
         Map<String, String> triggerParameters = new HashMap<>(headers);
         triggerParameters.put("body", body);
+        allRequestParams.forEach((key, value) -> triggerParameters.put("query_" + key, value));
+
         TriggerInfo triggerInfo = new WebhookTriggerInfo(triggerName, path, triggerSuffix, triggerParameters, httpMethod);
         request.setTriggerInfo(triggerInfo);
 
@@ -178,32 +185,32 @@ public class TaskController {
     }
 
     @PostMapping(path = "/webhook/{taskName}/{triggerName}/{triggerSuffix}")
-    public ResponseEntity<TaskExecutionLogResponseDTO> runWebhookPost(@RequestHeader(required = false) Map<String, String> headers, @RequestBody(required = false) String body, @PathVariable("taskName") String taskName, @PathVariable("triggerName") String triggerName, @PathVariable("triggerSuffix") String triggerSuffix) {
-        return runWebhookPost(headers, body, taskName, triggerName, triggerSuffix, "");
+    public ResponseEntity<TaskExecutionLogResponseDTO> runWebhookPost(@RequestParam Map<String, String> allRequestParams, @RequestHeader(required = false) Map<String, String> headers, @RequestBody(required = false) String body, @PathVariable("taskName") String taskName, @PathVariable("triggerName") String triggerName, @PathVariable("triggerSuffix") String triggerSuffix) {
+        return runWebhookPost(allRequestParams, headers, body, taskName, triggerName, triggerSuffix, "");
 
     }
 
     @PutMapping(path = "/webhook/{taskName}/{triggerName}/{triggerSuffix}")
-    public ResponseEntity<TaskExecutionLogResponseDTO> runWebhookPut(@RequestHeader(required = false) Map<String, String> headers, @RequestBody(required = false) String body, @PathVariable("taskName") String taskName, @PathVariable("triggerName") String triggerName, @PathVariable("triggerSuffix") String triggerSuffix) {
-        return runWebhookPut(headers, body, taskName, triggerName, triggerSuffix, "");
+    public ResponseEntity<TaskExecutionLogResponseDTO> runWebhookPut(@RequestParam Map<String, String> allRequestParams, @RequestHeader(required = false) Map<String, String> headers, @RequestBody(required = false) String body, @PathVariable("taskName") String taskName, @PathVariable("triggerName") String triggerName, @PathVariable("triggerSuffix") String triggerSuffix) {
+        return runWebhookPut(allRequestParams, headers, body, taskName, triggerName, triggerSuffix, "");
 
     }
 
     @DeleteMapping(path = "/webhook/{taskName}/{triggerName}/{triggerSuffix}")
-    public ResponseEntity<TaskExecutionLogResponseDTO> runWebhookDelete(@RequestHeader(required = false) Map<String, String> headers, @RequestBody(required = false) String body, @PathVariable("taskName") String taskName, @PathVariable("triggerName") String triggerName, @PathVariable("triggerSuffix") String triggerSuffix) {
-        return runWebhookDelete(headers, body, taskName, triggerName, triggerSuffix, "");
+    public ResponseEntity<TaskExecutionLogResponseDTO> runWebhookDelete(@RequestParam Map<String, String> allRequestParams, @RequestHeader(required = false) Map<String, String> headers, @RequestBody(required = false) String body, @PathVariable("taskName") String taskName, @PathVariable("triggerName") String triggerName, @PathVariable("triggerSuffix") String triggerSuffix) {
+        return runWebhookDelete(allRequestParams, headers, body, taskName, triggerName, triggerSuffix, "");
 
     }
 
     @PatchMapping(path = "/webhook/{taskName}/{triggerName}/{triggerSuffix}")
-    public ResponseEntity<TaskExecutionLogResponseDTO> runWebhookPatch(@RequestHeader(required = false) Map<String, String> headers, @RequestBody(required = false) String body, @PathVariable("taskName") String taskName, @PathVariable("triggerName") String triggerName, @PathVariable("triggerSuffix") String triggerSuffix) {
-        return runWebhookPatch(headers, body, taskName, triggerName, triggerSuffix, "");
+    public ResponseEntity<TaskExecutionLogResponseDTO> runWebhookPatch(@RequestParam Map<String, String> allRequestParams, @RequestHeader(required = false) Map<String, String> headers, @RequestBody(required = false) String body, @PathVariable("taskName") String taskName, @PathVariable("triggerName") String triggerName, @PathVariable("triggerSuffix") String triggerSuffix) {
+        return runWebhookPatch(allRequestParams, headers, body, taskName, triggerName, triggerSuffix, "");
 
     }
 
     @GetMapping(path = "/webhook/{taskName}/{triggerName}/{triggerSuffix}")
-    public ResponseEntity<TaskExecutionLogResponseDTO> runWebhookGet(@RequestHeader(required = false) Map<String, String> headers, @RequestBody(required = false) String body, @PathVariable("taskName") String taskName, @PathVariable("triggerName") String triggerName, @PathVariable("triggerSuffix") String triggerSuffix) {
-        return runWebhookGet(headers, body, taskName, triggerName, triggerSuffix, "");
+    public ResponseEntity<TaskExecutionLogResponseDTO> runWebhookGet(@RequestParam Map<String, String> allRequestParams, @RequestHeader(required = false) Map<String, String> headers, @RequestBody(required = false) String body, @PathVariable("taskName") String taskName, @PathVariable("triggerName") String triggerName, @PathVariable("triggerSuffix") String triggerSuffix) {
+        return runWebhookGet(allRequestParams, headers, body, taskName, triggerName, triggerSuffix, "");
 
     }
 
