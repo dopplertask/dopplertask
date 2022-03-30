@@ -58,7 +58,7 @@ class WriteFileAction : Action() {
                 try {
                     Files.write(
                         Paths.get(filenameVariable),
-                        execution.parameters[contentsVariable],
+                        execution.parameters[contentsVariable]?.paramValue,
                         StandardOpenOption.CREATE,
                         StandardOpenOption.TRUNCATE_EXISTING
                     )

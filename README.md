@@ -193,6 +193,7 @@ Executes a MySQL statement, like a SELECT statement.
 #### LinkedTaskAction
 ##### Variables
 * taskName: name of another task
+* parameters: a list of parameters to pass to the other task
 
 #### BrowseWebAction
 Starts a browser and executes a list of UI Actions.
@@ -234,6 +235,7 @@ Reads a file from disk.
 #### WriteFileAction
 ##### Variables
 * filename: name of a file. Using ~ in the beginning of the filename will point to the home directory eg. ~/Downloads/testfile.txt
+* outputType: The type of the output. Possible values: clearText, binaryVar
 * contents: the contents to write in the file.
 
 #### XMLAction
@@ -285,7 +287,7 @@ This webhook will respond to a REST call and start the flow.
 ## Important variables
 
 * $lastLog.output / lastLog.getOutput(): Gets the last actions output
-* $parameters.get("paramname") / parameters.get("paramname"): Retrieves a stored parameter value. All Task paramters are stored here.
+* $parameters.get("paramname") / parameters.get("paramname"): Retrieves a stored parameter value. All Task paramters are stored here. You can also get the byte array of the parameter by adding .getParamValue() to the end of the statement.
 * $logs / logs: A list of all task action logs. Can be traversed to look up specific values.
 * $executionId / executionId: It's the ID of the current execution.
 

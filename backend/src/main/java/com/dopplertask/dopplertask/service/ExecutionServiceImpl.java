@@ -2,15 +2,7 @@ package com.dopplertask.dopplertask.service;
 
 import com.dopplertask.dopplertask.dao.TaskDao;
 import com.dopplertask.dopplertask.dao.TaskExecutionDao;
-import com.dopplertask.dopplertask.domain.ActionPort;
-import com.dopplertask.dopplertask.domain.ActionResult;
-import com.dopplertask.dopplertask.domain.OutputType;
-import com.dopplertask.dopplertask.domain.StatusCode;
-import com.dopplertask.dopplertask.domain.Task;
-import com.dopplertask.dopplertask.domain.TaskExecution;
-import com.dopplertask.dopplertask.domain.TaskExecutionLog;
-import com.dopplertask.dopplertask.domain.TaskExecutionStatus;
-import com.dopplertask.dopplertask.domain.TaskParameter;
+import com.dopplertask.dopplertask.domain.*;
 import com.dopplertask.dopplertask.domain.action.Action;
 import com.dopplertask.dopplertask.dto.TaskCreationDTO;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -110,7 +102,7 @@ public class ExecutionServiceImpl implements ExecutionService {
                     missingParameters.add(taskParameter.getName());
                 } else if (execution.getParameters().get(taskParameter.getName()) == null && taskParameter.getDefaultValue() != null) {
                     // Add default value to parameter if it exists
-                    execution.getParameters().put(taskParameter.getName(), taskParameter.getDefaultValue().getBytes(StandardCharsets.UTF_8));
+                    execution.getParameters().put(taskParameter.getName(), new ExecutionParameter(taskParameter.getName(),  taskParameter.getDefaultValue().getBytes(StandardCharsets.UTF_8), false));
                 }
             }
 
@@ -368,7 +360,7 @@ public class ExecutionServiceImpl implements ExecutionService {
 
             // Set params
             if (triggerInfo.getTriggerParameters() != null) {
-                triggerInfo.getTriggerParameters().forEach((key, value) -> execution.getParameters().put(TRIGGER_PARAMETER_PREFIX + "_" + key, value.getBytes(StandardCharsets.UTF_8)));
+                triggerInfo.getTriggerParameters().forEach((key, value) -> execution.getParameters().put(TRIGGER_PARAMETER_PREFIX + "_" + key, new ExecutionParameter(TRIGGER_PARAMETER_PREFIX + "_" + key,  value.getBytes(StandardCharsets.UTF_8), false)));
             }
 
             execution.setCurrentAction(action);

@@ -1,6 +1,7 @@
 package com.dopplertask.dopplertask.domain.action.common
 
 import com.dopplertask.dopplertask.domain.ActionResult
+import com.dopplertask.dopplertask.domain.ExecutionParameter
 import com.dopplertask.dopplertask.domain.TaskExecution
 import com.dopplertask.dopplertask.domain.action.Action
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
@@ -34,7 +35,8 @@ class SetVariableAction : Action() {
         for (setVariable in setVariableList!!) {
             if (setVariable.value != null) {
                 val evaluatedValue = variableExtractorUtil.extract(setVariable.value, execution, scriptLanguage)
-                execution.parameters[setVariable.name] = evaluatedValue.encodeToByteArray()
+
+                execution.parameters[setVariable.name] = ExecutionParameter(setVariable.name, evaluatedValue.encodeToByteArray(), false)
                 builder.append("Setting variable [key=" + setVariable.name + ", value=" + evaluatedValue + "]\n")
             }
         }

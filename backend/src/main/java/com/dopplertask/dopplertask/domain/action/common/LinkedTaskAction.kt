@@ -1,6 +1,7 @@
 package com.dopplertask.dopplertask.domain.action.common
 
 import com.dopplertask.dopplertask.domain.ActionResult
+import com.dopplertask.dopplertask.domain.ExecutionParameter
 import com.dopplertask.dopplertask.domain.StatusCode
 import com.dopplertask.dopplertask.domain.TaskExecution
 import com.dopplertask.dopplertask.domain.action.Action
@@ -46,15 +47,15 @@ class LinkedTaskAction : Action() {
             // Increase depth by one
             taskRequest.depth = execution.depth + 1
 
-            val passedLinkedTaskParameters: MutableMap<String, ByteArray> = mutableMapOf()
+            val passedLinkedTaskParameters: MutableMap<String, ExecutionParameter> = mutableMapOf()
             parameters.forEach(Consumer { linkedActionParameter: LinkedTaskParameter ->
                 try {
-                    passedLinkedTaskParameters[variableExtractorUtil.extract(
-                        linkedActionParameter.parameterName,
-                        execution,
-                        scriptLanguage
-                    )] = variableExtractorUtil.extract(linkedActionParameter.parameterValue, execution, scriptLanguage)
-                        .toByteArray()
+                    val parameterName = variableExtractorUtil.extract(
+                            linkedActionParameter.parameterName,
+                            execution,
+                            scriptLanguage
+                    );
+                    passedLinkedTaskParameters[parameterName] = ExecutionParameter(parameterName, variableExtractorUtil.extract(linkedActionParameter.parameterValue, execution, scriptLanguage).toByteArray(), false)
                 } catch (e: IOException) {
                     e.printStackTrace()
                 }

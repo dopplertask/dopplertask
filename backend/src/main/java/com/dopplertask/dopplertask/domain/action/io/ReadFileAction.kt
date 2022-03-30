@@ -1,9 +1,6 @@
 package com.dopplertask.dopplertask.domain.action.io
 
-import com.dopplertask.dopplertask.domain.ActionResult
-import com.dopplertask.dopplertask.domain.OutputType
-import com.dopplertask.dopplertask.domain.StatusCode
-import com.dopplertask.dopplertask.domain.TaskExecution
+import com.dopplertask.dopplertask.domain.*
 import com.dopplertask.dopplertask.domain.action.Action
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
 import com.dopplertask.dopplertask.service.BroadcastListener
@@ -41,7 +38,7 @@ class ReadFileAction : Action() {
                 filenameVariable = filenameVariable.replace("~/", System.getProperty("user.home") + "/")
             }
             val fileContents = Files.readAllBytes(Paths.get(filenameVariable))
-            execution.parameters[parameterNameVariable] = fileContents
+            execution.parameters[parameterNameVariable] = ExecutionParameter(parameterNameVariable, fileContents, true)
             val actionResult = ActionResult()
             actionResult.output = String(fileContents)
             actionResult.outputType = OutputType.STRING

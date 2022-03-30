@@ -1,10 +1,6 @@
 package com.dopplertask.dopplertask.controller;
 
-import com.dopplertask.dopplertask.domain.ActionResult;
-import com.dopplertask.dopplertask.domain.StatusCode;
-import com.dopplertask.dopplertask.domain.Task;
-import com.dopplertask.dopplertask.domain.TaskExecution;
-import com.dopplertask.dopplertask.domain.TaskExecutionLog;
+import com.dopplertask.dopplertask.domain.*;
 import com.dopplertask.dopplertask.domain.action.Action;
 import com.dopplertask.dopplertask.domain.action.trigger.Trigger;
 import com.dopplertask.dopplertask.dto.ActionInfoDto;
@@ -93,8 +89,8 @@ public class TaskController {
             removeTaskAfterExecution = true;
         }
 
-        Map<String, byte[]> parameters = new HashMap<>();
-        taskRequestDTO.getParameters().forEach((parameterName, parameterValue) -> parameters.put(parameterName, parameterValue.getBytes(StandardCharsets.UTF_8)));
+        Map<String, ExecutionParameter> parameters = new HashMap<>();
+        taskRequestDTO.getParameters().forEach((parameterName, parameterValue) -> parameters.put(parameterName, new ExecutionParameter(parameterName, parameterValue.getBytes(StandardCharsets.UTF_8), false)));
 
         TaskRequest request = new TaskRequest(removeTaskAfterExecution ? taskRequestDTO.getTaskName() + token : taskRequestDTO.getTaskName(), parameters, removeTaskAfterExecution);
         request.setChecksum(taskRequestDTO.getTaskName());
@@ -112,8 +108,8 @@ public class TaskController {
 
     @PostMapping(path = "/schedule/directtask")
     public ResponseEntity<TaskExecutionLogResponseDTO> runTask(@RequestBody TaskRequestDTO taskRequestDTO) {
-        Map<String, byte[]> parameters = new HashMap<>();
-        taskRequestDTO.getParameters().forEach((parameterName, parameterValue) -> parameters.put(parameterName, parameterValue.getBytes(StandardCharsets.UTF_8)));
+        Map<String, ExecutionParameter> parameters = new HashMap<>();
+        taskRequestDTO.getParameters().forEach((parameterName, parameterValue) -> parameters.put(parameterName, new ExecutionParameter(parameterName, parameterValue.getBytes(StandardCharsets.UTF_8), false)));
 
         TaskRequest request = new TaskRequest(taskRequestDTO.getTaskName(), parameters);
         request.setChecksum(taskRequestDTO.getTaskName());
