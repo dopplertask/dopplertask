@@ -167,7 +167,7 @@ public class ExecutionServiceTest {
         Assert.assertEquals(10L, resultExecution.getId().longValue());
         Assert.assertEquals(exampleTask, resultExecution.getTask());
         Assert.assertEquals(1, resultExecution.getParameters().size());
-        Assert.assertEquals("testValue One two three 10", new String(resultExecution.getParameters().get("testVar"), StandardCharsets.UTF_8));
+        Assert.assertEquals("testValue One two three 10", resultExecution.getParameters().get("testVar").toString());
     }
 
 
