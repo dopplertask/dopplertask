@@ -40,7 +40,7 @@ class ReadFileAction : Action() {
             val fileContents = Files.readAllBytes(Paths.get(filenameVariable))
             execution.parameters[parameterNameVariable] = ExecutionParameter(parameterNameVariable, fileContents, true)
             val actionResult = ActionResult()
-            actionResult.output = String(fileContents)
+            actionResult.output = "File has been read [filename=$filenameVariable]."
             actionResult.outputType = OutputType.STRING
             actionResult.statusCode = StatusCode.SUCCESS
             actionResult

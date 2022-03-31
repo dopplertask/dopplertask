@@ -68,6 +68,8 @@ class MainApp extends React.Component {
             "@type": this.state.selectedAction.userData.name,
             ports
         }
+        let editor = ace.edit("editor_actionExecutionOutput")
+        editor.setValue("Executing action...");
         $.ajax({
             type: "POST",
             url: "/task/action",
@@ -90,6 +92,9 @@ class MainApp extends React.Component {
                         }
                     }
                 }));
+
+
+                editor.setValue(output);
 
             },
             dataType: "json"
@@ -154,9 +159,9 @@ class MainApp extends React.Component {
                     customData[pi.name] = []
                 } else if (pi.type === "BOOLEAN") {
                     if (pi.defaultValue == "true") {
-                        customData[pi.name] = true || "";
+                        customData[pi.name] = true;
                     } else {
-                        customData[pi.name] = false || "";
+                        customData[pi.name] = false;
                     }
                 } else {
                     customData[pi.name] = pi.defaultValue || "";
@@ -570,7 +575,7 @@ class MainApp extends React.Component {
                                         <span><img src="images/logo.png" alt=""
                                         /></span>
                                 </div>
-                                <div className="text-center"><small>Version: 0.13.0</small></div>
+                                <div className="text-center"><small>Version: 0.14.0</small></div>
                                 <ul className="sidebar-nav nav">
 
                                     <li><a href="#" onClick={this.newWorkflow}><i className="fas fa-file"></i> New task</a>
@@ -741,7 +746,6 @@ class MainApp extends React.Component {
                 data: json,
                 contentType: 'application/json',
                 success: success => {
-                    console.log(success)
                     this.setState({saved: true})
                     this.showNotification("Task saved!");
                 },

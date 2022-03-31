@@ -23,12 +23,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
@@ -91,7 +86,7 @@ public class ExecutionServiceImpl implements ExecutionService {
             if (startedByTrigger && !task.isActive()) {
                 execution.setSuccess(false);
                 execution.setStatus(TaskExecutionStatus.FAILED);
-                addLog(execution, "Task is not active. Please set task to active to respond to webhooks", OutputType.STRING, true, false);
+                addLog(execution, "Task is not active. Please set task to active to respond to webhooks", OutputType.STRING, Map.of(), true, false);
                 return execution;
             }
 
@@ -102,7 +97,7 @@ public class ExecutionServiceImpl implements ExecutionService {
                     missingParameters.add(taskParameter.getName());
                 } else if (execution.getParameters().get(taskParameter.getName()) == null && taskParameter.getDefaultValue() != null) {
                     // Add default value to parameter if it exists
-                    execution.getParameters().put(taskParameter.getName(), new ExecutionParameter(taskParameter.getName(),  taskParameter.getDefaultValue().getBytes(StandardCharsets.UTF_8), false));
+                    execution.getParameters().put(taskParameter.getName(), new ExecutionParameter(taskParameter.getName(), taskParameter.getDefaultValue().getBytes(StandardCharsets.UTF_8), false));
                 }
             }
 
@@ -354,13 +349,13 @@ public class ExecutionServiceImpl implements ExecutionService {
 
             // Check if the trigger exists
             if (action == null) {
-                addLog(execution, "The selected trigger or webhook was not found. Cannot start task", OutputType.STRING, true);
+                addLog(execution, "The selected trigger or webhook was not found. Cannot start task", OutputType.STRING, Map.of(), true);
                 return execution;
             }
 
             // Set params
             if (triggerInfo.getTriggerParameters() != null) {
-                triggerInfo.getTriggerParameters().forEach((key, value) -> execution.getParameters().put(TRIGGER_PARAMETER_PREFIX + "_" + key, new ExecutionParameter(TRIGGER_PARAMETER_PREFIX + "_" + key,  value.getBytes(StandardCharsets.UTF_8), false)));
+                triggerInfo.getTriggerParameters().forEach((key, value) -> execution.getParameters().put(TRIGGER_PARAMETER_PREFIX + "_" + key, new ExecutionParameter(TRIGGER_PARAMETER_PREFIX + "_" + key, value != null ? value.getBytes(StandardCharsets.UTF_8) : new byte[0], false)));
             }
 
             execution.setCurrentAction(action);
@@ -403,7 +398,7 @@ public class ExecutionServiceImpl implements ExecutionService {
 
                 // If action did not go well
                 if (actionResult.getStatusCode() == StatusCode.FAILURE && !currentAction.isContinueOnFailure()) {
-                    addLog(execution, actionResult.getErrorMsg(), actionResult.getOutputType(), true, false, false);
+                    addLog(execution, actionResult.getErrorMsg(), actionResult.getOutputType(), actionResult.getOutputVariables(), true, false, false);
                     break;
                 }
 
@@ -446,12 +441,12 @@ public class ExecutionServiceImpl implements ExecutionService {
                     String retryWaitAmount = variableExtractorUtil.extract(currentAction.getRetryWait(), execution, null, currentAction.getScriptLanguage(), Map.of("retryCount", tries + 1));
                     Thread.sleep(Long.parseLong(retryWaitAmount));
                 }
-                actionResult = currentAction.run(taskService, execution, variableExtractorUtil, (output, outputType) -> addLog(execution, output, outputType, true));
+                actionResult = currentAction.run(taskService, execution, variableExtractorUtil, (output, outputType) -> addLog(execution, output, outputType, Map.of(), true));
 
                 if (!actionResult.getOutput().isEmpty()) {
-                    addLog(execution, actionResult.getOutput(), actionResult.getOutputType(), actionResult.isBroadcastMessage());
+                    addLog(execution, actionResult.getOutput(), actionResult.getOutputType(), actionResult.getOutputVariables(), actionResult.isBroadcastMessage());
                 } else {
-                    addLog(execution, actionResult.getErrorMsg(), actionResult.getOutputType(), actionResult.isBroadcastMessage());
+                    addLog(execution, actionResult.getErrorMsg(), actionResult.getOutputType(), actionResult.getOutputVariables(), actionResult.isBroadcastMessage());
                 }
                 // Handle failOn
                 if (currentAction.getFailOn() != null && !currentAction.getFailOn().isEmpty()) {
@@ -460,7 +455,7 @@ public class ExecutionServiceImpl implements ExecutionService {
                         actionResult.setErrorMsg("Failed on: " + failOn);
                         actionResult.setStatusCode(StatusCode.FAILURE);
 
-                        addLog(execution, actionResult.getErrorMsg(), actionResult.getOutputType(), true);
+                        addLog(execution, actionResult.getErrorMsg(), actionResult.getOutputType(), actionResult.getOutputVariables(), true);
                     }
                 }
             } catch (Exception e) {
@@ -468,7 +463,7 @@ public class ExecutionServiceImpl implements ExecutionService {
                 actionResult.setErrorMsg(e.toString());
                 actionResult.setStatusCode(StatusCode.FAILURE);
 
-                addLog(execution, actionResult.getOutput(), actionResult.getOutputType(), true);
+                addLog(execution, actionResult.getOutput(), actionResult.getOutputType(), actionResult.getOutputVariables(), true);
             }
 
             tries++;
@@ -478,19 +473,20 @@ public class ExecutionServiceImpl implements ExecutionService {
 
     private boolean checkActionOverfloodAccess(TaskExecution execution, Action currentAction) {
         if (execution.getActionAccessCount(currentAction.getId()) > MAX_ACTION_ACCESS_LIMIT) {
-            addLog(execution, "Action access amount has reached it's maximum limit. Please consider using less loops." + currentAction.getClass().getName(), OutputType.STRING, true, false, false);
+            addLog(execution, "Action access amount has reached it's maximum limit. Please consider using less loops." + currentAction.getClass().getName(), OutputType.STRING, Map.of(), true, false, false);
             return true;
         }
         return false;
     }
 
-    public TaskExecutionLog addLog(TaskExecution execution, String output, OutputType outputType, boolean broadcastLog, boolean success, boolean lastBroadcastMessage) {
+    public TaskExecutionLog addLog(TaskExecution execution, String output, OutputType outputType, Map<String, Object> outputVariables, boolean broadcastLog, boolean success, boolean lastBroadcastMessage) {
         TaskExecutionLog log = new TaskExecutionLog();
         log.setTaskExecution(execution);
 
         log.setOutput(output);
         log.setOutputType(outputType);
         log.setDate(new Date());
+        log.setOutputVariables(outputVariables);
 
         execution.setSuccess(success);
 
@@ -504,12 +500,12 @@ public class ExecutionServiceImpl implements ExecutionService {
         return log;
     }
 
-    public TaskExecutionLog addLog(TaskExecution execution, String output, OutputType outputType, boolean broadcastLog, boolean success) {
-        return addLog(execution, output, outputType, broadcastLog, success, false);
+    public TaskExecutionLog addLog(TaskExecution execution, String output, OutputType outputType, Map<String, Object> outputVariables, boolean broadcastLog, boolean success) {
+        return addLog(execution, output, outputType, outputVariables, broadcastLog, success, false);
     }
 
-    public TaskExecutionLog addLog(TaskExecution execution, String output, OutputType outputType, boolean broadcastLog) {
-        return addLog(execution, output, outputType, broadcastLog, true);
+    public TaskExecutionLog addLog(TaskExecution execution, String output, OutputType outputType, Map<String, Object> outputVariables, boolean broadcastLog) {
+        return addLog(execution, output, outputType, outputVariables, broadcastLog, true);
     }
 
     private void broadcastResults(TaskExecutionLog taskExecutionLog) {
