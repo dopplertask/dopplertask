@@ -68,6 +68,8 @@ class MainApp extends React.Component {
             "@type": this.state.selectedAction.userData.name,
             ports
         }
+        let editor = ace.edit("editor_actionExecutionOutput")
+        editor.setValue("Executing action...");
         $.ajax({
             type: "POST",
             url: "/task/action",
@@ -91,7 +93,7 @@ class MainApp extends React.Component {
                     }
                 }));
 
-                let editor = ace.edit("editor_actionExecutionOutput")
+
                 editor.setValue(output);
 
             },

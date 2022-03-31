@@ -441,9 +441,7 @@ class EditActionModal extends React.Component {
                                     && this.props.selectedAction.userData.lastSingleActionExecutionOutput
                                     != undefined
                                     && this.props.selectedAction.userData.lastSingleActionExecutionOutput}
-                                            simple={false} readOnly={true} />
-                                    <pre id="actionExecutionOutput"
-                                         className="code-pre"></pre>
+                                            simple={false} readOnly={true} extended={true} />
                                 </div>
                             </div>
                         </div>

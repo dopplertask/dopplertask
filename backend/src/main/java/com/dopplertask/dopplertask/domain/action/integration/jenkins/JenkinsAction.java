@@ -107,10 +107,10 @@ public class JenkinsAction extends Action {
             case "build":
                 if ("getAll".equals(operationVariable)) {
                     String limitUrl = "";
-                    if(returnAll) {
-                        limitUrl = "{0, " + limitVariable + "}";
+                    if(!returnAll) {
+                        limitUrl = "{0," + limitVariable + "}";
                     }
-                    return callJenkinsAction(credUsername, credApiToken, credJenkinsUrl, "job/" + jobNameVariable + "/api/json?tree=builds[*]" + limitUrl, "POST", Map.of(), "", taskService, variableExtractorUtil);
+                    return callJenkinsAction(credUsername, credApiToken, credJenkinsUrl, "job/" + jobNameVariable + "/api/json", "POST", Map.of("tree", "builds[*]" + limitUrl), "", taskService, variableExtractorUtil);
                 }
                 break;
             case "instance":

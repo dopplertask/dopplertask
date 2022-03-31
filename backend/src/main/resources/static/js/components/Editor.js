@@ -39,6 +39,11 @@ class Editor extends React.Component {
         if(this.props.readOnly) {
             this.editor.setReadOnly(true);
         }
+
+        if(this.props.extended) {
+            this.editor.setOption("minLines", 30);
+            this.editor.setOption("maxLines", 30);
+        }
         let language = this.props.scriptLanguage;
         // At the moment, only taskParameters are handled.
         let extraSuggestions = this.props.extraSuggestions;

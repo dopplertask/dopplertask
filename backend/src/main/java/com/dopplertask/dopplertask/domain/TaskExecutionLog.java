@@ -1,17 +1,8 @@
 package com.dopplertask.dopplertask.domain;
 
-import javax.persistence.Column;
-import javax.persistence.Entity;
-import javax.persistence.EnumType;
-import javax.persistence.Enumerated;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
-import javax.persistence.JoinColumn;
-import javax.persistence.Lob;
-import javax.persistence.ManyToOne;
-import javax.persistence.Table;
+import javax.persistence.*;
 import java.util.Date;
+import java.util.Map;
 
 @Entity
 @Table(name = "TaskExecutionLog")
@@ -31,6 +22,9 @@ public class TaskExecutionLog {
     @Enumerated(EnumType.STRING)
     @Column
     private OutputType outputType = OutputType.STRING;
+
+    @Transient
+    private Map<String, Object> outputVariables;
 
     private Date date;
 
@@ -72,5 +66,13 @@ public class TaskExecutionLog {
 
     public void setDate(Date date) {
         this.date = date;
+    }
+
+    public Map<String, Object> getOutputVariables() {
+        return outputVariables;
+    }
+
+    public void setOutputVariables(Map<String, Object> outputVariables) {
+        this.outputVariables = outputVariables;
     }
 }
