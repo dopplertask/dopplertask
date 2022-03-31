@@ -91,6 +91,9 @@ class MainApp extends React.Component {
                     }
                 }));
 
+                let editor = ace.edit("editor_actionExecutionOutput")
+                editor.setValue(output);
+
             },
             dataType: "json"
         });
@@ -154,9 +157,9 @@ class MainApp extends React.Component {
                     customData[pi.name] = []
                 } else if (pi.type === "BOOLEAN") {
                     if (pi.defaultValue == "true") {
-                        customData[pi.name] = true || "";
+                        customData[pi.name] = true;
                     } else {
-                        customData[pi.name] = false || "";
+                        customData[pi.name] = false;
                     }
                 } else {
                     customData[pi.name] = pi.defaultValue || "";
@@ -741,7 +744,6 @@ class MainApp extends React.Component {
                 data: json,
                 contentType: 'application/json',
                 success: success => {
-                    console.log(success)
                     this.setState({saved: true})
                     this.showNotification("Task saved!");
                 },

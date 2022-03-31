@@ -150,13 +150,10 @@ class EditActionModal extends React.Component {
             propertiesField[this.firstLetterCapitalAndPluralize(propertyInformation.category)] = [];
         }
         let show = true;
-        console.log("Current Field: "+ propertyInformation.name)
         for (const [key, value] of Object.entries(propertyInformation.displayOptions)) {
-            console.log(`${key}: Required: ${value} Type: ${propertyInformation.type}`);
-            let currentCustomData = this.props.selectedAction.userData.customData[key] != undefined ? this.props.selectedAction.userData.customData[key] : "";
+
+            let currentCustomData = this.props.selectedAction.userData.customData[key] != undefined ? this.props.selectedAction.userData.customData[key].toString() : "";
             if (!value.includes(currentCustomData) ) {
-                console.log(typeof value + " " + typeof this.props.selectedAction.userData.customData[key] + " " + (value != this.props.selectedAction.userData.customData[key]) + " " + JSON.stringify(value))
-                console.log("Value do not match!" + key + " " + value + " != currentValue: " + this.props.selectedAction.userData.customData[key])
                 show = false;
                 break;
             }
@@ -438,12 +435,15 @@ class EditActionModal extends React.Component {
                                 <div className="col-4">
                                     Action execution result:
                                     <br/>
-                                    <pre id="actionExecutionOutput"
-                                         className="code-pre">{this.props.selectedAction.userData
+
+                                    <Editor id="actionExecutionOutput" onChange={() => void (0)} value={this.props.selectedAction.userData
                                     != undefined
                                     && this.props.selectedAction.userData.lastSingleActionExecutionOutput
                                     != undefined
-                                    && this.props.selectedAction.userData.lastSingleActionExecutionOutput}</pre>
+                                    && this.props.selectedAction.userData.lastSingleActionExecutionOutput}
+                                            simple={false} readOnly={true} />
+                                    <pre id="actionExecutionOutput"
+                                         className="code-pre"></pre>
                                 </div>
                             </div>
                         </div>

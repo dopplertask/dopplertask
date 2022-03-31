@@ -75,6 +75,7 @@ public class JenkinsAction extends Action {
     @Column(columnDefinition = "BOOLEAN")
     private boolean returnAll;
 
+    @Column(name = "limitValue")
     private String limit;
 
     @NotNull
