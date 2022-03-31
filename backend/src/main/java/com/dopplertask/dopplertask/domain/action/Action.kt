@@ -8,6 +8,7 @@ import com.dopplertask.dopplertask.domain.action.connection.MySQLAction
 import com.dopplertask.dopplertask.domain.action.connection.SSHAction
 import com.dopplertask.dopplertask.domain.action.connection.SecureCopyAction
 import com.dopplertask.dopplertask.domain.action.integration.jenkins.JenkinsAction
+import com.dopplertask.dopplertask.domain.action.integration.jira.JiraAction
 import com.dopplertask.dopplertask.domain.action.integration.rockmelon.RockmelonAction
 import com.dopplertask.dopplertask.domain.action.io.ReadFileAction
 import com.dopplertask.dopplertask.domain.action.io.WriteFileAction
@@ -59,7 +60,8 @@ import javax.persistence.*
     JsonSubTypes.Type(value = ActiveMQTrigger::class, name = "ActiveMQTrigger"),
     JsonSubTypes.Type(value = IntervalTrigger::class, name = "IntervalTrigger"),
     JsonSubTypes.Type(value = JenkinsAction::class, name = "JenkinsAction"),
-    JsonSubTypes.Type(value = RockmelonAction::class, name = "RockmelonAction")
+    JsonSubTypes.Type(value = RockmelonAction::class, name = "RockmelonAction"),
+    JsonSubTypes.Type(value = JiraAction::class, name = "JiraAction")
 )
 @JsonIgnoreProperties(ignoreUnknown = true)
 abstract class Action {
