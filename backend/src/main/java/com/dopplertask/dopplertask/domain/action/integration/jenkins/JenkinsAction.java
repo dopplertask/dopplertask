@@ -50,8 +50,6 @@ public class JenkinsAction extends Action {
     private String jenkinsUrl;
 
     @Column(columnDefinition = "BOOLEAN")
-
-    @Convert(converter = ColumnEncryptor.class)
     private boolean useCrumb = true;
 
     private String resourceType;
@@ -74,6 +72,10 @@ public class JenkinsAction extends Action {
     @Column(columnDefinition = "TEXT")
     private String newJobXML;
 
+    @Column(columnDefinition = "BOOLEAN")
+    private boolean returnAll;
+
+    private String limit;
 
     @NotNull
     @Override
@@ -97,12 +99,17 @@ public class JenkinsAction extends Action {
         String jobNameVariable = variableExtractorUtil.extract(jobName, execution, getScriptLanguage());
         String newJobNameVariable = variableExtractorUtil.extract(newJobName, execution, getScriptLanguage());
         String newJobXMLVariable = variableExtractorUtil.extract(newJobXML, execution, getScriptLanguage());
+        String limitVariable = variableExtractorUtil.extract(limit, execution, getScriptLanguage());
 
 
         switch (resourceTypeVariable) {
             case "build":
                 if ("getAll".equals(operationVariable)) {
-                    return callJenkinsAction(credUsername, credApiToken, credJenkinsUrl, "job/" + jobNameVariable + "/api/json?tree=builds[*]", "POST", Map.of(), "", taskService, variableExtractorUtil);
+                    String limitUrl = "";
+                    if(returnAll) {
+                        limitUrl = "{0, " + limitVariable + "}";
+                    }
+                    return callJenkinsAction(credUsername, credApiToken, credJenkinsUrl, "job/" + jobNameVariable + "/api/json?tree=builds[*]" + limitUrl, "POST", Map.of(), "", taskService, variableExtractorUtil);
                 }
                 break;
             case "instance":
@@ -403,6 +410,24 @@ public class JenkinsAction extends Action {
 
     public JenkinsAction setReason(String reason) {
         this.reason = reason;
+        return this;
+    }
+
+    public boolean isReturnAll() {
+        return returnAll;
+    }
+
+    public JenkinsAction setReturnAll(boolean returnAll) {
+        this.returnAll = returnAll;
+        return this;
+    }
+
+    public String getLimit() {
+        return limit;
+    }
+
+    public JenkinsAction setLimit(String limit) {
+        this.limit = limit;
         return this;
     }
 }

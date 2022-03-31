@@ -152,9 +152,10 @@ class EditActionModal extends React.Component {
         let show = true;
         console.log("Current Field: "+ propertyInformation.name)
         for (const [key, value] of Object.entries(propertyInformation.displayOptions)) {
-            console.log(`${key}: ${value}`);
-
-            if (!value.includes(this.props.selectedAction.userData.customData[key])) {
+            console.log(`${key}: Required: ${value} Type: ${propertyInformation.type}`);
+            let currentCustomData = this.props.selectedAction.userData.customData[key] != undefined ? this.props.selectedAction.userData.customData[key] : "";
+            if (!value.includes(currentCustomData) ) {
+                console.log(typeof value + " " + typeof this.props.selectedAction.userData.customData[key] + " " + (value != this.props.selectedAction.userData.customData[key]) + " " + JSON.stringify(value))
                 console.log("Value do not match!" + key + " " + value + " != currentValue: " + this.props.selectedAction.userData.customData[key])
                 show = false;
                 break;
