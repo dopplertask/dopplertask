@@ -32,7 +32,7 @@ let SwitchAction = draw2d.shape.node.Between.extend({
         this.setWidth(80);
         this.setHeight(80);
 
-        let label = new draw2d.shape.basic.Label({text: "SwitchAction"});
+        let label = new draw2d.shape.basic.Label({text: this.userData.customData["actionName"] || "SwitchAction"});
         label.setStroke(0);
         this.add(label, new draw2d.layout.locator.BottomLocator(this));
 
@@ -72,6 +72,17 @@ let SwitchAction = draw2d.shape.node.Between.extend({
 
         this.layoutPorts();
     },
+
+    updateFigureLabel: function () {
+        let currentFigure = this;
+        this.getChildren().each(function (i, e) {
+            if (e instanceof draw2d.shape.basic.Label) {
+                e.setText(currentFigure.userData.customData["actionName"]);
+                currentFigure.repaint()
+            }
+        });
+    },
+
     /**
      * @method
      * Called if the user drop this element onto the dropTarget.

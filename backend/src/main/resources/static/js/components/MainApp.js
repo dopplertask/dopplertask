@@ -250,11 +250,16 @@ class MainApp extends React.Component {
         return result;
     }
 
-    createNode(actionName) {
+    createNode(actionName, customData) {
         let action;
         let currentActionDetails = this.state.availableActions.find(availableAction => availableAction.name == actionName);
+
         // Make a copy to avoid using the same reference, overwriting each others values
         currentActionDetails = Object.assign({}, currentActionDetails);
+
+        if(customData != undefined) {
+            currentActionDetails.customData = customData;
+        }
 
         if (actionName == "IfAction") {
             action = new IfAction({
@@ -410,8 +415,7 @@ class MainApp extends React.Component {
         this.state.app.view.clear();
 
         task.actions.forEach((action, i) => {
-            let generatedAction = this.createNode(action["@type"]);
-            generatedAction.userData.customData = action;
+            let generatedAction = this.createNode(action["@type"], action);
             generatedAction.x = action.guiXPos;
             generatedAction.y = action.guiYPos;
             let inputPortIndex = 0;
@@ -508,6 +512,9 @@ class MainApp extends React.Component {
         currentSelection.userData = this.state.selectedAction.userData;
         if (typeof currentSelection.updatePorts === "function") {
             currentSelection.updatePorts();
+        }
+        if(typeof currentSelection.updateFigureLabel === "function") {
+            currentSelection.updateFigureLabel();
         }
 
         this.setState({saved: false});
