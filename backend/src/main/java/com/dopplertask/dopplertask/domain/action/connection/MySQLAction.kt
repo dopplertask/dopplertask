@@ -68,6 +68,7 @@ class MySQLAction : Action() {
         val localCommand = variableExtractorUtil.extract(command, execution, scriptLanguage)
         val localTimezone = variableExtractorUtil.extract(timezone, execution, scriptLanguage)
         val dataSource = MysqlDataSource()
+        dataSource.allowMultiQueries = true
         dataSource.user = localUsername
         dataSource.password = localPassword
         dataSource.serverName = localHostname
@@ -92,27 +93,38 @@ class MySQLAction : Action() {
         try {
             dataSource.connection.use { conn ->
                 stmt = conn.createStatement()
-                if (stmt?.execute(localCommand) == true) {
-                    rs = stmt?.resultSet;
-                    val rsmd = rs?.metaData
+                val builder = StringBuilder()
+                var hasMoreResults = stmt?.execute(localCommand)
+                while (hasMoreResults!! || stmt?.updateCount != -1 ) {
+                    if(hasMoreResults!!) {
+                        rs = stmt?.resultSet;
+                        val rsmd = rs?.metaData
 
-                    val builder = StringBuilder()
-                    builder.append("Quering: $localCommand\n")
-                    builder.append("Result: \n\n")
-                    val columnsNumber = rsmd?.columnCount
-                    while (rs!!.next()) {
-                        for (i in 1..columnsNumber!!) {
-                            if (i > 1) {
-                                builder.append(", ")
+
+                        builder.append("Quering: $localCommand\n")
+                        builder.append("Result: \n\n")
+                        val columnsNumber = rsmd?.columnCount
+                        while (rs!!.next()) {
+                            for (i in 1..columnsNumber!!) {
+                                if (i > 1) {
+                                    builder.append(", ")
+                                }
+                                val columnValue = rs?.getString(i)
+                                builder.append(rsmd.getColumnName(i) + ": " + columnValue)
                             }
-                            val columnValue = rs?.getString(i)
-                            builder.append(rsmd.getColumnName(i) + ": " + columnValue)
+                            builder.append("\n")
                         }
-                        builder.append("\n")
                     }
+                    else {
+                        val queryResult = stmt?.getUpdateCount()
+                        if (queryResult == -1) { // no more queries processed
+                            break;
+                        }
+                    }
+                    hasMoreResults = stmt?.moreResults;
 
-                    actionResult.output = builder.toString()
                 }
+                actionResult.output = builder.toString()
                 actionResult.statusCode = StatusCode.SUCCESS
                 return actionResult
             }
