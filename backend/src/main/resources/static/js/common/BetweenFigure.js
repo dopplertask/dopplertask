@@ -10,7 +10,7 @@ let BetweenFigure = draw2d.shape.node.Between.extend({
         this.getPorts().each(function (i, port) {
             port.setName(port.getId())
         })
-        let label = new draw2d.shape.basic.Label({text: this.userData.name});
+        let label = new draw2d.shape.basic.Label({text: this.userData.customData["actionName"] || this.userData.name});
         label.setStroke(0);
 
         this.add(label, new draw2d.layout.locator.BottomLocator(this));
@@ -33,6 +33,16 @@ let BetweenFigure = draw2d.shape.node.Between.extend({
     onDoubleClick: function () {
 
     },
+    updateFigureLabel: function () {
+        let currentFigure = this;
+        this.getChildren().each(function (i, e) {
+            if (e instanceof draw2d.shape.basic.Label) {
+                e.setText(currentFigure.userData.customData["actionName"]);
+                currentFigure.repaint()
+            }
+        });
+    },
+
     /**
      * @method
      * Called if the user drop this element onto the dropTarget.

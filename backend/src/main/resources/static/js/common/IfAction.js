@@ -31,7 +31,7 @@ let IfAction = draw2d.shape.node.Between.extend({
             }
         })
         console.log(this.getPorts());
-        let label = new draw2d.shape.basic.Label({text: "IfAction"});
+        let label = new draw2d.shape.basic.Label({text: this.userData.customData["actionName"] || this.userData.name});
         label.setStroke(0);
         this.add(label, new draw2d.layout.locator.BottomLocator(this));
         let actionIcon = new draw2d.shape.basic.Image({
@@ -47,6 +47,16 @@ let IfAction = draw2d.shape.node.Between.extend({
             this.getParent().onDoubleClick();
         }
         this.add(actionIcon, new draw2d.layout.locator.CenterLocator(this));
+    },
+
+    updateFigureLabel: function () {
+        let currentFigure = this;
+        this.getChildren().each(function (i, e) {
+            if (e instanceof draw2d.shape.basic.Label) {
+                e.setText(currentFigure.userData.customData["actionName"]);
+                currentFigure.repaint()
+            }
+        });
     },
 
     /**
