@@ -198,7 +198,7 @@ Executes a MySQL statement, like a SELECT statement.
 #### BrowseWebAction
 Starts a browser and executes a list of UI Actions.
 ##### Variables
-* url: URL to naviate to.
+* url: URL to navigate to.
 * headless: If set to false, it will show the web browser window. Default is true.
 * actionList: A list of actions to perform.
 
@@ -290,6 +290,7 @@ This webhook will respond to a REST call and start the flow.
 * $parameters.get("paramname") / parameters.get("paramname"): Retrieves a stored parameter value. All Task paramters are stored here. You can also get the byte array of the parameter by adding .getParamValue() to the end of the statement.
 * $logs / logs: A list of all task action logs. Can be traversed to look up specific values.
 * $executionId / executionId: It's the ID of the current execution.
+* When a webhook is called from an HTTP call, the headers can be accessed using the following syntax: $parameters.get("TRIGGER_*headername*"). Example: $parameters.get("TRIGGER_authorization"). The body of the request can be accessed using $parameters.get("TRIGGER_body").
 
 ## Contribution
 If you would like to contribute to this project, you can create pull requests, open issues and features and join discussions.
