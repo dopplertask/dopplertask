@@ -107,6 +107,7 @@ public class ExecutionServiceImpl implements ExecutionService {
                 TaskExecutionLog executionFailed = new TaskExecutionLog();
                 executionFailed.setTaskExecution(execution);
                 executionFailed.setOutput("Task execution failed, missing parameters: " + missingParametersAsString + " [taskId=" + task.getId() + ", executionId=" + execution.getId() + "]");
+                executionFailed.setBroadcasted(true);
                 execution.addLog(executionFailed);
                 execution.setSuccess(false);
                 LOG.info("Task execution failed, missing parameters: {} [taskId={}, executionId={}]", missingParametersAsString, task.getId(), execution.getId());
@@ -120,6 +121,7 @@ public class ExecutionServiceImpl implements ExecutionService {
             TaskExecutionLog executionStarted = new TaskExecutionLog();
             executionStarted.setTaskExecution(execution);
             executionStarted.setOutput("Task execution started [taskId=" + task.getId() + ", executionId=" + execution.getId() + "]");
+            executionStarted.setBroadcasted(true);
             execution.addLog(executionStarted);
 
             taskExecutionDao.save(execution);
@@ -140,6 +142,7 @@ public class ExecutionServiceImpl implements ExecutionService {
                 noTaskLog.setDate(new Date());
                 noTaskLog.setOutput("Task could not be found [taskId=" + taskExecutionRequest.getTaskName() + "]");
                 noTaskLog.setTaskExecution(taskExecution);
+                noTaskLog.setBroadcasted(true);
                 broadcastResults(noTaskLog, true);
             }
             return null;
@@ -409,6 +412,7 @@ public class ExecutionServiceImpl implements ExecutionService {
         TaskExecutionLog executionCompleted = new TaskExecutionLog();
         executionCompleted.setTaskExecution(execution);
         executionCompleted.setOutput("Task execution completed [taskId=" + task.getId() + ", executionId=" + execution.getId() + ", success=" + execution.isSuccess() + "]");
+        executionCompleted.setBroadcasted(true);
         execution.addLog(executionCompleted);
         broadcastResults(executionCompleted, true);
 
@@ -488,7 +492,13 @@ public class ExecutionServiceImpl implements ExecutionService {
         log.setDate(new Date());
         log.setOutputVariables(outputVariables);
 
+        if(broadcastLog) {
+            log.setBroadcasted(true);
+        }
+
         execution.setSuccess(success);
+
+
 
         // Add log to the execution
         execution.addLog(log);

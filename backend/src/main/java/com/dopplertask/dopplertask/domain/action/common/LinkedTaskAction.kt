@@ -35,10 +35,10 @@ class LinkedTaskAction : Action() {
     private var parameters: List<LinkedTaskParameter> = ArrayList()
 
     override fun run(
-        taskService: TaskService,
-        execution: TaskExecution,
-        variableExtractorUtil: VariableExtractorUtil,
-        broadcastListener: BroadcastListener?
+            taskService: TaskService,
+            execution: TaskExecution,
+            variableExtractorUtil: VariableExtractorUtil,
+            broadcastListener: BroadcastListener?
     ): ActionResult {
         if (execution.depth < MAX_LINKED_TASK_DEPTH) {
             val taskRequest = TaskRequest()
@@ -95,13 +95,10 @@ class LinkedTaskAction : Action() {
      */
     private fun getExecutionLogsAsString(taskExecution: TaskExecution): StringBuilder {
         val standardOutput = StringBuilder()
-        var i = 0
-        for (log in taskExecution.logs) {
-            if (i == 0) {
-                standardOutput.append("\n")
+        for ((i, log) in taskExecution.logs.withIndex()) {
+            if (i != 0 && log.isBroadcasted) {
+                standardOutput.append("[" + name + "] " + log.output + "\n")
             }
-            standardOutput.append("[" + name + "] " + log.output + "\n")
-            i++
         }
         return standardOutput
     }
@@ -111,17 +108,17 @@ class LinkedTaskAction : Action() {
             val actionInfo = super.actionInfo
             actionInfo.add(PropertyInformation("name", "Task name"))
             actionInfo.add(
-                PropertyInformation(
-                    "parameters",
-                    "Parameters",
-                    PropertyInformation.PropertyInformationType.MAP,
-                    "",
-                    "Parameters for the linked task",
-                    listOf(
-                        PropertyInformation("parameterName", "Name"),
-                        PropertyInformation("parameterValue", "Value ")
+                    PropertyInformation(
+                            "parameters",
+                            "Parameters",
+                            PropertyInformation.PropertyInformationType.MAP,
+                            "",
+                            "Parameters for the linked task",
+                            listOf(
+                                    PropertyInformation("parameterName", "Name"),
+                                    PropertyInformation("parameterValue", "Value ")
+                            )
                     )
-                )
             )
             return actionInfo
         }

@@ -26,6 +26,9 @@ public class TaskExecutionLog {
     @Transient
     private Map<String, Object> outputVariables;
 
+    @Transient
+    private boolean broadcasted = false;
+
     private Date date;
 
     public Long getId() {
@@ -74,5 +77,13 @@ public class TaskExecutionLog {
 
     public void setOutputVariables(Map<String, Object> outputVariables) {
         this.outputVariables = outputVariables;
+    }
+
+    public boolean isBroadcasted() {
+        return broadcasted;
+    }
+
+    public void setBroadcasted(boolean broadcasted) {
+        this.broadcasted = broadcasted;
     }
 }
