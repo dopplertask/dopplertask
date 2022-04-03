@@ -22,22 +22,22 @@ class Webhook : Trigger() {
     var method = "GET"
 
     @Column
-    var authentication = "none"
+    var authentication: String? = "none"
 
     @Column
-    var username = ""
+    var username: String? = ""
 
     @Column
-    var password = ""
+    var password: String? = ""
 
     @Column
-    var token = ""
+    var token: String? = ""
 
     @Column
-    var headerName = "";
+    var headerName: String? = "";
 
     @Column
-    var headerValue = "";
+    var headerValue: String? = "";
 
     @Throws(IOException::class)
     override fun run(

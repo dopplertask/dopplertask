@@ -122,8 +122,12 @@ public class TaskController {
 
         TaskExecutionLogResponseDTO responseDTO = new TaskExecutionLogResponseDTO();
         if (execution != null) {
+            int i = 0;
             for (TaskExecutionLog log : execution.getLogs()) {
-                responseDTO.getOutput().add(log.getOutput());
+                if(i != 0 && log.isBroadcasted()) {
+                    responseDTO.getOutput().add(log.getOutput());
+                }
+                i++;
             }
 
             return new ResponseEntity<>(responseDTO, HttpStatus.OK);
@@ -174,8 +178,12 @@ public class TaskController {
         //TODO: Initialize the trigger because we need to know if there is an authentication required.
         TaskExecutionLogResponseDTO responseDTO = new TaskExecutionLogResponseDTO();
         if (execution != null) {
+            int i = 0;
             for (TaskExecutionLog log : execution.getLogs()) {
-                responseDTO.getOutput().add(log.getOutput());
+                if(i != 0 && log.isBroadcasted()) {
+                    responseDTO.getOutput().add(log.getOutput());
+                }
+                i++;
             }
 
             return new ResponseEntity<>(responseDTO, HttpStatus.OK);

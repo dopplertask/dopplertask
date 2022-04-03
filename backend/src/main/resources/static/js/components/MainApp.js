@@ -309,7 +309,9 @@ class MainApp extends React.Component {
                     userData: currentActionDetails
                 });
                 action.onDoubleClick = () => this.editModelForFigure();
-                action.userData.customData.triggerSuffix = this.generateString(10);
+                if(action.userData.customData.triggerSuffix == undefined) {
+                    action.userData.customData.triggerSuffix = this.generateString(10);
+                }
             } else {
                 action = new BetweenFigure({
                     x: 550,
