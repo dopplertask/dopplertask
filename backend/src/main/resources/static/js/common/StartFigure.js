@@ -12,9 +12,18 @@ let StartFigure = draw2d.shape.node.Start.extend({
         this.getPorts().each(function (i, port) {
             port.setName(port.getId())
         })
-        let label = new draw2d.shape.basic.Label({text: this.userData.customData["actionName"] || this.userData.name});
+
+        let labelActionTypeName = new draw2d.shape.basic.Label({text: this.userData.name || ""});
+        labelActionTypeName.setStroke(0);
+        labelActionTypeName.setBold(true);
+        labelActionTypeName.setFontSize(13);
+
+        let label = new draw2d.shape.basic.Label({text: this.userData.customData["actionName"] || ""});
         label.setStroke(0);
-        this.add(label, new draw2d.layout.locator.BottomLocator(this));
+
+        this.add(labelActionTypeName, new draw2d.layout.locator.BottomLocator(this));
+        this.add(label, new draw2d.layout.locator.ReallyBottomLocator(this));
+
         let actionIcon = new draw2d.shape.basic.Image({
                                                           path: 'images/actions/' + this.userData.name + '.png',
                                                           width: 32,
@@ -101,11 +110,11 @@ let StartFigure = draw2d.shape.node.Start.extend({
     updateFigureLabel: function () {
         let currentFigure = this;
         this.getChildren().each(function (i, e) {
-            if (e instanceof draw2d.shape.basic.Label) {
+            if (e instanceof draw2d.shape.basic.Label && e.getFontSize() !== 13) {
                 e.setText(currentFigure.userData.customData["actionName"]);
                 currentFigure.repaint()
             }
         });
-    },
+    }
 
 });

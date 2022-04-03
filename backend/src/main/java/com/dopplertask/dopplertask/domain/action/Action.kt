@@ -178,7 +178,7 @@ abstract class Action {
                 "actionName",
                 "Action name",
                 PropertyInformationType.STRING,
-                this.javaClass.simpleName,
+                "",
                 "Custom description of this action.",
                 mutableListOf(),
                 PropertyInformation.PropertyInformationCategory.SETTING

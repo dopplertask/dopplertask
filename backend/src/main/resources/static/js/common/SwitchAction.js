@@ -32,9 +32,16 @@ let SwitchAction = draw2d.shape.node.Between.extend({
         this.setWidth(80);
         this.setHeight(80);
 
-        let label = new draw2d.shape.basic.Label({text: this.userData.customData["actionName"] || "SwitchAction"});
+        let labelActionTypeName = new draw2d.shape.basic.Label({text: this.userData.name || ""});
+        labelActionTypeName.setStroke(0);
+        labelActionTypeName.setBold(true);
+        labelActionTypeName.setFontSize(13);
+
+        let label = new draw2d.shape.basic.Label({text: this.userData.customData["actionName"] || ""});
         label.setStroke(0);
-        this.add(label, new draw2d.layout.locator.BottomLocator(this));
+
+        this.add(labelActionTypeName, new draw2d.layout.locator.BottomLocator(this));
+        this.add(label, new draw2d.layout.locator.ReallyBottomLocator(this));
 
         let actionIcon = new draw2d.shape.basic.Image({
                                                           path: 'images/actions/SwitchAction.png',

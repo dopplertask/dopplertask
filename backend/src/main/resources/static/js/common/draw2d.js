@@ -21437,6 +21437,7 @@ OTHER DEALINGS IN THE SOFTWARE.
                                     "./src/layout/locator/ParallelMidpointLocator.js");
                 __webpack_require__(/*! ./layout/locator/TopLocator */ "./src/layout/locator/TopLocator.js");
                 __webpack_require__(/*! ./layout/locator/BottomLocator */ "./src/layout/locator/BottomLocator.js");
+                __webpack_require__(/*! ./layout/locator/BottomLocator */ "./src/layout/locator/ReallyBottomLocator.js");
                 __webpack_require__(/*! ./layout/locator/LeftLocator */ "./src/layout/locator/LeftLocator.js");
                 __webpack_require__(/*! ./layout/locator/RightLocator */ "./src/layout/locator/RightLocator.js");
                 __webpack_require__(/*! ./layout/locator/CenterLocator */ "./src/layout/locator/CenterLocator.js");
@@ -26638,6 +26639,90 @@ OTHER DEALINGS IN THE SOFTWARE.
                                 target.setPosition(boundingBox.w / 2 - offset, boundingBox.h);
                             } else {
                                 target.setPosition(boundingBox.w / 2 - targetBoundingBox.w / 2 - offset, 2 + boundingBox.h);
+                            }
+                        }
+                    });
+
+                /***/
+            }),
+                       /***/ "./src/layout/locator/ReallyBottomLocator.js":
+            /*!*********************************************!*\
+  !*** ./src/layout/locator/BottomLocator.js ***!
+  \*********************************************/
+            /*! no static exports found */
+            /***/ (function (module, exports, __webpack_require__) {
+
+                "use strict";
+
+                var _packages = __webpack_require__(/*! ../../packages */ "./src/packages.js");
+
+                var _packages2 = _interopRequireDefault(_packages);
+
+                function _interopRequireDefault(obj) {
+                    return obj && obj.__esModule ? obj : {default: obj};
+                }
+
+                /**
+                 * @class
+                 *
+                 * A bottomLocator is used to place figures at the bottom of a parent shape.
+                 *
+                 *
+                 *
+                 * @example
+                 *
+                 *    // create a basic figure and add a Label/child via API call
+                 *    //
+                 *    let circle = new draw2d.shape.basic.Circle({
+                 *        x:100,
+                 *        y:50,
+                 *        diameter:100,
+                 *        stroke: 3,
+                 *        color:"#A63343",
+                 *        bgColor:"#E65159"
+                 *    });
+                 *
+                 *    circle.add(new draw2d.shape.basic.Label({text:"Bottom Label"}), new draw2d.layout.locator.BottomLocator());
+                 *    canvas.add( circle);
+                 *
+                 *
+                 * @author Andreas Herz
+                 * @extend draw2d.layout.locator.Locator
+                 */
+                _packages2.default.layout.locator.ReallyBottomLocator = _packages2.default.layout.locator.Locator.extend(
+                    /** @lends draw2d.layout.locator.ReallyBottomLocator.prototype */
+                    {
+
+                        NAME: "draw2d.layout.locator.ReallyBottomLocator",
+
+                        /**
+                         *
+                         *
+                         */
+                        init: function init(attr, setter, getter) {
+                            this._super(attr, setter, getter);
+                        },
+
+                        /**
+                         *
+                         * Relocates the given Figure.
+                         *
+                         * @param {Number} index child index of the target
+                         * @param {draw2d.Figure} target The figure to relocate
+                         **/
+                        relocate: function relocate(index, target) {
+                            var parent = target.getParent();
+                            var boundingBox = parent.getBoundingBox();
+                            // I made a wrong decision in the port handling: anchor point
+                            // is in the center and not topLeft. Now I must correct this flaw here, and there, and...
+                            // shit happens.
+                            var offset = parent instanceof _packages2.default.Port ? boundingBox.w / 2 : 0;
+
+                            var targetBoundingBox = target.getBoundingBox();
+                            if (target instanceof _packages2.default.Port) {
+                                target.setPosition(boundingBox.w / 2 - offset, boundingBox.h);
+                            } else {
+                                target.setPosition(boundingBox.w / 2 - targetBoundingBox.w / 2 - offset, 20 + boundingBox.h);
                             }
                         }
                     });
