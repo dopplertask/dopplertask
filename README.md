@@ -12,6 +12,8 @@ On top of all of this life-simplifying project, we are striving to make an clima
 ![DopplerTask - GUI](https://github.com/dopplertask/dopplertask/blob/ce7050284e58eb90f8b76f28d6b1214aab8471ea/docs/images/dopplertask_gui.png)
 </div>
 
+## Demo
+Click [here](https://www.youtube.com/watch?v=WfuVR53GtWQ) to see a short demo of DopplerTask showing some of the capabilities of the software.
 
 ## Docker
 To run the built docker image:
