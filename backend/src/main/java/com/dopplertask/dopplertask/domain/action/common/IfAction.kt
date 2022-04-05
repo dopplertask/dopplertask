@@ -43,10 +43,10 @@ class IfAction : Action() {
                 )
             }
             if ("true" == localCondition) {
-                actionResult.output = "If evaluated to true."
+                actionResult.output = "true"
                 if (outputPorts.isNotEmpty()) execution.currentAction = outputPorts[0].connectionSource?.target?.action
             } else {
-                actionResult.output = "If evaluated to false."
+                actionResult.output = "false"
                 if (outputPorts.size > 1) execution.currentAction = outputPorts[1].connectionSource?.target?.action
             }
         } else {

@@ -95,8 +95,9 @@ class LinkedTaskAction : Action() {
      */
     private fun getExecutionLogsAsString(taskExecution: TaskExecution): StringBuilder {
         val standardOutput = StringBuilder()
+        val logSize = taskExecution.logs.size;
         for ((i, log) in taskExecution.logs.withIndex()) {
-            if (i != 0 && log.isBroadcasted) {
+            if (i != 0 && log.isBroadcasted && i != (logSize - 1)) {
                 standardOutput.append("[" + name + "] " + log.output + "\n")
             }
         }

@@ -269,7 +269,7 @@ abstract class Action {
             type: PropertyInformationType = PropertyInformationType.STRING,
             defaultValue: String = "",
             description: String = "",
-            options: List<PropertyInformation> = java.util.List.of(),
+            options: List<PropertyInformation> = mutableListOf(),
             category: PropertyInformationCategory = PropertyInformationCategory.PROPERTY,
             displayOptions: Map<String, Array<String>> = mutableMapOf()
         ) {

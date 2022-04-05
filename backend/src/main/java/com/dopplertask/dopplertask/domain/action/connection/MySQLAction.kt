@@ -9,6 +9,7 @@ import com.dopplertask.dopplertask.service.BroadcastListener
 import com.dopplertask.dopplertask.service.ColumnEncryptor
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.mysql.cj.jdbc.MysqlDataSource
 import java.io.IOException
 import java.sql.ResultSet
@@ -93,27 +94,33 @@ class MySQLAction : Action() {
         try {
             dataSource.connection.use { conn ->
                 stmt = conn.createStatement()
-                val builder = StringBuilder()
                 var hasMoreResults = stmt?.execute(localCommand)
+
+                var mysqlResultList = mutableListOf<MySQLResult>()
+
+
                 while (hasMoreResults!! || stmt?.updateCount != -1 ) {
-                    if(hasMoreResults!!) {
+                    if(hasMoreResults) {
+                        var mysqlResult = MySQLResult()
                         rs = stmt?.resultSet;
                         val rsmd = rs?.metaData
 
+                        mysqlResult.query = localCommand
+                        mysqlResult.rows = mutableListOf<MySQLResult.MySQLRow>()
 
-                        builder.append("Quering: $localCommand\n")
-                        builder.append("Result: \n\n")
                         val columnsNumber = rsmd?.columnCount
                         while (rs!!.next()) {
+                            val mysqlColumnList = mutableListOf<MySQLResult.MySQLColumn>()
                             for (i in 1..columnsNumber!!) {
-                                if (i > 1) {
-                                    builder.append(", ")
-                                }
                                 val columnValue = rs?.getString(i)
-                                builder.append(rsmd.getColumnName(i) + ": " + columnValue)
+                                val columnName = rsmd.getColumnName(i)
+                                // Create MySQLColumn object
+                                mysqlColumnList.add(MySQLResult.MySQLColumn(columnName, columnValue))
+
                             }
-                            builder.append("\n")
+                            mysqlResult.rows.add(MySQLResult.MySQLRow(mysqlColumnList))
                         }
+                        mysqlResultList.add(mysqlResult)
                     }
                     else {
                         val queryResult = stmt?.getUpdateCount()
@@ -124,7 +131,10 @@ class MySQLAction : Action() {
                     hasMoreResults = stmt?.moreResults;
 
                 }
-                actionResult.output = builder.toString()
+                // Create JSON from the result using Jackson
+                val mapper = ObjectMapper()
+                val json = mapper.writeValueAsString(mysqlResultList)
+                actionResult.output = json
                 actionResult.statusCode = StatusCode.SUCCESS
                 return actionResult
             }

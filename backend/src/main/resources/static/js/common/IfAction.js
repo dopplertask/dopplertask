@@ -61,7 +61,7 @@ let IfAction = draw2d.shape.node.Between.extend({
     updateFigureLabel: function () {
         let currentFigure = this;
         this.getChildren().each(function (i, e) {
-            if (e instanceof draw2d.shape.basic.Label) {
+            if (e instanceof draw2d.shape.basic.Label && e.getFontSize() !== 13) {
                 e.setText(currentFigure.userData.customData["actionName"]);
                 currentFigure.repaint()
             }

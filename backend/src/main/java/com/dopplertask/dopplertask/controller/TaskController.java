@@ -123,8 +123,9 @@ public class TaskController {
         TaskExecutionLogResponseDTO responseDTO = new TaskExecutionLogResponseDTO();
         if (execution != null) {
             int i = 0;
+            int logSize = execution.getLogs().size();
             for (TaskExecutionLog log : execution.getLogs()) {
-                if(i != 0 && log.isBroadcasted()) {
+                if(i != 0 && log.isBroadcasted() && i != (logSize-1)) {
                     responseDTO.getOutput().add(log.getOutput());
                 }
                 i++;
@@ -179,8 +180,9 @@ public class TaskController {
         TaskExecutionLogResponseDTO responseDTO = new TaskExecutionLogResponseDTO();
         if (execution != null) {
             int i = 0;
+            int logSize = execution.getLogs().size();
             for (TaskExecutionLog log : execution.getLogs()) {
-                if(i != 0 && log.isBroadcasted()) {
+                if(i != 0 && log.isBroadcasted() && i != (logSize-1)) {
                     responseDTO.getOutput().add(log.getOutput());
                 }
                 i++;

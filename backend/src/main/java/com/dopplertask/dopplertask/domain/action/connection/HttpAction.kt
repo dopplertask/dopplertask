@@ -147,7 +147,7 @@ class HttpAction : Action() {
             actionInfo.add(
                 PropertyInformation(
                     "headers", "Headers", PropertyInformationType.MAP, "", "Headers",
-                    java.util.List.of(
+                    mutableListOf(
                         PropertyInformation("headerName", "Key"),
                         PropertyInformation("headerValue", "Value")
                     )
