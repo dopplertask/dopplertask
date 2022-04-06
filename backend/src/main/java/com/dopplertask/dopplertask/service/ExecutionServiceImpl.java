@@ -185,7 +185,7 @@ public class ExecutionServiceImpl implements ExecutionService {
                 // Get JSON from Hub
                 HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
-                if (response.statusCode() == 200 && response.body() != null && !response.body().isEmpty() && taskService != null) {
+                if (response.statusCode() == 200 && response.body() != null && !response.body().isEmpty() && taskService != null && !response.body().contains("Could not find the workflow")) {
 
                     // Translate JSON to object
                     ObjectMapper mapper = new ObjectMapper();
