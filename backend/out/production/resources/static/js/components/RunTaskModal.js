@@ -98,7 +98,15 @@ class RunTaskModal extends React.Component {
         }
     }
 
+
     requestRun(json) {
+        function replaceTag(tag) {
+            return tagsToReplace[tag] || tag;
+        }
+
+        function safe_tags_replace(str) {
+            return str.replace(/[&<>]/g, replaceTag);
+        }
         let runTaskModal = this;
         $.ajax({
                    type: "POST",
@@ -144,6 +152,9 @@ class RunTaskModal extends React.Component {
                                                 }, headers);
                            });
                        })
+                   },
+                   error: function (xhr, status, error) {
+                       jQuery("#outputDiv").append(safe_tags_replace(xhr.responseText));
                    },
                    dataType: "json"
                });

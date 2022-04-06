@@ -100,53 +100,56 @@ class RunTaskModal extends React.Component {
 
     requestRun(json) {
         let runTaskModal = this;
+        var tagsToReplace = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;'
+        };
+        function replaceTag(tag) {
+            return tagsToReplace[tag] || tag;
+        }
+
+        function safe_tags_replace(str) {
+            return str.replace(/[&<>]/g, replaceTag);
+        }
         $.ajax({
-                   type: "POST",
-                   url: "/schedule/task",
-                   data: JSON.stringify(json),
-                   contentType: 'application/json',
-                   success: execution => {
-                       runTaskModal.setState({
-                                                 executionId: execution.id
-                                             }, createStomp => {
-                           let client = Stomp.client("ws://localhost:61614/stomp", "v11.stomp");
-                           let headers = {
-                               id: 'JUST.FCX',
-                               ack: 'client',
-                               selector: 'executionId=' + runTaskModal.state.executionId
-                           };
-                           client.connect("admin", "admin", function () {
-                               client.subscribe("/queue/taskexecution_destination",
-                                                function (message) {
-                                                    let messageBody = JSON.parse(message.body);
-                                                    var tagsToReplace = {
-                                                        '&': '&amp;',
-                                                        '<': '&lt;',
-                                                        '>': '&gt;'
-                                                    };
+            type: "POST",
+            url: "/schedule/task",
+            data: JSON.stringify(json),
+            contentType: 'application/json',
+            success: execution => {
+                runTaskModal.setState({
+                    executionId: execution.id
+                }, createStomp => {
+                    let client = Stomp.client("ws://localhost:61614/stomp", "v11.stomp");
+                    let headers = {
+                        id: 'JUST.FCX',
+                        ack: 'client',
+                        selector: 'executionId=' + runTaskModal.state.executionId
+                    };
+                    client.connect("admin", "admin", function () {
+                        client.subscribe("/queue/taskexecution_destination",
+                            function (message) {
+                                let messageBody = JSON.parse(message.body);
 
-                                                    function replaceTag(tag) {
-                                                        return tagsToReplace[tag] || tag;
-                                                    }
+                                jQuery("#outputDiv").append(safe_tags_replace(messageBody.output) + "<br>");
+                                message.ack();
 
-                                                    function safe_tags_replace(str) {
-                                                        return str.replace(/[&<>]/g, replaceTag);
-                                                    }
-
-                                                    jQuery("#outputDiv").append(safe_tags_replace(messageBody.output) + "<br>");
-                                                    message.ack();
-
-                                                    if (message.headers["lastMessage"] == "true"
-                                                        && message.headers["executionId"] == runTaskModal.state.executionId) {
-                                                        client.disconnect();
-                                                        runTaskModal.cleanup();
-                                                    }
-                                                }, headers);
-                           });
-                       })
-                   },
-                   dataType: "json"
-               });
+                                if (message.headers["lastMessage"] == "true"
+                                    && message.headers["executionId"] == runTaskModal.state.executionId) {
+                                    client.disconnect();
+                                    runTaskModal.cleanup();
+                                }
+                            }, headers);
+                    });
+                })
+            },
+            error: function (xhr, status, error) {
+                jQuery("#outputDiv").append(JSON.parse(safe_tags_replace(xhr.responseText)).message);
+                runTaskModal.cleanup();
+            },
+            dataType: "json"
+        });
     }
 
     cleanup() {

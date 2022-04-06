@@ -6,6 +6,7 @@ import com.dopplertask.dopplertask.domain.StatusCode
 import com.dopplertask.dopplertask.domain.TaskExecution
 import com.dopplertask.dopplertask.domain.action.Action
 import com.dopplertask.dopplertask.service.BroadcastListener
+import com.dopplertask.dopplertask.service.LinkedTaskNotFoundException
 import com.dopplertask.dopplertask.service.TaskRequest
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
@@ -61,24 +62,32 @@ class LinkedTaskAction : Action() {
                 }
             })
             taskRequest.parameters = passedLinkedTaskParameters
-            val taskExecution = taskService.runRequest(taskRequest)
-            if (taskExecution != null) {
-                var standardOutput = StringBuilder()
-                return if (taskExecution.isSuccess) {
-                    val actionResult = ActionResult()
-                    actionResult.statusCode = StatusCode.SUCCESS
-                    standardOutput = getExecutionLogsAsString(taskExecution)
-                    standardOutput.append("Successfully executed linked task [name=$name]")
-                    actionResult.output = standardOutput.toString()
-                    actionResult
-                } else {
-                    val actionResult = ActionResult()
-                    actionResult.statusCode = StatusCode.FAILURE
-                    standardOutput.append("Linked task execution failed [name=$name]")
-                    standardOutput = getExecutionLogsAsString(taskExecution)
-                    actionResult.errorMsg = standardOutput.toString()
-                    actionResult
+            try {
+                val taskExecution = taskService.runRequest(taskRequest)
+                if (taskExecution != null) {
+                    var standardOutput = StringBuilder()
+                    return if (taskExecution.isSuccess) {
+                        val actionResult = ActionResult()
+                        actionResult.statusCode = StatusCode.SUCCESS
+                        standardOutput = getExecutionLogsAsString(taskExecution)
+                        standardOutput.append("Successfully executed linked task [name=$name]")
+                        actionResult.output = standardOutput.toString()
+                        actionResult
+                    } else {
+                        val actionResult = ActionResult()
+                        actionResult.statusCode = StatusCode.FAILURE
+                        standardOutput.append("Linked task execution failed [name=$name]")
+                        standardOutput = getExecutionLogsAsString(taskExecution)
+                        actionResult.errorMsg = standardOutput.toString()
+                        actionResult
+                    }
                 }
+            }
+            catch (e: LinkedTaskNotFoundException) {
+                val actionResult = ActionResult()
+                actionResult.statusCode = StatusCode.FAILURE
+                actionResult.errorMsg = e.message.toString()
+                return actionResult
             }
         }
         val actionResult = ActionResult()

@@ -758,6 +758,10 @@ class MainApp extends React.Component {
                     this.setState({saved: true})
                     this.showNotification("Task saved!");
                 },
+                // on error
+                error: error => {
+                    this.showNotification("Could not save task. Please try again later. " + error.responseText);
+                },
                 dataType: "json"
             });
         });

@@ -99,6 +99,8 @@ public class TaskController {
 
         TaskRequest request = new TaskRequest(removeTaskAfterExecution ? taskRequestDTO.getTaskName() + token : taskRequestDTO.getTaskName(), parameters, removeTaskAfterExecution);
         request.setChecksum(taskRequestDTO.getTaskName());
+
+
         TaskExecution taskExecution = taskService.delegate(request);
 
         if (taskExecution != null) {
