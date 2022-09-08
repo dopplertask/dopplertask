@@ -49,11 +49,13 @@ class SwitchAction : Action() {
                                 "#if(\"" + value + "\" == \"" + evaluatedCase + "\")" +
                                         "0"
                             )
+
                         } else {
                             statement.append(
                                 "#elseif(\"" + value + "\" == \"" + evaluatedCase + "\")" +
                                         "" + i
                             )
+                            //println("PRINTING: " + statement.toString())
                         }
                         i++
                     }
@@ -61,6 +63,7 @@ class SwitchAction : Action() {
                     if (i != 0) {
                         statement.append("#end")
                     }
+
                 }
                 ScriptLanguage.JAVASCRIPT -> {
                     statement.append("var outputPort = 0;")
@@ -76,6 +79,7 @@ class SwitchAction : Action() {
                                 "if(\"" + value + "\" == \"" + evaluatedCase + "\") {" +
                                         "outputPort = 0; }"
                             )
+
                         } else {
                             statement.append(
                                 "\nelse if(\"" + value + "\" == \"" + evaluatedCase + "\") {" +

@@ -202,7 +202,7 @@ public class ActionTest {
         ifAction.setCondition("'test' == 'test_false'");
 
         ActionResult actionResult = ifAction.run(new TaskServiceImpl(), taskExecution, variableExtractorUtil);
-        Assert.assertEquals("false ", actionResult.getOutput());
+        Assert.assertEquals("false", actionResult.getOutput());
         Assert.assertEquals("False path", ((PrintAction) taskExecution.getCurrentAction()).getMessage());
     }
 
