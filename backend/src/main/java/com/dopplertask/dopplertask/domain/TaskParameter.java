@@ -8,6 +8,7 @@ import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.JoinColumn;
+import javax.persistence.Lob;
 import javax.persistence.ManyToOne;
 import javax.persistence.Table;
 
@@ -24,10 +25,12 @@ public class TaskParameter {
     @Column
     private String name;
 
-    @Column
+    @Lob
+    @Column(columnDefinition = "TEXT")
     private String description;
 
-    @Column
+    @Lob
+    @Column(columnDefinition = "TEXT")
     private String defaultValue;
 
     @Column

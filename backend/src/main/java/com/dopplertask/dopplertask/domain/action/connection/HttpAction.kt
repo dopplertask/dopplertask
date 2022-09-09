@@ -9,12 +9,19 @@ import com.dopplertask.dopplertask.service.BroadcastListener
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import java.io.IOException
+import java.lang.Boolean
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import java.security.KeyManagementException
+import java.security.NoSuchAlgorithmException
+import java.security.cert.X509Certificate
 import java.time.Duration
 import java.util.function.Consumer
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManager
+import javax.net.ssl.X509TrustManager
 import javax.persistence.CascadeType
 import javax.persistence.Column
 import javax.persistence.DiscriminatorValue
@@ -22,12 +29,18 @@ import javax.persistence.Entity
 import javax.persistence.Lob
 import javax.persistence.OneToMany
 import javax.persistence.Table
+import kotlin.Array
+import kotlin.String
+import kotlin.Throws
+import kotlin.arrayOf
+
 
 @Entity
 @Table(name = "HttpAction")
 @DiscriminatorValue("http_action")
 class HttpAction : Action() {
-    @Column
+    @Lob
+    @Column(columnDefinition = "TEXT")
     var url: String? = null
 
     @OneToMany(mappedBy = "httpAction", cascade = [CascadeType.ALL])
@@ -72,14 +85,17 @@ class HttpAction : Action() {
                 variableExtractorUtil.extract(entry.headerValue, execution, scriptLanguage)
             )
         }
-        val client = HttpClient.newHttpClient()
+
+        val client = HttpClient.newBuilder().sslContext(insecureContext()).build();
         val request = builder.build()
+
         var response: HttpResponse<String>?
         try {
+
             response = client.send(request, HttpResponse.BodyHandlers.ofString())
             actionResult.output = response.body()
             response.headers().map().forEach { (key, value) ->
-                actionResult.outputVariables[key] = value[0]
+                actionResult.outputVariables[key] = value
             }
 
             actionResult.statusCode = StatusCode.SUCCESS
@@ -93,6 +109,26 @@ class HttpAction : Action() {
 
 
         return actionResult
+    }
+
+    private fun insecureContext(): SSLContext? {
+        val noopTrustManager = arrayOf<TrustManager>(
+            object : X509TrustManager {
+                override fun checkClientTrusted(xcs: Array<X509Certificate?>?, string: String?) {}
+                override fun checkServerTrusted(xcs: Array<X509Certificate?>?, string: String?) {}
+                override fun getAcceptedIssuers(): Array<X509Certificate>? {
+                    return null
+                }
+            }
+        )
+        try {
+            val sc = SSLContext.getInstance("ssl")
+            sc.init(null, noopTrustManager, null)
+            return sc
+        } catch (ex: KeyManagementException) {
+        } catch (ex: NoSuchAlgorithmException) {
+        }
+        return null;
     }
 
     override val actionInfo: MutableList<PropertyInformation>
