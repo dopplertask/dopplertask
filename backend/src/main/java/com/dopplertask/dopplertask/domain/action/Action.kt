@@ -6,16 +6,7 @@ import com.dopplertask.dopplertask.domain.ActionResult
 import com.dopplertask.dopplertask.domain.Task
 import com.dopplertask.dopplertask.domain.TaskExecution
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
-import com.dopplertask.dopplertask.domain.action.common.ExecuteCommandAction
-import com.dopplertask.dopplertask.domain.action.common.IfAction
-import com.dopplertask.dopplertask.domain.action.common.LinkedTaskAction
-import com.dopplertask.dopplertask.domain.action.common.PrintAction
-import com.dopplertask.dopplertask.domain.action.common.ScriptAction
-import com.dopplertask.dopplertask.domain.action.common.ScriptLanguage
-import com.dopplertask.dopplertask.domain.action.common.SetVariableAction
-import com.dopplertask.dopplertask.domain.action.common.SwitchAction
-import com.dopplertask.dopplertask.domain.action.common.TimedWait
-import com.dopplertask.dopplertask.domain.action.common.XMLAction
+import com.dopplertask.dopplertask.domain.action.common.*
 import com.dopplertask.dopplertask.domain.action.connection.HttpAction
 import com.dopplertask.dopplertask.domain.action.connection.MySQLAction
 import com.dopplertask.dopplertask.domain.action.connection.SSHAction
@@ -85,7 +76,8 @@ import javax.persistence.OneToMany
     JsonSubTypes.Type(value = ActiveMQTrigger::class, name = "ActiveMQTrigger"),
     JsonSubTypes.Type(value = IntervalTrigger::class, name = "IntervalTrigger"),
     JsonSubTypes.Type(value = JenkinsAction::class, name = "JenkinsAction"),
-    JsonSubTypes.Type(value = RockmelonAction::class, name = "RockmelonAction")
+    JsonSubTypes.Type(value = RockmelonAction::class, name = "RockmelonAction"),
+    JsonSubTypes.Type(value = RegexAction::class, name = "RegexAction")
 )
 @JsonIgnoreProperties(ignoreUnknown = true)
 abstract class Action {
