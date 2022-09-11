@@ -36,13 +36,15 @@ class Editor extends React.Component {
         this.editor.setOption("maxLines", this.props.simple ? 1 : 30);
         this.editor.setOption("minLines", this.props.simple ? 1 : 5);
 
+
+
         if(this.props.readOnly) {
             this.editor.setReadOnly(true);
         }
 
         if(this.props.extended) {
             this.editor.setOption("minLines", 30);
-            this.editor.setOption("maxLines", 30);
+            this.editor.setOption("maxLines", 60);
         }
         let language = this.props.scriptLanguage;
         // At the moment, only taskParameters are handled.
@@ -78,6 +80,7 @@ class Editor extends React.Component {
         this.editor.setValue(this.props.value, -1);
 
         this.editor.getSession().on("change", () => this.valueChange(this.editor.getValue()));
+
 
     }
 
