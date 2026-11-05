@@ -85,11 +85,14 @@ class Editor extends React.Component {
     }
 
     render() {
-        return <div id={this.containerId} style={{
+        // Ace sizes its container to the exact line height, so a border on the container would clip the text.
+        return <div style={{
             margin: "0.5em",
             marginLeft: 0,
             border: "1px solid lightgrey", width: "100%"
-        }}/>
+        }}>
+            <div id={this.containerId}/>
+        </div>
     }
 }
 
