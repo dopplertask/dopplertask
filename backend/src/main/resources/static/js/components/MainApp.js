@@ -6,6 +6,8 @@ import OpenTaskModal from "./OpenTaskModal";
 import TaskSettings from "./TaskSettings";
 import ImportTaskModal from "./ImportTaskModal";
 
+const AUTO_SAVE_DELAY_MS = 30000;
+
 class MainApp extends React.Component {
 
     constructor(props) {
@@ -21,7 +23,8 @@ class MainApp extends React.Component {
             description: "",
             start: false,
             saved: false,
-            active: false
+            active: false,
+            autoSave: localStorage.getItem("autoSave") === "true"
         }
 
         this.showNotification = this.showNotification.bind(this);
@@ -48,6 +51,8 @@ class MainApp extends React.Component {
         this.applyJSONToCanvas = this.applyJSONToCanvas.bind(this);
         this.generateString = this.generateString.bind(this);
         this.activateTask = this.activateTask.bind(this);
+        this.toggleAutoSave = this.toggleAutoSave.bind(this);
+        this.scheduleAutoSave = this.scheduleAutoSave.bind(this);
         this.populateCustomData = this.populateCustomData.bind(this);
     }
 
@@ -661,6 +666,13 @@ class MainApp extends React.Component {
                                     triggers</label>
                             </label>
 
+                            <label className="custom-control custom-switch">
+                                <input type="checkbox" onChange={this.toggleAutoSave}
+                                       autoComplete="off" id="autoSaveSwitch" className="custom-control-input"
+                                       checked={this.state.autoSave}/>
+                                <label className="custom-control-label" htmlFor="autoSaveSwitch">Auto save</label>
+                            </label>
+
                         </div>
                         <div className="col-sm-10 col-md-10 col-lg-10 m-0 p-0">
                             <div id="canvas" className="w-100 h-100"></div>
@@ -680,6 +692,7 @@ class MainApp extends React.Component {
                              executeAction={this.executeAction}
                              selectedAction={this.state.selectedAction}
                              taskParameters={this.state.parameters}
+                             scheduleAutoSave={this.scheduleAutoSave}
                              discardActionSettings={this.discardActionSettings}/>
 
             <SaveModal
@@ -750,7 +763,28 @@ class MainApp extends React.Component {
 
     }
 
-    saveWorkflow() {
+    componentDidUpdate() {
+        this.scheduleAutoSave();
+    }
+
+    /**
+     * Saves after a quiet period. Skipped while triggers are active, because a new version takes effect immediately.
+     *
+     * @param edited is true for edits that do not re-render, otherwise taken from the saved state.
+     */
+    scheduleAutoSave(edited = !this.state.saved) {
+        clearTimeout(this.autoSaveTimer);
+        if (edited && this.state.autoSave && !this.state.active) {
+            this.autoSaveTimer = setTimeout(() => this.saveWorkflow(null, true), AUTO_SAVE_DELAY_MS);
+        }
+    }
+
+    toggleAutoSave(event) {
+        localStorage.setItem("autoSave", event.target.checked);
+        this.setState({autoSave: event.target.checked});
+    }
+
+    saveWorkflow(event, autoSaved = false) {
         // Validation before sending to API.
         let startActions = 0;
         this.state.app.view.figures.data.forEach(figure => {
@@ -773,16 +807,18 @@ class MainApp extends React.Component {
             console.log(json);
             $.ajax({
                 type: "POST",
-                url: "/task",
+                url: autoSaved ? "/task?autoSaved=true" : "/task",
                 data: json,
                 contentType: 'application/json',
                 success: success => {
                     this.setState({saved: true})
-                    this.showNotification("Task saved!");
+                    this.showNotification(autoSaved ? "Task auto saved." : "Task saved!");
                 },
                 // on error
                 error: error => {
-                    this.showNotification("Could not save task. Please try again later. " + error.responseText);
+                    if (!autoSaved) {
+                        this.showNotification("Could not save task. Please try again later. " + error.responseText);
+                    }
                 },
                 dataType: "json"
             });

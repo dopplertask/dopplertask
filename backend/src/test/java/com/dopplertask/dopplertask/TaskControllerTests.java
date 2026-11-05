@@ -36,6 +36,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.ResultActions;
 
 import java.util.List;
 import java.util.Optional;
@@ -104,6 +105,54 @@ public class TaskControllerTests {
                 "\"actions\":[{\"@type\":\"StartAction\"}],\"connections\":[]}";
         MvcResult result = this.mockMvc.perform(post("/task").content(createJson)).andExpect(status().isOk()).andReturn();
         return JsonPath.read(result.getResponse().getContentAsString(), "$.checksum");
+    }
+
+    @Test
+    public void testManualSaveIsNotMarkedAutoSavedSuccess() throws Exception {
+        saveDescription("First", "/task").andExpect(status().isOk());
+
+        assertAutoSavedFlags(false);
+    }
+
+    @Test
+    public void testAutoSaveOfExistingTaskIsMarkedAutoSavedSuccess() throws Exception {
+        saveDescription("First", "/task").andExpect(status().isOk());
+        saveDescription("Second", "/task?autoSaved=true").andExpect(status().isOk());
+
+        assertAutoSavedFlags(true, false);
+    }
+
+    @Test
+    public void testAutoSaveOfUnknownTaskFail() throws Exception {
+        saveDescription("First", "/task?autoSaved=true").andExpect(status().isBadRequest());
+    }
+
+    @Test
+    public void testManualSaveOfAutoSavedContentClearsMarkSuccess() throws Exception {
+        saveDescription("First", "/task").andExpect(status().isOk());
+        saveDescription("Second", "/task?autoSaved=true").andExpect(status().isOk());
+        saveDescription("Second", "/task").andExpect(status().isOk());
+
+        assertAutoSavedFlags(false, false);
+    }
+
+    @Test
+    public void testAutoSaveOfManuallySavedContentKeepsItUnmarkedSuccess() throws Exception {
+        saveDescription("First", "/task").andExpect(status().isOk());
+        saveDescription("First", "/task?autoSaved=true").andExpect(status().isOk());
+
+        assertAutoSavedFlags(false);
+    }
+
+    private ResultActions saveDescription(String description, String url) throws Exception {
+        String createJson = "{\"name\":\"autosaving\",\"description\":\"" + description + "\",\"active\":false," +
+                "\"actions\":[{\"@type\":\"StartAction\"}],\"connections\":[]}";
+        return this.mockMvc.perform(post(url).content(createJson));
+    }
+
+    private void assertAutoSavedFlags(Boolean... flags) throws Exception {
+        this.mockMvc.perform(get("/task/grouped"))
+                .andExpect(jsonPath("$.autosaving[*].autoSaved", containsInAnyOrder(flags)));
     }
 
     @Test

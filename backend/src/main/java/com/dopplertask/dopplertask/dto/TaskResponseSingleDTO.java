@@ -14,6 +14,7 @@ public class TaskResponseSingleDTO {
     private String name;
     private String checksum;
     private boolean active;
+    private boolean autoSaved;
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Date created;
     private List<TaskParameter> parameters;
@@ -26,6 +27,14 @@ public class TaskResponseSingleDTO {
     public TaskResponseSingleDTO() {
         parameters = new ArrayList<>();
         connections = new ArrayList<>();
+    }
+
+    public boolean isAutoSaved() {
+        return autoSaved;
+    }
+
+    public void setAutoSaved(boolean autoSaved) {
+        this.autoSaved = autoSaved;
     }
 
     public String getName() {
