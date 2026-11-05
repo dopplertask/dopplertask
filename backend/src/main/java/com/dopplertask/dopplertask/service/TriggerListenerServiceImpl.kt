@@ -95,6 +95,10 @@ open class TriggerListenerServiceImpl : TriggerListenerService {
 
     }
 
+    override fun stopTriggers(taskName: String) {
+        threadPoolMap.remove(taskName)?.shutdownNow()
+    }
+
     private fun startTriggers(currentTask: Task) {
         currentTask.triggerActions.forEach { trigger ->
             println("Found trigger")

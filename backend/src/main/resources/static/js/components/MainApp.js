@@ -40,6 +40,7 @@ class MainApp extends React.Component {
         this.setStart = this.setStart.bind(this);
         this.saveSettings = this.saveSettings.bind(this);
         this.openTask = this.openTask.bind(this);
+        this.taskDeleted = this.taskDeleted.bind(this);
         this.initApp = this.initApp.bind(this);
         this.newWorkflow = this.newWorkflow.bind(this);
         this.searchActions = this.searchActions.bind(this);
@@ -424,6 +425,13 @@ class MainApp extends React.Component {
         ;
     }
 
+    taskDeleted(taskName) {
+        if (taskName == this.state.taskName) {
+            this.setState({saved: false});
+        }
+        this.showNotification("Deleted " + taskName + ".");
+    }
+
     applyJSONToCanvas(task, mainApp) {
         this.state.app.view.clear();
 
@@ -685,7 +693,8 @@ class MainApp extends React.Component {
                           parameters={this.state.parameters} setStart={this.setStart}/>
 
             <OpenTaskModal
-                openTask={this.openTask} saved={this.state.saved}/>
+                openTask={this.openTask} saved={this.state.saved}
+                taskDeleted={this.taskDeleted} showNotification={this.showNotification}/>
 
             <TaskSettings parameters={this.state.parameters}
                           saveSettings={this.saveSettings}

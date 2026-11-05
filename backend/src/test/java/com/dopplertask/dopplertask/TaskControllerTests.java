@@ -22,6 +22,8 @@ import com.dopplertask.dopplertask.domain.Task;
 import com.dopplertask.dopplertask.domain.TaskExecution;
 import com.dopplertask.dopplertask.domain.TaskExecutionLog;
 
+import com.jayway.jsonpath.JsonPath;
+
 import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -41,6 +43,7 @@ import java.util.Optional;
 import javax.transaction.Transactional;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
@@ -83,6 +86,24 @@ public class TaskControllerTests {
         this.mockMvc.perform(get("/task/grouped"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.versioned[*].description", containsInAnyOrder("First draft", "Second draft")));
+    }
+
+    @Test
+    public void testDeleteVersionKeepsOtherVersionsSuccess() throws Exception {
+        String firstChecksum = saveVersion("First draft");
+        String secondChecksum = saveVersion("Second draft");
+
+        this.mockMvc.perform(delete("/task/" + firstChecksum)).andExpect(status().isOk());
+
+        this.mockMvc.perform(get("/task/" + firstChecksum + "/checksum")).andExpect(status().isNotFound());
+        this.mockMvc.perform(get("/task/" + secondChecksum + "/checksum")).andExpect(status().isOk());
+    }
+
+    private String saveVersion(String description) throws Exception {
+        String createJson = "{\"name\":\"deletable\",\"description\":\"" + description + "\",\"active\":false," +
+                "\"actions\":[{\"@type\":\"StartAction\"}],\"connections\":[]}";
+        MvcResult result = this.mockMvc.perform(post("/task").content(createJson)).andExpect(status().isOk()).andReturn();
+        return JsonPath.read(result.getResponse().getContentAsString(), "$.checksum");
     }
 
     @Test
