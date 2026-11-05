@@ -1,8 +1,10 @@
-FROM openjdk:17-alpine AS jlink-package
+FROM alpine:3.20 AS jlink-package
 # First: generate java runtime module by jlink.
 
+RUN apk add openjdk17-jdk openjdk17-jmods
+
 RUN jlink \
-     --module-path /opt/openjdk-17/jmods \
+     --module-path /usr/lib/jvm/java-17-openjdk/jmods \
      --compress=2 \
      --add-modules jdk.jfr,jdk.management.agent,java.base,java.logging,java.xml,jdk.unsupported,java.sql,java.naming,java.desktop,java.management,java.security.jgss,java.instrument,java.net.http,jdk.crypto.ec  \
      --no-header-files \
@@ -18,7 +20,7 @@ RUN cd ~/backend && chmod +x gradlew && ./gradlew build -x test && chmod +x /roo
 
 
 # Third image
-FROM alpine:3.10
+FROM alpine:3.20
 
 MAINTAINER Feras Wilson, http://www.dopplertask.com
 
@@ -31,7 +33,7 @@ COPY --from=jlink-package /root/start.sh /opt/spring-boot/
 COPY --from=jlink-package /root/backend/build/libs/doppler-*.jar /opt/spring-boot/
 COPY --from=jlink-package /opt/jdk-17-mini-runtime /opt/jdk-17-mini-runtime
 
-RUN mkdir /opt/spring-boot/bin && cd /opt/spring-boot/bin && ln /usr/lib/chromium/chromedriver chromedriver
+RUN mkdir /opt/spring-boot/bin && cd /opt/spring-boot/bin && ln -s /usr/bin/chromedriver chromedriver
 
 
 EXPOSE 8090
