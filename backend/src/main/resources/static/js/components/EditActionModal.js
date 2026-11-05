@@ -419,6 +419,9 @@ class EditActionModal extends React.Component {
                             <button type="button" className="btn btn-primary" onClick={this.props.executeAction}>Execute
                                 node
                             </button>
+                            <button type="button" className="btn btn-secondary ml-2" data-dismiss="modal"
+                                    onClick={this.props.discardActionSettings}>Cancel
+                            </button>
                             <button type="button" className="close"
                                     style={{marginTop: "-0.6rem", marginBottom: "-1rem"}} data-dismiss="modal"
                                     aria-label="Close">

@@ -328,7 +328,18 @@ class MainApp extends React.Component {
     }
 
     discardActionSettings() {
-        this.setState({selectedAction: {}});
+        this.setState(prevState => ({
+            selectedAction: {
+                ...prevState.selectedAction,
+                userData: {
+                    ...prevState.selectedAction.userData,
+                    customData: this.stateBeforeEdit.customData
+                }
+            }
+        }), () => {
+            this.saveActionSettings();
+            this.setState({saved: this.stateBeforeEdit.saved});
+        });
     }
 
     prepareJSON(resultCallback) {
@@ -482,6 +493,8 @@ class MainApp extends React.Component {
     editModelForFigure() {
         this.setState({selectedAction: {}});
         let currentSelection = this.state.app.view.selection.all.data[0];
+        // Deep copy because map fields are edited in place.
+        this.stateBeforeEdit = {customData: $.extend(true, {}, currentSelection.userData.customData), saved: this.state.saved};
         this.setState({selectedAction: currentSelection});
         $("#actionEditModal").modal("show");
     }
