@@ -40,6 +40,8 @@ import java.util.Optional;
 
 import javax.transaction.Transactional;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -69,6 +71,19 @@ public class TaskControllerTests {
         this.mockMvc.perform(post("/schedule/task")).andDo(print()).andExpect(status().isBadRequest());
     }
 
+
+    @Test
+    public void testGroupedTasksIncludeDescriptionOfEachVersionSuccess() throws Exception {
+        for (String description : new String[]{"First draft", "Second draft"}) {
+            String createJson = "{\"name\":\"versioned\",\"description\":\"" + description + "\",\"active\":false," +
+                    "\"actions\":[{\"@type\":\"StartAction\"}],\"connections\":[]}";
+            this.mockMvc.perform(post("/task").content(createJson)).andExpect(status().isOk());
+        }
+
+        this.mockMvc.perform(get("/task/grouped"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.versioned[*].description", containsInAnyOrder("First draft", "Second draft")));
+    }
 
     @Test
     public void testBuildAndRunShouldReturnOK() throws Exception {
