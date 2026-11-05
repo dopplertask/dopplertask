@@ -16,6 +16,11 @@ On top of all of this life-simplifying project, we are striving to make an clima
 Click [here](https://www.youtube.com/watch?v=WfuVR53GtWQ) to see a short demo of DopplerTask showing some of the capabilities of the software.
 
 ## Docker
+The official image `dopplertask/dopplertask` is published on every release.
+
+To run it with Docker Compose, keeping your tasks in a named volume:
+```docker compose up -d```
+
 To run the built docker image:
 ```docker run -d -p 8090:8090 -p 61614:61614 -v $HOME:/root dopplertask/dopplertask ```
 
