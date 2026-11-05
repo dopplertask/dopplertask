@@ -101,7 +101,7 @@ class EditActionModal extends React.Component {
                         style={{
                             wordWrap: "break-word",
                             fontSize: "small"
-                        }}>{location.protocol}//{window.location.hostname}:{location.port}/webhook/{this.props.taskName}/{this.props.selectedAction.userData.name}/{this.props.selectedAction.userData.customData.triggerSuffix}/{this.props.selectedAction.userData.customData.path
+                        }}>{location.protocol}//{window.location.hostname}:{location.port}/webhook/{encodeURIComponent(this.props.taskName)}/{this.props.selectedAction.userData.name}/{this.props.selectedAction.userData.customData.triggerSuffix}/{this.props.selectedAction.userData.customData.path
                     != null
                     && this.props.selectedAction.userData.customData.path}</div>
                 </div>;

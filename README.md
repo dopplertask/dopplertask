@@ -282,6 +282,8 @@ http://localhost:8090/webhook/taskName/triggerName/triggerSuffix
 or with path:
 http://localhost:8090/webhook/taskName/triggerName/triggerSuffix/path
 
+A task name containing a forward slash must be URL-encoded: `folder/task` becomes `folder%2Ftask`. The Edit action dialog shows the encoded URL.
+
 * taskName: Name of the task to run
 * triggerName: Name of the webhook trigger, like Webhook.
 * triggerSuffix: A random string to make every webhook unique.
