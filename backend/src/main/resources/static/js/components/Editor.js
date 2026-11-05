@@ -39,6 +39,12 @@ class Editor extends React.Component {
         if (this.props.simple) {
             // Let Tab move between single-line fields. Multi-line fields keep Tab for indentation.
             this.editor.commands.bindKeys({"Tab": null, "Shift-Tab": null});
+            // Close suggestions first, so Tab cannot replace what was typed with one. Enter still accepts them.
+            this.editor.container.addEventListener("keydown", event => {
+                if (event.key === "Tab" && this.editor.completer) {
+                    this.editor.completer.detach();
+                }
+            }, true);
         }
 
 
