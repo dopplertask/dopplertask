@@ -73,8 +73,9 @@ class openTaskModal extends React.Component {
                                         <td>{task}</td>
                                         <td>
                                             <select id={task + "_versions"}>
+                                                {/* The sv-SE locale formats local time as YYYY-MM-DD HH:mm:ss. */}
                                                 {this.state.tasks[task].map((taskValue) => <option key={taskValue.checksum}
-                                                                                                   value={taskValue.checksum}>{taskValue.created}</option>)}
+                                                                                                   value={taskValue.checksum}>{new Date(taskValue.created).toLocaleString("sv-SE")}{taskValue.description && " - " + taskValue.description}</option>)}
                                             </select>
                                         </td>
                                         <td><a href="#" className="btn btn-primary"

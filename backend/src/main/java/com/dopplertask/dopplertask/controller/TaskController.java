@@ -316,6 +316,7 @@ public class TaskController {
             taskDto.setName(task.getName());
             taskDto.setCreated(task.getCreated());
             taskDto.setActive(task.isActive());
+            taskDto.setDescription(task.getDescription());
 
             if (!groupedTasks.containsKey(task.getName())) {
                 groupedTasks.put(task.getName(), new ArrayList<>());
