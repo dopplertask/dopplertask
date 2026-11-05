@@ -36,6 +36,11 @@ class Editor extends React.Component {
         this.editor.setOption("maxLines", this.props.simple ? 1 : 30);
         this.editor.setOption("minLines", this.props.simple ? 1 : 5);
 
+        if (this.props.simple) {
+            // Let Tab move between single-line fields. Multi-line fields keep Tab for indentation.
+            this.editor.commands.bindKeys({"Tab": null, "Shift-Tab": null});
+        }
+
 
 
         if(this.props.readOnly) {
