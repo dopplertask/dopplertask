@@ -64,6 +64,9 @@ public class Task {
 
     private boolean active = false;
 
+    @Column(columnDefinition = "boolean default false")
+    private boolean autoSaved = false;
+
     public Long getId() {
         return id;
     }
@@ -166,6 +169,14 @@ public class Task {
 
     public void setConnections(List<Connection> connections) {
         this.connections = connections;
+    }
+
+    public boolean isAutoSaved() {
+        return autoSaved;
+    }
+
+    public void setAutoSaved(boolean autoSaved) {
+        this.autoSaved = autoSaved;
     }
 
     public boolean isActive() {

@@ -144,6 +144,17 @@ public class TaskServiceImpl implements TaskService {
     @Override
     @Transactional
     public Long createTask(String name, List<TaskParameter> taskParameters, List<Action> actions, String description, List<Connection> connections, String checksum, boolean active, boolean buildTask) {
+        return createTask(name, taskParameters, actions, description, connections, checksum, active, buildTask, false);
+    }
+
+    @Override
+    @Transactional
+    public Long createTask(String name, List<TaskParameter> taskParameters, List<Action> actions, String description, List<Connection> connections, String checksum, boolean active, boolean buildTask, boolean autoSaved) {
+
+        // Auto save only adds versions to a task the user has saved, so it cannot create drafts or revive deleted tasks.
+        if (autoSaved && taskDao.findAllByName(name).isEmpty()) {
+            return null;
+        }
 
         if (name.contains(" ")) {
             throw new WhiteSpaceInNameException("Could not create task. Task name contains whitespace.");
@@ -154,6 +165,7 @@ public class TaskServiceImpl implements TaskService {
         if (existingTask.isPresent()) {
             existingTask.get().setCreated(new Date());
             existingTask.get().setActive(active);
+            existingTask.get().setAutoSaved(existingTask.get().isAutoSaved() && autoSaved);
 
             // Update threadpools
             triggerListenerService.updateTriggers(existingTask.get().getId());
@@ -198,6 +210,7 @@ public class TaskServiceImpl implements TaskService {
         task.setActionList(actions);
 
         task.setActive(active);
+        task.setAutoSaved(autoSaved);
 
         // Check if action is available
         if (task.getWebhookStartAction() == null) {

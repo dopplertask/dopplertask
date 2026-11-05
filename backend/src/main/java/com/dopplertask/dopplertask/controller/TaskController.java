@@ -244,7 +244,7 @@ public class TaskController {
     }
 
     @PostMapping(path = "/task")
-    public ResponseEntity<SimpleChecksumResponseDto> createTask(@RequestBody String body) throws IOException, NoSuchAlgorithmException {
+    public ResponseEntity<SimpleChecksumResponseDto> createTask(@RequestBody String body, @RequestParam(defaultValue = "false") boolean autoSaved) throws IOException, NoSuchAlgorithmException {
 
         // Translate JSON to object
         ObjectMapper mapper = new ObjectMapper();
@@ -258,7 +258,7 @@ public class TaskController {
         byte[] encodedhash = digest.digest(compactJSON.getBytes(StandardCharsets.UTF_8));
         String sha256Hex = bytesToHex(encodedhash);
 
-        Long id = taskService.createTask(taskCreationDTO.getName(), taskCreationDTO.getParameters(), taskCreationDTO.getActions(), taskCreationDTO.getDescription(), taskCreationDTO.getConnections(), sha256Hex, taskCreationDTO.isActive());
+        Long id = taskService.createTask(taskCreationDTO.getName(), taskCreationDTO.getParameters(), taskCreationDTO.getActions(), taskCreationDTO.getDescription(), taskCreationDTO.getConnections(), sha256Hex, taskCreationDTO.isActive(), true, autoSaved);
 
         if (id != null) {
             SimpleChecksumResponseDto checksumResponseDto = new SimpleChecksumResponseDto();
@@ -317,6 +317,7 @@ public class TaskController {
             taskDto.setCreated(task.getCreated());
             taskDto.setActive(task.isActive());
             taskDto.setDescription(task.getDescription());
+            taskDto.setAutoSaved(task.isAutoSaved());
 
             if (!groupedTasks.containsKey(task.getName())) {
                 groupedTasks.put(task.getName(), new ArrayList<>());
