@@ -11,32 +11,37 @@ class openTaskModal extends React.Component {
     }
 
     componentDidMount() {
-        let openTaskModal = this;
+        this.loadTasks();
+    }
+
+    loadTasks() {
         $.ajax({
                    type: "GET",
                    url: "/task/grouped",
                    contentType: 'application/json',
                    success: success => {
-                       openTaskModal.setState({tasks: success})
+                       this.setState({tasks: success})
                    },
                    dataType: "json"
                });
     }
 
+    deleteTask(task) {
+        let versions = this.state.tasks[task];
+        if (!confirm("Delete " + task + " and its " + versions.length + " saved version(s)? This cannot be undone.")) {
+            return;
+        }
+
+        // One at a time, so the last deletion can see that no versions remain and stop the task's triggers.
+        versions.reduce((previous, version) => previous.then(() => $.ajax({type: "DELETE", url: "/task/" + version.checksum})), $.when())
+            .then(() => this.props.taskDeleted(task), () => this.props.showNotification("Could not delete " + task + "."))
+            .always(() => this.loadTasks());
+    }
+
     componentDidUpdate(prevProps, prevState) {
         if (prevProps.saved != this.props.saved) {
             if (this.props.saved) {
-                let openTaskModal = this;
-                $.ajax({
-                           type: "GET",
-                           url: "/task/grouped",
-                           contentType: 'application/json',
-                           success: success => {
-                               openTaskModal.setState({tasks: success})
-                           },
-                           dataType: "json"
-                       });
-
+                this.loadTasks();
             }
             this.setState({
                               saved: this.props.saved
@@ -82,7 +87,8 @@ class openTaskModal extends React.Component {
                                                onClick={() => {
                                                    $("#openTaskModal").modal("hide");
                                                    this.props.openTask($("#" + $.escapeSelector(task) + "_versions").val())
-                                               }}>Open</a></td>
+                                               }}>Open</a> <a href="#" className="btn btn-danger"
+                                               onClick={() => this.deleteTask(task)}>Delete</a></td>
                                     </tr>)
                                 })
                             }

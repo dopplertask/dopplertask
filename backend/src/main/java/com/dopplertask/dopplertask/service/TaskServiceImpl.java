@@ -334,19 +334,26 @@ public class TaskServiceImpl implements TaskService {
         if (taskNameOrChecksum.length() > 1) {
             Optional<Task> taskByChecksum = taskDao.findFirstByChecksumStartingWith(taskNameOrChecksum);
             if (taskByChecksum.isPresent()) {
-                taskDao.delete(taskByChecksum.get());
-                return taskByChecksum.get();
+                return deleteVersion(taskByChecksum.get());
             }
         }
 
         // Find task by name
         Optional<Task> taskByName = taskDao.findFirstByNameOrderByCreatedDesc(taskNameOrChecksum);
         if (taskByName.isPresent()) {
-            taskDao.delete(taskByName.get());
-            return taskByName.get();
+            return deleteVersion(taskByName.get());
         }
 
         throw new TaskNotFoundException("Task could not be found.");
+    }
+
+    private Task deleteVersion(Task task) {
+        taskDao.delete(task);
+
+        if (taskDao.findAllByName(task.getName()).isEmpty()) {
+            triggerListenerService.stopTriggers(task.getName());
+        }
+        return task;
     }
 
     @Override
