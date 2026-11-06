@@ -42,9 +42,13 @@ public class McpTest {
     }
 
     @Test
-    public void testOnlyAnAgentCanConnectFail() throws Exception {
+    public void testWithoutTokensTheEndpointNeedsNoSetupAndOnlyProposesSuccess() throws Exception {
+        String name = "mcp_no_setup";
         this.mockMvc.perform(post("/mcp").contentType(MediaType.APPLICATION_JSON).content("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
+        String saved = this.mockMvc.perform(post("/mcp").contentType(MediaType.APPLICATION_JSON).content("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"run_task\",\"arguments\":{\"name\":\"" + name + "\"}}}"))
+                .andReturn().getResponse().getContentAsString();
+        Assert.assertTrue(saved, saved.contains("A person has to approve it"));
     }
 
     @Test

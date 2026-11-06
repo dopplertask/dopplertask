@@ -75,4 +75,17 @@ public class AccessFilterTest {
     public void testAnAgentTokenAloneIsRefusedFail() {
         new AccessFilter("", "agent-token");
     }
+
+    @Test
+    public void testWithTokensOnlyTheAgentTokenReachesTheAgentEndpointFail() throws Exception {
+        Assert.assertEquals(401, statusOf(WITH_TOKENS, "POST", "/mcp", null));
+        Assert.assertEquals(200, statusOf(WITH_TOKENS, "POST", "/mcp", "agent-token"));
+    }
+
+    @Test
+    public void testWithoutTokensTheAgentEndpointCountsAsAnAgentSuccess() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/mcp");
+        new AccessFilter("", "").doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
+        Assert.assertEquals(Caller.AGENT, AccessFilter.callerOf(request));
+    }
 }
