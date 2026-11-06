@@ -25,7 +25,7 @@ import java.util.Map;
 public class AgentSecrets implements ResponseBodyAdvice<Object> {
 
     static final String MASK = "********";
-    private static final List<String> SECRET_FIELDS = List.of("password", "apiKey", "apiToken", "token", "headerValue", "webhookUrl", "integrationKey");
+    private static final List<String> SECRET_FIELDS = List.of("password", "apiKey", "apiToken", "token", "headerValue", "webhookUrl", "integrationKey", "secretAccessKey");
 
     private final ObjectMapper mapper;
 

@@ -33,11 +33,13 @@ const PRESENTATION = {
   JenkinsAction: ['jenkins', 'Jenkins', 'integration', 'wrench', ['jenkinsUrl']],
   TelegramAction: ['telegram', 'Telegram', 'integration', 'send', ['token', 'chat', 'message']],
   DiscordAction: ['discord', 'Discord', 'integration', 'message', ['webhookUrl', 'message']],
-  PagerDutyAction: ['pagerduty', 'PagerDuty', 'integration', 'alert', ['integrationKey', 'summary']],
-  GitHubAction: ['github', 'GitHub', 'integration', 'code', ['token', 'repository', 'issueNumber', 'title']],
-  JiraAction: ['jira', 'Jira', 'integration', 'tags', ['siteUrl', 'token', 'project', 'summary', 'issueKey']],
+  PagerDutyAction: ['pagerduty', 'PagerDuty', 'integration', 'alert', ['integrationKey', 'summary', 'incidentKey']],
+  GitHubAction: ['github', 'GitHub', 'integration', 'code', ['token', 'repository', 'issueNumber', 'title', 'comment']],
+  JiraAction: ['jira', 'Jira', 'integration', 'tags', ['siteUrl', 'token', 'project', 'summary', 'issueKey', 'comment']],
   RedisAction: ['redis', 'Redis', 'connection', 'database', ['hostname', 'key']],
   PostgresAction: ['postgres', 'Postgres', 'connection', 'database', ['hostname', 'database', 'command']],
+  EmailAction: ['email', 'Email', 'integration', 'send', ['hostname', 'from', 'to', 'subject', 'message']],
+  S3Action: ['s3', 'S3', 'integration', 'folder', ['accessKeyId', 'secretAccessKey', 'bucket', 'key']],
   SlackAction: ['slack', 'Slack', 'integration', 'message', ['token', 'channel', 'message']],
   /* Without these a trigger stops at once, and nothing but the server log says so. */
   IntervalTrigger: ['IntervalTrigger', 'Schedule', 'logic', 'clock', ['time']],
@@ -50,7 +52,7 @@ const TRIGGER_KINDS = Object.fromEntries(Object.entries(TRIGGER_ACTIONS).map(([k
 const TRIGGER_DEFAULTS = { webhook: { method: 'POST', authentication: 'none' }, interval: { time: '1', timeUnit: 'MINUTES' }, activemq: {} };
 const STEP_ACTION_NAME = 'actionName';
 const FAILURE_FIELD_NAMES = ['continueOnFailure', 'retries', 'retryWait', 'failOn'];
-const SECRET_FIELDS = ['password', 'apiKey', 'apiToken', 'token', 'webhookUrl', 'integrationKey'];
+const SECRET_FIELDS = ['password', 'apiKey', 'apiToken', 'token', 'webhookUrl', 'integrationKey', 'secretAccessKey'];
 const AUTO_SAVE_DELAY_MS = 30000;
 const AUTO_SAVE_KEY = 'autoSave';
 const LAST_TASK_KEY = 'lastTask';
@@ -250,6 +252,8 @@ function describeNode(node) {
     case 'jira': return config.operation === 'addComment' ? ['Comment on ', value(inlineVariables(config.issueKey), 'an issue')] : ['Create ', value(inlineVariables(config.summary), 'an issue'), ' in ', value(config.project, 'a project')];
     case 'redis': return config.operation === 'set' ? ['Write ', value(config.key, 'a key')] : config.operation === 'increment' ? ['Increment ', value(config.key, 'a key')] : config.operation === 'delete' ? ['Delete ', value(config.key, 'a key')] : ['Read ', value(config.key, 'a key')];
     case 'postgres': return ['On ', value(config.database && `${config.database}@${config.hostname}`, 'a database'), ' run ', value(inlineVariables(config.command), 'a query')];
+    case 'email': return ['Send ', value(inlineVariables(config.subject), 'an email'), ' to ', value(inlineVariables(config.to), 'someone')];
+    case 's3': return [config.operation === 'write' ? 'Write ' : config.operation === 'delete' ? 'Delete ' : 'Read ', value(inlineVariables(config.key), 'a file'), ' in ', value(config.bucket, 'a bucket')];
     case 'slack': return ['Send ', value(inlineVariables(config.message), 'a message'), ' to ', value(config.channel, 'a channel')];
     case 'openAI': return ['Ask ', { value: config.model || 'OpenAI' }, ' ', value(readableExpression(config.userInput), 'a prompt')];
     case 'jenkins': return [{ value: config.operation || 'Call' }, ' on Jenkins'];
