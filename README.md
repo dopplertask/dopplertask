@@ -232,7 +232,6 @@ This task retries a request until the other service stops answering with a serve
       "method": "GET",
       "retries": 2,
       "retryWait": "500",
-      "failOn": "#if($result.outputVariables.statusCode >= 500)server error#end",
       "ports": [
         {"externalId": "check_in", "portType": "INPUT"},
         {"externalId": "check_out", "portType": "OUTPUT"}
@@ -303,7 +302,7 @@ Connects to a machine via SSH and executes a command
 * body: Used with POST, PUT and PATCH.
 * headers: List of headers, like `[{"headerName": "Accept", "headerValue": "text/plain"}]`
 
-Every HTTP status counts as a success. To fail on a status, use failOn with `$result.outputVariables.statusCode`.
+A status of 400 or above fails the step, with the response body kept as its output, and retries apply as for any other failure. To carry on anyway, set `continueOnFailure` to true. The next step can then read the status from `$lastLog.outputVariables.statusCode`, for example to treat a 404 differently. Any other rule, such as failing on a 3xx, can use failOn with `$result.outputVariables.statusCode`.
 
 #### MySQLAction
 The output is JSON in the form `[{"query": "...", "rows": [{"columns": [{"name": "...", "value": "..."}]}]}]`.

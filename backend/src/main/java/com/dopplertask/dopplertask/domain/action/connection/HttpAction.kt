@@ -35,6 +35,8 @@ import kotlin.Throws
 import kotlin.arrayOf
 
 
+private const val FIRST_ERROR_STATUS = 400
+
 @Entity
 @Table(name = "HttpAction")
 @DiscriminatorValue("http_action")
@@ -99,7 +101,12 @@ class HttpAction : Action() {
                 actionResult.outputVariables[key] = value
             }
 
-            actionResult.statusCode = StatusCode.SUCCESS
+            if (response.statusCode() >= FIRST_ERROR_STATUS) {
+                actionResult.errorMsg = "The server answered with status ${response.statusCode()}."
+                actionResult.statusCode = StatusCode.FAILURE
+            } else {
+                actionResult.statusCode = StatusCode.SUCCESS
+            }
         } catch (e: IOException) {
             actionResult.errorMsg = "Exception when sending http request: $e"
             actionResult.statusCode = StatusCode.FAILURE
