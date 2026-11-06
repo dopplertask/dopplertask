@@ -47,11 +47,11 @@ class TelegramAction : Action() {
         val tokenValue = variableExtractorUtil.extract(token, execution, scriptLanguage)
         val chatValue = variableExtractorUtil.extract(chatId, execution, scriptLanguage)
         val messageValue = variableExtractorUtil.extract(message, execution, scriptLanguage)
-        if (tokenValue.isBlank()) return JsonApi.failure("Telegram needs a bot token, which BotFather gives.")
-        if (chatValue.isBlank()) return JsonApi.failure("Telegram needs a chat id, or a channel such as @alerts.")
-        if (messageValue.isBlank()) return JsonApi.failure("Telegram needs a message to send.")
+        if (tokenValue.isBlank()) return ActionResult.failure("Telegram needs a bot token, which BotFather gives.")
+        if (chatValue.isBlank()) return ActionResult.failure("Telegram needs a chat id, or a channel such as @alerts.")
+        if (messageValue.isBlank()) return ActionResult.failure("Telegram needs a message to send.")
         // A message is limited to 4096 characters, and saying so is better than Telegram's own answer.
-        if (messageValue.length > MAX_MESSAGE_LENGTH) return JsonApi.failure("Telegram allows $MAX_MESSAGE_LENGTH characters in a message, and this one has ${messageValue.length}.")
+        if (messageValue.length > MAX_MESSAGE_LENGTH) return ActionResult.failure("Telegram allows $MAX_MESSAGE_LENGTH characters in a message, and this one has ${messageValue.length}.")
 
         val base = variableExtractorUtil.extract(baseUrl, execution, scriptLanguage).trimEnd('/')
         val result = JsonApi.withoutSecret(JsonApi.call("Telegram", "POST", "$base/bot$tokenValue/sendMessage", mapOf(), mapOf("chat_id" to chatValue, "text" to messageValue)), tokenValue)

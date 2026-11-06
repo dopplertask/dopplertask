@@ -52,10 +52,10 @@ class PagerDutyAction : Action() {
         val actionValue = variableExtractorUtil.extract(eventAction, execution, scriptLanguage)
         val summaryValue = variableExtractorUtil.extract(summary, execution, scriptLanguage)
         val dedupKeyValue = variableExtractorUtil.extract(dedupKey, execution, scriptLanguage)
-        if (routingKeyValue.isBlank()) return JsonApi.failure("PagerDuty needs a routing key, which is the integration key of an Events API v2 integration on a service.")
-        if (actionValue == TRIGGER && summaryValue.isBlank()) return JsonApi.failure("PagerDuty needs a summary to open an incident.")
+        if (routingKeyValue.isBlank()) return ActionResult.failure("PagerDuty needs a routing key, which is the integration key of an Events API v2 integration on a service.")
+        if (actionValue == TRIGGER && summaryValue.isBlank()) return ActionResult.failure("PagerDuty needs a summary to open an incident.")
         // Without the key PagerDuty cannot know which incident is meant.
-        if (actionValue != TRIGGER && dedupKeyValue.isBlank()) return JsonApi.failure("PagerDuty needs the incident key to $actionValue an incident. The step that opened it gives it as \$lastLog.outputVariables.dedupKey.")
+        if (actionValue != TRIGGER && dedupKeyValue.isBlank()) return ActionResult.failure("PagerDuty needs the incident key to $actionValue an incident. The step that opened it gives it as \$lastLog.outputVariables.dedupKey.")
 
         val event = mutableMapOf<String, Any>("routing_key" to routingKeyValue, "event_action" to actionValue)
         if (dedupKeyValue.isNotBlank()) event["dedup_key"] = dedupKeyValue

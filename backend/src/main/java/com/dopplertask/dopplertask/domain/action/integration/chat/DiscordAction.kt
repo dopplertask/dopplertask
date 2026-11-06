@@ -40,9 +40,9 @@ class DiscordAction : Action() {
     ): ActionResult {
         val webhookValue = variableExtractorUtil.extract(webhookUrl, execution, scriptLanguage).trim()
         val messageValue = variableExtractorUtil.extract(message, execution, scriptLanguage)
-        if (webhookValue.isBlank()) return JsonApi.failure("Discord needs a webhook URL, which is made in the settings of the channel under Integrations.")
-        if (messageValue.isBlank()) return JsonApi.failure("Discord needs a message to send.")
-        if (messageValue.length > MAX_MESSAGE_LENGTH) return JsonApi.failure("Discord allows $MAX_MESSAGE_LENGTH characters in a message, and this one has ${messageValue.length}.")
+        if (webhookValue.isBlank()) return ActionResult.failure("Discord needs a webhook URL, which is made in the settings of the channel under Integrations.")
+        if (messageValue.isBlank()) return ActionResult.failure("Discord needs a message to send.")
+        if (messageValue.length > MAX_MESSAGE_LENGTH) return ActionResult.failure("Discord allows $MAX_MESSAGE_LENGTH characters in a message, and this one has ${messageValue.length}.")
 
         // Without wait=true Discord answers with nothing, and the next step would not get the id of the message.
         val separator = if (webhookValue.contains("?")) "&" else "?"
