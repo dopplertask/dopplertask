@@ -116,7 +116,7 @@ This file is used to add tasks to the system. You can do that by sending a reque
 
 #### Run a task
 
-To run a task, send the JSON with the task id and parameters to the REST API:
+To run a task, send the JSON with the task name and parameters to the REST API:
 
 ```
 {
@@ -129,6 +129,87 @@ To run a task, send the JSON with the task id and parameters to the REST API:
 Example of the call:
 
 ```curl -X POST http://localhost:8090/schedule/task -H "Content-Type: application/json" -d @run_task.json```
+
+`/schedule/task` queues the run and returns its id, and `GET /execution/{id}` returns its status and logs. `/schedule/directtask` takes the same JSON and waits for the result, which holds `output`, `status` and, if the run failed, `error`.
+
+#### Build a task through the API
+
+* `GET /task/actions` lists every action and its fields. A field can be nested under the options of another field, like `body` under `method` in HttpAction.
+* `POST /task` saves a new version of the task, and the newest version is the one that runs. If it fails, the response says why.
+* `DELETE /task/{checksum}` deletes one version.
+* Every task needs a StartAction, also when a webhook starts it.
+* Actions are connected through their ports. A connection goes from the `externalId` of an OUTPUT port to the `externalId` of an INPUT port.
+* A field of the type MAP is a list of objects, which use the option names of the field as keys.
+* All fields are evaluated with Velocity by default. With `"scriptLanguage": "JAVASCRIPT"` every field of the action is evaluated as a script, so plain text must be quoted, like `"\"https://example.com\""`.
+
+This task sends a request to another service when an order is received on a webhook:
+
+```json
+{
+  "name": "notify_on_order",
+  "active": true,
+  "actions": [
+    {"@type": "StartAction"},
+    {
+      "@type": "Webhook",
+      "method": "POST",
+      "triggerSuffix": "orders",
+      "ports": [{"externalId": "webhook_out", "portType": "OUTPUT"}]
+    },
+    {
+      "@type": "HttpAction",
+      "scriptLanguage": "JAVASCRIPT",
+      "url": "\"https://example.com/notify\"",
+      "method": "POST",
+      "body": "var order = JSON.parse(parameters.get(\"TRIGGER_body\")); \"New order from \" + order.customer",
+      "ports": [{"externalId": "notify_in", "portType": "INPUT"}]
+    }
+  ],
+  "connections": [
+    {"source": {"externalId": "webhook_out"}, "target": {"externalId": "notify_in"}}
+  ]
+}
+```
+
+It is called with `POST /webhook/notify_on_order/Webhook/orders`.
+
+This task retries a request until the other service stops answering with a server error, and then only continues if the response says that it is ok:
+
+```json
+{
+  "name": "check_service",
+  "actions": [
+    {"@type": "StartAction", "ports": [{"externalId": "start_out", "portType": "OUTPUT"}]},
+    {
+      "@type": "HttpAction",
+      "url": "https://example.com/status",
+      "method": "GET",
+      "retries": 2,
+      "retryWait": "500",
+      "failOn": "#if($result.outputVariables.statusCode >= 500)server error#end",
+      "ports": [
+        {"externalId": "check_in", "portType": "INPUT"},
+        {"externalId": "check_out", "portType": "OUTPUT"}
+      ]
+    },
+    {
+      "@type": "IfAction",
+      "condition": "$lastLog.output.contains('ok')",
+      "ports": [
+        {"externalId": "if_in", "portType": "INPUT"},
+        {"externalId": "if_true", "portType": "OUTPUT"},
+        {"externalId": "if_false", "portType": "OUTPUT"}
+      ]
+    },
+    {"@type": "PrintAction", "message": "The service is ok", "ports": [{"externalId": "print_in", "portType": "INPUT"}]}
+  ],
+  "connections": [
+    {"source": {"externalId": "start_out"}, "target": {"externalId": "check_in"}},
+    {"source": {"externalId": "check_out"}, "target": {"externalId": "if_in"}},
+    {"source": {"externalId": "if_true"}, "target": {"externalId": "print_in"}}
+  ]
+}
+```
 
 ### Task parameters
 Task paramters are used to indicate what initial variables are needed to run a task.
@@ -173,8 +254,10 @@ Connects to a machine via SSH and executes a command
 ##### Variables
 * url
 * method: GET, POST, PUT, DELETE
-* body
-* headers: Key-value list of headers
+* body: Used with POST, PUT and PATCH.
+* headers: List of headers, like `[{"headerName": "Accept", "headerValue": "text/plain"}]`
+
+Every HTTP status counts as a success. To fail on a status, use failOn with `$result.outputVariables.statusCode`.
 
 #### MySQLAction
 Executes a MySQL statement, like a SELECT statement.
@@ -190,8 +273,8 @@ Executes a MySQL statement, like a SELECT statement.
 #### IfAction
 ##### Variables
 * condition: Velocity condition. Example: $variable == "sometext".
-* pathTrue: Name of the true path.
-* pathFalse: Name of the false path.
+
+The first OUTPUT port is the true path and the second OUTPUT port is the false path. If the chosen path is not connected, the run ends.
 
 #### TimedWait
 ##### Variables
@@ -199,8 +282,8 @@ Executes a MySQL statement, like a SELECT statement.
 
 #### LinkedTaskAction
 ##### Variables
-* taskName: name of another task
-* parameters: a list of parameters to pass to the other task
+* name: name of another task
+* parameters: a list of parameters to pass to the other task, like `[{"parameterName": "city", "parameterValue": "$parameters.get(\"city\")"}]`
 
 #### BrowseWebAction
 Starts a browser and executes a list of UI Actions.
@@ -272,6 +355,7 @@ All actions have retry mechanisms to allow you to retry an action.
 * continueOnFailure: (Boolean) true or false. Lets the action continue on failure, ignoring any retry.
 * failOn: The current action will fail if this evaluates to anything.
 * retries: (Integer) Amount of retries.
+* retryWait: Milliseconds to wait between retries.
 
 ### Webhooks
 Besides actions, there is the webhooks nodes which can be added to the Task to start the task from a REST call.
@@ -286,12 +370,18 @@ A task name containing a forward slash must be URL-encoded: `folder/task` become
 
 * taskName: Name of the task to run
 * triggerName: Name of the webhook trigger, like Webhook.
-* triggerSuffix: A random string to make every webhook unique.
+* triggerSuffix: A string that makes every webhook unique. It is set in the `triggerSuffix` field of the Webhook action.
 * path: The specific path for the desired webhook.
 * method: HTTP Method which this webhook will respond to.
 
 #### Webhook
-This webhook will respond to a REST call and start the flow.
+This webhook will respond to a REST call and start the flow. The body of the call is available as `$parameters.get("TRIGGER_body")`.
+
+#### IntervalTrigger
+Starts the flow at an interval, while the task is active.
+##### Variables
+* time: The length of the interval.
+* timeUnit: SECONDS, MINUTES, HOURS or DAYS.
 
 ## Important variables
 
