@@ -139,7 +139,7 @@ class MySQLAction : Action() {
                 return actionResult
             }
         } catch (e: SQLException) {
-            actionResult.errorMsg = e.toString()
+            actionResult.errorMsg = if (e.sqlState?.startsWith("08") == true) "Could not connect to the database on $localHostname. Check the address, and that the database is running." else e.toString()
             actionResult.statusCode = StatusCode.FAILURE
             return actionResult
         } finally {

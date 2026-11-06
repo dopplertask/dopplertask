@@ -1,6 +1,8 @@
 package com.dopplertask.dopplertask.domain;
 
 
+import java.net.ConnectException;
+import java.net.UnknownHostException;
 import com.dopplertask.dopplertask.service.ActionResultListener;
 import com.jcraft.jsch.Channel;
 import com.jcraft.jsch.ChannelExec;
@@ -79,10 +81,23 @@ public class SSHManager {
             // sesConnection.setConfig("StrictHostKeyChecking", "no");
             sesConnection.connect(intTimeOut);
         } catch (JSchException jschX) {
-            errorMessage = jschX.getMessage();
+            errorMessage = explain(jschX);
         }
 
         return errorMessage;
+    }
+
+    private String explain(JSchException failure) {
+        if (failure.getCause() instanceof UnknownHostException) {
+            return "Could not find the host " + strConnectionIP + ". Check the address.";
+        }
+        if (failure.getCause() instanceof ConnectException) {
+            return "Could not connect to " + strConnectionIP + " on port " + intConnectionPort + ". Check the address, and that SSH is running there.";
+        }
+        if ("Auth fail".equals(failure.getMessage()) || "Auth cancel".equals(failure.getMessage())) {
+            return strConnectionIP + " refused the username or password.";
+        }
+        return failure.getMessage();
     }
 
     private String logError(String errorMessage) {
