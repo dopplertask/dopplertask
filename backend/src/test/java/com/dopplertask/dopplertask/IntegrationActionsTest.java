@@ -6,6 +6,7 @@ import com.dopplertask.dopplertask.domain.TaskExecution;
 import com.dopplertask.dopplertask.domain.action.Action;
 import com.dopplertask.dopplertask.domain.action.integration.chat.DiscordAction;
 import com.dopplertask.dopplertask.domain.action.integration.code.GitHubAction;
+import com.dopplertask.dopplertask.domain.action.integration.code.JiraAction;
 import com.dopplertask.dopplertask.domain.action.integration.chat.SlackAction;
 import com.dopplertask.dopplertask.domain.action.integration.chat.TelegramAction;
 import com.dopplertask.dopplertask.domain.action.integration.incident.PagerDutyAction;
@@ -326,5 +327,53 @@ public class IntegrationActionsTest {
         Assert.assertEquals("PagerDuty answered with status 400: Invalid routing key.", run(pagerDuty()).getErrorMsg());
         answerBody = "<html><body>Bad gateway</body></html>";
         Assert.assertEquals("PagerDuty answered with status 400.", run(pagerDuty()).getErrorMsg());
+    }
+
+    private JiraAction jira() {
+        JiraAction jira = new JiraAction();
+        jira.setSiteUrl(baseUrl);
+        jira.setToken("pat");
+        jira.setProject("OPS");
+        jira.setSummary("Disk is full");
+        jira.setText("On web-1");
+        return jira;
+    }
+
+    @Test
+    public void testJiraCreatesAnIssueOnOwnServerWithABearerTokenSuccess() throws IOException {
+        answerStatus = 201;
+        answerBody = "{\"id\":\"1\",\"key\":\"OPS-12\"}";
+        ActionResult result = run(jira());
+        Assert.assertEquals(StatusCode.SUCCESS, result.getStatusCode());
+        Assert.assertEquals("/rest/api/2/issue", path);
+        Assert.assertEquals("Bearer pat", authorization);
+        Assert.assertEquals("OPS", received.path("fields").path("project").path("key").asText());
+        Assert.assertEquals("Task", received.path("fields").path("issuetype").path("name").asText());
+        Assert.assertEquals("On web-1", received.path("fields").path("description").asText());
+        Assert.assertEquals("OPS-12", result.getOutputVariables().get("issueKey"));
+        Assert.assertEquals(baseUrl + "/browse/OPS-12", result.getOutputVariables().get("url"));
+    }
+
+    @Test
+    public void testJiraCommentsInTheCloudWithEmailAndTokenSuccess() throws IOException {
+        answerStatus = 201;
+        JiraAction jira = jira();
+        jira.setEmail("a@b.se");
+        jira.setOperation("addComment");
+        jira.setIssueKey("OPS-12");
+        Assert.assertEquals(StatusCode.SUCCESS, run(jira).getStatusCode());
+        Assert.assertEquals("/rest/api/2/issue/OPS-12/comment", path);
+        Assert.assertEquals("Basic YUBiLnNlOnBhdA==", authorization);
+        Assert.assertEquals("On web-1", received.path("body").asText());
+    }
+
+    @Test
+    public void testJiraGivesTheReasonInBothOfItsFormsFail() throws IOException {
+        answerStatus = 400;
+        answerBody = "{\"errorMessages\":[],\"errors\":{\"project\":\"project is required\"}}";
+        Assert.assertEquals("Jira answered with status 400: project is required.", run(jira()).getErrorMsg());
+        answerStatus = 404;
+        answerBody = "{\"errorMessages\":[\"Issue does not exist\"],\"errors\":{}}";
+        Assert.assertEquals("Jira answered with status 404: Issue does not exist.", run(jira()).getErrorMsg());
     }
 }
