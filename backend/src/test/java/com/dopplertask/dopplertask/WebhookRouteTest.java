@@ -14,6 +14,7 @@ import org.springframework.boot.autoconfigure.web.servlet.ServletWebServerFactor
 import org.springframework.boot.autoconfigure.web.servlet.WebMvcAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import com.dopplertask.dopplertask.filter.AgentSecrets;
+import com.dopplertask.dopplertask.service.SsoService;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.web.server.LocalServerPort;
 import org.springframework.test.context.junit4.SpringRunner;
@@ -39,6 +40,9 @@ public class WebhookRouteTest {
 
     @MockBean
     private AgentSecrets agentSecrets;
+
+    @MockBean
+    private SsoService ssoService;
 
     @MockBean
     private ExecutionService executionService;

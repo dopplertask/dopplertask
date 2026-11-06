@@ -59,9 +59,10 @@ public interface TaskService {
     /**
      * Makes a proposal the current version.
      *
+     * @param approvedBy who approved it, or null if that is not known.
      * @return false if there is no such proposal.
      */
-    boolean approveTask(String checksum);
+    boolean approveTask(String checksum, String approvedBy);
 
     Long createTask(String name, List<TaskParameter> taskParameters, List<Action> actions, String description, List<Connection> connections, String checksum, boolean active);
 
