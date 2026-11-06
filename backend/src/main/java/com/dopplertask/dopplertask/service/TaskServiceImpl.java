@@ -168,7 +168,7 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     @Transactional
-    public boolean approveTask(String checksum) {
+    public boolean approveTask(String checksum, String approvedBy) {
         Optional<Task> proposal = taskDao.findByChecksum(checksum);
         if (proposal.isEmpty() || !proposal.get().isProposed()) {
             return false;
@@ -176,6 +176,7 @@ public class TaskServiceImpl implements TaskService {
         // It takes over from the current version, so a schedule that is on stays on.
         boolean active = taskDao.findFirstByNameAndProposedFalseOrderByCreatedDesc(proposal.get().getName()).map(Task::isActive).orElse(false);
         proposal.get().setProposed(false);
+        proposal.get().setApprovedBy(approvedBy);
         proposal.get().setActive(active);
         proposal.get().setCreated(new Date());
         triggerListenerService.updateTriggers(proposal.get().getId());

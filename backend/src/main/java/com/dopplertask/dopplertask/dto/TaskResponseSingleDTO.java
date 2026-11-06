@@ -17,6 +17,7 @@ public class TaskResponseSingleDTO {
     private boolean autoSaved;
     private boolean proposed;
     private boolean madeByAgent;
+    private String approvedBy;
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Date created;
     private List<TaskParameter> parameters;
@@ -37,6 +38,14 @@ public class TaskResponseSingleDTO {
 
     public void setProposed(boolean proposed) {
         this.proposed = proposed;
+    }
+
+    public String getApprovedBy() {
+        return approvedBy;
+    }
+
+    public void setApprovedBy(String approvedBy) {
+        this.approvedBy = approvedBy;
     }
 
     public boolean isMadeByAgent() {

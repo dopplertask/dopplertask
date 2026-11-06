@@ -75,6 +75,10 @@ public class Task {
     @Column(columnDefinition = "boolean default false")
     private boolean madeByAgent = false;
 
+    // Who decided on a proposal, as far as the server knows. Empty with a shared token.
+    @Column
+    private String approvedBy;
+
     public Long getId() {
         return id;
     }
@@ -191,6 +195,14 @@ public class Task {
 
     public void setProposed(boolean proposed) {
         this.proposed = proposed;
+    }
+
+    public String getApprovedBy() {
+        return approvedBy;
+    }
+
+    public void setApprovedBy(String approvedBy) {
+        this.approvedBy = approvedBy;
     }
 
     public boolean isMadeByAgent() {
