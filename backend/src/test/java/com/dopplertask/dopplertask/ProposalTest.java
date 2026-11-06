@@ -152,4 +152,15 @@ public class ProposalTest {
         String stored = this.mockMvc.perform(get("/task/" + name + "/taskname")).andReturn().getResponse().getContentAsString();
         org.junit.Assert.assertFalse(stored, stored.contains("********"));
     }
+
+    @Test
+    public void testARunRecordsWhetherAnAgentStartedItSuccess() throws Exception {
+        String name = "proposal_record";
+        this.mockMvc.perform(post("/task").content(task(name, "x", false))).andExpect(status().isOk());
+        this.mockMvc.perform(run(name)).andExpect(status().isOk());
+        this.mockMvc.perform(asAgent(run(name))).andExpect(status().isOk());
+        this.mockMvc.perform(get("/executions").param("taskName", name))
+                .andExpect(jsonPath("$.executions[0].startedByAgent").value(true))
+                .andExpect(jsonPath("$.executions[1].startedByAgent").value(false));
+    }
 }

@@ -3,6 +3,7 @@ package com.dopplertask.dopplertask.dto;
 import java.util.Date;
 
 public class TaskExecutionDTO {
+    private boolean startedByAgent;
     private String executionId;
     private String taskName;
     private String status;
@@ -47,5 +48,13 @@ public class TaskExecutionDTO {
 
     public void setEndDate(Date endDate) {
         this.endDate = endDate;
+    }
+
+    public boolean isStartedByAgent() {
+        return startedByAgent;
+    }
+
+    public void setStartedByAgent(boolean startedByAgent) {
+        this.startedByAgent = startedByAgent;
     }
 }

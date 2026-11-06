@@ -86,6 +86,7 @@ public class ExecutionServiceImpl implements ExecutionService {
             execution.getParameters().putAll(taskExecutionRequest.getParameters());
 
             execution.setStartdate(new Date());
+            execution.setStartedByAgent(taskExecutionRequest.isStartedByAgent());
 
             String cannotResume = taskExecutionRequest.getResumeFromExecutionId() == null ? null : prepareResume(execution, task, taskExecutionRequest.getResumeFromExecutionId());
             if (cannotResume != null) {

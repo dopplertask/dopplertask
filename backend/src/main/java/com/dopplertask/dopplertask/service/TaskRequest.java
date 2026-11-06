@@ -14,6 +14,7 @@ public class TaskRequest {
     // If defined then automation starts from a trigger
     private TriggerInfo triggerInfo;
     private Long resumeFromExecutionId;
+    private boolean startedByAgent;
 
     public TaskRequest(String taskName, Map<String, ExecutionParameter> parameters) {
         this(taskName, parameters, false);
@@ -27,6 +28,14 @@ public class TaskRequest {
         this.taskName = taskName;
         this.parameters = parameters;
         this.removeTaskAfterExecution = removeTaskAfterExecution;
+    }
+
+    public boolean isStartedByAgent() {
+        return startedByAgent;
+    }
+
+    public void setStartedByAgent(boolean startedByAgent) {
+        this.startedByAgent = startedByAgent;
     }
 
     public Long getResumeFromExecutionId() {
