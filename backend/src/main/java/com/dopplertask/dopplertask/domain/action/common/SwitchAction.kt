@@ -33,85 +33,33 @@ class SwitchAction : Action() {
         broadcastListener: BroadcastListener?
     ): ActionResult {
         val actionResult = ActionResult()
-        val localCondition: String
-        val evaluatedCases: MutableList<String> = ArrayList()
-        if (value != null && value!!.isNotEmpty()) {
-            val statement = StringBuilder()
-            var i = 0
-            when (scriptLanguage) {
-                ScriptLanguage.VELOCITY -> {
-                    for (switchCase in switchCases) {
-                        val evaluatedCase =
-                            variableExtractorUtil.extract(switchCase.currentCase, execution, scriptLanguage)
-                        evaluatedCases.add(evaluatedCase)
-                        if (i == 0) {
-                            statement.append(
-                                "#if(\"" + value + "\" == \"" + evaluatedCase + "\")" +
-                                        "0"
-                            )
-
-                        } else {
-                            statement.append(
-                                "#elseif(\"" + value + "\" == \"" + evaluatedCase + "\")" +
-                                        "" + i
-                            )
-                            //println("PRINTING: " + statement.toString())
-                        }
-                        i++
-                    }
-                    // If there is no cases then we will not print out anything.
-                    if (i != 0) {
-                        statement.append("#end")
-                    }
-
-                }
-                ScriptLanguage.JAVASCRIPT -> {
-                    statement.append("var outputPort = 0;")
-                    for (switchCase in switchCases) {
-                        val evaluatedCase = variableExtractorUtil.extract(
-                            "\"" + switchCase.currentCase + "\"",
-                            execution,
-                            scriptLanguage
-                        )
-                        evaluatedCases.add(evaluatedCase)
-                        if (i == 0) {
-                            statement.append(
-                                "if(\"" + value + "\" == \"" + evaluatedCase + "\") {" +
-                                        "outputPort = 0; }"
-                            )
-
-                        } else {
-                            statement.append(
-                                "\nelse if(\"" + value + "\" == \"" + evaluatedCase + "\") {" +
-                                        "outputPort = " + i + ";}"
-                            )
-                        }
-                        i++
-                    }
-                    statement.append("outputPort;")
-                }
-            }
-            localCondition = variableExtractorUtil.extract(statement.toString(), execution, scriptLanguage)
-            var portNr: Int
-            try {
-                portNr = localCondition.toInt()
-                if (portNr < outputPorts.size) {
-                    actionResult.output = "Switch evaluated to port nr: $localCondition"
-                    execution.currentAction = outputPorts[portNr].connectionSource?.target?.action
-                } else {
-                    actionResult.statusCode = StatusCode.FAILURE
-                    actionResult.errorMsg = "Could not match any of the cases."
-                }
-            } catch (e: NumberFormatException) {
-                actionResult.statusCode = StatusCode.FAILURE
-                actionResult.errorMsg = "Could not evaluate condition to any path."
-            }
-        } else {
+        if (value.isNullOrEmpty()) {
             actionResult.statusCode = StatusCode.FAILURE
             actionResult.errorMsg = "Please enter a condition."
+            return actionResult
+        }
+
+        val evaluatedValue = evaluate(value, execution, variableExtractorUtil)
+        val cases = switchCases.map { evaluate(it.currentCase, execution, variableExtractorUtil) }
+        val matchedCase = cases.indexOf(evaluatedValue)
+
+        // A port after the last case is the default path.
+        val portNr = if (matchedCase >= 0) matchedCase else cases.size
+        if (portNr < outputPorts.size) {
+            actionResult.output = "Switch evaluated to port nr: $portNr"
+            execution.currentAction = outputPorts[portNr].connectionSource?.target?.action
+        } else {
+            actionResult.statusCode = StatusCode.FAILURE
+            actionResult.errorMsg = "No case or output port matched the value [$evaluatedValue]. Add one more output port to use as the default path."
         }
         return actionResult
     }
+
+    private fun evaluate(text: String?, execution: TaskExecution, variableExtractorUtil: VariableExtractorUtil): String =
+        when (scriptLanguage) {
+            ScriptLanguage.VELOCITY -> variableExtractorUtil.extract(text, execution, scriptLanguage)
+            ScriptLanguage.JAVASCRIPT -> variableExtractorUtil.extract("\"$text\"", execution, scriptLanguage)
+        }
 
     override val actionInfo: MutableList<PropertyInformation>
         get() {
@@ -122,7 +70,7 @@ class SwitchAction : Action() {
                     "Value",
                     PropertyInformationType.STRING,
                     "",
-                    "Value to compare"
+                    "Value to compare. The first output ports match the cases in order, and one more output port is the default path."
                 )
             )
             actionInfo.add(

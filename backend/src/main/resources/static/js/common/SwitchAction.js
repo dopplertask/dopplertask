@@ -64,14 +64,16 @@ let SwitchAction = draw2d.shape.node.Between.extend({
             currentSwitch.removePort(port);
         })
 
-        for (let i = 0; i < this.userData.customData["switchCases"].length; i++) {
+        // One port per case, and one more for the default path.
+        let caseCount = this.userData.customData["switchCases"].length;
+        for (let i = 0; i <= caseCount; i++) {
             this.createPort("output");
         }
         this.getOutputPorts().each(function (i, port) {
             port.setName(port.getId())
 
             port.onConnect = function (connection) {
-                let labelText = i + "";
+                let labelText = i == caseCount ? "default" : i + "";
                 let label = new draw2d.shape.basic.Label({text: labelText, stroke: 0, fontColor: "#0d0d0d"});
                 connection.add(label, new draw2d.layout.locator.ParallelMidpointLocator());
             }
