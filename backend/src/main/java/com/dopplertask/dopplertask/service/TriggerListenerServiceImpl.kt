@@ -100,12 +100,12 @@ open class TriggerListenerServiceImpl : TriggerListenerService {
     }
 
     private fun startTriggers(currentTask: Task) {
+        val threadPool = threadPoolMap[currentTask.name]!!
         currentTask.triggerActions.forEach { trigger ->
-            println("Found trigger")
-
-            threadPoolMap[currentTask.name]!!.submit {
+            threadPool.submit {
                 try {
-                    while (!Thread.interrupted()) {
+                    // Shutdown decides, since code running inside a task can swallow the interrupt.
+                    while (!threadPool.isShutdown) {
                         logger.info("Running trigger");
                         val triggerResult = trigger.trigger()
 
