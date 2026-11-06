@@ -13,6 +13,7 @@ public class TaskRequest {
 
     // If defined then automation starts from a trigger
     private TriggerInfo triggerInfo;
+    private Long resumeFromExecutionId;
 
     public TaskRequest(String taskName, Map<String, ExecutionParameter> parameters) {
         this(taskName, parameters, false);
@@ -26,6 +27,14 @@ public class TaskRequest {
         this.taskName = taskName;
         this.parameters = parameters;
         this.removeTaskAfterExecution = removeTaskAfterExecution;
+    }
+
+    public Long getResumeFromExecutionId() {
+        return resumeFromExecutionId;
+    }
+
+    public void setResumeFromExecutionId(Long resumeFromExecutionId) {
+        this.resumeFromExecutionId = resumeFromExecutionId;
     }
 
     public String getTaskName() {

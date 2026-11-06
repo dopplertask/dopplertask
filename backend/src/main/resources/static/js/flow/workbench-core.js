@@ -155,7 +155,14 @@ export default function boot() {
   }
 
   const changeParametersButton = () => (store.task.parameters.length ? `<button type="button" class="ui-button" data-action="run" title="Run from the start with different values">Change parameters</button>` : '');
-  const rerunButton = () => `<div class="result-actions"><button type="button" class="ui-button is-primary" data-wb="again">${icon('replay')}Run again</button>${changeParametersButton()}</div>`;
+  /* A run can continue at its failed step while that step is still in the task. */
+  const canResume = (run, failed) => failed && failed === run.steps.at(-1) && run.steps.length > 1 && nodeById(store.task, failed.nodeId);
+  const runAgainButton = '<button type="button" class="ui-button" data-wb="again" title="Run from the start with the same parameters">Run again</button>';
+  const rerunButton = () => {
+    const run = runner.run;
+    const resumable = canResume(run, run.steps.find((step) => step.status === 'failed'));
+    return `<div class="result-actions">${resumable ? `<button type="button" class="ui-button is-primary" data-wb="resume" title="Keep the results before this step and continue from here">${icon('replay')}Rerun from this step</button>` : ''}${runAgainButton}${changeParametersButton()}</div>`;
+  };
 
   let resultKey = null;
   function renderResult() {
@@ -293,9 +300,10 @@ export default function boot() {
 
   /* A failure that is open in the panel already offers its own way to change the values. */
   function restartActionsHtml(failed) {
-    const again = '<button type="button" class="ui-button" data-wb="again" title="Run from the start with the same parameters">Run again</button>';
-    if (!failed || !store.task.parameters.length) return again;
-    return failed.nodeId === store.selectedId ? '' : changeParametersButton();
+    /* While the panel shows the failed step, these actions are already there. */
+    if (failed?.nodeId === store.selectedId) return '';
+    const resume = canResume(runner.run, failed) ? `<button type="button" class="ui-button is-primary" data-wb="resume" title="Keep the results before the failed step and continue from it">${icon('replay')}Rerun from failed step</button>` : '';
+    return `${resume}${runAgainButton}`;
   }
 
   let statusKey = null;
@@ -416,6 +424,7 @@ export default function boot() {
     if (action === 'trigger') store.select(rootNode(store.task).id);
     if (action === 'test') testSelectedStep();
     if (action === 'history') setHistory(!historyOpen);
+    if (action === 'resume') { store.select(null); store.startRun(runner.run.parameters, { resumeFrom: runner.run }).catch((error) => DT.ui.toast(error.message, { tone: 'danger' })); }
     if (action === 'again') { store.select(null); store.startRun(runner.run.parameters).catch((error) => DT.ui.toast(error.message, { tone: 'danger' })); }
     if (action === 'toggle-play') { if (runner.playing) runner.pause(); else runner.play(); }
     const insert = target.closest('[data-insert]');

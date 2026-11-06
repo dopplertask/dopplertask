@@ -132,7 +132,7 @@ Example of the call:
 
 ```curl -X POST http://localhost:8090/schedule/task -H "Content-Type: application/json" -d @run_task.json```
 
-`/schedule/task` queues the run and returns its id, and `GET /execution/{id}` returns its status and logs. `/schedule/directtask` takes the same JSON and waits for the result, which holds `output`, `status`, `executionId`, `logs` with every step and, if the run failed, `error`. A webhook only answers with `output`, `status` and `executionId`, since it can be called by anyone, so use `GET /execution/{id}` to see why a webhook run failed.
+`/schedule/task` queues the run and returns its id, and `GET /execution/{id}` returns its status, logs and the result of each step. To continue a failed run at the step that failed, without repeating the steps before it, add `"resumeFromExecutionId"` with its id. Its parameters are kept unless the request gives new values. `/schedule/directtask` takes the same JSON and waits for the result, which holds `output`, `status`, `executionId`, `logs` with every step and, if the run failed, `error`. A webhook only answers with `output`, `status` and `executionId`, since it can be called by anyone, so use `GET /execution/{id}` to see why a webhook run failed.
 
 #### Build a task through the API
 

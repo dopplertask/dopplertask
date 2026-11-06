@@ -79,6 +79,7 @@ public class TaskServiceImpl implements TaskService {
         taskExecutionRequest.setChecksum(request.getChecksum());
         taskExecutionRequest.setRemoveTaskAfterExecution(request.isRemoveTaskAfterExecution());
         taskExecutionRequest.setTriggerInfo(request.getTriggerInfo());
+        taskExecutionRequest.setResumeFromExecutionId(request.getResumeFromExecutionId());
 
         jmsTemplate.convertAndSend("automation_destination", taskExecutionRequest);
 
@@ -408,6 +409,7 @@ public class TaskServiceImpl implements TaskService {
         taskExecutionRequest.setDepth(request.getDepth());
         taskExecutionRequest.setChecksum(request.getChecksum());
         taskExecutionRequest.setTriggerInfo(request.getTriggerInfo());
+        taskExecutionRequest.setResumeFromExecutionId(request.getResumeFromExecutionId());
 
         return this.runRequest(taskExecutionRequest);
     }

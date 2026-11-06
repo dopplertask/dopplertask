@@ -761,10 +761,12 @@ function createStore() {
     },
     exportTask() { return JSON.stringify(toBackend(task), null, 2); },
 
-    async startRun(parameterValues) {
+    /* With resumeFrom, continues a failed run at its failed step: the steps before it keep their results. */
+    async startRun(parameterValues, { resumeFrom } = {}) {
       if (saveState !== 'saved') await store.save();
-      const { id } = await request('/schedule/task', { method: 'POST', body: JSON.stringify({ taskName: task.name, parameters: parameterValues }) });
-      const run = { id: String(id), status: 'running', live: true, parameters: parameterValues, startedAt: Date.now(), durationMs: 0, steps: [], complete: false, nextNodeId: rootNode(task).id };
+      const { id } = await request('/schedule/task', { method: 'POST', body: JSON.stringify({ taskName: task.name, parameters: parameterValues, resumeFromExecutionId: resumeFrom?.id }) });
+      const finishedSteps = resumeFrom ? resumeFrom.steps.slice(0, -1) : [];
+      const run = { id: String(id), status: 'running', live: true, parameters: parameterValues, startedAt: Date.now(), durationMs: finishedSteps.reduce((total, step) => total + step.durationMs, 0), steps: [...finishedSteps], complete: false, nextNodeId: resumeFrom ? resumeFrom.steps.at(-1).nodeId : rootNode(task).id };
       runs = [run, ...runs];
       runner.load(run, { atEnd: true });
       followRun(run);

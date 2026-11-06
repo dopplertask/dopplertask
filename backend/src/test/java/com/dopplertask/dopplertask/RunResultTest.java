@@ -2,8 +2,11 @@ package com.dopplertask.dopplertask;
 
 import com.jayway.jsonpath.JsonPath;
 import org.junit.Test;
+import org.junit.Assert;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
@@ -118,5 +121,65 @@ public class RunResultTest {
                 "{\"action\": {\"@type\": \"PrintAction\", \"message\": \"$parameters.get('name') after $lastLog.output\"}, \"parameters\": {\"name\": \"Ada\"}, \"lastOutput\": \"build\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.output").value("Ada after build"));
+    }
+
+    private void saveResumable(String name, String marker) throws Exception {
+        String createJson = "{\"name\":\"" + name + "\",\"active\":false,\"parameters\":[],\"actions\":["
+                + "{\"@type\":\"StartAction\",\"ports\":[{\"externalId\":\"" + name + "_s\",\"portType\":\"OUTPUT\"}]},"
+                + "{\"@type\":\"ExecuteCommandAction\",\"command\":\"echo once >> " + marker + "; printf first\",\"ports\":[{\"externalId\":\"" + name + "_a\",\"portType\":\"INPUT\"},{\"externalId\":\"" + name + "_a_out\",\"portType\":\"OUTPUT\"}]},"
+                + "{\"@type\":\"ExecuteCommandAction\",\"command\":\"echo 'from-$lastLog.output'; $parameters.get('gate')\",\"ports\":[{\"externalId\":\"" + name + "_b\",\"portType\":\"INPUT\"},{\"externalId\":\"" + name + "_b_out\",\"portType\":\"OUTPUT\"}]},"
+                + "{\"@type\":\"PrintAction\",\"message\":\"$parameters.get('who')\",\"ports\":[{\"externalId\":\"" + name + "_c\",\"portType\":\"INPUT\"}]}],"
+                + "\"connections\":[{\"source\":{\"externalId\":\"" + name + "_s\"},\"target\":{\"externalId\":\"" + name + "_a\"}},"
+                + "{\"source\":{\"externalId\":\"" + name + "_a_out\"},\"target\":{\"externalId\":\"" + name + "_b\"}},"
+                + "{\"source\":{\"externalId\":\"" + name + "_b_out\"},\"target\":{\"externalId\":\"" + name + "_c\"}}]}";
+        this.mockMvc.perform(post("/task").content(createJson)).andExpect(status().isOk());
+    }
+
+    private ResultActions resume(String name, String parameters, int executionId) throws Exception {
+        return this.mockMvc.perform(post("/schedule/directtask").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"taskName\":\"" + name + "\",\"parameters\":" + parameters + ",\"resumeFromExecutionId\":" + executionId + "}"));
+    }
+
+    @Test
+    public void testResumeContinuesAtTheFailedStepWithItsValuesSuccess() throws Exception {
+        Path marker = Files.createTempFile("resume", ".txt");
+        saveResumable("run_resume", marker.toString());
+
+        String failed = run("run_resume", "{\"gate\":\"exit 3\",\"who\":\"Ada\"}").andExpect(jsonPath("$.status").value("FAILED")).andReturn().getResponse().getContentAsString();
+        int failedId = JsonPath.read(failed, "$.executionId");
+
+        String resumed = resume("run_resume", "{\"gate\":\"true\"}", failedId).andExpect(jsonPath("$.status").value("FINISHED")).andReturn().getResponse().getContentAsString();
+        int resumedId = JsonPath.read(resumed, "$.executionId");
+
+        Assert.assertEquals("The step before the failure must not run twice", 1, Files.readAllLines(marker).size());
+        this.mockMvc.perform(get("/execution/" + resumedId))
+                .andExpect(jsonPath("$.steps", hasSize(4)))
+                .andExpect(jsonPath("$.steps[1].output", containsString("first")))
+                .andExpect(jsonPath("$.steps[2].output", containsString("from-first")))
+                .andExpect(jsonPath("$.steps[2].status").value("SUCCESS"))
+                .andExpect(jsonPath("$.steps[3].output").value("Ada"));
+    }
+
+    @Test
+    public void testResumeExplainsARunThatDidNotFailSuccess() throws Exception {
+        save("run_no_resume", "[]", false, "");
+        String finished = run("run_no_resume", "{}").andReturn().getResponse().getContentAsString();
+        int finishedId = JsonPath.read(finished, "$.executionId");
+
+        resume("run_no_resume", "{}", finishedId)
+                .andExpect(jsonPath("$.status").value("FAILED"))
+                .andExpect(jsonPath("$.error", containsString("did not fail at a step")));
+    }
+
+    @Test
+    public void testResumeExplainsARunOfAnotherTaskSuccess() throws Exception {
+        save("run_other_a", "[]", false, "boom");
+        save("run_other_b", "[]", false, "");
+        String failed = run("run_other_a", "{}").andReturn().getResponse().getContentAsString();
+        int failedId = JsonPath.read(failed, "$.executionId");
+
+        resume("run_other_b", "{}", failedId)
+                .andExpect(jsonPath("$.status").value("FAILED"))
+                .andExpect(jsonPath("$.error", containsString("is not a run of run_other_b")));
     }
 }

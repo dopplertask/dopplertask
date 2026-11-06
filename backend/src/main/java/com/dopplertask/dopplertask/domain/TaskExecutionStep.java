@@ -63,6 +63,21 @@ public class TaskExecutionStep {
         this.durationMs = durationMs;
     }
 
+    /**
+     * The same result, for a resumed run that did not repeat this step.
+     */
+    public TaskExecutionStep copyTo(TaskExecution execution) {
+        TaskExecutionStep copy = new TaskExecutionStep();
+        copy.taskExecution = execution;
+        copy.portId = portId;
+        copy.actionType = actionType;
+        copy.status = status;
+        copy.output = output;
+        copy.error = error;
+        copy.durationMs = durationMs;
+        return copy;
+    }
+
     public String getPortId() {
         return portId;
     }
