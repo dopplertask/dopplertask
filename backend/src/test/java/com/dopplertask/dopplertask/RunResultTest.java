@@ -1,0 +1,85 @@
+package com.dopplertask.dopplertask;
+
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.junit4.SpringRunner;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@RunWith(SpringRunner.class)
+@SpringBootTest
+@AutoConfigureMockMvc
+@ActiveProfiles("test")
+public class RunResultTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Test
+    public void testSuccessfulRunReportsFinishedSuccess() throws Exception {
+        save("run_ok", "[]", false, "");
+        run("run_ok", "{}").andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("FINISHED"))
+                .andExpect(jsonPath("$.error").doesNotExist());
+    }
+
+    @Test
+    public void testFailedActionReportsReasonFail() throws Exception {
+        save("run_failon", "[]", false, "boom");
+        run("run_failon", "{}").andExpect(jsonPath("$.status").value("FAILED"))
+                .andExpect(jsonPath("$.error", containsString("boom")));
+    }
+
+    @Test
+    public void testMissingRequiredParameterReportsItsNameFail() throws Exception {
+        save("run_param", "[{\"name\":\"city\",\"required\":true}]", false, "");
+        run("run_param", "{}").andExpect(jsonPath("$.status").value("FAILED"))
+                .andExpect(jsonPath("$.error", containsString("city")));
+    }
+
+    @Test
+    public void testUnknownTaskReportsItsNameFail() throws Exception {
+        run("run_does_not_exist", "{}").andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error", containsString("run_does_not_exist")));
+    }
+
+    @Test
+    public void testWrongWebhookSuffixReportsNotFoundFail() throws Exception {
+        save("run_hook", "[]", true, "");
+        this.mockMvc.perform(post("/webhook/run_hook/Webhook/wrong"))
+                .andExpect(jsonPath("$.status").value("FAILED"))
+                .andExpect(jsonPath("$.error", containsString("not found")));
+    }
+
+    @Test
+    public void testInactiveWebhookReportsWhyFail() throws Exception {
+        save("run_inactive", "[]", false, "");
+        this.mockMvc.perform(post("/webhook/run_inactive/Webhook/right"))
+                .andExpect(jsonPath("$.status").value("FAILED"))
+                .andExpect(jsonPath("$.error", containsString("not active")));
+    }
+
+    private void save(String name, String parameters, boolean active, String failOn) throws Exception {
+        String createJson = "{\"name\":\"" + name + "\",\"active\":" + active + ",\"parameters\":" + parameters + ",\"actions\":["
+                + "{\"@type\":\"StartAction\",\"ports\":[{\"externalId\":\"" + name + "_s\",\"portType\":\"OUTPUT\"}]},"
+                + "{\"@type\":\"Webhook\",\"method\":\"POST\",\"path\":\"\",\"triggerSuffix\":\"right\",\"authentication\":\"none\",\"ports\":[]},"
+                + "{\"@type\":\"PrintAction\",\"message\":\"hi\",\"failOn\":\"" + failOn + "\",\"ports\":[{\"externalId\":\"" + name + "_p\",\"portType\":\"INPUT\"}]}],"
+                + "\"connections\":[{\"source\":{\"externalId\":\"" + name + "_s\"},\"target\":{\"externalId\":\"" + name + "_p\"}}]}";
+        this.mockMvc.perform(post("/task").content(createJson)).andExpect(status().isOk());
+    }
+
+    private ResultActions run(String name, String parameters) throws Exception {
+        return this.mockMvc.perform(post("/schedule/directtask").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"taskName\":\"" + name + "\",\"parameters\":" + parameters + "}"));
+    }
+}

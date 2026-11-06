@@ -6,6 +6,7 @@ import com.dopplertask.dopplertask.domain.StatusCode;
 import com.dopplertask.dopplertask.domain.Task;
 import com.dopplertask.dopplertask.domain.TaskExecution;
 import com.dopplertask.dopplertask.domain.TaskExecutionLog;
+import com.dopplertask.dopplertask.domain.TaskExecutionStatus;
 import com.dopplertask.dopplertask.domain.action.Action;
 import com.dopplertask.dopplertask.domain.action.trigger.Trigger;
 import com.dopplertask.dopplertask.dto.ActionInfoDto;
@@ -120,24 +121,7 @@ public class TaskController {
 
         TaskRequest request = new TaskRequest(taskRequestDTO.getTaskName(), parameters);
         request.setChecksum(taskRequestDTO.getTaskName());
-        TaskExecution execution = taskService.runRequest(request);
-
-        TaskExecutionLogResponseDTO responseDTO = new TaskExecutionLogResponseDTO();
-        if (execution != null) {
-            int i = 0;
-            int logSize = execution.getLogs().size();
-            for (TaskExecutionLog log : execution.getLogs()) {
-                if(i != 0 && log.isBroadcasted() && i != (logSize-1)) {
-                    responseDTO.getOutput().add(log.getOutput());
-                }
-                i++;
-            }
-
-            return new ResponseEntity<>(responseDTO, HttpStatus.OK);
-        }
-
-        return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
-
+        return runResult(taskService.runRequest(request), taskRequestDTO.getTaskName());
     }
 
     @PostMapping(path = "/webhook/{taskName}/{triggerName}/{triggerSuffix}/{path}")
@@ -176,24 +160,30 @@ public class TaskController {
         TriggerInfo triggerInfo = new WebhookTriggerInfo(triggerName, path, triggerSuffix, triggerParameters, httpMethod);
         request.setTriggerInfo(triggerInfo);
 
-        TaskExecution execution = taskService.runRequest(request);
-
         //TODO: Initialize the trigger because we need to know if there is an authentication required.
-        TaskExecutionLogResponseDTO responseDTO = new TaskExecutionLogResponseDTO();
-        if (execution != null) {
-            int i = 0;
-            int logSize = execution.getLogs().size();
-            for (TaskExecutionLog log : execution.getLogs()) {
-                if(i != 0 && log.isBroadcasted() && i != (logSize-1)) {
-                    responseDTO.getOutput().add(log.getOutput());
-                }
-                i++;
-            }
+        return runResult(taskService.runRequest(request), taskName);
+    }
 
-            return new ResponseEntity<>(responseDTO, HttpStatus.OK);
+    private ResponseEntity<TaskExecutionLogResponseDTO> runResult(TaskExecution execution, String taskName) {
+        TaskExecutionLogResponseDTO responseDTO = new TaskExecutionLogResponseDTO();
+        if (execution == null) {
+            responseDTO.setStatus(TaskExecutionStatus.FAILED.name());
+            responseDTO.setError("Task could not be found [name=" + taskName + "]");
+            return new ResponseEntity<>(responseDTO, HttpStatus.BAD_REQUEST);
         }
 
-        return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+        int i = 0;
+        int logSize = execution.getLogs().size();
+        for (TaskExecutionLog log : execution.getLogs()) {
+            if(i != 0 && log.isBroadcasted() && i != (logSize-1)) {
+                responseDTO.getOutput().add(log.getOutput());
+            }
+            i++;
+        }
+        responseDTO.setStatus(execution.getStatus().name());
+        responseDTO.setError(execution.getFailureReason());
+
+        return new ResponseEntity<>(responseDTO, HttpStatus.OK);
     }
 
     @PostMapping(path = "/webhook/{taskName}/{triggerName}/{triggerSuffix}")

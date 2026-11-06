@@ -110,6 +110,7 @@ public class ExecutionServiceImpl implements ExecutionService {
                 executionFailed.setBroadcasted(true);
                 execution.addLog(executionFailed);
                 execution.setSuccess(false);
+                execution.setFailureReason(executionFailed.getOutput());
                 LOG.info("Task execution failed, missing parameters: {} [taskId={}, executionId={}]", missingParametersAsString, task.getId(), execution.getId());
                 broadcastResults(executionFailed, true);
 
@@ -352,7 +353,8 @@ public class ExecutionServiceImpl implements ExecutionService {
 
             // Check if the trigger exists
             if (action == null) {
-                addLog(execution, "The selected trigger or webhook was not found. Cannot start task", OutputType.STRING, Map.of(), true);
+                execution.setStatus(TaskExecutionStatus.FAILED);
+                addLog(execution, "The selected trigger or webhook was not found. Cannot start task", OutputType.STRING, Map.of(), true, false);
                 return execution;
             }
 
@@ -497,7 +499,9 @@ public class ExecutionServiceImpl implements ExecutionService {
         }
 
         execution.setSuccess(success);
-
+        if (!success) {
+            execution.setFailureReason(output);
+        }
 
 
         // Add log to the execution

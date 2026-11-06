@@ -40,6 +40,7 @@ public class ExecutionController {
             for (TaskExecutionLog log : executionObj.getLogs()) {
                 responseDTO.getOutput().add(log.getOutput());
             }
+            responseDTO.setStatus(executionObj.getStatus().name());
 
             return new ResponseEntity<>(responseDTO, HttpStatus.OK);
         }
