@@ -4,9 +4,11 @@ import com.dopplertask.dopplertask.domain.ActionPort;
 import com.dopplertask.dopplertask.domain.ActionPortType;
 import com.dopplertask.dopplertask.domain.ActionResult;
 import com.dopplertask.dopplertask.domain.Connection;
+import com.dopplertask.dopplertask.domain.StatusCode;
 import com.dopplertask.dopplertask.domain.TaskExecution;
 import com.dopplertask.dopplertask.domain.action.common.IfAction;
 import com.dopplertask.dopplertask.domain.action.common.PrintAction;
+import com.dopplertask.dopplertask.domain.action.common.RegexAction;
 import com.dopplertask.dopplertask.domain.action.common.XMLAction;
 import com.dopplertask.dopplertask.domain.action.common.XMLActionType;
 import com.dopplertask.dopplertask.service.TaskServiceImpl;
@@ -230,4 +232,24 @@ public class ActionTest {
         Assert.assertEquals("<xml><doppler><style>blue</style></doppler><example>Some text</example></xml>", actionResult.getOutput());
     }
 
+
+    @Test
+    public void testRegexFindsTheWholeMatchWithoutACaptureGroup() throws IOException {
+        ActionResult result = new RegexAction("[0-9]+", "abc123").run(new TaskServiceImpl(), new TaskExecution(), variableExtractorUtil, null);
+        Assert.assertEquals(StatusCode.SUCCESS, result.getStatusCode());
+        Assert.assertEquals(List.of("123"), result.getOutputVariables().get("matches"));
+    }
+
+    @Test
+    public void testRegexKeepsReturningTheFirstCaptureGroup() throws IOException {
+        ActionResult result = new RegexAction("id=([0-9]+)", "id=42").run(new TaskServiceImpl(), new TaskExecution(), variableExtractorUtil, null);
+        Assert.assertEquals(List.of("42"), result.getOutputVariables().get("matches"));
+    }
+
+    @Test
+    public void testRegexExplainsAnInvalidPattern() throws IOException {
+        ActionResult result = new RegexAction("[0-9", "abc").run(new TaskServiceImpl(), new TaskExecution(), variableExtractorUtil, null);
+        Assert.assertEquals(StatusCode.FAILURE, result.getStatusCode());
+        Assert.assertTrue(result.getErrorMsg().startsWith("Regex is not valid: "));
+    }
 }

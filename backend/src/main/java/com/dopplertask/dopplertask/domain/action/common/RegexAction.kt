@@ -11,6 +11,7 @@ import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import java.io.IOException
 import java.util.regex.Matcher
 import java.util.regex.Pattern
+import java.util.regex.PatternSyntaxException
 import javax.persistence.*
 
 
@@ -43,13 +44,18 @@ class RegexAction : Action {
         val textVariable = variableExtractorUtil.extract(stringToCheck, execution, scriptLanguage)
         val actionResult = ActionResult()
 
-        val matches = getMatches(textVariable, regexPattern);
-        if (regexPattern.isNotEmpty()) {
-            actionResult.output = "Matches: " + matches.size +" \n" + matches.joinToString(",")
-            actionResult.outputVariables["matches"] = matches;
-            actionResult.statusCode = StatusCode.SUCCESS
-        } else {
+        if (regexPattern.isEmpty()) {
             actionResult.errorMsg = "Regex is empty. Please specify a regex."
+            actionResult.statusCode = StatusCode.FAILURE
+            return actionResult
+        }
+        try {
+            val matches = getMatches(textVariable, regexPattern)
+            actionResult.output = "Matches: " + matches.size + " \n" + matches.joinToString(",")
+            actionResult.outputVariables["matches"] = matches
+            actionResult.statusCode = StatusCode.SUCCESS
+        } catch (e: PatternSyntaxException) {
+            actionResult.errorMsg = "Regex is not valid: " + e.description + " at position " + e.index + "."
             actionResult.statusCode = StatusCode.FAILURE
         }
         return actionResult
@@ -59,7 +65,8 @@ class RegexAction : Action {
         val matches: MutableList<String> = ArrayList()
         val m: Matcher = Pattern.compile(pattern).matcher(stringToCheck)
         while (m.find()) {
-            matches.add(m.group(1))
+            // The first group is the match when the pattern has one, otherwise the whole match is.
+            matches.add(if (m.groupCount() > 0) m.group(1) else m.group())
         }
         return matches
     }
