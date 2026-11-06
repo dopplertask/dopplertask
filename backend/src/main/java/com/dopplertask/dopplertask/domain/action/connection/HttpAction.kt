@@ -22,6 +22,7 @@ import java.security.cert.X509Certificate
 import java.time.Duration
 import java.util.function.Consumer
 import javax.net.ssl.SSLContext
+import javax.net.ssl.SSLException
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
 import javax.persistence.CascadeType
@@ -124,6 +125,9 @@ class HttpAction : Action() {
             actionResult.statusCode = StatusCode.FAILURE
         } catch (e: HttpTimeoutException) {
             actionResult.errorMsg = "${request.uri().host} did not answer within a minute."
+            actionResult.statusCode = StatusCode.FAILURE
+        } catch (e: SSLException) {
+            actionResult.errorMsg = "The certificate of ${request.uri().host} could not be verified."
             actionResult.statusCode = StatusCode.FAILURE
         } catch (e: IOException) {
             actionResult.errorMsg = "Exception when sending http request: $e"

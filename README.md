@@ -406,6 +406,15 @@ Reads, writes or deletes a text file in S3, or in a service that works like it, 
 * content: The text to write.
 * baseUrl: Only set this for a service that works like S3.
 
+#### OpenAIAction
+Asks OpenAI, or a server of your own that works like it. The whole answer from the server is the output of the step, as JSON.
+
+##### Variables
+* apiKey: Leave it empty if your own server does not ask for one.
+* model: Such as `gpt-5`.
+* userInput: What the model is asked.
+* baseUrl: Only change this for a server of your own. Its certificate has to be valid.
+
 #### TeamsAction
 Sends a message to a Microsoft Teams channel through a webhook, which the Workflows app makes.
 
@@ -705,6 +714,7 @@ What an agent saves appears in the editor as a proposal. Nothing runs until you 
 Existing tasks, versions and webhook addresses keep working, and the database is updated when the new version starts. A few things behave differently since version 0.14.7:
 
 * **An HTTP step fails on a status of 400 or above.** This also applies to steps built on it, such as OpenAI. A task that should carry on needs Continue on failure on that step.
+* **The OpenAI step verifies the certificate of the server.** A server of your own with a self-signed certificate needs that certificate added to the trust store of Java.
 * **Requests from web pages on other sites are refused.** A page that should have access needs `dopplertask.allowedOrigins`. Webhooks and clients that are not browsers are not affected.
 * **The command line tool exits with 1 when a run fails,** and prints the output of each step rather than internal log lines.
 * **The editor no longer uses port 61614,** so it does not need to be published for the editor.
