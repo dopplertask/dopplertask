@@ -29,7 +29,7 @@ const PRESENTATION = {
   WriteFileAction: ['writeFile', 'Write file', 'system', 'filePen', ['filename']],
   BrowseWebAction: ['browseWeb', 'Browse the web', 'browser', 'appWindow', ['url']],
   MouseAction: ['mouse', 'Use the mouse', 'browser', 'pointer'],
-  OpenAIAction: ['openAI', 'OpenAI', 'integration', 'sparkles', ['userInput']],
+  OpenAIAction: ['openAI', 'OpenAI', 'integration', 'sparkles', ['model', 'userInput']],
   JenkinsAction: ['jenkins', 'Jenkins', 'integration', 'wrench', ['jenkinsUrl']],
 };
 
