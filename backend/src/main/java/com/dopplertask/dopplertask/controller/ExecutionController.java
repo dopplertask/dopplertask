@@ -5,6 +5,10 @@ import com.dopplertask.dopplertask.domain.TaskExecutionLog;
 import com.dopplertask.dopplertask.dto.TaskExecutionLogResponseDTO;
 import com.dopplertask.dopplertask.dto.TaskResponseSingleDTO;
 import com.dopplertask.dopplertask.service.ExecutionService;
+import com.dopplertask.dopplertask.domain.TaskExecutionStatus;
+import com.dopplertask.dopplertask.domain.TaskExecutionStep;
+import java.util.ArrayList;
+import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -41,7 +45,11 @@ public class ExecutionController {
                 responseDTO.getOutput().add(log.getOutput());
             }
             responseDTO.setStatus(executionObj.getStatus().name());
-            responseDTO.setSteps(executionObj.getSteps());
+            List<TaskExecutionStep> steps = new ArrayList<>(executionObj.getSteps());
+            if (executionObj.getStatus() == TaskExecutionStatus.STARTED) {
+                steps.addAll(executionService.getLiveSteps(id));
+            }
+            responseDTO.setSteps(steps);
             responseDTO.setStartDate(executionObj.getStartdate());
             responseDTO.setEndDate(executionObj.getEnddate());
             executionObj.getParameters().forEach((name, parameter) -> {

@@ -227,4 +227,31 @@ public class RunResultTest {
         this.mockMvc.perform(post("/webhook/no_such_task/Webhook/x/").header("Origin", "http://evil.example"))
                 .andExpect(status().isBadRequest());
     }
+
+    @Test
+    public void testExecutionShowsFinishedStepsWhileARunIsGoingSuccess() throws Exception {
+        String name = "run_live";
+        this.mockMvc.perform(post("/task").content("{\"name\":\"" + name + "\",\"active\":false,\"parameters\":[],\"actions\":["
+                + "{\"@type\":\"StartAction\",\"ports\":[{\"externalId\":\"" + name + "_s\",\"portType\":\"OUTPUT\"}]},"
+                + "{\"@type\":\"ExecuteCommandAction\",\"command\":\"sleep 1\",\"ports\":[{\"externalId\":\"" + name + "_c\",\"portType\":\"INPUT\"}]}],"
+                + "\"connections\":[{\"source\":{\"externalId\":\"" + name + "_s\"},\"target\":{\"externalId\":\"" + name + "_c\"}}]}")).andExpect(status().isOk());
+        String scheduled = this.mockMvc.perform(post("/schedule/task").contentType(MediaType.APPLICATION_JSON).content("{\"taskName\":\"" + name + "\",\"parameters\":{}}"))
+                .andReturn().getResponse().getContentAsString();
+        String executionId = JsonPath.read(scheduled, "$.id");
+
+        boolean sawStepWhileRunning = false;
+        String status = "";
+        long giveUpAt = System.currentTimeMillis() + 10000;
+        while (!status.equals("FINISHED") && System.currentTimeMillis() < giveUpAt) {
+            String execution = this.mockMvc.perform(get("/execution/" + executionId)).andReturn().getResponse().getContentAsString();
+            status = JsonPath.read(execution, "$.status");
+            if (status.equals("STARTED") && execution.contains("StartAction")) {
+                sawStepWhileRunning = true;
+            }
+            Thread.sleep(50);
+        }
+
+        Assert.assertTrue("The finished step must show while the run is going", sawStepWhileRunning);
+        this.mockMvc.perform(get("/execution/" + executionId)).andExpect(jsonPath("$.steps", hasSize(2)));
+    }
 }
