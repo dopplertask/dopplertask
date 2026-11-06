@@ -182,4 +182,20 @@ public class RunResultTest {
                 .andExpect(jsonPath("$.status").value("FAILED"))
                 .andExpect(jsonPath("$.error", containsString("is not a run of run_other_b")));
     }
+
+    @Test
+    public void testExecutionsCanListTheLatestRunsOfOneTaskSuccess() throws Exception {
+        save("run_list_a", "[]", false, "");
+        save("run_list_b", "[]", false, "");
+        run("run_list_a", "{}");
+        run("run_list_b", "{}");
+        String newest = run("run_list_a", "{}").andReturn().getResponse().getContentAsString();
+        int newestId = JsonPath.read(newest, "$.executionId");
+
+        this.mockMvc.perform(get("/executions").param("taskName", "run_list_a"))
+                .andExpect(jsonPath("$.executions", hasSize(2)))
+                .andExpect(jsonPath("$.executions[0].executionId").value(String.valueOf(newestId)));
+        this.mockMvc.perform(get("/executions").param("taskName", "run_list_a").param("limit", "1"))
+                .andExpect(jsonPath("$.executions", hasSize(1)));
+    }
 }
