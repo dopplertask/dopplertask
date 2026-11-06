@@ -7,6 +7,7 @@ import com.dopplertask.dopplertask.domain.action.Action;
 import com.dopplertask.dopplertask.domain.action.integration.chat.DiscordAction;
 import com.dopplertask.dopplertask.domain.action.integration.chat.SlackAction;
 import com.dopplertask.dopplertask.domain.action.integration.chat.TelegramAction;
+import com.dopplertask.dopplertask.domain.action.integration.incident.PagerDutyAction;
 import com.dopplertask.dopplertask.service.TaskServiceImpl;
 import com.dopplertask.dopplertask.service.VariableExtractorUtil;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -215,6 +216,48 @@ public class IntegrationActionsTest {
         DiscordAction discord = discord();
         discord.setMessage("x".repeat(2001));
         Assert.assertTrue(run(discord).getErrorMsg().contains("2000"));
+        Assert.assertNull(path);
+    }
+
+    private PagerDutyAction pagerDuty() {
+        PagerDutyAction pagerDuty = new PagerDutyAction();
+        pagerDuty.setBaseUrl(baseUrl);
+        pagerDuty.setRoutingKey("key");
+        pagerDuty.setSummary("Disk is full");
+        return pagerDuty;
+    }
+
+    @Test
+    public void testPagerDutyOpensAnIncidentAndGivesItsKeySuccess() throws IOException {
+        answerStatus = 202;
+        answerBody = "{\"status\":\"success\",\"message\":\"Event processed\",\"dedup_key\":\"abc\"}";
+        ActionResult result = run(pagerDuty());
+        Assert.assertEquals(StatusCode.SUCCESS, result.getStatusCode());
+        Assert.assertEquals("/v2/enqueue", path);
+        Assert.assertEquals("key", received.path("routing_key").asText());
+        Assert.assertEquals("trigger", received.path("event_action").asText());
+        Assert.assertEquals("Disk is full", received.path("payload").path("summary").asText());
+        Assert.assertEquals("error", received.path("payload").path("severity").asText());
+        Assert.assertEquals("abc", result.getOutputVariables().get("dedupKey"));
+    }
+
+    @Test
+    public void testPagerDutyResolvesWithTheKeyAndWithoutAPayloadSuccess() throws IOException {
+        answerStatus = 202;
+        PagerDutyAction pagerDuty = pagerDuty();
+        pagerDuty.setEventAction("resolve");
+        pagerDuty.setSummary(null);
+        pagerDuty.setDedupKey("abc");
+        Assert.assertEquals(StatusCode.SUCCESS, run(pagerDuty).getStatusCode());
+        Assert.assertEquals("abc", received.path("dedup_key").asText());
+        Assert.assertTrue(received.path("payload").isMissingNode());
+    }
+
+    @Test
+    public void testPagerDutyAsksForTheKeyBeforeResolvingFail() throws IOException {
+        PagerDutyAction pagerDuty = pagerDuty();
+        pagerDuty.setEventAction("resolve");
+        Assert.assertTrue(run(pagerDuty).getErrorMsg().contains("incident key"));
         Assert.assertNull(path);
     }
 }
