@@ -180,7 +180,7 @@ export default function boot() {
     return `
       ${issues.map((issue) => `<p class="ui-note is-warn">${icon('alert')}${escapeHtml(issue.message)}</p>`).join('')}
       <div class="ui-field-grid">${visibleFields.map((field) => renderField(field, node)).join('')}</div>
-      ${node.type === 'start' && node.config.trigger === 'webhook' ? `<div class="ui-field"><span class="ui-label">Call this URL</span><div class="ui-copy-row"><code data-webhook-url>${escapeHtml(webhookUrl(store.task, node))}</code><button type="button" class="ui-icon-button" data-copy="${escapeHtml(webhookUrl(store.task, node))}" aria-label="Copy URL">${icon('copy')}</button></div></div>` : ''}
+      ${node.type === 'start' && node.config.trigger === 'webhook' ? `<div class="ui-field"><span class="ui-label">Call this URL</span><div class="ui-copy-row"><code data-webhook-url>${escapeHtml(webhookUrl(store.task, node))}</code><button type="button" class="ui-icon-button" data-copy="${escapeHtml(webhookUrl(store.task, node))}" aria-label="Copy URL">${icon('copy')}</button></div><p class="ui-hint">Works once the task is saved with its trigger on.</p></div>` : ''}
       ${canFail ? `<details class="ui-disclosure" ${hasFailureSettings ? 'open' : ''}><summary>${icon('chevronRight')}If this step fails${node.config.retries ? `<span class="ui-pill">${node.config.retries} ${node.config.retries === 1 ? 'retry' : 'retries'}</span>` : ''}</summary><div class="ui-field-grid">${FAILURE_FIELDS.map((field) => renderField(field, node)).join('')}</div></details>` : ''}
       <p class="ui-backend-name">${escapeHtml(action.backend)}</p>`;
   }
