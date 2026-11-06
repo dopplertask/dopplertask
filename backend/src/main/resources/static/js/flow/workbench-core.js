@@ -331,8 +331,10 @@ export default function boot() {
       ? `${statusGlyph(run.status)}<b>${escapeHtml(runHeadline(run))}</b><small>${run.resumedFrom ? `from ${escapeHtml(run.resumedFrom)}, ` : ''}${formatAgo(run.startedAt)}</small>`
       : `${statusGlyph(runner.playing || run.live ? 'running' : 'pending')}<b>${escapeHtml((run.live ? nodeById(store.task, run.nextNodeId)?.name : active?.name) || 'Finishing')}</b><small>${run.live ? 'running' : runner.playing ? 'replaying' : 'paused'}</small>`;
     const toggle = byId('stripToggle');
-    toggle.hidden = !!run.live;
-    byId('stripHost').classList.toggle('is-live', !!run.live);
+    /* Nothing to replay while it runs, or in a run from before steps were recorded. */
+    const nothingToReplay = run.live || !run.steps.length;
+    toggle.hidden = nothingToReplay;
+    byId('stripHost').classList.toggle('is-live', nothingToReplay);
     toggle.innerHTML = `${icon(runner.playing ? 'pause' : runner.finished ? 'replay' : 'play')}<span>${runner.playing ? 'Pause' : runner.finished ? 'Replay' : 'Play'}</span>`;
     toggle.title = runner.playing ? 'Pause this run' : runner.finished ? 'Watch this run again' : 'Continue this run';
     const failed = failedStepOf(run);
@@ -363,7 +365,7 @@ export default function boot() {
         <p class="history-stat">${successes} of ${finished.length} succeeded, ${formatDuration(average)} on average</p>
         ${store.runs.map((run) => { const live = run === runner.run && isLive(); return `<button type="button" class="history-run ${run === shown ? 'is-current' : ''}" data-run="${run.id}">${statusGlyph(live ? 'running' : run.status)}<b>Run #${run.id}</b><em>${live ? 'now' : `${formatDuration(run.durationMs)}, ${formatAgo(run.startedAt)}`}</em><small>${escapeHtml(runParameterSummary(run)) || 'No parameters'}</small></button>`; }).join('')}
       </div>
-      <div class="trace"><div class="trace-head"><span></span><span>Step</span><span>Output</span><span>Time</span></div>${steps.map((step) => { const done = !runner.run || stepIsDone(step); const shownStatus = done ? step.status : 'running'; return `<button type="button" class="trace-row ${shownStatus === 'failed' ? 'is-failed' : ''} ${store.selectedId === step.nodeId ? 'is-selected' : ''}" data-step="${step.nodeId}">${statusGlyph(shownStatus)}<b>${escapeHtml(step.name)}</b><code>${done ? escapeHtml(step.error || String(step.output || '').split('\n')[0]) : ''}</code><em>${done ? formatDuration(step.durationMs) : ''}</em></button>`; }).join('')}</div>`;
+      <div class="trace"><div class="trace-head"><span></span><span>Step</span><span>Output</span><span>Time</span></div>${steps.map((step) => { const done = !runner.run || stepIsDone(step); const shownStatus = done ? step.status : 'running'; return `<button type="button" class="trace-row ${shownStatus === 'failed' ? 'is-failed' : ''} ${store.selectedId === step.nodeId ? 'is-selected' : ''}" data-step="${step.nodeId}">${statusGlyph(shownStatus)}<b>${escapeHtml(step.name)}</b><code>${done ? escapeHtml(step.error || String(step.output || '').split('\n')[0]) : ''}</code><em>${done ? formatDuration(step.durationMs) : ''}</em></button>`; }).join('')}${!steps.length && shown?.logLines?.length ? `<p class="ui-empty">This run is from before each step was recorded, so here is its log.</p><pre class="ui-log trace-log">${escapeHtml(shown.logLines.join('\n'))}</pre>` : ''}</div>`;
     host.querySelector('.history-runs').scrollTop = runsScroll;
     host.querySelector('.trace').scrollTop = traceScroll;
   }

@@ -409,7 +409,9 @@ function createRunner(onChange) {
       const step = runner.stepFor(nodeId);
       if (step) return stepStateAt(step, runner.cursorMs);
       if (runner.run.live && runner.run.nextNodeId === nodeId) return 'running';
-      return runner.finished ? 'skipped' : 'pending';
+      /* A run with no recorded steps says nothing about which steps it reached. */
+      if (runner.finished) return runner.run.steps.length ? 'skipped' : 'idle';
+      return 'pending';
     },
     activeStep() {
       if (!runner.run) return null;
