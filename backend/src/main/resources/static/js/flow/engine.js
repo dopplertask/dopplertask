@@ -34,6 +34,7 @@ const PRESENTATION = {
   TelegramAction: ['telegram', 'Telegram', 'integration', 'send', ['token', 'chatId', 'message']],
   DiscordAction: ['discord', 'Discord', 'integration', 'message', ['webhookUrl', 'message']],
   PagerDutyAction: ['pagerduty', 'PagerDuty', 'integration', 'alert', ['routingKey', 'summary']],
+  GitHubAction: ['github', 'GitHub', 'integration', 'code', ['token', 'repository', 'issueNumber', 'title']],
   SlackAction: ['slack', 'Slack', 'integration', 'message', ['token', 'channel', 'message']],
   /* Without these a trigger stops at once, and nothing but the server log says so. */
   IntervalTrigger: ['IntervalTrigger', 'Schedule', 'logic', 'clock', ['time']],
@@ -240,6 +241,7 @@ function describeNode(node) {
     case 'telegram': return ['Send ', value(inlineVariables(config.message), 'a message'), ' to ', value(config.chatId, 'a chat')];
     case 'discord': return ['Send ', value(inlineVariables(config.message), 'a message'), ' to Discord'];
     case 'pagerduty': return config.eventAction === 'resolve' ? ['Resolve ', value(config.dedupKey, 'an incident')] : config.eventAction === 'acknowledge' ? ['Acknowledge ', value(config.dedupKey, 'an incident')] : ['Open an incident: ', value(inlineVariables(config.summary), 'no summary yet')];
+    case 'github': return config.operation === 'addComment' ? ['Comment on ', value(config.repository, 'a repository'), ' #', value(config.issueNumber, '?')] : config.operation === 'closeIssue' ? ['Close ', value(config.repository, 'a repository'), ' #', value(config.issueNumber, '?')] : ['Create ', value(inlineVariables(config.title), 'an issue'), ' in ', value(config.repository, 'a repository')];
     case 'slack': return ['Send ', value(inlineVariables(config.message), 'a message'), ' to ', value(config.channel, 'a channel')];
     case 'openAI': return ['Ask ', { value: config.model || 'OpenAI' }, ' ', value(readableExpression(config.userInput), 'a prompt')];
     case 'jenkins': return [{ value: config.operation || 'Call' }, ' on Jenkins'];

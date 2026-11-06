@@ -5,6 +5,7 @@ import com.dopplertask.dopplertask.domain.StatusCode;
 import com.dopplertask.dopplertask.domain.TaskExecution;
 import com.dopplertask.dopplertask.domain.action.Action;
 import com.dopplertask.dopplertask.domain.action.integration.chat.DiscordAction;
+import com.dopplertask.dopplertask.domain.action.integration.code.GitHubAction;
 import com.dopplertask.dopplertask.domain.action.integration.chat.SlackAction;
 import com.dopplertask.dopplertask.domain.action.integration.chat.TelegramAction;
 import com.dopplertask.dopplertask.domain.action.integration.incident.PagerDutyAction;
@@ -259,5 +260,62 @@ public class IntegrationActionsTest {
         pagerDuty.setEventAction("resolve");
         Assert.assertTrue(run(pagerDuty).getErrorMsg().contains("incident key"));
         Assert.assertNull(path);
+    }
+
+    private GitHubAction gitHub() {
+        GitHubAction gitHub = new GitHubAction();
+        gitHub.setBaseUrl(baseUrl);
+        gitHub.setToken("ghp");
+        gitHub.setRepository("acme/site");
+        gitHub.setTitle("Disk is full");
+        gitHub.setText("On web-1");
+        return gitHub;
+    }
+
+    @Test
+    public void testGitHubCreatesAnIssueAndGivesItsNumberSuccess() throws IOException {
+        answerStatus = 201;
+        answerBody = "{\"number\":7,\"html_url\":\"https://github.com/acme/site/issues/7\"}";
+        ActionResult result = run(gitHub());
+        Assert.assertEquals(StatusCode.SUCCESS, result.getStatusCode());
+        Assert.assertEquals("/repos/acme/site/issues", path);
+        Assert.assertEquals("Bearer ghp", authorization);
+        Assert.assertEquals("Disk is full", received.path("title").asText());
+        Assert.assertEquals("On web-1", received.path("body").asText());
+        Assert.assertEquals(7L, result.getOutputVariables().get("issueNumber"));
+        Assert.assertEquals("https://github.com/acme/site/issues/7", result.getOutputVariables().get("url"));
+    }
+
+    @Test
+    public void testGitHubCommentsAndClosesOnTheIssueSuccess() throws IOException {
+        GitHubAction gitHub = gitHub();
+        gitHub.setIssueNumber("7");
+        gitHub.setOperation("addComment");
+        Assert.assertEquals(StatusCode.SUCCESS, run(gitHub).getStatusCode());
+        Assert.assertEquals("/repos/acme/site/issues/7/comments", path);
+        gitHub.setOperation("closeIssue");
+        Assert.assertEquals(StatusCode.SUCCESS, run(gitHub).getStatusCode());
+        Assert.assertEquals("PATCH", method);
+        Assert.assertEquals("/repos/acme/site/issues/7", path);
+        Assert.assertEquals("closed", received.path("state").asText());
+    }
+
+    @Test
+    public void testGitHubSaysWhatIsWrongBeforeSendingFail() throws IOException {
+        GitHubAction gitHub = gitHub();
+        gitHub.setRepository("site");
+        Assert.assertTrue(run(gitHub).getErrorMsg().contains("owner/name"));
+        gitHub.setRepository("acme/site");
+        gitHub.setOperation("closeIssue");
+        gitHub.setIssueNumber("seven");
+        Assert.assertTrue(run(gitHub).getErrorMsg().contains("number of the issue"));
+        Assert.assertNull(path);
+    }
+
+    @Test
+    public void testGitHubGivesItsOwnReasonFail() throws IOException {
+        answerStatus = 404;
+        answerBody = "{\"message\":\"Not Found\"}";
+        Assert.assertEquals("GitHub answered with status 404: Not Found.", run(gitHub()).getErrorMsg());
     }
 }
