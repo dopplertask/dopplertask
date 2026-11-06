@@ -3,6 +3,8 @@ export default function boot() {
   const { ACTIONS, FAILURE_FIELDS, formatDuration, formatAgo } = window.DT;
 
   const ICON_PATHS = {
+    history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 2"/>',
+    replay: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/>',
     play: '<path d="M7 4.5v15l12-7.5z"/>',
     pause: '<path d="M8 5v14M16 5v14"/>',
     split: '<path d="M4 12h5l6-6h5M9 12l6 6h5"/><path d="m17 3 3 3-3 3M17 15l3 3-3 3"/>',
@@ -41,9 +43,11 @@ export default function boot() {
     webhook: '<circle cx="12" cy="6" r="3"/><circle cx="6" cy="17" r="3"/><circle cx="18" cy="17" r="3"/><path d="m10.5 8.6-3 5.8M9 17h6M13.5 8.6l3 5.8"/>',
   };
 
-  const icon = (name, className = '') => `<svg class="icon ${className}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[name] || ''}</svg>`;
+  const icon = (name, className = '') => {
+    if (!ICON_PATHS[name]) console.error(`There is no icon called ${name}.`);
+    return `<svg class="icon ${className}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[name] || ''}</svg>`;
+  };
 
-  /* Doppler mark: wavefronts bunching up in the direction of travel. */
 
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
   const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
