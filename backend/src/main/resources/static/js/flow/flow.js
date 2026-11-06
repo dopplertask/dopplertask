@@ -33,7 +33,8 @@ export default function boot() {
   /* ---------- Frequent steps and library ---------- */
 
   function renderQuick() {
-    byId('quick').innerHTML = `<button type="button" class="quick-button is-add ${libraryOpen ? 'is-on' : ''}" data-flow="library" aria-expanded="${libraryOpen}" title="${libraryOpen ? 'Close the step library' : 'Open the step library'}"><span class="quick-circle">${icon(libraryOpen ? 'x' : 'plus')}</span><small>${libraryOpen ? 'Close' : 'All steps'}</small></button>
+    const showing = libraryOpen && !store.selectedId;
+    byId('quick').innerHTML = `<button type="button" class="quick-button is-add ${showing ? 'is-on' : ''}" data-flow="library" aria-expanded="${showing}" title="${showing ? 'Close the step library' : 'Open the step library'}"><span class="quick-circle">${icon(showing ? 'x' : 'plus')}</span><small>${showing ? 'Close' : 'All steps'}</small></button>
       ${FREQUENT_STEPS.map(([type, label]) => `<button type="button" class="quick-button library-item" data-type="${type}" data-category="${ACTIONS[type].category}" aria-label="Add ${escapeHtml(ACTIONS[type].label)}" title="${escapeHtml(ACTIONS[type].label)}: click to add after the selected or last step, or drag onto the canvas"><span class="quick-circle">${icon(ACTIONS[type].icon)}</span><small>${label}</small></button>`).join('')}`;
   }
 
@@ -156,7 +157,7 @@ export default function boot() {
 
   store.subscribe((change) => {
     if (change === 'run') { syncRunPill(); syncRunMode(); return; }
-    if (change === 'selection') { renderSide(); return; }
+    if (change === 'selection') { renderQuick(); renderSide(); return; }
     if (change === 'meta') { syncParameters(); return; }
     if (change === 'task') { syncRunPill(); syncRunMode(); syncParameters(); renderSide(); }
     if (change === 'structure') renderSide();
@@ -173,7 +174,8 @@ export default function boot() {
 
   document.addEventListener('click', (event) => {
     const action = event.target.closest('[data-flow]')?.dataset.flow;
-    if (action === 'library') setLibrary(!libraryOpen);
+    /* With a step selected the panel covers the library, so this asks for the library rather than to close it. */
+    if (action === 'library') setLibrary(!libraryOpen || !!store.selectedId);
     if (action === 'diagram') { store.select(null); if (core.isHistoryOpen()) byId('rail').querySelector('[data-wb="history"]').click(); setLibrary(false); }
     if (action === 'shortcuts') DT.ui.openShortcutsDialog();
     if (action === 'save') store.save().then(() => DT.ui.toast('Saved'), (error) => DT.ui.toast(error.message, { tone: 'danger' }));
