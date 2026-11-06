@@ -27,10 +27,10 @@ class PagerDutyAction : Action() {
 
     @Column
     @Convert(converter = ColumnEncryptor::class)
-    var routingKey: String? = null
+    var integrationKey: String? = null
 
     @Column
-    var eventAction: String? = TRIGGER
+    var operation: String? = OPEN
 
     @Column(length = 1024)
     var summary: String? = null
@@ -39,7 +39,7 @@ class PagerDutyAction : Action() {
     var severity: String? = "error"
 
     @Column
-    var dedupKey: String? = null
+    var incidentKey: String? = null
 
     @Throws(IOException::class)
     override fun run(
@@ -48,18 +48,18 @@ class PagerDutyAction : Action() {
         variableExtractorUtil: VariableExtractorUtil,
         broadcastListener: BroadcastListener?
     ): ActionResult {
-        val routingKeyValue = variableExtractorUtil.extract(routingKey, execution, scriptLanguage)
-        val actionValue = variableExtractorUtil.extract(eventAction, execution, scriptLanguage)
+        val integrationKeyValue = variableExtractorUtil.extract(integrationKey, execution, scriptLanguage)
+        val operationValue = variableExtractorUtil.extract(operation, execution, scriptLanguage)
         val summaryValue = variableExtractorUtil.extract(summary, execution, scriptLanguage)
-        val dedupKeyValue = variableExtractorUtil.extract(dedupKey, execution, scriptLanguage)
-        if (routingKeyValue.isBlank()) return ActionResult.failure("PagerDuty needs a routing key, which is the integration key of an Events API v2 integration on a service.")
-        if (actionValue == TRIGGER && summaryValue.isBlank()) return ActionResult.failure("PagerDuty needs a summary to open an incident.")
+        val incidentKeyValue = variableExtractorUtil.extract(incidentKey, execution, scriptLanguage)
+        if (integrationKeyValue.isBlank()) return ActionResult.failure("PagerDuty needs an integration key, which an Events API v2 integration on a service gives.")
+        if (operationValue == OPEN && summaryValue.isBlank()) return ActionResult.failure("PagerDuty needs a summary to open an incident.")
         // Without the key PagerDuty cannot know which incident is meant.
-        if (actionValue != TRIGGER && dedupKeyValue.isBlank()) return ActionResult.failure("PagerDuty needs the incident key to $actionValue an incident. The step that opened it gives it as \$lastLog.outputVariables.dedupKey.")
+        if (operationValue != OPEN && incidentKeyValue.isBlank()) return ActionResult.failure("PagerDuty needs the incident key to $operationValue an incident. The step that opened it gives it as \$lastLog.outputVariables.incidentKey.")
 
-        val event = mutableMapOf<String, Any>("routing_key" to routingKeyValue, "event_action" to actionValue)
-        if (dedupKeyValue.isNotBlank()) event["dedup_key"] = dedupKeyValue
-        if (actionValue == TRIGGER) {
+        val event = mutableMapOf<String, Any>("routing_key" to integrationKeyValue, "event_action" to (if (operationValue == OPEN) "trigger" else operationValue))
+        if (incidentKeyValue.isNotBlank()) event["dedup_key"] = incidentKeyValue
+        if (operationValue == OPEN) {
             event["payload"] = mapOf(
                 "summary" to summaryValue,
                 "source" to "DopplerTask",
@@ -69,7 +69,7 @@ class PagerDutyAction : Action() {
         val base = variableExtractorUtil.extract(baseUrl, execution, scriptLanguage).trimEnd('/')
         val result = JsonApi.call("PagerDuty", "POST", "$base/v2/enqueue", mapOf(), event)
         if (result.statusCode == StatusCode.SUCCESS) {
-            result.outputVariables["dedupKey"] = JsonApi.parsed(result).path("dedup_key").asText()
+            result.outputVariables["incidentKey"] = JsonApi.parsed(result).path("dedup_key").asText()
         }
         return result
     }
@@ -80,10 +80,10 @@ class PagerDutyAction : Action() {
     override val actionInfo: MutableList<PropertyInformation>
         get() {
             val actionInfo = super.actionInfo
-            val opening = mapOf("eventAction" to arrayOf(TRIGGER))
-            actionInfo.add(PropertyInformation("routingKey", "Routing key", PropertyInformationType.STRING, "", "The integration key of an Events API v2 integration on a PagerDuty service.", mutableListOf(), PropertyInformationCategory.CREDENTIAL))
-            actionInfo.add(PropertyInformation("eventAction", "Action", PropertyInformationType.DROPDOWN, TRIGGER, "", listOf(
-                PropertyInformation(TRIGGER, "Open an incident"),
+            val opening = mapOf("operation" to arrayOf(OPEN))
+            actionInfo.add(PropertyInformation("integrationKey", "Integration key", PropertyInformationType.STRING, "", "Shown on an Events API v2 integration of a PagerDuty service.", mutableListOf(), PropertyInformationCategory.CREDENTIAL))
+            actionInfo.add(PropertyInformation("operation", "Action", PropertyInformationType.DROPDOWN, OPEN, "", listOf(
+                PropertyInformation(OPEN, "Open an incident"),
                 PropertyInformation("acknowledge", "Acknowledge an incident"),
                 PropertyInformation("resolve", "Resolve an incident")
             )))
@@ -94,12 +94,12 @@ class PagerDutyAction : Action() {
                 PropertyInformation("warning", "Warning"),
                 PropertyInformation("info", "Info")
             ), PropertyInformationCategory.PROPERTY, opening))
-            actionInfo.add(PropertyInformation("dedupKey", "Incident key", PropertyInformationType.STRING, "", "Opening with the same key does not open a second incident. To acknowledge or resolve, use the key of the incident, which the step that opened it gives as \$lastLog.outputVariables.dedupKey."))
+            actionInfo.add(PropertyInformation("incidentKey", "Incident key", PropertyInformationType.STRING, "", "Opening with the same key does not open a second incident. To acknowledge or resolve, use the key of the incident, which the step that opened it gives as \$lastLog.outputVariables.incidentKey."))
             actionInfo.add(PropertyInformation("baseUrl", "Base URL", PropertyInformationType.STRING, "https://events.pagerduty.com", "Only change this to go through a proxy, or for an account in the EU, which uses https://events.eu.pagerduty.com."))
             return actionInfo
         }
 
     private companion object {
-        const val TRIGGER = "trigger"
+        const val OPEN = "open"
     }
 }

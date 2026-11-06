@@ -90,8 +90,8 @@ class JiraAction : Action() {
             ADD_COMMENT -> JsonApi.call("Jira", "POST", "$site/rest/api/2/issue/$keyValue/comment", headers, mapOf("body" to textValue))
             else -> ActionResult.failure("Jira has no operation called \"$operationValue\".")
         }
-        if (result.statusCode == StatusCode.SUCCESS && operationValue == CREATE_ISSUE) {
-            val key = JsonApi.parsed(result).path("key").asText()
+        if (result.statusCode == StatusCode.SUCCESS) {
+            val key = if (operationValue == CREATE_ISSUE) JsonApi.parsed(result).path("key").asText() else keyValue
             result.outputVariables["issueKey"] = key
             result.outputVariables["url"] = "$site/browse/$key"
         }
