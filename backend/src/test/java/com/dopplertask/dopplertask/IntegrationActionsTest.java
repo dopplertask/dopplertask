@@ -5,6 +5,7 @@ import com.dopplertask.dopplertask.domain.StatusCode;
 import com.dopplertask.dopplertask.domain.TaskExecution;
 import com.dopplertask.dopplertask.domain.action.Action;
 import com.dopplertask.dopplertask.domain.action.integration.chat.SlackAction;
+import com.dopplertask.dopplertask.domain.action.integration.chat.TelegramAction;
 import com.dopplertask.dopplertask.service.TaskServiceImpl;
 import com.dopplertask.dopplertask.service.VariableExtractorUtil;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -132,5 +133,40 @@ public class IntegrationActionsTest {
         slack.setMessage("$parameters.get('text')");
         slack.run(new TaskServiceImpl(), execution, new VariableExtractorUtil(new VelocityEngine()), null);
         Assert.assertEquals("#set($x = 1)$x \"quoted\"", received.path("text").asText());
+    }
+
+    private TelegramAction telegram() {
+        TelegramAction telegram = new TelegramAction();
+        telegram.setBaseUrl(baseUrl);
+        telegram.setToken("123:abc");
+        telegram.setChatId("@alerts");
+        telegram.setMessage("Disk is full");
+        return telegram;
+    }
+
+    @Test
+    public void testTelegramSendsTheMessageAndGivesItsIdSuccess() throws IOException {
+        answerBody = "{\"ok\":true,\"result\":{\"message_id\":42}}";
+        ActionResult result = run(telegram());
+        Assert.assertEquals(StatusCode.SUCCESS, result.getStatusCode());
+        Assert.assertEquals("/bot123:abc/sendMessage", path);
+        Assert.assertEquals("@alerts", received.path("chat_id").asText());
+        Assert.assertEquals("Disk is full", received.path("text").asText());
+        Assert.assertEquals(42L, result.getOutputVariables().get("messageId"));
+    }
+
+    @Test
+    public void testTelegramGivesItsOwnReasonWhenItRefusesFail() throws IOException {
+        answerStatus = 400;
+        answerBody = "{\"ok\":false,\"error_code\":400,\"description\":\"Bad Request: chat not found\"}";
+        Assert.assertEquals("Telegram answered with status 400: Bad Request: chat not found.", run(telegram()).getErrorMsg());
+    }
+
+    @Test
+    public void testTelegramRefusesTooLongAMessageBeforeSendingFail() throws IOException {
+        TelegramAction telegram = telegram();
+        telegram.setMessage("x".repeat(4097));
+        Assert.assertTrue(run(telegram).getErrorMsg().contains("4096"));
+        Assert.assertNull(path);
     }
 }

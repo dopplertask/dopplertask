@@ -308,6 +308,15 @@ Connects to a machine via SSH and executes a command
 
 A status of 400 or above fails the step, with the response body kept as its output, and retries apply as for any other failure. To carry on anyway, set `continueOnFailure` to true. The next step can then read the status from `$lastLog.outputVariables.statusCode`, for example to treat a 404 differently. Any other rule, such as failing on a 3xx, can use failOn with `$result.outputVariables.statusCode`.
 
+#### TelegramAction
+Sends a message to a Telegram chat. The next step can read the id of the message from `$lastLog.outputVariables.messageId`.
+
+##### Variables
+* token: The token that BotFather gives for your bot.
+* chatId: A chat id, or a channel such as `@alerts`.
+* message: Up to 4096 characters.
+* baseUrl: Optional. Only change this to go through a proxy or your own Bot API server.
+
 #### SlackAction
 Sends a message to a Slack channel. The bot needs the `chat:write` permission and has to be a member of the channel. The next step can read the time stamp of the message from `$lastLog.outputVariables.ts`, for example to reply in its thread.
 
