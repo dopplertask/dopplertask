@@ -1,5 +1,6 @@
 package com.dopplertask.dopplertask.service;
 
+import com.dopplertask.dopplertask.Application;
 import com.dopplertask.dopplertask.dao.TaskDao;
 import com.dopplertask.dopplertask.dao.TaskExecutionDao;
 import com.dopplertask.dopplertask.domain.*;
@@ -27,10 +28,15 @@ import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class ExecutionServiceImpl implements ExecutionService {
+    private static final int LONGEST_BROADCAST = 64 * 1024;
+    private static final int BROADCAST_BACKLOG = 1000;
+
 
 
     public static final String CHECKSUM_ALGORITHM = "SHA-256";
@@ -43,6 +49,7 @@ public class ExecutionServiceImpl implements ExecutionService {
     private static final String TRIGGER_PARAMETER_PREFIX = "TRIGGER";
 
     private JmsTemplate jmsTemplate;
+    private JmsTemplate broadcasts;
     private TaskDao taskDao;
     private VariableExtractorUtil variableExtractorUtil;
     private TaskExecutionDao taskExecutionDao;
@@ -51,10 +58,12 @@ public class ExecutionServiceImpl implements ExecutionService {
     @Autowired
     public ExecutionServiceImpl(JmsTemplate jmsTemplate, TaskDao taskDao, VariableExtractorUtil variableExtractorUtil, TaskExecutionDao taskExecutionDao) {
         this.jmsTemplate = jmsTemplate;
+        this.broadcasts = Application.broadcastTemplate(jmsTemplate);
         this.taskDao = taskDao;
         this.variableExtractorUtil = variableExtractorUtil;
         this.taskExecutionDao = taskExecutionDao;
-        this.executor = Executors.newSingleThreadExecutor();
+        // One thread keeps the order. When the broker is full the backlog stays bounded, and new broadcasts are dropped.
+        this.executor = new ThreadPoolExecutor(1, 1, 0, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(BROADCAST_BACKLOG), new ThreadPoolExecutor.DiscardPolicy());
     }
 
     private static String bytesToHex(byte[] hash) {
@@ -432,7 +441,8 @@ public class ExecutionServiceImpl implements ExecutionService {
                 ActionResult actionResult = runAction(taskService, execution, currentAction);
                 recordStep(execution, currentAction, actionResult, System.currentTimeMillis() - actionStart);
 
-                LOG.info("Ran current action: {} with status code: {} and with result: {}", currentAction.getClass().getSimpleName(), actionResult.getStatusCode(), actionResult.getOutput() != null && !actionResult.getOutput().isEmpty() ? actionResult.getOutput() : actionResult.getErrorMsg());
+                // The output stays out of the log: it can be large and hold secrets, and it is stored with the run.
+                LOG.info("Ran current action: {} with status code: {}", currentAction.getClass().getSimpleName(), actionResult.getStatusCode());
                 broadcastResults(execution.getId(), "Ran current action: " + currentAction.getClass().getSimpleName() + " with status code: " + actionResult.getStatusCode(), actionResult.getOutputType());
 
                 // If action did not go well
@@ -504,13 +514,7 @@ public class ExecutionServiceImpl implements ExecutionService {
     }
 
     private void broadcastResults(Long executionId, String output, OutputType outputType) {
-        BroadcastResult result = new BroadcastResult(output, outputType);
-
-        executor.execute(() -> jmsTemplate.convertAndSend("taskexecution_destination", result, message -> {
-            message.setLongProperty("executionId", executionId);
-            message.setBooleanProperty("lastMessage", false);
-            return message;
-        }));
+        broadcast(output, outputType, executionId, false);
     }
 
     private ActionResult runAction(TaskService taskService, TaskExecution execution, Action currentAction) {
@@ -606,10 +610,14 @@ public class ExecutionServiceImpl implements ExecutionService {
     }
 
     private void broadcastResults(TaskExecutionLog taskExecutionLog, boolean lastMessage) {
-        BroadcastResult result = new BroadcastResult(taskExecutionLog.getOutput(), taskExecutionLog.getOutputType());
+        broadcast(taskExecutionLog.getOutput(), taskExecutionLog.getOutputType(), taskExecutionLog.getTaskExecution().getId(), lastMessage);
+    }
 
-        executor.execute(() -> jmsTemplate.convertAndSend("taskexecution_destination", result, message -> {
-            message.setLongProperty("executionId", taskExecutionLog.getTaskExecution().getId());
+    // Broadcasts are a live view, and the whole output is stored with the run, so a long one is cut here.
+    private void broadcast(String output, OutputType outputType, Long executionId, boolean lastMessage) {
+        BroadcastResult result = new BroadcastResult(output != null && output.length() > LONGEST_BROADCAST ? output.substring(0, LONGEST_BROADCAST) : output, outputType);
+        executor.execute(() -> broadcasts.convertAndSend(Application.BROADCAST_QUEUE, result, message -> {
+            message.setLongProperty("executionId", executionId);
             message.setBooleanProperty("lastMessage", lastMessage);
             return message;
         }));
