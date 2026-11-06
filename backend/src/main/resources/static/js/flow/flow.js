@@ -219,6 +219,7 @@ export default function boot() {
   syncRunMode();
   core.syncTaskControls();
   syncParameters();
+  store.loadPerson().catch(() => {});
   store.loadTaskList().then(store.openLastTask).catch((error) => DT.ui.toast(error.message, { tone: 'danger' }));
   renderWires();
   Object.assign(view, fitTarget());
