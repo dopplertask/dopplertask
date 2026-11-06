@@ -1,5 +1,7 @@
 package com.dopplertask.dopplertask.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -17,12 +19,17 @@ import java.util.Base64;
 @Component
 public class ColumnEncryptor implements AttributeConverter<String, String> {
 
+    private static final Logger LOG = LoggerFactory.getLogger(ColumnEncryptor.class);
     private static final String AES = "AES";
+    private static final String PUBLIC_DEFAULT_KEY = "KbPeShVmYq3t6v9y";
 
     private final Key key;
 
     public ColumnEncryptor(@Value("${dopplertask.encryptionKey}") String secret) {
         key = new SecretKeySpec(secret.getBytes(), AES);
+        if (PUBLIC_DEFAULT_KEY.equals(secret)) {
+            LOG.warn("Secrets are encrypted with the public default key. Set DOPPLERTASK_ENCRYPTION_KEY before storing any.");
+        }
     }
 
     @Override
