@@ -318,4 +318,13 @@ public class IntegrationActionsTest {
         answerBody = "{\"message\":\"Not Found\"}";
         Assert.assertEquals("GitHub answered with status 404: Not Found.", run(gitHub()).getErrorMsg());
     }
+
+    @Test
+    public void testAPlainSentenceFromAServiceIsTheReasonButAnErrorPageIsNotFail() throws IOException {
+        answerStatus = 400;
+        answerBody = "Invalid routing key";
+        Assert.assertEquals("PagerDuty answered with status 400: Invalid routing key.", run(pagerDuty()).getErrorMsg());
+        answerBody = "<html><body>Bad gateway</body></html>";
+        Assert.assertEquals("PagerDuty answered with status 400.", run(pagerDuty()).getErrorMsg());
+    }
 }
