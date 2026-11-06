@@ -1,41 +1,16 @@
-import "script-loader!./common/jquery.js";
-import "script-loader!./common/jquery-ui.js";
-import "script-loader!./common/jquery.browser.js";
-import "script-loader!./common/jquery.layout.js";
+import bootEngine from './flow/engine';
+import bootUi from './flow/ui';
+import bootCanvas from './flow/canvas';
+import bootWorkbench from './flow/workbench-core';
+import bootFlow from './flow/flow';
 
-import React from 'react';
-import ReactDOM from 'react-dom';
-
-import MainApp from "./components/MainApp";
-import 'react-tabs/style/react-tabs.css';
-
-import "script-loader!./common/draw2d.js";
-
-import "script-loader!./common/Application.js";
-import "script-loader!./common/HoverConnection.js";
-import "script-loader!./common/Toolbar.js";
-import "script-loader!./common/View.js";
-
-import "script-loader!./common/MyInterceptorPolicy.js";
-
-// Figures
-import "script-loader!./common/StartFigure.js";
-import "script-loader!./common/BetweenFigure.js";
-import "script-loader!./common/IfAction.js";
-import "script-loader!./common/LinkedActionTaskAction.js";
-import "script-loader!./common/SwitchAction.js";
-
-import "script-loader!./common/bootstrap.min.js";
-
-// Code editing tools
-import "script-loader!./common/ace.js";
-import "script-loader!./common/ext_language_tools.js";
-import "script-loader!./common/mode-javascript.js";
-import "script-loader!./common/mode-velocity.js";
-
-import "script-loader!./common/stomp.min.js";
-
-ReactDOM.render(
-    <MainApp/>,
-    document.getElementById('app_container')
-);
+bootEngine().then(() => {
+  /* Tiles are taller and narrower than cards, so they get their own spacing. */
+  window.DT.canvasOptions = { nodeWidth: 176, headHeight: 132, rowHeight: 30, wireLead: 12, topInset: 76, bottomInset: 92, leftInset: 92, rightInset: 20 };
+  bootUi();
+  bootCanvas();
+  bootWorkbench();
+  bootFlow();
+}, (error) => {
+  document.body.textContent = `DopplerTask could not reach its server. ${error.message}`;
+});

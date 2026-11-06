@@ -396,7 +396,9 @@ public class ExecutionServiceImpl implements ExecutionService {
                     execution.setCurrentAction(nextAction);
                 }
 
+                long actionStart = System.currentTimeMillis();
                 ActionResult actionResult = runAction(taskService, execution, currentAction);
+                recordStep(execution, currentAction, actionResult, System.currentTimeMillis() - actionStart);
 
                 LOG.info("Ran current action: {} with status code: {} and with result: {}", currentAction.getClass().getSimpleName(), actionResult.getStatusCode(), actionResult.getOutput() != null && !actionResult.getOutput().isEmpty() ? actionResult.getOutput() : actionResult.getErrorMsg());
                 broadcastResults(execution.getId(), "Ran current action: " + currentAction.getClass().getSimpleName() + " with status code: " + actionResult.getStatusCode(), actionResult.getOutputType());
@@ -424,6 +426,23 @@ public class ExecutionServiceImpl implements ExecutionService {
         execution.setStatus(execution.isSuccess() ? TaskExecutionStatus.FINISHED : TaskExecutionStatus.FAILED);
 
         return execution;
+    }
+
+    private void recordStep(TaskExecution execution, Action action, ActionResult result, long durationMs) {
+        String portId = action.getPorts() == null || action.getPorts().isEmpty() ? null : action.getPorts().get(0).getExternalId();
+        TaskExecutionStep step = new TaskExecutionStep(execution, portId, action.getClass().getSimpleName(), result, durationMs);
+        execution.addStep(step);
+
+        BroadcastResult broadcast = new BroadcastResult(result.getStatusCode() == StatusCode.FAILURE ? result.getErrorMsg() : result.getOutput(), result.getOutputType());
+        executor.execute(() -> jmsTemplate.convertAndSend("taskexecution_destination", broadcast, message -> {
+            message.setLongProperty("executionId", execution.getId());
+            message.setBooleanProperty("lastMessage", false);
+            message.setStringProperty("stepPortId", portId);
+            message.setStringProperty("stepActionType", step.getActionType());
+            message.setStringProperty("stepStatus", result.getStatusCode().name());
+            message.setLongProperty("stepDurationMs", durationMs);
+            return message;
+        }));
     }
 
     private void broadcastResults(Long executionId, String output, OutputType outputType) {

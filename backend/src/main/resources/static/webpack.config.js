@@ -1,68 +1,24 @@
-const path = require("path");
-const webpack = require('webpack');
+const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const CopyPlugin = require('copy-webpack-plugin');
 
 module.exports = {
-    entry: {
-        app: path.join(__dirname, "js", "app.js")
-    },
-    module: {
-        rules: [
-            {
-                test: /\.(js|jsx)$/,
-                exclude: /node_modules/,
-                use: [
-                     "babel-loader"
-                ]
-            },
-            {
-                test: /react\-tabs\.css$/i,
-                use: [
-                    "style-loader",
-                    {
-                        loader: "css-loader",
-                    }
-                ]
-            }
-        ]
-    },
-    resolve: {
-        extensions: ['*', '.js', '.jsx']
-    },
-
+    mode: 'production',
+    entry: { app: path.join(__dirname, 'js', 'app.js') },
     output: {
-        publicPath: "",
+        publicPath: '',
         path: path.join(__dirname, 'public'),
-        filename: '[name].bundle.js'
+        filename: '[name].bundle.js',
+        clean: true,
     },
     plugins: [
-        new webpack.HotModuleReplacementPlugin(),
-        new HtmlWebpackPlugin({
-            template: "./src/index.html",
-            filename: "./index.html"
-        }),
+        new HtmlWebpackPlugin({ template: './src/index.html', filename: 'index.html', scriptLoading: 'defer' }),
         new CopyPlugin({
             patterns: [
-                {from: 'css', to: 'css'},
-                {from: 'webfonts', to: 'webfonts'},
-                {from: 'images', to: 'images'}
-            ]
-        })
+                { from: 'css/flow', to: 'css' },
+                { from: 'js/flow/stomp.min.js', to: 'stomp.min.js' },
+                { from: 'icon.png', to: 'icon.png' },
+            ],
+        }),
     ],
-    optimization: {
-        minimize: true,
-        splitChunks: {
-            chunks: 'all',
-        }
-    },
-    devServer: {
-        hot: true,
-        historyApiFallback: true
-    },
-    externals: {
-        // require("jquery") is external and available
-        //  on the global var jQuery
-        "jquery": "jQuery"
-    }
 };

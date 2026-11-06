@@ -47,6 +47,10 @@ public class TaskExecution {
 
     private boolean success = true;
 
+    @OneToMany(mappedBy = "taskExecution", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    @OrderBy("id")
+    private List<TaskExecutionStep> steps = new ArrayList<>();
+
     // Why the run failed, for the caller waiting on it. The logs hold it permanently.
     @Transient
     private String failureReason;
@@ -93,6 +97,14 @@ public class TaskExecution {
 
     public boolean isSuccess() {
         return success;
+    }
+
+    public List<TaskExecutionStep> getSteps() {
+        return steps;
+    }
+
+    public void addStep(TaskExecutionStep step) {
+        steps.add(step);
     }
 
     public String getFailureReason() {
