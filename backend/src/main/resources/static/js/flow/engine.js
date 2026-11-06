@@ -452,9 +452,11 @@ function createStore() {
 
   const emit = (change) => listeners.forEach((listener) => listener(change));
 
+  const hasUnsavedWork = () => saveState === 'unsaved' && task.nodes.length > 1;
   window.addEventListener('beforeunload', (event) => {
-    if (saveState === 'unsaved' && task.nodes.length > 1) event.preventDefault();
+    if (hasUnsavedWork()) event.preventDefault();
   });
+  const mayLeaveTask = () => !hasUnsavedWork() || window.confirm(`${task.name} has unsaved changes. Leave it and lose them?`);
 
   const setSaveState = (state) => { saveState = state; emit('save'); };
 
@@ -745,6 +747,7 @@ function createStore() {
       return store.save();
     },
     async openVersion(checksum) {
+      if (!mayLeaveTask()) return;
       task = fromBackend(await request(`/task/${checksum}/checksum`));
       localStorage.setItem(LAST_TASK_KEY, task.name);
       savedName = task.name;
@@ -767,6 +770,7 @@ function createStore() {
       await loadTaskList();
     },
     newTask() {
+      if (!mayLeaveTask()) return;
       task = freshTask();
       savedName = null;
       selectedId = null; undoStack = []; redoStack = []; runs = [];
@@ -775,13 +779,16 @@ function createStore() {
       emit('task');
     },
     importTask(serialized) {
-      task = fromBackend(JSON.parse(serialized));
+      const imported = fromBackend(JSON.parse(serialized));
+      if (!mayLeaveTask()) return false;
+      task = imported;
       /* Importing under an existing name is how an exported version is restored. */
       savedName = task.name;
       selectedId = null; undoStack = []; redoStack = []; runs = [];
       runner.clear();
       saveState = 'unsaved';
       emit('task');
+      return true;
     },
     exportTask() { return JSON.stringify(toBackend(task), null, 2); },
 
