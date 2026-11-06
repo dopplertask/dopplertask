@@ -218,6 +218,9 @@ class HttpAction : Action() {
             return actionInfo
         }
 
+    override val outputs: Map<String, String>
+        get() = mapOf("statusCode" to "Status of the answer")
+
     override val description: String
         get() = "Makes an HTTP request and returns the result"
 

@@ -38,7 +38,7 @@ public class McpController {
             + "When changing a task, read it with get_task and keep the externalId of its ports, so that the person sees what you changed. "
             + "Passwords and keys read as ********, and sending that back keeps the real value. "
             + "Settings go directly on the action. Values in settings are written in Velocity: $parameters.get(\"name\") reads a task parameter, $lastLog.output the output of the previous step, "
-            + "and $lastLog.outputVariables.statusCode the status from the HTTP step before. A condition is what goes inside #if( ), such as $lastLog.output.contains(\"ok\"). "
+            + "and $lastLog.outputVariables.name what the step before gives, which get_step_type lists under outputs, such as statusCode for an HTTP step. A condition is what goes inside #if( ), such as $lastLog.output.contains(\"ok\"). "
             + "An HTTP status of 400 or above fails the step: to branch on it, set continueOnFailure to true on that step and read the status in the next one. "
             + "$result is only available in failOn. An unknown variable is empty rather than an error, so read the warnings from propose_task.";
 

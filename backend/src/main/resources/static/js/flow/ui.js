@@ -136,6 +136,7 @@ export default function boot() {
   const variableSuggestions = (store) => [
     ...store.task.parameters.map((parameter) => ({ insert: `$parameters.get("${parameter.name}")`, label: parameter.name, detail: parameter.description || 'Task parameter', group: 'Parameters' })),
     { insert: '$lastLog.output', label: 'Previous output', detail: 'What the step before produced', group: 'From the run' },
+    ...Object.entries(store.selectedNode ? store.outputsBefore(store.selectedNode.id) : {}).map(([name, label]) => ({ insert: `$lastLog.outputVariables.${name}`, label, detail: 'What the step before gives', group: 'From the run' })),
     { insert: '$executionId', label: 'Run ID', detail: 'Unique to this run', group: 'From the run' },
     { insert: '$parameters.get("TRIGGER_body")', label: 'Webhook body', detail: 'Body of the incoming call', group: 'From the trigger' },
   ];

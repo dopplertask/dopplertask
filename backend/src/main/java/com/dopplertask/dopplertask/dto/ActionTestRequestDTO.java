@@ -9,6 +9,7 @@ public class ActionTestRequestDTO {
     private Action action;
     private Map<String, String> parameters = new HashMap<>();
     private String lastOutput = "";
+    private Map<String, Object> lastOutputVariables = new HashMap<>();
 
     public Action getAction() {
         return action;
@@ -28,6 +29,14 @@ public class ActionTestRequestDTO {
 
     public String getLastOutput() {
         return lastOutput;
+    }
+
+    public Map<String, Object> getLastOutputVariables() {
+        return lastOutputVariables;
+    }
+
+    public void setLastOutputVariables(Map<String, Object> lastOutputVariables) {
+        this.lastOutputVariables = lastOutputVariables;
     }
 
     public void setLastOutput(String lastOutput) {

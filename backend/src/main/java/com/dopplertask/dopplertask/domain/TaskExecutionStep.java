@@ -1,5 +1,11 @@
 package com.dopplertask.dopplertask.domain;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import javax.persistence.Column;
@@ -20,6 +26,8 @@ import javax.persistence.Table;
 @Entity
 @Table(name = "TaskExecutionStep")
 public class TaskExecutionStep {
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -47,6 +55,9 @@ public class TaskExecutionStep {
     @Lob
     private String error;
 
+    @Lob
+    private String outputVariables;
+
     @Column
     private long durationMs;
 
@@ -64,6 +75,31 @@ public class TaskExecutionStep {
     }
 
     /**
+     * Keeps only what the step declares, since an HTTP step also gives every response header, such as cookies.
+     */
+    public void keepOutputs(Collection<String> declared, Map<String, Object> given) {
+        Map<String, Object> kept = new HashMap<>(given);
+        kept.keySet().retainAll(declared);
+        try {
+            outputVariables = MAPPER.writeValueAsString(kept);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("The outputs of a step could not be written.", e);
+        }
+    }
+
+    public Map<String, Object> getOutputVariables() {
+        if (outputVariables == null) {
+            return Map.of();
+        }
+        try {
+            return MAPPER.readValue(outputVariables, new TypeReference<>() {
+            });
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("The outputs of a step could not be read.", e);
+        }
+    }
+
+    /**
      * The same result, for a resumed run that did not repeat this step.
      */
     public TaskExecutionStep copyTo(TaskExecution execution) {
@@ -74,6 +110,7 @@ public class TaskExecutionStep {
         copy.status = status;
         copy.output = output;
         copy.error = error;
+        copy.outputVariables = outputVariables;
         copy.durationMs = durationMs;
         return copy;
     }

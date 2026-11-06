@@ -81,6 +81,9 @@ class GitHubAction : Action() {
         return result
     }
 
+    override val outputs: Map<String, String>
+        get() = mapOf("issueNumber" to "Issue number", "url" to "Address")
+
     override val description: String
         get() = "Creates, comments on or closes a GitHub issue"
 

@@ -98,6 +98,9 @@ class JiraAction : Action() {
         return result
     }
 
+    override val outputs: Map<String, String>
+        get() = mapOf("issueKey" to "Issue key", "url" to "Address")
+
     override val description: String
         get() = "Creates or comments on a Jira issue"
 

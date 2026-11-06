@@ -145,15 +145,6 @@ public class ExecutionServiceImpl implements ExecutionService {
             executionStarted.setBroadcasted(true);
             execution.addLog(executionStarted);
 
-            // A resumed step reads the output of the step before it, which this run did not produce.
-            if (execution.getResumePortId() != null && !execution.getSteps().isEmpty()) {
-                TaskExecutionLog previousOutput = new TaskExecutionLog();
-                previousOutput.setTaskExecution(execution);
-                previousOutput.setOutput(execution.getSteps().get(execution.getSteps().size() - 1).getOutput());
-                previousOutput.setBroadcasted(true);
-                execution.addLog(previousOutput);
-            }
-
             taskExecutionDao.save(execution);
 
             LOG.info("Task execution started [taskId={}, executionId={}]", task.getId(), execution.getId());
@@ -400,6 +391,18 @@ public class ExecutionServiceImpl implements ExecutionService {
     }
 
     private TaskExecution executeActions(TaskService taskService, Task task, TaskExecution execution) {
+        // A resumed step reads what the step before it gave, which this run did not produce. This is done here since
+        // the variables of a log are not stored, so they would not survive until the run starts.
+        if (execution.getResumePortId() != null && !execution.getSteps().isEmpty()) {
+            TaskExecutionLog previousOutput = new TaskExecutionLog();
+            previousOutput.setTaskExecution(execution);
+            TaskExecutionStep previousStep = execution.getSteps().get(execution.getSteps().size() - 1);
+            previousOutput.setOutput(previousStep.getOutput());
+            previousOutput.setOutputVariables(previousStep.getOutputVariables());
+            previousOutput.setBroadcasted(true);
+            execution.addLog(previousOutput);
+        }
+
         boolean running = true;
         if (execution.getCurrentAction() != null) {
             while (running && execution.getCurrentAction() != null) {
@@ -485,6 +488,7 @@ public class ExecutionServiceImpl implements ExecutionService {
     private void recordStep(TaskExecution execution, Action action, ActionResult result, long durationMs) {
         String portId = action.getPorts() == null || action.getPorts().isEmpty() ? null : action.getPorts().get(0).getExternalId();
         TaskExecutionStep step = new TaskExecutionStep(execution, portId, action.getClass().getSimpleName(), result, durationMs);
+        step.keepOutputs(action.getOutputs().keySet(), result.getOutputVariables());
         execution.addStep(step);
         liveSteps.computeIfAbsent(execution.getId(), id -> new CopyOnWriteArrayList<>()).add(step);
     }
