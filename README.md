@@ -370,6 +370,15 @@ Reads and writes a value in Redis. A key that does not exist is not a failure, a
 * value: The value to write.
 * expirySeconds: Optional. The key is removed after this time.
 
+#### PostgresAction
+Runs a query on a PostgreSQL database. Rows are given as JSON, such as `[{"id":1,"name":"Ada"}]`, and the number of rows as `$lastLog.outputVariables.rowCount`.
+
+##### Variables
+* hostname, port, database, username, password: Where the database is. The port is 5432 if nothing else is said.
+* useTls: Requires an encrypted connection. The certificate of the server is not verified.
+* command: The query. Write `?` where a value goes.
+* queryValues: One value per line, for each `?`. Use this for text from earlier steps, since it cannot change the query.
+
 #### SlackAction
 Sends a message to a Slack channel. The bot needs the `chat:write` permission and has to be a member of the channel. The next step can read the time stamp of the message from `$lastLog.outputVariables.ts`, for example to reply in its thread.
 
