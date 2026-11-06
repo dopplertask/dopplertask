@@ -634,7 +634,7 @@ function createStore() {
 
     addStep(type, { fromId, port, position } = {}) {
       remember();
-      const node = createNode(`n${uniqueId()}`, type);
+      const node = createNode(`n${uniqueId()}`, type, nameWithNumber(task, ACTIONS[type].label));
       const anchor = fromId || selectedId || lastOnMainPath(task);
       const anchorNode = nodeById(task, anchor);
       const anchorPort = port || (portsOf(anchorNode).find((candidate) => !edgeFrom(task, anchor, candidate.id)) || portsOf(anchorNode)[0]).id;
@@ -678,7 +678,7 @@ function createStore() {
       const source = nodeById(task, nodeId);
       if (!source || source.type === 'start') return null;
       remember();
-      const copy = { ...clone(source), id: `n${uniqueId()}`, name: `${source.name} copy`, position: { x: source.position.x + 28, y: source.position.y + 96 } };
+      const copy = { ...clone(source), id: `n${uniqueId()}`, name: nameWithNumber(task, source.name.replace(/ \d+$/, '')), position: { x: source.position.x + 28, y: source.position.y + 96 } };
       task.nodes.push(copy);
       selectedId = copy.id;
       changed('structure');
@@ -788,6 +788,15 @@ function createStore() {
     },
   };
   return store;
+}
+
+/* Run command, Run command 2: a failure or a line in the history must point at one step. */
+function nameWithNumber(task, baseName) {
+  const names = new Set(task.nodes.map((node) => node.name));
+  if (!names.has(baseName)) return baseName;
+  let number = 2;
+  while (names.has(`${baseName} ${number}`)) number += 1;
+  return `${baseName} ${number}`;
 }
 
 function lastOnMainPath(task) {
