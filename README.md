@@ -475,6 +475,13 @@ Starts the flow at an interval, while the task has `"active": true`. A trigger i
 * When a queue trigger starts a task, the message can be accessed using `$parameters.get("TRIGGER_Message")`.
 * When a webhook is called from an HTTP call, the headers can be accessed using the following syntax: $parameters.get("TRIGGER_*headername*"). Example: $parameters.get("TRIGGER_authorization"). The body of the request can be accessed using $parameters.get("TRIGGER_body").
 
+## Let an agent build tasks
+DopplerTask speaks the Model Context Protocol on `/mcp`, so an agent can list step types, propose tasks, run approved tasks and read the results. Start the server with `DOPPLERTASK_PERSON_TOKEN` and `DOPPLERTASK_AGENT_TOKEN`, and connect the agent with the agent token. For Claude Code:
+
+```claude mcp add --transport http dopplertask http://localhost:8090/mcp --header "Authorization: Bearer your-agent-token"```
+
+What an agent saves appears in the editor as a proposal. Nothing runs until you have approved it, and you see what changed before you do.
+
 ## Upgrading
 Existing tasks, versions and webhook addresses keep working, and the database is updated when the new version starts. A few things behave differently since version 0.14.7:
 

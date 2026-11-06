@@ -43,6 +43,13 @@ public class AgentSecrets implements ResponseBodyAdvice<Object> {
         if (body == null || !(request instanceof ServletServerHttpRequest servletRequest) || AccessFilter.callerOf(servletRequest.getServletRequest()) != Caller.AGENT) {
             return body;
         }
+        return masked(body);
+    }
+
+    /**
+     * The same content with its secrets replaced by the mask.
+     */
+    public JsonNode masked(Object body) {
         JsonNode masked = mapper.valueToTree(body);
         mask(masked);
         return masked;
