@@ -65,7 +65,7 @@ public class McpController {
     @PostMapping("/mcp")
     public ResponseEntity<JsonNode> handle(@RequestBody JsonNode message, HttpServletRequest request) {
         if (AccessFilter.callerOf(request) != Caller.AGENT) {
-            ObjectNode refusal = mapper.createObjectNode().put("message", "This endpoint is for agents. Set DOPPLERTASK_PERSON_TOKEN and DOPPLERTASK_AGENT_TOKEN, and connect with the agent token.");
+            ObjectNode refusal = mapper.createObjectNode().put("message", "This endpoint is for agents. Connect with the agent token, set with DOPPLERTASK_AGENT_TOKEN.");
             return new ResponseEntity<>(refusal, HttpStatus.FORBIDDEN);
         }
         // A notification has no id and expects no answer.

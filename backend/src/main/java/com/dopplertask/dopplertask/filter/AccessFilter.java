@@ -24,6 +24,7 @@ public class AccessFilter extends OncePerRequestFilter {
 
     private static final Pattern OPEN_PATHS = Pattern.compile("^(/|/public/.*|/webhook/.*)$");
     private static final String BEARER = "Bearer ";
+    private static final String AGENT_ENDPOINT = "/mcp";
 
     // Everything an agent may do. Anything else, such as deleting or running a single action, is for a person.
     private static final List<Pattern> AGENT_REQUESTS = List.of(
@@ -44,7 +45,7 @@ public class AccessFilter extends OncePerRequestFilter {
     }
 
     /**
-     * Who made this request. Without tokens it is always a person.
+     * Who made this request. Without tokens it is a person, except on the agent endpoint.
      */
     public static Caller callerOf(HttpServletRequest request) {
         return request.getAttribute(Caller.REQUEST_ATTRIBUTE) == Caller.AGENT ? Caller.AGENT : Caller.PERSON;
@@ -53,6 +54,10 @@ public class AccessFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain) throws ServletException, IOException {
         if (personToken.isEmpty() || OPEN_PATHS.matcher(request.getRequestURI()).matches()) {
+            // Trying an agent should need no setup, and what it does is still only a proposal.
+            if (AGENT_ENDPOINT.equals(request.getRequestURI())) {
+                request.setAttribute(Caller.REQUEST_ATTRIBUTE, Caller.AGENT);
+            }
             chain.doFilter(request, response);
             return;
         }

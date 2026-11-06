@@ -476,9 +476,11 @@ Starts the flow at an interval, while the task has `"active": true`. A trigger i
 * When a webhook is called from an HTTP call, the headers can be accessed using the following syntax: $parameters.get("TRIGGER_*headername*"). Example: $parameters.get("TRIGGER_authorization"). The body of the request can be accessed using $parameters.get("TRIGGER_body").
 
 ## Let an agent build tasks
-DopplerTask speaks the Model Context Protocol on `/mcp`, so an agent can list step types, propose tasks, run approved tasks and read the results. Start the server with `DOPPLERTASK_PERSON_TOKEN` and `DOPPLERTASK_AGENT_TOKEN`, and connect the agent with the agent token. For Claude Code:
+DopplerTask speaks the Model Context Protocol on `/mcp`, so an agent can list step types, propose tasks, run approved tasks and read the results. It needs no setup. For Claude Code:
 
-```claude mcp add --transport http dopplertask http://localhost:8090/mcp --header "Authorization: Bearer your-agent-token"```
+```claude mcp add --transport http dopplertask http://localhost:8090/mcp```
+
+If the server has tokens, add `--header "Authorization: Bearer your-agent-token"`.
 
 What an agent saves appears in the editor as a proposal. Nothing runs until you have approved it, and you see what changed before you do.
 
