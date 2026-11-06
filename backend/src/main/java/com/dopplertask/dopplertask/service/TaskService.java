@@ -58,6 +58,11 @@ public interface TaskService {
 
     List<TaskExecution> getExecutions();
 
+    /**
+     * The latest runs of one task, newest first, across all its versions.
+     */
+    List<TaskExecution> getExecutions(String taskName, int limit);
+
     Task getTask(long id);
 
     boolean loginUser(String username, String password);

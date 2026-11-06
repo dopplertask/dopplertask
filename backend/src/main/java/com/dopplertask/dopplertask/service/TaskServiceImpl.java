@@ -17,6 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.jms.annotation.JmsListener;
 import org.springframework.jms.core.JmsTemplate;
 import org.springframework.stereotype.Service;
@@ -253,6 +254,12 @@ public class TaskServiceImpl implements TaskService {
     @Override
     public List<TaskExecution> getExecutions() {
         return taskExecutionDao.findAllByTaskNotNull();
+    }
+
+    @Override
+    @Transactional
+    public List<TaskExecution> getExecutions(String taskName, int limit) {
+        return taskExecutionDao.findByTask_NameOrderByIdDesc(taskName, PageRequest.of(0, limit));
     }
 
     @Override

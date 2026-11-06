@@ -43,6 +43,7 @@ const SECRET_FIELDS = ['password', 'apiKey', 'apiToken', 'token'];
 const AUTO_SAVE_DELAY_MS = 30000;
 const AUTO_SAVE_KEY = 'autoSave';
 const LAST_TASK_KEY = 'lastTask';
+const RUNS_SHOWN = 100;
 
 const ACTIONS = {};
 const FAILURE_FIELDS = [];
@@ -489,8 +490,9 @@ function createStore() {
   });
 
   const loadRuns = async () => {
-    const { executions } = await request('/executions');
-    runs = executions.filter((execution) => execution.taskName === task.name && execution.startDate).map(runListItem).sort((first, second) => second.startedAt - first.startedAt);
+    /* A schedule can leave many thousands of runs, and only the latest of this task are shown. */
+    const { executions } = await request(`/executions?taskName=${encodeURIComponent(task.name)}&limit=${RUNS_SHOWN}`);
+    runs = executions.filter((execution) => execution.startDate).map(runListItem);
     /* The latest run supplies the values shown in the step panel, also after a reload. */
     if (runs[0]) applyExecution(runs[0], await request(`/execution/${runs[0].id}`));
     emit('run');
