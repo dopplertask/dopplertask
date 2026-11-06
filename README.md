@@ -486,11 +486,12 @@ Existing tasks, versions and webhook addresses keep working, and the database is
 ## Security
 DopplerTask runs commands on the machine it is installed on, so treat access to it as access to that machine.
 
-* **There is no login.** Anyone who can reach port 8090 can create and run tasks, so only run it on a machine or network you trust, or behind a proxy that requires a login.
+* **Protect access with tokens.** Without them anyone who can reach port 8090 can create and run tasks. Set `DOPPLERTASK_PERSON_TOKEN` to require a token everywhere except webhooks, which have their own authentication. The editor asks for it, and the command line tool reads `DOPPLERTASK_TOKEN`.
+* **Give agents their own token,** with `DOPPLERTASK_AGENT_TOKEN`. An agent can read tasks and results and save tasks, but cannot delete anything or run a single action.
 * **Web pages on other sites are refused,** unless they are listed in `dopplertask.allowedOrigins`.
 * **Secrets are encrypted in the database, but the API returns them readable,** and an exported task contains them in clear text.
 * **Set your own encryption key before storing secrets,** with the environment variable `DOPPLERTASK_ENCRYPTION_KEY` (16, 24 or 32 characters). The default key is public, since it is in this repository. Changing the key later makes secrets that are already stored unreadable, and a task with such a secret fails with an error when it runs.
-* **Port 61614 uses the default password of the message broker,** and any web page can reach it. It lets a page read the output of runs and start tasks. Only the older command line tool needs this port, so do not publish it unless you use that tool.
+* **Port 61614 uses the default password of the message broker,** and any web page can reach it. It lets a page read the output of runs and start tasks. It is turned off when a person token is set. Only the older command line tool needs this port, so do not publish it unless you use that tool.
 
 ## Contribution
 If you would like to contribute to this project, you can create pull requests, open issues and features and join discussions.

@@ -2,6 +2,7 @@ package com.dopplertask.dopplertask;
 
 import org.apache.activemq.broker.BrokerService;
 import org.apache.velocity.app.VelocityEngine;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.jms.DefaultJmsListenerContainerFactoryConfigurer;
@@ -24,12 +25,15 @@ public class Application {
     }
 
     @Bean
-    public BrokerService broker() throws Exception {
+    public BrokerService broker(@Value("${dopplertask.personToken:}") String personToken) throws Exception {
         final BrokerService broker = new BrokerService();
         broker.addConnector("tcp://localhost:61616");
         broker.addConnector("vm://localhost");
         broker.addConnector("stomp://localhost:61613");
-        broker.addConnector("ws://0.0.0.0:61614");
+        // Any web page can reach this socket and it has no real login, so it stays off once access is protected.
+        if (personToken.isEmpty()) {
+            broker.addConnector("ws://0.0.0.0:61614");
+        }
         broker.setPersistent(false);
         return broker;
     }

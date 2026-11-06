@@ -12,5 +12,20 @@ bootEngine().then(() => {
   bootWorkbench();
   bootFlow();
 }, (error) => {
-  document.body.textContent = `DopplerTask could not reach its server. ${error.message}`;
+  if (error.status === 401) askForToken();
+  else document.body.textContent = `DopplerTask could not reach its server. ${error.message}`;
 });
+
+function askForToken() {
+  document.body.innerHTML = `<form class="sign-in">
+    <h1>DopplerTask</h1>
+    <label class="ui-label" for="accessToken">Access token</label>
+    <input class="ui-input" id="accessToken" type="password" autocomplete="current-password" autofocus>
+    <button type="submit" class="ui-button is-primary">Open</button>
+  </form>`;
+  document.querySelector('form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    sessionStorage.setItem('accessToken', document.getElementById('accessToken').value);
+    window.location.reload();
+  });
+}
