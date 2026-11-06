@@ -12,6 +12,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -31,6 +32,8 @@ public class RunResultTest {
         save("run_ok", "[]", false, "");
         run("run_ok", "{}").andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("FINISHED"))
+                .andExpect(jsonPath("$.executionId").isNumber())
+                .andExpect(jsonPath("$.logs", hasItem("hi")))
                 .andExpect(jsonPath("$.error").doesNotExist());
     }
 
@@ -56,19 +59,23 @@ public class RunResultTest {
     }
 
     @Test
-    public void testWrongWebhookSuffixReportsNotFoundFail() throws Exception {
+    public void testWrongWebhookSuffixHidesDetailsFail() throws Exception {
         save("run_hook", "[]", true, "");
-        this.mockMvc.perform(post("/webhook/run_hook/Webhook/wrong"))
-                .andExpect(jsonPath("$.status").value("FAILED"))
-                .andExpect(jsonPath("$.error", containsString("not found")));
+        assertWebhookFailsWithoutDetails("/webhook/run_hook/Webhook/wrong");
     }
 
     @Test
-    public void testInactiveWebhookReportsWhyFail() throws Exception {
+    public void testInactiveWebhookHidesDetailsFail() throws Exception {
         save("run_inactive", "[]", false, "");
-        this.mockMvc.perform(post("/webhook/run_inactive/Webhook/right"))
+        assertWebhookFailsWithoutDetails("/webhook/run_inactive/Webhook/right");
+    }
+
+    private void assertWebhookFailsWithoutDetails(String url) throws Exception {
+        this.mockMvc.perform(post(url))
                 .andExpect(jsonPath("$.status").value("FAILED"))
-                .andExpect(jsonPath("$.error", containsString("not active")));
+                .andExpect(jsonPath("$.executionId").isNumber())
+                .andExpect(jsonPath("$.error").doesNotExist())
+                .andExpect(jsonPath("$.logs").doesNotExist());
     }
 
     private void save(String name, String parameters, boolean active, String failOn) throws Exception {
