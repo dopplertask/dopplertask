@@ -30,6 +30,13 @@ export default function boot() {
   /* ---------- View transform ---------- */
 
   function applyView() {
+    /* On a short window Start moves up, so that the whole first-step card stays on screen. */
+    if (!elements.emptyCard.hidden) {
+      const start = DT.rootNode(store.task).position;
+      const cardBottom = view.y + (start.y + HEAD_HEIGHT) * view.zoom + 24 + elements.emptyCard.offsetHeight;
+      const overflow = cardBottom - (elements.stage.clientHeight - options.bottomInset);
+      if (overflow > 0) view.y -= Math.min(overflow, Math.max(0, view.y + start.y * view.zoom - options.topInset));
+    }
     elements.world.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.zoom})`;
     const size = 22 * view.zoom;
     elements.stage.style.backgroundSize = `${size}px ${size}px`;
