@@ -30,7 +30,7 @@ public class AccessFilter extends OncePerRequestFilter {
             Pattern.compile("^GET /(task|task/actions|task/grouped|executions)$"),
             Pattern.compile("^GET /task/[^/]+/(taskname|checksum)$"),
             Pattern.compile("^GET /execution/\\d+$"),
-            Pattern.compile("^POST /(task|schedule/task|schedule/directtask)$"));
+            Pattern.compile("^POST /(task|schedule/task|schedule/directtask|mcp)$"));
 
     private final String personToken;
     private final String agentToken;
