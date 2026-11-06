@@ -5,6 +5,10 @@ const CATEGORIES = [
   { id: 'connection', label: 'Connections' },
   { id: 'system', label: 'This machine' },
   { id: 'browser', label: 'Browser' },
+  { id: 'messages', label: 'Messages and alerts' },
+  { id: 'work', label: 'Work and tickets' },
+  { id: 'documents', label: 'Documents and tables' },
+  { id: 'ai', label: 'AI' },
   { id: 'integration', label: 'Integrations' },
 ];
 
@@ -29,18 +33,28 @@ const PRESENTATION = {
   WriteFileAction: ['writeFile', 'Write file', 'system', 'filePen', ['filename']],
   BrowseWebAction: ['browseWeb', 'Browse the web', 'browser', 'appWindow', ['url']],
   MouseAction: ['mouse', 'Use the mouse', 'browser', 'pointer'],
-  OpenAIAction: ['openAI', 'OpenAI', 'integration', 'sparkles', ['model', 'userInput']],
+  OpenAIAction: ['openAI', 'OpenAI', 'ai', 'sparkles', ['model', 'userInput']],
   JenkinsAction: ['jenkins', 'Jenkins', 'integration', 'wrench', ['jenkinsUrl']],
-  TelegramAction: ['telegram', 'Telegram', 'integration', 'send', ['token', 'chat', 'message']],
-  DiscordAction: ['discord', 'Discord', 'integration', 'message', ['webhookUrl', 'message']],
-  PagerDutyAction: ['pagerduty', 'PagerDuty', 'integration', 'alert', ['integrationKey', 'summary', 'incidentKey']],
-  GitHubAction: ['github', 'GitHub', 'integration', 'code', ['token', 'repository', 'issueNumber', 'title', 'comment']],
-  JiraAction: ['jira', 'Jira', 'integration', 'tags', ['siteUrl', 'token', 'project', 'summary', 'issueKey', 'comment']],
+  TelegramAction: ['telegram', 'Telegram', 'messages', 'send', ['token', 'chat', 'message']],
+  DiscordAction: ['discord', 'Discord', 'messages', 'message', ['webhookUrl', 'message']],
+  PagerDutyAction: ['pagerduty', 'PagerDuty', 'messages', 'alert', ['integrationKey', 'summary', 'incidentKey']],
+  GitHubAction: ['github', 'GitHub', 'work', 'code', ['token', 'repository', 'issueNumber', 'title', 'comment']],
+  JiraAction: ['jira', 'Jira', 'work', 'tags', ['siteUrl', 'token', 'project', 'summary', 'issueKey', 'comment']],
   RedisAction: ['redis', 'Redis', 'connection', 'database', ['hostname', 'key']],
   PostgresAction: ['postgres', 'Postgres', 'connection', 'database', ['hostname', 'database', 'command']],
-  EmailAction: ['email', 'Email', 'integration', 'send', ['hostname', 'from', 'to', 'subject', 'message']],
-  S3Action: ['s3', 'S3', 'integration', 'folder', ['accessKeyId', 'secretAccessKey', 'bucket', 'key']],
-  SlackAction: ['slack', 'Slack', 'integration', 'message', ['token', 'channel', 'message']],
+  EmailAction: ['email', 'Email', 'messages', 'send', ['hostname', 'from', 'to', 'subject', 'message']],
+  S3Action: ['s3', 'S3', 'documents', 'folder', ['accessKeyId', 'secretAccessKey', 'bucket', 'key']],
+  TeamsAction: ['teams', 'Microsoft Teams', 'messages', 'message', ['webhookUrl', 'message']],
+  MattermostAction: ['mattermost', 'Mattermost', 'messages', 'message', ['siteUrl', 'token', 'channelId', 'message']],
+  TwilioAction: ['twilio', 'SMS (Twilio)', 'messages', 'send', ['accountSid', 'token', 'sender', 'to', 'message']],
+  GitLabAction: ['gitlab', 'GitLab', 'work', 'code', ['token', 'project', 'issueNumber', 'title', 'comment']],
+  LinearAction: ['linear', 'Linear', 'work', 'tags', ['token', 'team', 'title', 'issueKey', 'comment']],
+  ZendeskAction: ['zendesk', 'Zendesk', 'work', 'tags', ['siteUrl', 'email', 'token', 'ticketNumber', 'subject', 'ticketDescription', 'comment']],
+  NotionAction: ['notion', 'Notion', 'documents', 'fileText', ['token', 'page', 'title', 'addedText']],
+  GoogleSheetsAction: ['googleSheets', 'Google Sheets', 'documents', 'database', ['serviceAccountKey', 'spreadsheet', 'rowValues']],
+  ClaudeAction: ['claude', 'Claude', 'ai', 'sparkles', ['apiKey', 'userInput']],
+  ReadEmailAction: ['readEmail', 'Read email', 'messages', 'download', ['hostname', 'username']],
+  SlackAction: ['slack', 'Slack', 'messages', 'message', ['token', 'channel', 'message']],
   /* Without these a trigger stops at once, and nothing but the server log says so. */
   IntervalTrigger: ['IntervalTrigger', 'Schedule', 'logic', 'clock', ['time']],
   ActiveMQTrigger: ['ActiveMQTrigger', 'Queue', 'logic', 'server', ['url', 'queue']],
@@ -52,7 +66,7 @@ const TRIGGER_KINDS = Object.fromEntries(Object.entries(TRIGGER_ACTIONS).map(([k
 const TRIGGER_DEFAULTS = { webhook: { method: 'POST', authentication: 'none' }, interval: { time: '1', timeUnit: 'MINUTES' }, activemq: {} };
 const STEP_ACTION_NAME = 'actionName';
 const FAILURE_FIELD_NAMES = ['continueOnFailure', 'retries', 'retryWait', 'failOn'];
-const SECRET_FIELDS = ['password', 'apiKey', 'apiToken', 'token', 'webhookUrl', 'integrationKey', 'secretAccessKey'];
+const SECRET_FIELDS = ['password', 'apiKey', 'apiToken', 'token', 'webhookUrl', 'integrationKey', 'secretAccessKey', 'serviceAccountKey'];
 const AUTO_SAVE_DELAY_MS = 30000;
 const AUTO_SAVE_KEY = 'autoSave';
 const LAST_TASK_KEY = 'lastTask';
@@ -254,6 +268,16 @@ function describeNode(node) {
     case 'postgres': return ['On ', value(config.database && `${config.database}@${config.hostname}`, 'a database'), ' run ', value(inlineVariables(config.command), 'a query')];
     case 'email': return ['Send ', value(inlineVariables(config.subject), 'an email'), ' to ', value(inlineVariables(config.to), 'someone')];
     case 's3': return [config.operation === 'write' ? 'Write ' : config.operation === 'delete' ? 'Delete ' : 'Read ', value(inlineVariables(config.key), 'a file'), ' in ', value(config.bucket, 'a bucket')];
+    case 'teams': return ['Send ', value(inlineVariables(config.message), 'a message'), ' to Teams'];
+    case 'mattermost': return ['Send ', value(inlineVariables(config.message), 'a message'), ' to Mattermost'];
+    case 'twilio': return ['Send SMS to ', value(inlineVariables(config.to), 'a number')];
+    case 'gitlab': return config.operation === 'addComment' ? ['Comment on ', value(config.project, 'a project'), ' #', value(inlineVariables(config.issueNumber), '?')] : config.operation === 'closeIssue' ? ['Close ', value(config.project, 'a project'), ' #', value(inlineVariables(config.issueNumber), '?')] : ['Create ', value(inlineVariables(config.title), 'an issue'), ' in ', value(config.project, 'a project')];
+    case 'linear': return config.operation === 'addComment' ? ['Comment on ', value(inlineVariables(config.issueKey), 'an issue')] : ['Create ', value(inlineVariables(config.title), 'an issue'), ' in ', value(config.team, 'a team')];
+    case 'zendesk': return config.operation === 'addComment' ? ['Comment on ticket ', value(inlineVariables(config.ticketNumber), '?')] : config.operation === 'solveTicket' ? ['Solve ticket ', value(inlineVariables(config.ticketNumber), '?')] : ['Create ', value(inlineVariables(config.subject), 'a ticket')];
+    case 'notion': return config.operation === 'addText' ? ['Add text to a page'] : ['Create ', value(inlineVariables(config.title), 'a page')];
+    case 'googleSheets': return config.operation === 'addRow' ? ['Add a row to ', value(config.sheet, 'a sheet')] : ['Read the rows of ', value(config.sheet, 'a sheet')];
+    case 'claude': return ['Ask Claude: ', value(inlineVariables(config.userInput), 'no prompt yet')];
+    case 'readEmail': return ['Read ', value(config.folder, 'INBOX'), config.onlyUnread === false ? '' : ' (unread)'];
     case 'slack': return ['Send ', value(inlineVariables(config.message), 'a message'), ' to ', value(config.channel, 'a channel')];
     case 'openAI': return ['Ask ', { value: config.model || 'OpenAI' }, ' ', value(readableExpression(config.userInput), 'a prompt')];
     case 'jenkins': return [{ value: config.operation || 'Call' }, ' on Jenkins'];
