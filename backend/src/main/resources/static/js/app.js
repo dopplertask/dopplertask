@@ -1,7 +1,7 @@
 import bootEngine from './flow/engine';
 import bootUi from './flow/ui';
 import bootCanvas from './flow/canvas';
-import bootWorkbench from './flow/workbench-core';
+import bootWorkbench from './flow/workbench';
 import bootFlow from './flow/flow';
 
 bootEngine().then(() => {
