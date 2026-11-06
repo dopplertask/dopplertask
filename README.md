@@ -469,6 +469,7 @@ Starts the flow at an interval, while the task has `"active": true`. A trigger i
 * $parameters.get("paramname") / parameters.get("paramname"): Retrieves a stored parameter value. All Task paramters are stored here. You can also get the byte array of the parameter by adding .getParamValue() to the end of the statement.
 * $logs / logs: A list of all task action logs. Can be traversed to look up specific values.
 * $executionId / executionId: It's the ID of the current execution.
+* When a queue trigger starts a task, the message can be accessed using `$parameters.get("TRIGGER_Message")`.
 * When a webhook is called from an HTTP call, the headers can be accessed using the following syntax: $parameters.get("TRIGGER_*headername*"). Example: $parameters.get("TRIGGER_authorization"). The body of the request can be accessed using $parameters.get("TRIGGER_body").
 
 ## Contribution

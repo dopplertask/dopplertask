@@ -118,13 +118,19 @@ export default function boot() {
     return { parameters: { ...store.defaults, ...run?.parameters }, lastOutput: '', executionId: run?.id || '' };
   }
 
+  /* What each trigger hands to the task, as parameters named by the backend. */
+  const TRIGGER_DATA = {
+    webhook: [['Request body', 'TRIGGER_body']],
+    activemq: [['Queue message', 'TRIGGER_Message']],
+  };
+
   function dataRows(node) {
     const values = variablesBefore(node.id);
     const rows = store.task.parameters.map((parameter) => ({ label: parameter.name, insert: `$parameters.get("${parameter.name}")`, value: values.parameters[parameter.name] ?? parameter.defaultValue }));
     store.task.nodes.filter((candidate) => candidate.type === 'setVariable').flatMap((candidate) => candidate.config.setVariableList || []).forEach((variable) => { if (variable.name) rows.push({ label: variable.name, insert: `$parameters.get("${variable.name}")`, value: values.parameters[variable.name] ?? '' }); });
+    TRIGGER_DATA[rootNode(store.task).config.trigger]?.forEach(([label, name]) => rows.push({ label, insert: `$parameters.get("${name}")`, value: 'Set by the trigger' }));
     if (rootNode(store.task).id !== node.id) rows.push({ label: 'Previous output', insert: '$lastLog.output', value: values.lastOutput });
     rows.push({ label: 'Run ID', insert: '$executionId', value: values.executionId });
-    if (rootNode(store.task).config.trigger === 'webhook') rows.push({ label: 'Webhook body', insert: '$parameters.get("TRIGGER_body")', value: '' });
     return rows;
   }
 
