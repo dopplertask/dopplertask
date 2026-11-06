@@ -335,6 +335,18 @@ Opens, acknowledges or resolves an incident through the Events API v2. The next 
 * dedupKey: Optional when opening, and then the same key does not open a second incident. Required to acknowledge or resolve.
 * baseUrl: Optional. An account in the EU uses `https://events.eu.pagerduty.com`.
 
+#### GitHubAction
+Creates, comments on or closes an issue. The next step can read `$lastLog.outputVariables.url`, and also `issueNumber` after creating or closing.
+
+##### Variables
+* token: A personal access token, with permission to write issues in the repository.
+* repository: Written as `owner/name`.
+* operation: `createIssue`, `addComment` or `closeIssue`.
+* issueNumber: Required to comment or close.
+* title: Required to create.
+* text: The description of the issue, or the comment. Required to comment.
+* baseUrl: Optional. GitHub Enterprise uses `https://your-host/api/v3`.
+
 #### SlackAction
 Sends a message to a Slack channel. The bot needs the `chat:write` permission and has to be a member of the channel. The next step can read the time stamp of the message from `$lastLog.outputVariables.ts`, for example to reply in its thread.
 
