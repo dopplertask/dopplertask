@@ -58,7 +58,7 @@ object JsonApi {
             val sentence = body.orEmpty().trim()
             return if (sentence.length <= LONGEST_SENTENCE && !sentence.startsWith("<")) sentence else ""
         }
-        listOf("message", "description", "error", "error_description").forEach { field ->
+        listOf("message", "description", "error_description", "error").forEach { field ->
             if (answer.path(field).isTextual) return answer.path(field).asText()
         }
         if (answer.path("error").path("message").isTextual) return answer.path("error").path("message").asText()

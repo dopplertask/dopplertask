@@ -98,7 +98,11 @@ class S3Action : Action() {
             val reason = REASON.find(result.output)?.groupValues?.get(1)
             result.errorMsg = "S3 answered with status ${result.outputVariables["statusCode"]}" + (if (reason == null) "." else ": ${reason.trimEnd('.')}.")
         }
-        if (result.statusCode == StatusCode.SUCCESS) result.outputVariables["url"] = base + path
+        if (result.statusCode == StatusCode.SUCCESS) {
+            result.outputVariables["url"] = base + path
+            // Only reading answers with something, and a person should still see what happened.
+            if (operationValue != READ) result.output = (if (operationValue == WRITE) "Wrote " else "Deleted ") + "$keyValue in $bucketValue."
+        }
         return result
     }
 
@@ -106,7 +110,7 @@ class S3Action : Action() {
         get() = mapOf("url" to "Address")
 
     override val description: String
-        get() = "Reads, writes or deletes a text file in S3 or a service that works like it"
+        get() = "Reads, writes or deletes a text file in S3"
 
     override val actionInfo: MutableList<PropertyInformation>
         get() {

@@ -137,12 +137,12 @@ class GoogleSheetsAction : Action() {
         get() = mapOf("rowCount" to "Number of rows")
 
     override val description: String
-        get() = "Reads rows from a Google Sheets spreadsheet, or adds one"
+        get() = "Reads or adds rows in Google Sheets"
 
     override val actionInfo: MutableList<PropertyInformation>
         get() {
             val actionInfo = super.actionInfo
-            actionInfo.add(PropertyInformation("serviceAccountKey", "Service account key", PropertyInformationType.MULTILINE, "", "The JSON file that Google Cloud gives for a service account. Share the spreadsheet with the email of that account.", mutableListOf(), PropertyInformationCategory.CREDENTIAL))
+            actionInfo.add(PropertyInformation("serviceAccountKey", "Service account key", PropertyInformationType.STRING, "", "The JSON file that Google Cloud gives for a service account. Share the spreadsheet with the email of that account.", mutableListOf(), PropertyInformationCategory.CREDENTIAL))
             actionInfo.add(PropertyInformation("spreadsheet", "Spreadsheet", PropertyInformationType.STRING, "", "The address or the id."))
             actionInfo.add(PropertyInformation("sheet", "Sheet", PropertyInformationType.STRING, "Sheet1", "The name of the tab."))
             actionInfo.add(PropertyInformation("operation", "Action", PropertyInformationType.DROPDOWN, READ_ROWS, "", listOf(

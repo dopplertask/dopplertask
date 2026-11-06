@@ -51,7 +51,10 @@ class TeamsAction : Action() {
             "body" to listOf(mapOf("type" to "TextBlock", "text" to messageValue, "wrap" to true))
         )
         val post = mapOf("type" to "message", "attachments" to listOf(mapOf("contentType" to "application/vnd.microsoft.card.adaptive", "content" to card)))
-        return JsonApi.withoutSecret(JsonApi.call("Teams", "POST", webhookValue, mapOf(), post), webhookValue)
+        val result = JsonApi.withoutSecret(JsonApi.call("Teams", "POST", webhookValue, mapOf(), post), webhookValue)
+        // Teams answers with nothing, and a person should still see what happened.
+        if (result.statusCode == StatusCode.SUCCESS) result.output = "Sent to Teams."
+        return result
     }
 
     override val description: String
