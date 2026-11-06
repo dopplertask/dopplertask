@@ -76,6 +76,8 @@ export default function boot() {
     closeActivePopover?.();
     const element = document.createElement('div');
     element.className = `ui-popover ${className}`;
+    element.setAttribute('role', 'dialog');
+    element.setAttribute('aria-label', anchor.getAttribute('aria-label') || anchor.title || 'Menu');
     element.innerHTML = html;
     document.body.append(element);
     const anchorBox = anchor.getBoundingClientRect();
