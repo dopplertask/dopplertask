@@ -63,7 +63,7 @@ class XMLAction : Action() {
             actionInfo.add(PropertyInformation("content", "Content", PropertyInformationType.MULTILINE))
             actionInfo.add(
                 PropertyInformation(
-                    "type", "Mode", PropertyInformationType.DROPDOWN, "JSON_TO_XML", "Convert from and to XML", listOf(
+                    "type", "Mode", PropertyInformationType.DROPDOWN, "JSON_TO_XML", "Which way to convert.", listOf(
                         PropertyInformation("JSON_TO_XML", "JSON to XML"),
                         PropertyInformation("XML_TO_JSON", "XML to JSON")
                     )

@@ -209,7 +209,7 @@ class MySQLAction : Action() {
                     "MySQL Statement",
                     PropertyInformationType.MULTILINE,
                     "",
-                    "Statement to execute"
+                    "The SQL to run, such as SELECT * FROM orders."
                 )
             )
             return actionInfo
