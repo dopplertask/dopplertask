@@ -99,7 +99,7 @@ class MouseAction : Action() {
             val actionInfo = super.actionInfo
             actionInfo.add(
                 PropertyInformation(
-                    "button", "Button", PropertyInformationType.DROPDOWN, "LEFT", "Button to press", listOf(
+                    "button", "Button", PropertyInformationType.DROPDOWN, "LEFT", "", listOf(
                         PropertyInformation("LEFT", "Left click"),
                         PropertyInformation("RIGHT", "Right click")
                     )

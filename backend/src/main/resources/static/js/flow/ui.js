@@ -159,10 +159,14 @@ export default function boot() {
       case 'toggle': return wrap(`<label class="ui-toggle"><input type="checkbox" ${common} ${fieldValue ? 'checked' : ''}><span class="ui-toggle-track"></span><span>${escapeHtml(field.label)}</span></label>`);
       case 'code': return wrap(`${label}<textarea class="ui-input is-mono" rows="${Math.min(8, Math.max(3, String(fieldValue ?? '').split('\n').length + 1))}" spellcheck="false" data-variables ${common} ${placeholder}>${escapeHtml(fieldValue ?? '')}</textarea><p class="ui-hint">Type <code>$</code> to insert a parameter or earlier output.</p>`);
       case 'expression': {
+        /* Which task to run is picked from the saved ones, rather than typed from memory. */
+        const taskChoices = node.type === 'linkedTask' && field.key === 'name'
+          ? `<datalist id="${inputId}-tasks">${DT.canvas.store.tasks.filter((task) => task.name !== DT.canvas.store.task.name).map((task) => `<option value="${escapeHtml(task.name)}">`).join('')}</datalist>`
+          : '';
         const control = field.multiline
           ? `<textarea class="ui-input is-mono" rows="3" spellcheck="false" data-variables ${common} ${placeholder}>${escapeHtml(fieldValue ?? '')}</textarea>`
-          : `<input class="ui-input is-mono" spellcheck="false" autocomplete="off" data-variables ${common} ${placeholder} value="${escapeHtml(fieldValue ?? '')}">`;
-        return wrap(`${label}${control}<p class="ui-preview" data-preview="${field.key}"></p>`);
+          : `<input class="ui-input is-mono" spellcheck="false" autocomplete="off" data-variables ${taskChoices ? `list="${inputId}-tasks"` : ''} ${common} ${placeholder} value="${escapeHtml(fieldValue ?? '')}">`;
+        return wrap(`${label}${control}${taskChoices}<p class="ui-preview" data-preview="${field.key}"></p>`);
       }
       case 'map': {
         const rows = fieldValue || [];

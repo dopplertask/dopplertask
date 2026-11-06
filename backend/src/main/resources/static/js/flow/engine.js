@@ -60,7 +60,10 @@ const clone = (value) => JSON.parse(JSON.stringify(value));
 /* ---------- Catalogue ---------- */
 
 function toField(information) {
-  const common = { key: information.name, label: information.displayName || information.name, hint: information.description || undefined, defaultValue: information.defaultValue || undefined };
+  /* A hint that only repeats the label takes room and says nothing. */
+  const label = information.displayName || information.name;
+  const hint = information.description && information.description.replace(/\.$/, '').toLowerCase() !== label.toLowerCase() ? information.description : undefined;
+  const common = { key: information.name, label, hint, defaultValue: information.defaultValue || undefined };
   const showWhen = information.displayOptions && Object.keys(information.displayOptions).length ? information.displayOptions : undefined;
   if (showWhen) common.showWhen = showWhen;
   switch (information.type) {

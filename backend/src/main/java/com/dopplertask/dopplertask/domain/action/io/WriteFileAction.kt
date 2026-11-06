@@ -103,7 +103,7 @@ class WriteFileAction : Action() {
                     "Output Type",
                     PropertyInformationType.DROPDOWN,
                     "clearText",
-                    "Choose binary input or clear text",
+                    "",
                     mutableListOf(
                         PropertyInformation("clearText", "Clear text"),
                         PropertyInformation("binaryVar", "Binary")
@@ -131,7 +131,7 @@ class WriteFileAction : Action() {
                     "Contents",
                     PropertyInformationType.MULTILINE,
                     "",
-                    "Contents of the file",
+                    "What to write to the file.",
                     mutableListOf(),
                     PropertyInformation.PropertyInformationCategory.PROPERTY,
                     mutableMapOf(

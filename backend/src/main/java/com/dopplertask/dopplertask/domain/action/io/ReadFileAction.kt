@@ -71,7 +71,7 @@ class ReadFileAction : Action() {
                     "Parameter Name",
                     PropertyInformationType.STRING,
                     "",
-                    "Parameter name to store contents."
+                    "The contents are stored under this name, to read later with \$parameters.get(\"name\")."
                 )
             )
             return actionInfo
