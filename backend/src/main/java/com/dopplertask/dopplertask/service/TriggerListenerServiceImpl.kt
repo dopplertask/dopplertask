@@ -2,6 +2,7 @@ package com.dopplertask.dopplertask.service
 
 import com.dopplertask.dopplertask.dao.TaskDao
 import com.dopplertask.dopplertask.domain.Task
+import com.dopplertask.dopplertask.domain.action.trigger.Trigger
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Qualifier
@@ -16,6 +17,8 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import javax.annotation.PostConstruct
 
+
+private const val RETRY_AFTER_FAILURE_MS = 5000L
 
 @Service
 @Transactional
@@ -99,6 +102,18 @@ open class TriggerListenerServiceImpl : TriggerListenerService {
         threadPoolMap.remove(taskName)?.shutdownNow()
     }
 
+    private fun fire(trigger: Trigger) {
+        logger.info("Running trigger")
+        val triggerResult = trigger.trigger()
+
+        val taskRequest = TaskRequest()
+        taskRequest.triggerInfo = TriggerInfo(trigger.javaClass.simpleName, trigger.triggerSuffix, triggerResult.resultMap)
+        taskRequest.taskName = trigger.task?.name
+        taskRequest.parameters = mutableMapOf()
+
+        taskService.runRequest(taskRequest)
+    }
+
     private fun startTriggers(currentTask: Task) {
         val threadPool = threadPoolMap[currentTask.name]!!
         currentTask.triggerActions.forEach { trigger ->
@@ -106,19 +121,17 @@ open class TriggerListenerServiceImpl : TriggerListenerService {
                 try {
                     // Shutdown decides, since code running inside a task can swallow the interrupt.
                     while (!threadPool.isShutdown) {
-                        logger.info("Running trigger");
-                        val triggerResult = trigger.trigger()
-
-                        var taskRequest = TaskRequest()
-                        taskRequest.triggerInfo =
-                            TriggerInfo(trigger.javaClass.simpleName, trigger.triggerSuffix, triggerResult.resultMap)
-                        taskRequest.taskName = trigger.task?.name
-                        taskRequest.parameters = mutableMapOf()
-
-                        taskService.runRequest(taskRequest)
+                        try {
+                            fire(trigger)
+                        } catch (e: Exception) {
+                            if (threadPool.isShutdown) break
+                            // One failure must not end a schedule, since nothing would start it again.
+                            logger.error("Trigger of task ${currentTask.name} failed. Trying again.", e)
+                            Thread.sleep(RETRY_AFTER_FAILURE_MS)
+                        }
                     }
-                } catch (e: Exception) {
-                    logger.error("Error occured. Closing down thread.");
+                } catch (e: InterruptedException) {
+                    logger.info("Trigger of task ${currentTask.name} stopped.")
                 }
             }
         }

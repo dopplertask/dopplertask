@@ -59,4 +59,37 @@ public class TriggerShutdownTest {
         assertTrue(runsAfterStopping > 0);
         assertEquals(runsAfterStopping, runs.get());
     }
+
+    @Test
+    public void testTriggerKeepsGoingAfterARunFailsSuccess() throws Exception {
+        IntervalTrigger trigger = new IntervalTrigger();
+        trigger.setTime("0");
+        trigger.setTimeUnit("SECONDS");
+        Task task = new Task();
+        task.setName("interval");
+        task.setActive(true);
+        task.setActionList(List.<Action>of(trigger));
+
+        AtomicInteger runs = new AtomicInteger();
+        TaskDao taskDao = Mockito.mock(TaskDao.class);
+        Mockito.when(taskDao.findById(1L)).thenReturn(Optional.of(task));
+        TaskService taskService = Mockito.mock(TaskService.class);
+        Mockito.when(taskService.runRequest(Mockito.any(TaskRequest.class))).thenAnswer(invocation -> {
+            if (runs.incrementAndGet() == 1) {
+                throw new IllegalStateException("The database was busy");
+            }
+            return null;
+        });
+
+        TriggerListenerServiceImpl triggers = new TriggerListenerServiceImpl(taskDao, taskService);
+        triggers.updateTriggers(1L);
+        long giveUpAt = System.currentTimeMillis() + 10000;
+        while (runs.get() < 2 && System.currentTimeMillis() < giveUpAt) {
+            Thread.sleep(50);
+        }
+        task.setActive(false);
+        triggers.updateTriggers(1L);
+
+        assertTrue("A schedule must survive one failed run", runs.get() >= 2);
+    }
 }
