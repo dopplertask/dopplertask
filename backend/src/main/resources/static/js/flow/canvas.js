@@ -46,6 +46,7 @@ export default function boot() {
   function nodeHeight(node) { return HEAD_HEIGHT + (hasBranches(node) ? portsOf(node).length * ROW_HEIGHT : 0); }
 
   const MIN_READABLE_ZOOM = 0.6;
+  const BACK_WIRE_GAP = 36;
 
   function fitTarget() {
     const nodes = store.task.nodes;
@@ -213,17 +214,25 @@ export default function boot() {
 
   /* ---------- Wires ---------- */
 
-  function orthogonalPath(fromPoint, toPoint) {
-    const deltaY = toPoint.y - fromPoint.y;
-    if (Math.abs(deltaY) < 1) return `M${fromPoint.x},${fromPoint.y} H${toPoint.x}`;
-    const midX = (fromPoint.x + toPoint.x) / 2;
-    const radius = Math.min(10, Math.abs(deltaY) / 2, (toPoint.x - fromPoint.x) / 2);
-    const direction = Math.sign(deltaY);
-    return `M${fromPoint.x},${fromPoint.y} H${midX - radius} Q${midX},${fromPoint.y} ${midX},${fromPoint.y + radius * direction} V${toPoint.y - radius * direction} Q${midX},${toPoint.y} ${midX + radius},${toPoint.y} H${toPoint.x}`;
+  /* A wire going back runs in a lane under the steps it passes, since a curve would hide behind them. */
+  function backLaneY(fromPoint, toPoint) {
+    const passed = store.task.nodes.filter((node) => {
+      const { x } = positionOf(node.id);
+      return x + NODE_WIDTH >= toPoint.x && x <= fromPoint.x;
+    });
+    return Math.max(...passed.map((node) => positionOf(node.id).y + nodeHeight(node))) + BACK_WIRE_GAP;
+  }
+
+  function backWirePath(fromPoint, toPoint) {
+    const lane = backLaneY(fromPoint, toPoint);
+    const right = fromPoint.x + BACK_WIRE_GAP;
+    const left = toPoint.x - BACK_WIRE_GAP;
+    const radius = 14;
+    return `M${fromPoint.x},${fromPoint.y} L${right - radius},${fromPoint.y} Q${right},${fromPoint.y} ${right},${fromPoint.y + radius} L${right},${lane - radius} Q${right},${lane} ${right - radius},${lane} L${left + radius},${lane} Q${left},${lane} ${left},${lane - radius} L${left},${toPoint.y + radius} Q${left},${toPoint.y} ${left + radius},${toPoint.y} L${toPoint.x},${toPoint.y}`;
   }
 
   function wirePath(fromPoint, toPoint) {
-    if (options.orthogonalWires && toPoint.x > fromPoint.x) return orthogonalPath(fromPoint, toPoint);
+    if (toPoint.x <= fromPoint.x) return backWirePath(fromPoint, toPoint);
     /* A short straight run at each end lets the line meet a step head-on, so an arrow sits true. */
     const lead = options.wireLead || 0;
     if (lead) {
@@ -251,8 +260,9 @@ export default function boot() {
   function wireState(edge) {
     if (!runner.run) return '';
     const step = runner.stepFor(edge.from);
-    const nextStep = runner.stepFor(edge.to);
-    if (step && step.port === edge.port && nextStep && runner.cursorMs >= step.startMs + step.durationMs) return 'is-taken';
+    /* Any finished visit counts, since a loop leaves by another branch on its last visit. */
+    const taken = runner.run.steps.some((visit) => visit.nodeId === edge.from && visit.port === edge.port && runner.cursorMs >= visit.startMs + visit.durationMs);
+    if (taken && runner.stepFor(edge.to)) return 'is-taken';
     return runner.finished || (step && runner.cursorMs >= step.startMs + step.durationMs) ? 'is-dim' : '';
   }
 
@@ -262,7 +272,7 @@ export default function boot() {
       if (!points) return '';
       const path = wirePath(points.from, points.to);
       const midX = (points.from.x + points.to.x) / 2;
-      const midY = (points.from.y + points.to.y) / 2;
+      const midY = points.to.x <= points.from.x ? backLaneY(points.from, points.to) : (points.from.y + points.to.y) / 2;
       return `<g class="wire ${wireState(edge)}" data-from="${edge.from}" data-to="${edge.to}" data-port="${escapeHtml(edge.port)}">
         <path class="wire-line" d="${path}"/><path class="wire-hit" d="${path}"/>
         <g class="wire-tools">
@@ -423,7 +433,7 @@ export default function boot() {
       }
       const over = document.elementsFromPoint(event.clientX, event.clientY).find((candidate) => candidate.classList?.contains('node'));
       if (over) {
-        if (!store.connect(finished.fromId, finished.port, over.dataset.node)) DT.ui.toast('That connection would make a loop.');
+        if (!store.connect(finished.fromId, finished.port, over.dataset.node)) DT.ui.toast('A step cannot connect to itself or to the start.');
       } else {
         const offset = HEAD_HEIGHT / 2;
         DT.ui.openPalette({ store, handlers, stepsOnly: true, title: 'Find a step to add', onPick: (type) => {
