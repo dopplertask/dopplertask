@@ -7,6 +7,7 @@ import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
@@ -197,5 +198,33 @@ public class RunResultTest {
                 .andExpect(jsonPath("$.executions[0].executionId").value(String.valueOf(newestId)));
         this.mockMvc.perform(get("/executions").param("taskName", "run_list_a").param("limit", "1"))
                 .andExpect(jsonPath("$.executions", hasSize(1)));
+    }
+
+    private static final String PRINT_ACTION = "{\"@type\":\"PrintAction\",\"message\":\"hi\"}";
+
+    @Test
+    public void testAnotherSiteCannotChangeOrRunAnythingFail() throws Exception {
+        for (String origin : List.of("http://evil.example", "null")) {
+            this.mockMvc.perform(post("/task/action").contentType(MediaType.APPLICATION_JSON).header("Origin", origin).content(PRINT_ACTION))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.message", containsString("another site")));
+        }
+    }
+
+    @Test
+    public void testTheAppItselfAndOtherClientsAreStillServedSuccess() throws Exception {
+        this.mockMvc.perform(post("/task/action").contentType(MediaType.APPLICATION_JSON).header("Origin", "http://localhost:8090").header("Host", "localhost:8090").content(PRINT_ACTION))
+                .andExpect(status().isOk());
+        this.mockMvc.perform(post("/task/action").contentType(MediaType.APPLICATION_JSON).content(PRINT_ACTION))
+                .andExpect(status().isOk());
+        this.mockMvc.perform(get("/task/grouped").header("Origin", "http://evil.example"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    public void testAWebhookCanStillBeCalledFromAnotherSiteSuccess() throws Exception {
+        // It reaches the webhook handler, which reports the missing task, rather than being refused here.
+        this.mockMvc.perform(post("/webhook/no_such_task/Webhook/x/").header("Origin", "http://evil.example"))
+                .andExpect(status().isBadRequest());
     }
 }

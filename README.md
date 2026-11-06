@@ -134,6 +134,8 @@ Example of the call:
 
 `/schedule/task` queues the run and returns its id, and `GET /execution/{id}` returns its status, logs and the result of each step. To continue a failed run at the step that failed, without repeating the steps before it, add `"resumeFromExecutionId"` with its id. Its parameters are kept unless the request gives new values. `GET /executions?taskName=name&limit=100` lists the latest runs of one task, newest first. `/schedule/directtask` takes the same JSON and waits for the result, which holds `output`, `status`, `executionId`, `logs` with every step and, if the run failed, `error`. A webhook only answers with `output`, `status` and `executionId`, since it can be called by anyone, so use `GET /execution/{id}` to see why a webhook run failed.
 
+A web page on another site cannot change or run anything here, since requests with an `Origin` header naming another site are refused. Clients without that header, such as the command line tool, and webhooks are not affected. If the editor is used through a proxy that changes the host, set `dopplertask.allowedOrigins` to a comma separated list such as `https://tasks.example.com`.
+
 #### Build a task through the API
 
 * `GET /task/actions` lists every action and its fields. A field can be nested under the options of another field, like `body` under `method` in HttpAction.
