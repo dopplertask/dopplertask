@@ -40,4 +40,11 @@ public class ColumnEncryptorTest {
         threads.shutdown();
         Assert.assertEquals(0, wrong);
     }
+
+    @Test
+    public void testAnEmptySecretStaysEmptySuccess() {
+        ColumnEncryptor encryptor = new ColumnEncryptor("0123456789abcdef");
+        Assert.assertNull(encryptor.convertToDatabaseColumn(null));
+        Assert.assertNull(encryptor.convertToEntityAttribute(null));
+    }
 }
