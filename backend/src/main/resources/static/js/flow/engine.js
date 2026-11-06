@@ -404,7 +404,12 @@ function createRunner(onChange) {
     seek(ms) { runner.cursorMs = Math.max(0, Math.min(runner.run.durationMs, ms)); onChange('tick'); },
     clear() { runner.stop(); runner.run = null; runner.cursorMs = 0; onChange(); },
     get finished() { return !!runner.run && !runner.run.live && runner.cursorMs >= runner.run.durationMs; },
-    stepFor(nodeId) { return runner.run && runner.run.steps.find((step) => step.nodeId === nodeId); },
+    /* In a loop a step runs several times, and the latest run reached so far is the one to show. */
+    stepFor(nodeId) {
+      if (!runner.run) return null;
+      const steps = runner.run.steps.filter((step) => step.nodeId === nodeId);
+      return steps.findLast((step) => step.startMs <= runner.cursorMs) || steps[0];
+    },
     stateOf(nodeId) {
       if (!runner.run) return 'idle';
       const step = runner.stepFor(nodeId);
@@ -694,7 +699,8 @@ function createStore() {
       return copy;
     },
     connect(fromId, port, toId) {
-      if (fromId === toId || reachableIds(task, [toId]).has(fromId)) return false;
+      /* A loop back to an earlier step is fine: the backend limits how often a step can run. */
+      if (fromId === toId || isEntry(nodeById(task, toId))) return false;
       remember();
       task.edges = task.edges.filter((edge) => !(edge.from === fromId && edge.port === port));
       task.edges.push({ from: fromId, port, to: toId });

@@ -112,7 +112,7 @@ export default function boot() {
   function variablesBefore(nodeId) {
     const run = runner.run || store.runs[0];
     for (const candidate of [run, ...store.runs].filter(Boolean)) {
-      const step = candidate.steps.find((candidateStep) => candidateStep.nodeId === nodeId);
+      const step = candidate.steps.findLast((candidateStep) => candidateStep.nodeId === nodeId);
       if (step) return step.variables;
     }
     return { parameters: { ...store.defaults, ...run?.parameters }, lastOutput: '', executionId: run?.id || '' };
