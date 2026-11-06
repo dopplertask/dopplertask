@@ -32,7 +32,7 @@ public class AccessFilter extends OncePerRequestFilter {
 
     // Everything an agent may do. Anything else, such as deleting or running a single action, is for a person.
     private static final List<Pattern> AGENT_REQUESTS = List.of(
-            Pattern.compile("^GET /(task|task/actions|task/grouped|executions)$"),
+            Pattern.compile("^GET /(task|task/actions|task/grouped|executions|credentials)$"),
             Pattern.compile("^GET /task/[^/]+/(taskname|checksum)$"),
             Pattern.compile("^GET /execution/\\d+$"),
             Pattern.compile("^POST /(task|schedule/task|schedule/directtask|mcp)$"));

@@ -8,17 +8,16 @@ import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.Prop
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
 import com.dopplertask.dopplertask.domain.action.integration.JsonApi
 import com.dopplertask.dopplertask.service.BroadcastListener
-import com.dopplertask.dopplertask.service.ColumnEncryptor
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import java.util.Base64
 import java.io.IOException
 import javax.persistence.Column
-import javax.persistence.Convert
 import javax.persistence.DiscriminatorValue
 import javax.persistence.Entity
 import javax.persistence.Lob
 import javax.persistence.Table
+import javax.persistence.Transient
 
 @Entity
 @Table(name = "ZendeskAction")
@@ -27,11 +26,10 @@ class ZendeskAction : Action() {
     @Column
     var siteUrl: String? = null
 
-    @Column
+    @Transient
     var email: String? = null
 
-    @Column
-    @Convert(converter = ColumnEncryptor::class)
+    @Transient
     var token: String? = null
 
     @Column
@@ -106,7 +104,7 @@ class ZendeskAction : Action() {
             val commenting = mapOf("operation" to arrayOf(ADD_COMMENT))
             actionInfo.add(PropertyInformation("siteUrl", "Site", PropertyInformationType.STRING, "", "Such as https://acme.zendesk.com."))
             actionInfo.add(PropertyInformation("email", "Email", PropertyInformationType.STRING, "", "The email of an agent.", mutableListOf(), PropertyInformationCategory.CREDENTIAL))
-            actionInfo.add(PropertyInformation("token", "API token", PropertyInformationType.STRING, "", "Made in the Admin Center, under Zendesk API.", mutableListOf(), PropertyInformationCategory.CREDENTIAL))
+            actionInfo.add(PropertyInformation("token", "API token", PropertyInformationType.STRING, "", "Made in the Admin Center, under Zendesk API.", mutableListOf(), PropertyInformationCategory.SECRET))
             actionInfo.add(PropertyInformation("operation", "Action", PropertyInformationType.DROPDOWN, CREATE_TICKET, "", listOf(
                 PropertyInformation(CREATE_TICKET, "Create a ticket"),
                 PropertyInformation(ADD_COMMENT, "Comment on a ticket"),

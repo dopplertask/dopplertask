@@ -7,7 +7,6 @@ import com.dopplertask.dopplertask.domain.action.Action
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationCategory
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
 import com.dopplertask.dopplertask.service.BroadcastListener
-import com.dopplertask.dopplertask.service.ColumnEncryptor
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -16,11 +15,11 @@ import java.io.IOException
 import java.sql.ResultSet
 import java.sql.SQLException
 import javax.persistence.Column
-import javax.persistence.Convert
 import javax.persistence.DiscriminatorValue
 import javax.persistence.Entity
 import javax.persistence.Lob
 import javax.persistence.Table
+import javax.persistence.Transient
 
 @Entity
 @Table(name = "PostgresAction")
@@ -35,11 +34,10 @@ class PostgresAction : Action() {
     @Column
     var database: String? = null
 
-    @Column
+    @Transient
     var username: String? = null
 
-    @Column
-    @Convert(converter = ColumnEncryptor::class)
+    @Transient
     var password: String? = null
 
     @Column
@@ -136,7 +134,7 @@ class PostgresAction : Action() {
             actionInfo.add(PropertyInformation("port", "Port", PropertyInformationType.NUMBER, "5432", ""))
             actionInfo.add(PropertyInformation("database", "Database", PropertyInformationType.STRING, "", ""))
             actionInfo.add(PropertyInformation("username", "Username", PropertyInformationType.STRING, "", "", mutableListOf(), PropertyInformationCategory.CREDENTIAL))
-            actionInfo.add(PropertyInformation("password", "Password", PropertyInformationType.STRING, "", "", mutableListOf(), PropertyInformationCategory.CREDENTIAL))
+            actionInfo.add(PropertyInformation("password", "Password", PropertyInformationType.STRING, "", "", mutableListOf(), PropertyInformationCategory.SECRET))
             actionInfo.add(PropertyInformation("useTls", "Use TLS", PropertyInformationType.BOOLEAN, "false", "Requires an encrypted connection. The certificate of the server is not verified."))
             actionInfo.add(PropertyInformation("command", "Query", PropertyInformationType.MULTILINE, "", "Write ? where a value goes, such as SELECT * FROM orders WHERE id = ?"))
             actionInfo.add(PropertyInformation("queryValues", "Values", PropertyInformationType.MULTILINE, "", "One value per line, for each ? in the query. Use this for text from earlier steps, since it cannot change the query."))

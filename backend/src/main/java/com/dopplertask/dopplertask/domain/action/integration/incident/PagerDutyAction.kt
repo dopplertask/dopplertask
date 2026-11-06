@@ -8,15 +8,14 @@ import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.Prop
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
 import com.dopplertask.dopplertask.domain.action.integration.JsonApi
 import com.dopplertask.dopplertask.service.BroadcastListener
-import com.dopplertask.dopplertask.service.ColumnEncryptor
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import java.io.IOException
 import javax.persistence.Column
-import javax.persistence.Convert
 import javax.persistence.DiscriminatorValue
 import javax.persistence.Entity
 import javax.persistence.Table
+import javax.persistence.Transient
 
 @Entity
 @Table(name = "PagerDutyAction")
@@ -25,8 +24,7 @@ class PagerDutyAction : Action() {
     @Column
     var baseUrl: String? = "https://events.pagerduty.com"
 
-    @Column
-    @Convert(converter = ColumnEncryptor::class)
+    @Transient
     var integrationKey: String? = null
 
     @Column
@@ -88,7 +86,7 @@ class PagerDutyAction : Action() {
         get() {
             val actionInfo = super.actionInfo
             val opening = mapOf("operation" to arrayOf(OPEN))
-            actionInfo.add(PropertyInformation("integrationKey", "Integration key", PropertyInformationType.STRING, "", "Shown on an Events API v2 integration of a PagerDuty service.", mutableListOf(), PropertyInformationCategory.CREDENTIAL))
+            actionInfo.add(PropertyInformation("integrationKey", "Integration key", PropertyInformationType.STRING, "", "Shown on an Events API v2 integration of a PagerDuty service.", mutableListOf(), PropertyInformationCategory.SECRET))
             actionInfo.add(PropertyInformation("operation", "Action", PropertyInformationType.DROPDOWN, OPEN, "", listOf(
                 PropertyInformation(OPEN, "Open an incident"),
                 PropertyInformation("acknowledge", "Acknowledge an incident"),

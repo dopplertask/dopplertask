@@ -8,17 +8,16 @@ import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.Prop
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
 import com.dopplertask.dopplertask.domain.action.integration.JsonApi
 import com.dopplertask.dopplertask.service.BroadcastListener
-import com.dopplertask.dopplertask.service.ColumnEncryptor
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import java.util.Base64
 import java.io.IOException
 import javax.persistence.Column
-import javax.persistence.Convert
 import javax.persistence.DiscriminatorValue
 import javax.persistence.Entity
 import javax.persistence.Lob
 import javax.persistence.Table
+import javax.persistence.Transient
 
 @Entity
 @Table(name = "TwilioAction")
@@ -27,11 +26,10 @@ class TwilioAction : Action() {
     @Column
     var baseUrl: String? = "https://api.twilio.com"
 
-    @Column
+    @Transient
     var accountSid: String? = null
 
-    @Column
-    @Convert(converter = ColumnEncryptor::class)
+    @Transient
     var token: String? = null
 
     @Column
@@ -80,7 +78,7 @@ class TwilioAction : Action() {
         get() {
             val actionInfo = super.actionInfo
             actionInfo.add(PropertyInformation("accountSid", "Account SID", PropertyInformationType.STRING, "", "The Twilio console shows it.", mutableListOf(), PropertyInformationCategory.CREDENTIAL))
-            actionInfo.add(PropertyInformation("token", "Auth token", PropertyInformationType.STRING, "", "The Twilio console shows it.", mutableListOf(), PropertyInformationCategory.CREDENTIAL))
+            actionInfo.add(PropertyInformation("token", "Auth token", PropertyInformationType.STRING, "", "The Twilio console shows it.", mutableListOf(), PropertyInformationCategory.SECRET))
             actionInfo.add(PropertyInformation("sender", "From", PropertyInformationType.STRING, "", "A number you have in Twilio, such as +15005550006."))
             actionInfo.add(PropertyInformation("to", "To", PropertyInformationType.STRING, "", "With the country code, such as +46701234567."))
             actionInfo.add(PropertyInformation("message", "Message", PropertyInformationType.MULTILINE, "", "The text to send, up to 1600 characters."))

@@ -2,7 +2,8 @@ package com.dopplertask.dopplertask.controller;
 
 import com.dopplertask.dopplertask.dto.TaskRequestDTO;
 import com.dopplertask.dopplertask.filter.AccessFilter;
-import com.dopplertask.dopplertask.filter.AgentSecrets;
+import com.dopplertask.dopplertask.service.CredentialProblemException;
+import com.dopplertask.dopplertask.service.CredentialService;
 import com.dopplertask.dopplertask.filter.Caller;
 import com.dopplertask.dopplertask.service.ApprovalRequiredException;
 import com.dopplertask.dopplertask.service.VariableExtractorUtil;
@@ -36,7 +37,7 @@ public class McpController {
     private static final String INSTRUCTIONS = "DopplerTask runs automations on the machine it is installed on. What you save with propose_task is a proposal: "
             + "nothing runs until a person approves it in the editor, so tell the person when one is ready. Start with list_step_types and get_step_type. "
             + "When changing a task, read it with get_task and keep the externalId of its ports, so that the person sees what you changed. "
-            + "Passwords and keys read as ********, and sending that back keeps the real value. "
+            + "Steps never hold passwords or keys. Set credential on a step to a name from list_credentials with the same stepType. You can use a credential but not read or create one, so ask a person when none fits. "
             + "Settings go directly on the action. Values in settings are written in Velocity: $parameters.get(\"name\") reads a task parameter, $lastLog.output the output of the previous step, "
             + "and $lastLog.outputVariables.name what the step before gives, which get_step_type lists under outputs, such as statusCode for an HTTP step. A condition is what goes inside #if( ), such as $lastLog.output.contains(\"ok\"). "
             + "An HTTP status of 400 or above fails the step: to branch on it, set continueOnFailure to true on that step and read the status in the next one. "
@@ -50,15 +51,17 @@ public class McpController {
 
     private final TaskController tasks;
     private final ExecutionController executions;
-    private final AgentSecrets agentSecrets;
+    private final CredentialController credentials;
+    private final CredentialService credentialNames;
     private final ObjectMapper mapper;
     private final Set<String> velocityTools;
 
-    public McpController(TaskController tasks, ExecutionController executions, AgentSecrets agentSecrets, ObjectMapper mapper, VariableExtractorUtil variables) {
+    public McpController(TaskController tasks, ExecutionController executions, CredentialController credentials, CredentialService credentialNames, ObjectMapper mapper, VariableExtractorUtil variables) {
         this.velocityTools = variables.getVelocityTools().keySet();
         this.tasks = tasks;
         this.executions = executions;
-        this.agentSecrets = agentSecrets;
+        this.credentials = credentials;
+        this.credentialNames = credentialNames;
         this.mapper = mapper;
     }
 
@@ -96,6 +99,7 @@ public class McpController {
         ArrayNode tools = mapper.createArrayNode();
         tools.add(tool("list_step_types", "List every kind of step a task can use, with a description of each.", Map.of()));
         tools.add(tool("get_step_type", "Get the settings of one kind of step.", Map.of("name", "string")));
+        tools.add(tool("list_credentials", "List the credentials that steps can use, with the kind of step each is for. Their values are never shown.", Map.of()));
         tools.add(tool("list_tasks", "List saved tasks with their versions. A version with proposed set to true waits for a person.", Map.of()));
         tools.add(tool("get_task", "Read the current version of a task, or a specific version such as a proposal with its checksum.", Map.of("name", "string", "checksum", "string")));
         tools.add(tool("propose_task", "Save a new task, or a change to one, as a proposal for a person to approve. The task has a name without spaces, active set to false, "
@@ -122,6 +126,7 @@ public class McpController {
         try {
             ResponseEntity<?> answer = switch (name) {
                 case "list_step_types", "get_step_type" -> tasks.getAllActions();
+                case "list_credentials" -> ResponseEntity.ok(credentials.list());
                 case "list_tasks" -> tasks.getTasksGrouped();
                 case "get_task" -> arguments.hasNonNull("checksum") ? tasks.getTaskByChecksum(arguments.get("checksum").asText()) : tasks.getTask(arguments.path("name").asText());
                 case "propose_task" -> tasks.createTask(mapper.writeValueAsString(arguments.path("task")), false, request);
@@ -133,16 +138,32 @@ public class McpController {
             if (!answer.getStatusCode().is2xxSuccessful()) {
                 return toolResult("That failed with status " + answer.getStatusCodeValue() + ". Check the name or id.", true);
             }
-            JsonNode body = shaped(name, arguments, agentSecrets.masked(answer.getBody()));
+            JsonNode body = shaped(name, arguments, mapper.valueToTree(answer.getBody()));
             if (name.equals("propose_task")) {
-                ((ObjectNode) body).set("warnings", mapper.valueToTree(unknownVariables(arguments.path("task"))));
+                List<String> warnings = unknownVariables(arguments.path("task"));
+                warnings.addAll(unknownCredentials(arguments.path("task")));
+                ((ObjectNode) body).set("warnings", mapper.valueToTree(warnings));
             }
             return toolResult(mapper.writerWithDefaultPrettyPrinter().writeValueAsString(body), false);
-        } catch (ApprovalRequiredException | IllegalArgumentException e) {
+        } catch (ApprovalRequiredException | CredentialProblemException | IllegalArgumentException e) {
             return toolResult(e.getMessage(), true);
         } catch (Exception e) {
             return toolResult("That failed: " + e.getMessage(), true);
         }
+    }
+
+    private List<String> unknownCredentials(JsonNode task) {
+        Map<String, String> known = new java.util.HashMap<>();
+        credentialNames.list().forEach(credential -> known.put(credential.name(), credential.stepType()));
+        List<String> warnings = new ArrayList<>();
+        task.path("actions").forEach(step -> {
+            String credential = step.path("credential").asText("");
+            String stepType = step.path("@type").asText();
+            if (!credential.isEmpty() && !stepType.equals(known.get(credential))) {
+                warnings.add(stepType + " credential: \"" + credential + "\" is not a credential for this kind of step, so it will fail when it runs. Check list_credentials.");
+            }
+        });
+        return warnings;
     }
 
     /**

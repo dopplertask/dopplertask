@@ -7,6 +7,7 @@ import com.dopplertask.dopplertask.service.TaskServiceImpl
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import org.apache.velocity.app.VelocityEngine
 import org.junit.Test
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.runner.RunWith
 import org.springframework.test.context.junit4.SpringRunner
@@ -76,7 +77,7 @@ internal class WebhookTest {
 
 
     @Test
-    fun testBasicAuthenticationEmptyUsernameAndPasswordSuccess() {
+    fun testBasicAuthenticationWithoutACredentialIsRefusedFail() {
         val taskExecution = TaskExecution()
         taskExecution.parameters["TRIGGER_authorization"] =
             ExecutionParameter("TRIGGER_authorization", "Basic ".toByteArray(), false)
@@ -87,7 +88,7 @@ internal class WebhookTest {
         webhook.authentication = "basic"
         val actionResult = webhook.run(TaskServiceImpl(), taskExecution, VariableExtractorUtil(VelocityEngine()))
 
-        assertTrue(actionResult.statusCode == StatusCode.SUCCESS)
+        assertFalse(actionResult.statusCode == StatusCode.SUCCESS)
     }
 
     // Test with bearer authentication
@@ -134,7 +135,7 @@ internal class WebhookTest {
     }
 
     @Test
-    fun testBearerAuthenticationEmptyBearerOnBothSettingAndProvidedSuccess() {
+    fun testBearerAuthenticationWithoutACredentialIsRefusedFail() {
         val taskExecution = TaskExecution()
         taskExecution.parameters["TRIGGER_authorization"] =
             ExecutionParameter("TRIGGER_authorization", "Bearer ".toByteArray(), false)
@@ -144,7 +145,7 @@ internal class WebhookTest {
         webhook.authentication = "bearer"
         val actionResult = webhook.run(TaskServiceImpl(), taskExecution, VariableExtractorUtil(VelocityEngine()))
 
-        assertTrue(actionResult.statusCode == StatusCode.SUCCESS)
+        assertFalse(actionResult.statusCode == StatusCode.SUCCESS)
     }
 
     // Test with header authentication. webhook.headerName and webhook.headerValue is set.

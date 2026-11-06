@@ -8,16 +8,15 @@ import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.Prop
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
 import com.dopplertask.dopplertask.domain.action.integration.JsonApi
 import com.dopplertask.dopplertask.service.BroadcastListener
-import com.dopplertask.dopplertask.service.ColumnEncryptor
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import java.io.IOException
 import javax.persistence.Column
-import javax.persistence.Convert
 import javax.persistence.DiscriminatorValue
 import javax.persistence.Entity
 import javax.persistence.Lob
 import javax.persistence.Table
+import javax.persistence.Transient
 
 @Entity
 @Table(name = "LinearAction")
@@ -26,8 +25,7 @@ class LinearAction : Action() {
     @Column
     var baseUrl: String? = "https://api.linear.app"
 
-    @Column
-    @Convert(converter = ColumnEncryptor::class)
+    @Transient
     var token: String? = null
 
     @Column
@@ -120,7 +118,7 @@ class LinearAction : Action() {
             val actionInfo = super.actionInfo
             val creating = mapOf("operation" to arrayOf(CREATE_ISSUE))
             val commenting = mapOf("operation" to arrayOf(ADD_COMMENT))
-            actionInfo.add(PropertyInformation("token", "API key", PropertyInformationType.STRING, "", "Made under Settings, Security and access.", mutableListOf(), PropertyInformationCategory.CREDENTIAL))
+            actionInfo.add(PropertyInformation("token", "API key", PropertyInformationType.STRING, "", "Made under Settings, Security and access.", mutableListOf(), PropertyInformationCategory.SECRET))
             actionInfo.add(PropertyInformation("operation", "Action", PropertyInformationType.DROPDOWN, CREATE_ISSUE, "", listOf(
                 PropertyInformation(CREATE_ISSUE, "Create an issue"),
                 PropertyInformation(ADD_COMMENT, "Comment on an issue")

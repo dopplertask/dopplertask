@@ -7,7 +7,6 @@ import com.dopplertask.dopplertask.domain.action.Action
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationCategory
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
 import com.dopplertask.dopplertask.service.BroadcastListener
-import com.dopplertask.dopplertask.service.ColumnEncryptor
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import redis.clients.jedis.Jedis
@@ -15,11 +14,11 @@ import redis.clients.jedis.exceptions.JedisConnectionException
 import redis.clients.jedis.exceptions.JedisDataException
 import java.io.IOException
 import javax.persistence.Column
-import javax.persistence.Convert
 import javax.persistence.DiscriminatorValue
 import javax.persistence.Entity
 import javax.persistence.Lob
 import javax.persistence.Table
+import javax.persistence.Transient
 
 @Entity
 @Table(name = "RedisAction")
@@ -31,8 +30,7 @@ class RedisAction : Action() {
     @Column
     var port: String? = "6379"
 
-    @Column
-    @Convert(converter = ColumnEncryptor::class)
+    @Transient
     var password: String? = null
 
     @Column
@@ -111,7 +109,7 @@ class RedisAction : Action() {
             val actionInfo = super.actionInfo
             actionInfo.add(PropertyInformation("hostname", "Hostname", PropertyInformationType.STRING, "", "Such as redis.example.com."))
             actionInfo.add(PropertyInformation("port", "Port", PropertyInformationType.NUMBER, "6379", ""))
-            actionInfo.add(PropertyInformation("password", "Password", PropertyInformationType.STRING, "", "Leave it empty if the server has none.", mutableListOf(), PropertyInformationCategory.CREDENTIAL))
+            actionInfo.add(PropertyInformation("password", "Password", PropertyInformationType.STRING, "", "Leave it empty if the server has none.", mutableListOf(), PropertyInformationCategory.SECRET))
             actionInfo.add(PropertyInformation("useTls", "Use TLS", PropertyInformationType.BOOLEAN, "false", "Most hosted Redis services require it."))
             actionInfo.add(PropertyInformation("operation", "Action", PropertyInformationType.DROPDOWN, GET, "", listOf(
                 PropertyInformation(GET, "Read a value"),

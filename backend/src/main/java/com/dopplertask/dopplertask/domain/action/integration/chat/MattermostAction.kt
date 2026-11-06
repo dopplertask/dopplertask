@@ -8,16 +8,15 @@ import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.Prop
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
 import com.dopplertask.dopplertask.domain.action.integration.JsonApi
 import com.dopplertask.dopplertask.service.BroadcastListener
-import com.dopplertask.dopplertask.service.ColumnEncryptor
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import java.io.IOException
 import javax.persistence.Column
-import javax.persistence.Convert
 import javax.persistence.DiscriminatorValue
 import javax.persistence.Entity
 import javax.persistence.Lob
 import javax.persistence.Table
+import javax.persistence.Transient
 
 @Entity
 @Table(name = "MattermostAction")
@@ -26,8 +25,7 @@ class MattermostAction : Action() {
     @Column
     var siteUrl: String? = null
 
-    @Column
-    @Convert(converter = ColumnEncryptor::class)
+    @Transient
     var token: String? = null
 
     @Column
@@ -74,7 +72,7 @@ class MattermostAction : Action() {
         get() {
             val actionInfo = super.actionInfo
             actionInfo.add(PropertyInformation("siteUrl", "Server", PropertyInformationType.STRING, "", "Such as https://chat.example.com."))
-            actionInfo.add(PropertyInformation("token", "Bot token", PropertyInformationType.STRING, "", "The token of a bot account that is a member of the channel.", mutableListOf(), PropertyInformationCategory.CREDENTIAL))
+            actionInfo.add(PropertyInformation("token", "Bot token", PropertyInformationType.STRING, "", "The token of a bot account that is a member of the channel.", mutableListOf(), PropertyInformationCategory.SECRET))
             actionInfo.add(PropertyInformation("channelId", "Channel id", PropertyInformationType.STRING, "", "View Info on the channel shows it."))
             actionInfo.add(PropertyInformation("message", "Message", PropertyInformationType.MULTILINE, "", "The text to send. Markdown can be used."))
             actionInfo.add(PropertyInformation("replyToMessageId", "Reply to message", PropertyInformationType.STRING, "", "Answers in the thread of this message. A Mattermost step gives the id as \$lastLog.outputVariables.messageId."))

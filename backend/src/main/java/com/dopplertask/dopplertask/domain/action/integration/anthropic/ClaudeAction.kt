@@ -8,17 +8,16 @@ import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.Prop
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
 import com.dopplertask.dopplertask.domain.action.integration.JsonApi
 import com.dopplertask.dopplertask.service.BroadcastListener
-import com.dopplertask.dopplertask.service.ColumnEncryptor
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import java.time.Duration
 import java.io.IOException
 import javax.persistence.Column
-import javax.persistence.Convert
 import javax.persistence.DiscriminatorValue
 import javax.persistence.Entity
 import javax.persistence.Lob
 import javax.persistence.Table
+import javax.persistence.Transient
 
 @Entity
 @Table(name = "ClaudeAction")
@@ -27,8 +26,7 @@ class ClaudeAction : Action() {
     @Column
     var baseUrl: String? = "https://api.anthropic.com"
 
-    @Column
-    @Convert(converter = ColumnEncryptor::class)
+    @Transient
     var apiKey: String? = null
 
     @Column
@@ -107,7 +105,7 @@ class ClaudeAction : Action() {
     override val actionInfo: MutableList<PropertyInformation>
         get() {
             val actionInfo = super.actionInfo
-            actionInfo.add(PropertyInformation("apiKey", "API key", PropertyInformationType.STRING, "", "The Claude Console gives it.", mutableListOf(), PropertyInformationCategory.CREDENTIAL))
+            actionInfo.add(PropertyInformation("apiKey", "API key", PropertyInformationType.STRING, "", "The Claude Console gives it.", mutableListOf(), PropertyInformationCategory.SECRET))
             actionInfo.add(PropertyInformation("model", "Model", PropertyInformationType.STRING, "claude-opus-5-5", ""))
             actionInfo.add(PropertyInformation("instructions", "Instructions", PropertyInformationType.MULTILINE, "", "How Claude should work, apart from what it is asked."))
             actionInfo.add(PropertyInformation("userInput", "Prompt", PropertyInformationType.MULTILINE, "", "What Claude is asked."))

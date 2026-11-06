@@ -8,7 +8,6 @@ import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.Prop
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
 import com.dopplertask.dopplertask.domain.action.integration.JsonApi
 import com.dopplertask.dopplertask.service.BroadcastListener
-import com.dopplertask.dopplertask.service.ColumnEncryptor
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import java.net.ConnectException
@@ -25,11 +24,11 @@ import javax.mail.Session
 import javax.mail.search.FlagTerm
 import java.io.IOException
 import javax.persistence.Column
-import javax.persistence.Convert
 import javax.persistence.DiscriminatorValue
 import javax.persistence.Entity
 import javax.persistence.Lob
 import javax.persistence.Table
+import javax.persistence.Transient
 
 @Entity
 @Table(name = "ReadEmailAction")
@@ -44,11 +43,10 @@ class ReadEmailAction : Action() {
     @Column
     var security: String? = "tls"
 
-    @Column
+    @Transient
     var username: String? = null
 
-    @Column
-    @Convert(converter = ColumnEncryptor::class)
+    @Transient
     var password: String? = null
 
     @Column
@@ -161,7 +159,7 @@ class ReadEmailAction : Action() {
                 PropertyInformation(NONE, "None")
             )))
             actionInfo.add(PropertyInformation("username", "Username", PropertyInformationType.STRING, "", "", mutableListOf(), PropertyInformationCategory.CREDENTIAL))
-            actionInfo.add(PropertyInformation("password", "Password", PropertyInformationType.STRING, "", "", mutableListOf(), PropertyInformationCategory.CREDENTIAL))
+            actionInfo.add(PropertyInformation("password", "Password", PropertyInformationType.STRING, "", "", mutableListOf(), PropertyInformationCategory.SECRET))
             actionInfo.add(PropertyInformation("folder", "Folder", PropertyInformationType.STRING, "INBOX", ""))
             actionInfo.add(PropertyInformation("onlyUnread", "Only unread messages", PropertyInformationType.BOOLEAN, "true", ""))
             actionInfo.add(PropertyInformation("markAsRead", "Mark as read", PropertyInformationType.BOOLEAN, "false", "So that the next run does not read them again."))

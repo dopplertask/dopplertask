@@ -11,6 +11,7 @@ import java.io.IOException
 import java.util.*
 import javax.persistence.Column
 import javax.persistence.Entity
+import javax.persistence.Transient
 
 @Entity
 class Webhook : Trigger() {
@@ -24,19 +25,19 @@ class Webhook : Trigger() {
     @Column
     var authentication: String? = "none"
 
-    @Column
+    @Transient
     var username: String? = ""
 
-    @Column
+    @Transient
     var password: String? = ""
 
-    @Column
+    @Transient
     var token: String? = ""
 
     @Column
     var headerName: String? = "";
 
-    @Column
+    @Transient
     var headerValue: String? = "";
 
     @Throws(IOException::class)
@@ -67,7 +68,7 @@ class Webhook : Trigger() {
                 passwordDecoded = parts[1]
             }
 
-            return if (authentication != null && usernameVariable.equals(usernameDecoded) && passwordVariable.equals(
+            return if (authentication != null && passwordVariable.isNotEmpty() && usernameVariable.equals(usernameDecoded) && passwordVariable.equals(
                     passwordDecoded
                 )
             ) {
@@ -110,7 +111,8 @@ class Webhook : Trigger() {
         webhookValue: String,
         userInput: String
     ): ActionResult {
-        if (webhookValue == userInput) {
+        // Without a value to compare with, nothing can pass, so that a missing credential does not open the webhook.
+        if (webhookValue.isNotEmpty() && webhookValue == userInput) {
             val result = ActionResult()
             result.output = "Webhook triggered and authenticated successfully."
             result.statusCode = StatusCode.SUCCESS
@@ -177,7 +179,7 @@ class Webhook : Trigger() {
                     "",
                     "Username",
                     mutableListOf(),
-                    PropertyInformation.PropertyInformationCategory.PROPERTY,
+                    PropertyInformation.PropertyInformationCategory.CREDENTIAL,
                     mutableMapOf(Pair("authentication", arrayOf("basic")))
                 )
             )
@@ -189,7 +191,7 @@ class Webhook : Trigger() {
                     "",
                     "Username",
                     mutableListOf(),
-                    PropertyInformation.PropertyInformationCategory.PROPERTY,
+                    PropertyInformation.PropertyInformationCategory.SECRET,
                     mutableMapOf(Pair("authentication", arrayOf("basic")))
                 )
             )
@@ -202,7 +204,7 @@ class Webhook : Trigger() {
                     "",
                     "Bearer token",
                     mutableListOf(),
-                    PropertyInformation.PropertyInformationCategory.PROPERTY,
+                    PropertyInformation.PropertyInformationCategory.SECRET,
                     mutableMapOf(Pair("authentication", arrayOf("bearer")))
                 )
             )
@@ -227,7 +229,7 @@ class Webhook : Trigger() {
                     "",
                     "Header value",
                     mutableListOf(),
-                    PropertyInformation.PropertyInformationCategory.PROPERTY,
+                    PropertyInformation.PropertyInformationCategory.SECRET,
                     mutableMapOf(Pair("authentication", arrayOf("header")))
                 )
             )

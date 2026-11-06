@@ -6,7 +6,6 @@ import com.dopplertask.dopplertask.domain.action.Action
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationCategory
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
 import com.dopplertask.dopplertask.service.BroadcastListener
-import com.dopplertask.dopplertask.service.ColumnEncryptor
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import java.io.IOException
@@ -23,11 +22,11 @@ import javax.mail.internet.AddressException
 import javax.mail.internet.InternetAddress
 import javax.mail.internet.MimeMessage
 import javax.persistence.Column
-import javax.persistence.Convert
 import javax.persistence.DiscriminatorValue
 import javax.persistence.Entity
 import javax.persistence.Lob
 import javax.persistence.Table
+import javax.persistence.Transient
 
 @Entity
 @Table(name = "EmailAction")
@@ -42,11 +41,10 @@ class EmailAction : Action() {
     @Column
     var security: String? = STARTTLS
 
-    @Column
+    @Transient
     var username: String? = null
 
-    @Column
-    @Convert(converter = ColumnEncryptor::class)
+    @Transient
     var password: String? = null
 
     @Column(name = "fromAddress")
@@ -146,7 +144,7 @@ class EmailAction : Action() {
                 PropertyInformation(NONE, "None")
             )))
             actionInfo.add(PropertyInformation("username", "Username", PropertyInformationType.STRING, "", "Leave it empty if the server does not ask for one.", mutableListOf(), PropertyInformationCategory.CREDENTIAL))
-            actionInfo.add(PropertyInformation("password", "Password", PropertyInformationType.STRING, "", "", mutableListOf(), PropertyInformationCategory.CREDENTIAL))
+            actionInfo.add(PropertyInformation("password", "Password", PropertyInformationType.STRING, "", "", mutableListOf(), PropertyInformationCategory.SECRET))
             actionInfo.add(PropertyInformation("from", "From", PropertyInformationType.STRING, "", "Such as alerts@example.com."))
             actionInfo.add(PropertyInformation("to", "To", PropertyInformationType.STRING, "", "One address, or several separated by commas."))
             actionInfo.add(PropertyInformation("subject", "Subject", PropertyInformationType.STRING, "", ""))

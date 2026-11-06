@@ -8,7 +8,6 @@ import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.Prop
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
 import com.dopplertask.dopplertask.domain.action.connection.HttpAction
 import com.dopplertask.dopplertask.service.BroadcastListener
-import com.dopplertask.dopplertask.service.ColumnEncryptor
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import java.io.IOException
@@ -22,11 +21,11 @@ import java.time.format.DateTimeFormatter
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 import javax.persistence.Column
-import javax.persistence.Convert
 import javax.persistence.DiscriminatorValue
 import javax.persistence.Entity
 import javax.persistence.Lob
 import javax.persistence.Table
+import javax.persistence.Transient
 
 @Entity
 @Table(name = "S3Action")
@@ -38,11 +37,10 @@ class S3Action : Action() {
     @Column
     var region: String? = "us-east-1"
 
-    @Column
+    @Transient
     var accessKeyId: String? = null
 
-    @Column
-    @Convert(converter = ColumnEncryptor::class)
+    @Transient
     var secretAccessKey: String? = null
 
     @Column
@@ -116,7 +114,7 @@ class S3Action : Action() {
         get() {
             val actionInfo = super.actionInfo
             actionInfo.add(PropertyInformation("accessKeyId", "Access key id", PropertyInformationType.STRING, "", "", mutableListOf(), PropertyInformationCategory.CREDENTIAL))
-            actionInfo.add(PropertyInformation("secretAccessKey", "Secret access key", PropertyInformationType.STRING, "", "", mutableListOf(), PropertyInformationCategory.CREDENTIAL))
+            actionInfo.add(PropertyInformation("secretAccessKey", "Secret access key", PropertyInformationType.STRING, "", "", mutableListOf(), PropertyInformationCategory.SECRET))
             actionInfo.add(PropertyInformation("region", "Region", PropertyInformationType.STRING, "us-east-1", "Such as eu-north-1."))
             actionInfo.add(PropertyInformation("operation", "Action", PropertyInformationType.DROPDOWN, READ, "", listOf(
                 PropertyInformation(READ, "Read a file"),

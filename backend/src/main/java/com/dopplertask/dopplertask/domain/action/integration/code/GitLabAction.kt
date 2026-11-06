@@ -8,18 +8,17 @@ import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.Prop
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
 import com.dopplertask.dopplertask.domain.action.integration.JsonApi
 import com.dopplertask.dopplertask.service.BroadcastListener
-import com.dopplertask.dopplertask.service.ColumnEncryptor
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.io.IOException
 import javax.persistence.Column
-import javax.persistence.Convert
 import javax.persistence.DiscriminatorValue
 import javax.persistence.Entity
 import javax.persistence.Lob
 import javax.persistence.Table
+import javax.persistence.Transient
 
 @Entity
 @Table(name = "GitLabAction")
@@ -28,8 +27,7 @@ class GitLabAction : Action() {
     @Column
     var baseUrl: String? = "https://gitlab.com"
 
-    @Column
-    @Convert(converter = ColumnEncryptor::class)
+    @Transient
     var token: String? = null
 
     @Column
@@ -98,7 +96,7 @@ class GitLabAction : Action() {
     override val actionInfo: MutableList<PropertyInformation>
         get() {
             val actionInfo = super.actionInfo
-            actionInfo.add(PropertyInformation("token", "Token", PropertyInformationType.STRING, "", "A personal or project access token, with the api scope.", mutableListOf(), PropertyInformationCategory.CREDENTIAL))
+            actionInfo.add(PropertyInformation("token", "Token", PropertyInformationType.STRING, "", "A personal or project access token, with the api scope.", mutableListOf(), PropertyInformationCategory.SECRET))
             actionInfo.add(PropertyInformation("project", "Project", PropertyInformationType.STRING, "", "Written as group/name."))
             actionInfo.add(PropertyInformation("operation", "Action", PropertyInformationType.DROPDOWN, CREATE_ISSUE, "", listOf(
                 PropertyInformation(CREATE_ISSUE, "Create an issue"),
