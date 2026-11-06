@@ -44,6 +44,7 @@ import java.util.Optional;
 import javax.transaction.Transactional;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -153,6 +154,48 @@ public class TaskControllerTests {
     private void assertAutoSavedFlags(Boolean... flags) throws Exception {
         this.mockMvc.perform(get("/task/grouped"))
                 .andExpect(jsonPath("$.autosaving[*].autoSaved", containsInAnyOrder(flags)));
+    }
+
+    @Test
+    public void testSaveWithoutActiveAndDescriptionSuccess() throws Exception {
+        this.mockMvc.perform(post("/task").content("{\"name\":\"minimal\",\"actions\":[{\"@type\":\"StartAction\"}],\"connections\":[]}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    public void testSaveWithoutConnectionsNamesTheFieldFail() throws Exception {
+        assertSaveFailsWith("{\"name\":\"x\",\"actions\":[]}", "connections");
+    }
+
+    @Test
+    public void testSaveWithWrongFieldTypeNamesThePathFail() throws Exception {
+        assertSaveFailsWith("{\"name\":\"x\",\"connections\":[],\"actions\":[{\"@type\":\"HttpAction\",\"headers\":{}}]}", "at actions[0].headers");
+    }
+
+    @Test
+    public void testSaveWithUnknownActionNamesTheTypeFail() throws Exception {
+        assertSaveFailsWith("{\"name\":\"x\",\"connections\":[],\"actions\":[{\"@type\":\"NoSuchAction\"}]}", "NoSuchAction");
+    }
+
+    @Test
+    public void testSaveWithWhitespaceInNameExplainsWhyFail() throws Exception {
+        assertSaveFailsWith("{\"name\":\"has space\",\"connections\":[],\"actions\":[{\"@type\":\"StartAction\"}]}", "whitespace");
+    }
+
+    @Test
+    public void testSaveWithoutStartActionExplainsWhyFail() throws Exception {
+        assertSaveFailsWith("{\"name\":\"x\",\"connections\":[],\"actions\":[]}", "start action");
+    }
+
+    @Test
+    public void testSaveWithMalformedJsonFail() throws Exception {
+        assertSaveFailsWith("not json", "Invalid task JSON");
+    }
+
+    private void assertSaveFailsWith(String body, String expectedMessage) throws Exception {
+        this.mockMvc.perform(post("/task").content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", containsString(expectedMessage)));
     }
 
     @Test
