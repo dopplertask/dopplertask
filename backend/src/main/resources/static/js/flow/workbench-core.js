@@ -91,12 +91,13 @@ export default function boot() {
       ['keyboard', 'Keyboard shortcuts', () => DT.ui.openShortcutsDialog()],
     ];
     const { element, close } = DT.ui.openPopover(anchor, `<div class="ui-menu task-switcher">
-      ${store.tasks.map((task) => `<button type="button" class="is-task ${task.id === store.task.id ? 'is-current' : ''}" data-switch="${escapeHtml(task.id)}">${icon('workflow')}<span><b>${escapeHtml(task.name)}</b><small>${task.versions.length} ${task.versions.length === 1 ? 'version' : 'versions'}</small></span></button>`).join('')}
+      <div class="task-switcher-list">${store.tasks.map((task) => `<button type="button" class="is-task ${task.id === store.task.id ? 'is-current' : ''}" data-switch="${escapeHtml(task.id)}">${icon('workflow')}<span><b>${escapeHtml(task.name)}</b><small>${task.versions.length} ${task.versions.length === 1 ? 'version' : 'versions'}</small></span></button>`).join('')}</div>
       ${store.tasks.length ? '<hr>' : ''}
       ${others.map((item, index) => `<button type="button" data-other="${index}">${icon(item[0])}<span>${item[1]}</span></button>`).join('')}
       <hr>
       <label class="ui-toggle" title="Saves a marked version 30 seconds after the last change. Pauses while the task's triggers are on."><input type="checkbox" data-wb-autosave ${store.autoSave ? 'checked' : ''}><span class="ui-toggle-track"></span><span>Auto save</span></label>
     </div>`);
+    element.querySelector('.is-task.is-current')?.scrollIntoView({ block: 'nearest' });
     /* Opened from the rail, it sits beside the rail rather than on top of it. */
     if (anchor.closest('.rail')) element.style.left = `${anchor.getBoundingClientRect().right + 12}px`;
     element.addEventListener('click', (event) => {
