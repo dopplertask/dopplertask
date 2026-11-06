@@ -8,6 +8,7 @@ import com.dopplertask.dopplertask.service.TaskNotFoundException;
 import com.dopplertask.dopplertask.service.WhiteSpaceInNameException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
+import com.dopplertask.dopplertask.service.ApprovalRequiredException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -21,6 +22,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({LinkedTaskNotFoundException.class, TaskNotFoundException.class})
     public ResponseEntity<ErrorDto> generateNotFoundError(RuntimeException ex) {
         return error(ex.getMessage(), HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler(ApprovalRequiredException.class)
+    public ResponseEntity<ErrorDto> generateApprovalRequiredError(RuntimeException ex) {
+        return error(ex.getMessage(), HttpStatus.FORBIDDEN);
     }
 
     @ExceptionHandler({WhiteSpaceInNameException.class, NoStartActionFoundException.class, IncompleteConnectionException.class})

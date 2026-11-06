@@ -254,7 +254,7 @@ public class TaskControllerTests {
                 "}";
         this.mockMvc.perform(post("/schedule/directtask").contentType(MediaType.APPLICATION_JSON).content(requestTaskRunStr)).andDo(print()).andExpect(status().isOk());
 
-        Optional<Task> task = taskDao.findFirstByNameOrderByCreatedDesc("example-task-2");
+        Optional<Task> task = taskDao.findFirstByNameAndProposedFalseOrderByCreatedDesc("example-task-2");
 
         Assert.assertEquals(true, task.isPresent());
         Assert.assertEquals("example-task-2", task.get().getName());
@@ -301,7 +301,7 @@ public class TaskControllerTests {
 
         webserver.close();
 
-        Optional<Task> task = taskDao.findFirstByNameOrderByCreatedDesc("example-task-3");
+        Optional<Task> task = taskDao.findFirstByNameAndProposedFalseOrderByCreatedDesc("example-task-3");
         Assert.assertEquals(true, task.isPresent());
         Assert.assertEquals("example-task-3", task.get().getName());
         List<TaskExecution> execution = taskExecutionDao.findAllByTask(task.get());

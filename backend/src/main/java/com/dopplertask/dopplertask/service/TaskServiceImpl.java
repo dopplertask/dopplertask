@@ -156,6 +156,32 @@ public class TaskServiceImpl implements TaskService {
     @Override
     @Transactional
     public Long createTask(String name, List<TaskParameter> taskParameters, List<Action> actions, String description, List<Connection> connections, String checksum, boolean active, boolean buildTask, boolean autoSaved) {
+        return saveTask(name, taskParameters, actions, description, connections, checksum, active, buildTask, autoSaved, false);
+    }
+
+    @Override
+    @Transactional
+    public Long proposeTask(String name, List<TaskParameter> taskParameters, List<Action> actions, String description, List<Connection> connections, String checksum) {
+        return saveTask(name, taskParameters, actions, description, connections, checksum, false, true, false, true);
+    }
+
+    @Override
+    @Transactional
+    public boolean approveTask(String checksum) {
+        Optional<Task> proposal = taskDao.findByChecksum(checksum);
+        if (proposal.isEmpty() || !proposal.get().isProposed()) {
+            return false;
+        }
+        // It takes over from the current version, so a schedule that is on stays on.
+        boolean active = taskDao.findFirstByNameAndProposedFalseOrderByCreatedDesc(proposal.get().getName()).map(Task::isActive).orElse(false);
+        proposal.get().setProposed(false);
+        proposal.get().setActive(active);
+        proposal.get().setCreated(new Date());
+        triggerListenerService.updateTriggers(proposal.get().getId());
+        return true;
+    }
+
+    private Long saveTask(String name, List<TaskParameter> taskParameters, List<Action> actions, String description, List<Connection> connections, String checksum, boolean active, boolean buildTask, boolean autoSaved, boolean proposed) {
 
         // Auto save only adds versions to a task the user has saved, so it cannot create drafts or revive deleted tasks.
         if (autoSaved && taskDao.findAllByName(name).isEmpty()) {
@@ -169,6 +195,11 @@ public class TaskServiceImpl implements TaskService {
         // If we try to add the same task again, we just return the current id.
         Optional<Task> existingTask = taskDao.findByChecksum(checksum);
         if (existingTask.isPresent()) {
+            // An agent saving what already exists changes nothing, and a person saving a proposal accepts it.
+            if (proposed) {
+                return existingTask.get().getId();
+            }
+            existingTask.get().setProposed(false);
             existingTask.get().setCreated(new Date());
             existingTask.get().setActive(active);
             existingTask.get().setAutoSaved(existingTask.get().isAutoSaved() && autoSaved);
@@ -217,6 +248,8 @@ public class TaskServiceImpl implements TaskService {
 
         task.setActive(active);
         task.setAutoSaved(autoSaved);
+        task.setProposed(proposed);
+        task.setMadeByAgent(proposed);
 
         // Check if action is available
         if (task.getWebhookStartAction() == null) {
@@ -249,8 +282,10 @@ public class TaskServiceImpl implements TaskService {
         // Save the new task
         taskDao.save(task);
 
-        // Update threadpools
-        triggerListenerService.updateTriggers(task.getId());
+        // A proposal must not disturb what is running.
+        if (!proposed) {
+            triggerListenerService.updateTriggers(task.getId());
+        }
 
         return task.getId();
     }
@@ -311,7 +346,7 @@ public class TaskServiceImpl implements TaskService {
     @Override
     @Transactional
     public boolean pushTask(String taskName) {
-        Optional<Task> taskOptional = taskDao.findFirstByNameOrderByCreatedDesc(taskName);
+        Optional<Task> taskOptional = taskDao.findFirstByNameAndProposedFalseOrderByCreatedDesc(taskName);
         if (taskOptional.isPresent()) {
             Task task = taskOptional.get();
 
@@ -364,7 +399,7 @@ public class TaskServiceImpl implements TaskService {
         }
 
         // Find task by name
-        Optional<Task> taskByName = taskDao.findFirstByNameOrderByCreatedDesc(taskNameOrChecksum);
+        Optional<Task> taskByName = taskDao.findFirstByNameAndProposedFalseOrderByCreatedDesc(taskNameOrChecksum);
         if (taskByName.isPresent()) {
             return deleteVersion(taskByName.get());
         }
@@ -384,7 +419,7 @@ public class TaskServiceImpl implements TaskService {
     @Override
     @Transactional
     public Task getTaskByName(String taskName) {
-        Optional<Task> task = taskDao.findFirstByNameOrderByCreatedDesc(taskName);
+        Optional<Task> task = taskDao.findFirstByNameAndProposedFalseOrderByCreatedDesc(taskName);
 
         if (task.isPresent()) {
             Task taskObj = task.get();

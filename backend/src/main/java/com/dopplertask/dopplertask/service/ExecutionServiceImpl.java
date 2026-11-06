@@ -194,7 +194,7 @@ public class ExecutionServiceImpl implements ExecutionService {
     }
 
     public Optional<Task> findOrDownloadByName(String taskName, TaskService taskService) {
-        Optional<Task> task = taskDao.findFirstByNameOrderByCreatedDesc(taskName);
+        Optional<Task> task = taskDao.findFirstByNameAndProposedFalseOrderByCreatedDesc(taskName);
 
         if (task.isPresent()) {
             LOG.info("Found task with with name: {}", taskName);
@@ -284,7 +284,7 @@ public class ExecutionServiceImpl implements ExecutionService {
                 String sha256 = bytesToHex(encodedhash);
 
                 // Check current database for existing task with checksum.
-                Optional<Task> existingTask = taskDao.findFirstByChecksumStartingWith(sha256);
+                Optional<Task> existingTask = taskDao.findFirstByChecksumStartingWithAndProposedFalse(sha256);
                 if (!existingTask.isPresent()) {
                     Long onlineTaskId = taskService.createTask(taskCreationDTO.getName(), taskCreationDTO.getParameters(), taskCreationDTO.getActions(), taskCreationDTO.getDescription(), taskCreationDTO.getConnections(), sha256, taskCreationDTO.isActive(), false);
                     return taskDao.findById(onlineTaskId);
@@ -297,11 +297,11 @@ public class ExecutionServiceImpl implements ExecutionService {
         }
 
 
-        return taskDao.findFirstByNameOrderByCreatedDesc(taskName);
+        return taskDao.findFirstByNameAndProposedFalseOrderByCreatedDesc(taskName);
     }
 
     private Optional<Task> findOrDownloadByChecksum(String checksum, TaskService taskService) {
-        Optional<Task> task = taskDao.findFirstByChecksumStartingWith(checksum);
+        Optional<Task> task = taskDao.findFirstByChecksumStartingWithAndProposedFalse(checksum);
 
         if (task.isPresent()) {
             LOG.info("Found task with checksum: {}", checksum);

@@ -15,6 +15,8 @@ public class TaskResponseSingleDTO {
     private String checksum;
     private boolean active;
     private boolean autoSaved;
+    private boolean proposed;
+    private boolean madeByAgent;
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Date created;
     private List<TaskParameter> parameters;
@@ -27,6 +29,22 @@ public class TaskResponseSingleDTO {
     public TaskResponseSingleDTO() {
         parameters = new ArrayList<>();
         connections = new ArrayList<>();
+    }
+
+    public boolean isProposed() {
+        return proposed;
+    }
+
+    public void setProposed(boolean proposed) {
+        this.proposed = proposed;
+    }
+
+    public boolean isMadeByAgent() {
+        return madeByAgent;
+    }
+
+    public void setMadeByAgent(boolean madeByAgent) {
+        this.madeByAgent = madeByAgent;
     }
 
     public boolean isAutoSaved() {

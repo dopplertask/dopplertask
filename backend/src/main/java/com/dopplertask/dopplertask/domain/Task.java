@@ -67,6 +67,14 @@ public class Task {
     @Column(columnDefinition = "boolean default false")
     private boolean autoSaved = false;
 
+    // Saved by an agent and waiting for a person, so runs, webhooks and schedules keep using the version before it.
+    @Column(columnDefinition = "boolean default false")
+    private boolean proposed = false;
+
+    // Stays true after approval, as a record of where the version came from.
+    @Column(columnDefinition = "boolean default false")
+    private boolean madeByAgent = false;
+
     public Long getId() {
         return id;
     }
@@ -175,6 +183,22 @@ public class Task {
 
     public void setConnections(List<Connection> connections) {
         this.connections = connections;
+    }
+
+    public boolean isProposed() {
+        return proposed;
+    }
+
+    public void setProposed(boolean proposed) {
+        this.proposed = proposed;
+    }
+
+    public boolean isMadeByAgent() {
+        return madeByAgent;
+    }
+
+    public void setMadeByAgent(boolean madeByAgent) {
+        this.madeByAgent = madeByAgent;
     }
 
     public boolean isAutoSaved() {
