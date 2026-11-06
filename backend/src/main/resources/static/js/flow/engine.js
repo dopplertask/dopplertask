@@ -32,6 +32,7 @@ const PRESENTATION = {
   OpenAIAction: ['openAI', 'OpenAI', 'integration', 'sparkles', ['model', 'userInput']],
   JenkinsAction: ['jenkins', 'Jenkins', 'integration', 'wrench', ['jenkinsUrl']],
   TelegramAction: ['telegram', 'Telegram', 'integration', 'send', ['token','chatId','message']],
+  DiscordAction: ['discord', 'Discord', 'integration', 'message', ['webhookUrl','message']],
   SlackAction: ['slack', 'Slack', 'integration', 'message', ['token', 'channel', 'message']],
   /* Without these a trigger stops at once, and nothing but the server log says so. */
   IntervalTrigger: ['IntervalTrigger', 'Schedule', 'logic', 'clock', ['time']],
@@ -44,7 +45,7 @@ const TRIGGER_KINDS = Object.fromEntries(Object.entries(TRIGGER_ACTIONS).map(([k
 const TRIGGER_DEFAULTS = { webhook: { method: 'POST', authentication: 'none' }, interval: { time: '1', timeUnit: 'MINUTES' }, activemq: {} };
 const STEP_ACTION_NAME = 'actionName';
 const FAILURE_FIELD_NAMES = ['continueOnFailure', 'retries', 'retryWait', 'failOn'];
-const SECRET_FIELDS = ['password', 'apiKey', 'apiToken', 'token'];
+const SECRET_FIELDS = ['password', 'apiKey', 'apiToken', 'token', 'webhookUrl'];
 const AUTO_SAVE_DELAY_MS = 30000;
 const AUTO_SAVE_KEY = 'autoSave';
 const LAST_TASK_KEY = 'lastTask';
@@ -236,6 +237,7 @@ function describeNode(node) {
     case 'browseWeb': return ['Open ', value(inlineVariables(config.url), 'a page')];
     case 'mouse': return [{ value: (config.action || 'CLICK').toLowerCase() }, ' the mouse'];
     case 'telegram': return ['Send ', value(inlineVariables(config.message), 'a message'), ' to ', value(config.chatId, 'a chat')];
+    case 'discord': return ['Send ', value(inlineVariables(config.message), 'a message'), ' to Discord'];
     case 'slack': return ['Send ', value(inlineVariables(config.message), 'a message'), ' to ', value(config.channel, 'a channel')];
     case 'openAI': return ['Ask ', { value: config.model || 'OpenAI' }, ' ', value(readableExpression(config.userInput), 'a prompt')];
     case 'jenkins': return [{ value: config.operation || 'Call' }, ' on Jenkins'];

@@ -317,6 +317,13 @@ Sends a message to a Telegram chat. The next step can read the id of the message
 * message: Up to 4096 characters.
 * baseUrl: Optional. Only change this to go through a proxy or your own Bot API server.
 
+#### DiscordAction
+Sends a message to a Discord channel through a webhook. The next step can read the id of the message from `$lastLog.outputVariables.messageId`.
+
+##### Variables
+* webhookUrl: Made in the settings of the channel under Integrations. It is kept as a secret, since anyone who has it can write to the channel.
+* message: Up to 2000 characters.
+
 #### SlackAction
 Sends a message to a Slack channel. The bot needs the `chat:write` permission and has to be a member of the channel. The next step can read the time stamp of the message from `$lastLog.outputVariables.ts`, for example to reply in its thread.
 

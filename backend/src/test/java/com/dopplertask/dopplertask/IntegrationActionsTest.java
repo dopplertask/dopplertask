@@ -4,6 +4,7 @@ import com.dopplertask.dopplertask.domain.ActionResult;
 import com.dopplertask.dopplertask.domain.StatusCode;
 import com.dopplertask.dopplertask.domain.TaskExecution;
 import com.dopplertask.dopplertask.domain.action.Action;
+import com.dopplertask.dopplertask.domain.action.integration.chat.DiscordAction;
 import com.dopplertask.dopplertask.domain.action.integration.chat.SlackAction;
 import com.dopplertask.dopplertask.domain.action.integration.chat.TelegramAction;
 import com.dopplertask.dopplertask.service.TaskServiceImpl;
@@ -32,6 +33,7 @@ public class IntegrationActionsTest {
     private HttpServer service;
     private String baseUrl;
     private String path;
+    private String query;
     private String method;
     private String authorization;
     private JsonNode received;
@@ -53,6 +55,7 @@ public class IntegrationActionsTest {
 
     private void answer(HttpExchange exchange) throws IOException {
         path = exchange.getRequestURI().getPath();
+        query = exchange.getRequestURI().getQuery();
         method = exchange.getRequestMethod();
         authorization = exchange.getRequestHeaders().getFirst("Authorization");
         String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
@@ -177,5 +180,41 @@ public class IntegrationActionsTest {
         String message = run(telegram).getErrorMsg();
         Assert.assertTrue(message, message.contains("not valid"));
         Assert.assertFalse(message, message.contains("secret"));
+    }
+
+    private DiscordAction discord() {
+        DiscordAction discord = new DiscordAction();
+        discord.setWebhookUrl(baseUrl + "/api/webhooks/1/secret");
+        discord.setMessage("Disk is full");
+        return discord;
+    }
+
+    @Test
+    public void testDiscordSendsTheMessageAndGivesItsIdSuccess() throws IOException {
+        answerBody = "{\"id\":\"99\",\"content\":\"Disk is full\"}";
+        ActionResult result = run(discord());
+        Assert.assertEquals(StatusCode.SUCCESS, result.getStatusCode());
+        Assert.assertEquals("/api/webhooks/1/secret", path);
+        Assert.assertEquals("wait=true", query);
+        Assert.assertEquals("Disk is full", received.path("content").asText());
+        Assert.assertEquals("99", result.getOutputVariables().get("messageId"));
+    }
+
+    @Test
+    public void testDiscordKeepsTheWebhookOutOfAnErrorFail() throws IOException {
+        answerStatus = 404;
+        answerBody = "{\"message\":\"Unknown Webhook\",\"code\":10015}";
+        Assert.assertEquals("Discord answered with status 404: Unknown Webhook.", run(discord()).getErrorMsg());
+        DiscordAction wrong = discord();
+        wrong.setWebhookUrl("https://discord.com/api/webhooks/1/my secret");
+        Assert.assertFalse(run(wrong).getErrorMsg().contains("secret"));
+    }
+
+    @Test
+    public void testDiscordRefusesTooLongAMessageBeforeSendingFail() throws IOException {
+        DiscordAction discord = discord();
+        discord.setMessage("x".repeat(2001));
+        Assert.assertTrue(run(discord).getErrorMsg().contains("2000"));
+        Assert.assertNull(path);
     }
 }
