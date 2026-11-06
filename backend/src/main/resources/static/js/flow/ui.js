@@ -58,6 +58,14 @@ export default function boot() {
   /* ---------- Toast ---------- */
 
   const MAX_TOASTS = 2;
+  const MAX_JSON_TO_FORMAT = 500000;
+
+  /* Copies the output as it is shown. */
+  document.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-copy-output]');
+    if (!button) return;
+    navigator.clipboard.writeText(button.closest('.ui-result').querySelector('pre').textContent).then(() => toast('Output copied'));
+  });
 
   function toast(message, { actionLabel, onAction, tone } = {}) {
     let host = document.querySelector('.ui-toasts');
@@ -543,11 +551,18 @@ export default function boot() {
   }
 
   /* The output of a step in a run. */
+  /* JSON is what most services answer with, and one long line of it cannot be read. */
+  function readableOutput(output) {
+    const text = String(output);
+    if (!/^\s*[{[]/.test(text) || text.length > MAX_JSON_TO_FORMAT) return text;
+    try { return JSON.stringify(JSON.parse(text), null, 2); } catch (error) { return text; }
+  }
+
   function renderStepResult(step) {
     if (!step) return '<p class="ui-empty">This step did not run.</p>';
     return `
       ${step.error ? `<p class="ui-note is-danger">${icon('alert')}${escapeHtml(step.error)}</p>` : ''}
-      ${step.output ? `<div class="ui-result"><span class="ui-label">Output</span><pre>${escapeHtml(step.output)}</pre></div>` : ''}`;
+      ${step.output ? `<div class="ui-result"><div class="ui-result-head"><span class="ui-label">Output</span>${navigator.clipboard ? `<button type="button" class="ui-link-button" data-copy-output>${icon('copy')}Copy</button>` : ''}</div><pre>${escapeHtml(readableOutput(step.output))}</pre></div>` : ''}`;
   }
 
   const STATE_GLYPHS = { success: 'check', failed: 'x', warning: 'alert' };
