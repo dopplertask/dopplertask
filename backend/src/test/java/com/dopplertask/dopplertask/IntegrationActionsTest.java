@@ -89,7 +89,7 @@ public class IntegrationActionsTest {
     public void testSlackSendsTheMessageAndGivesItsTimeStampSuccess() throws IOException {
         answerBody = "{\"ok\":true,\"ts\":\"1700.5\"}";
         SlackAction slack = slack();
-        slack.setThreadTs("1600.1");
+        slack.setReplyToMessageId("1600.1");
         ActionResult result = run(slack);
 
         Assert.assertEquals(StatusCode.SUCCESS, result.getStatusCode());
@@ -99,7 +99,7 @@ public class IntegrationActionsTest {
         Assert.assertEquals("#deploys", received.path("channel").asText());
         Assert.assertEquals("Deployed", received.path("text").asText());
         Assert.assertEquals("1600.1", received.path("thread_ts").asText());
-        Assert.assertEquals("1700.5", result.getOutputVariables().get("ts"));
+        Assert.assertEquals("1700.5", result.getOutputVariables().get("messageId"));
     }
 
     @Test
@@ -148,7 +148,7 @@ public class IntegrationActionsTest {
         TelegramAction telegram = new TelegramAction();
         telegram.setBaseUrl(baseUrl);
         telegram.setToken("123:abc");
-        telegram.setChatId("@alerts");
+        telegram.setChat("@alerts");
         telegram.setMessage("Disk is full");
         return telegram;
     }
@@ -227,7 +227,7 @@ public class IntegrationActionsTest {
     private PagerDutyAction pagerDuty() {
         PagerDutyAction pagerDuty = new PagerDutyAction();
         pagerDuty.setBaseUrl(baseUrl);
-        pagerDuty.setRoutingKey("key");
+        pagerDuty.setIntegrationKey("key");
         pagerDuty.setSummary("Disk is full");
         return pagerDuty;
     }
@@ -243,16 +243,16 @@ public class IntegrationActionsTest {
         Assert.assertEquals("trigger", received.path("event_action").asText());
         Assert.assertEquals("Disk is full", received.path("payload").path("summary").asText());
         Assert.assertEquals("error", received.path("payload").path("severity").asText());
-        Assert.assertEquals("abc", result.getOutputVariables().get("dedupKey"));
+        Assert.assertEquals("abc", result.getOutputVariables().get("incidentKey"));
     }
 
     @Test
     public void testPagerDutyResolvesWithTheKeyAndWithoutAPayloadSuccess() throws IOException {
         answerStatus = 202;
         PagerDutyAction pagerDuty = pagerDuty();
-        pagerDuty.setEventAction("resolve");
+        pagerDuty.setOperation("resolve");
         pagerDuty.setSummary(null);
-        pagerDuty.setDedupKey("abc");
+        pagerDuty.setIncidentKey("abc");
         Assert.assertEquals(StatusCode.SUCCESS, run(pagerDuty).getStatusCode());
         Assert.assertEquals("abc", received.path("dedup_key").asText());
         Assert.assertTrue(received.path("payload").isMissingNode());
@@ -261,7 +261,7 @@ public class IntegrationActionsTest {
     @Test
     public void testPagerDutyAsksForTheKeyBeforeResolvingFail() throws IOException {
         PagerDutyAction pagerDuty = pagerDuty();
-        pagerDuty.setEventAction("resolve");
+        pagerDuty.setOperation("resolve");
         Assert.assertTrue(run(pagerDuty).getErrorMsg().contains("incident key"));
         Assert.assertNull(path);
     }
@@ -364,10 +364,12 @@ public class IntegrationActionsTest {
         jira.setEmail("a@b.se");
         jira.setOperation("addComment");
         jira.setIssueKey("OPS-12");
-        Assert.assertEquals(StatusCode.SUCCESS, run(jira).getStatusCode());
+        ActionResult result = run(jira);
+        Assert.assertEquals(StatusCode.SUCCESS, result.getStatusCode());
         Assert.assertEquals("/rest/api/2/issue/OPS-12/comment", path);
         Assert.assertEquals("Basic YUBiLnNlOnBhdA==", authorization);
         Assert.assertEquals("On web-1", received.path("body").asText());
+        Assert.assertEquals(baseUrl + "/browse/OPS-12", result.getOutputVariables().get("url"));
     }
 
     @Test

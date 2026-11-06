@@ -38,7 +38,7 @@ class SlackAction : Action() {
     var message: String? = null
 
     @Column
-    var threadTs: String? = null
+    var replyToMessageId: String? = null
 
     @Throws(IOException::class)
     override fun run(
@@ -55,7 +55,7 @@ class SlackAction : Action() {
         if (messageValue.isBlank()) return ActionResult.failure("Slack needs a message to send.")
 
         val body = mutableMapOf("channel" to channelValue, "text" to messageValue)
-        val thread = variableExtractorUtil.extract(threadTs, execution, scriptLanguage)
+        val thread = variableExtractorUtil.extract(replyToMessageId, execution, scriptLanguage)
         if (thread.isNotBlank()) body["thread_ts"] = thread
 
         val result = JsonApi.call("Slack", "POST", variableExtractorUtil.extract(baseUrl, execution, scriptLanguage).trimEnd('/') + "/chat.postMessage",
@@ -66,7 +66,7 @@ class SlackAction : Action() {
         if (result.statusCode == StatusCode.SUCCESS && !answer.path("ok").asBoolean(false)) {
             return ActionResult.failure("Slack refused the message: ${answer.path("error").asText("no reason given")}.")
         }
-        if (answer.hasNonNull("ts")) result.outputVariables["ts"] = answer.path("ts").asText()
+        if (answer.hasNonNull("ts")) result.outputVariables["messageId"] = answer.path("ts").asText()
         return result
     }
 
@@ -79,7 +79,7 @@ class SlackAction : Action() {
             actionInfo.add(PropertyInformation("token", "Bot token", PropertyInformationType.STRING, "", "A bot token that starts with xoxb-, with the chat:write permission.", mutableListOf(), PropertyInformationCategory.CREDENTIAL))
             actionInfo.add(PropertyInformation("channel", "Channel", PropertyInformationType.STRING, "", "Such as #deploys or a channel id. The bot has to be a member of it."))
             actionInfo.add(PropertyInformation("message", "Message", PropertyInformationType.MULTILINE, "", "The text to send."))
-            actionInfo.add(PropertyInformation("threadTs", "Reply to thread", PropertyInformationType.STRING, "", "Optional. The ts of the message to reply to, which a Slack step gives as \$lastLog.outputVariables.ts."))
+            actionInfo.add(PropertyInformation("replyToMessageId", "Reply to message", PropertyInformationType.STRING, "", "Answers in the thread of this message. A Slack step gives the id as \$lastLog.outputVariables.messageId."))
             actionInfo.add(PropertyInformation("baseUrl", "Base URL", PropertyInformationType.STRING, "https://slack.com/api", "Only change this to go through a proxy."))
             return actionInfo
         }

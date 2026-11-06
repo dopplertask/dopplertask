@@ -31,9 +31,9 @@ const PRESENTATION = {
   MouseAction: ['mouse', 'Use the mouse', 'browser', 'pointer'],
   OpenAIAction: ['openAI', 'OpenAI', 'integration', 'sparkles', ['model', 'userInput']],
   JenkinsAction: ['jenkins', 'Jenkins', 'integration', 'wrench', ['jenkinsUrl']],
-  TelegramAction: ['telegram', 'Telegram', 'integration', 'send', ['token', 'chatId', 'message']],
+  TelegramAction: ['telegram', 'Telegram', 'integration', 'send', ['token', 'chat', 'message']],
   DiscordAction: ['discord', 'Discord', 'integration', 'message', ['webhookUrl', 'message']],
-  PagerDutyAction: ['pagerduty', 'PagerDuty', 'integration', 'alert', ['routingKey', 'summary']],
+  PagerDutyAction: ['pagerduty', 'PagerDuty', 'integration', 'alert', ['integrationKey', 'summary']],
   GitHubAction: ['github', 'GitHub', 'integration', 'code', ['token', 'repository', 'issueNumber', 'title']],
   JiraAction: ['jira', 'Jira', 'integration', 'tags', ['siteUrl', 'token', 'project', 'summary', 'issueKey']],
   RedisAction: ['redis', 'Redis', 'connection', 'database', ['hostname', 'key']],
@@ -50,7 +50,7 @@ const TRIGGER_KINDS = Object.fromEntries(Object.entries(TRIGGER_ACTIONS).map(([k
 const TRIGGER_DEFAULTS = { webhook: { method: 'POST', authentication: 'none' }, interval: { time: '1', timeUnit: 'MINUTES' }, activemq: {} };
 const STEP_ACTION_NAME = 'actionName';
 const FAILURE_FIELD_NAMES = ['continueOnFailure', 'retries', 'retryWait', 'failOn'];
-const SECRET_FIELDS = ['password', 'apiKey', 'apiToken', 'token', 'webhookUrl', 'routingKey'];
+const SECRET_FIELDS = ['password', 'apiKey', 'apiToken', 'token', 'webhookUrl', 'integrationKey'];
 const AUTO_SAVE_DELAY_MS = 30000;
 const AUTO_SAVE_KEY = 'autoSave';
 const LAST_TASK_KEY = 'lastTask';
@@ -241,9 +241,9 @@ function describeNode(node) {
     case 'writeFile': return ['Write ', value(inlineVariables(config.filename), 'a file')];
     case 'browseWeb': return ['Open ', value(inlineVariables(config.url), 'a page')];
     case 'mouse': return [{ value: (config.action || 'CLICK').toLowerCase() }, ' the mouse'];
-    case 'telegram': return ['Send ', value(inlineVariables(config.message), 'a message'), ' to ', value(config.chatId, 'a chat')];
+    case 'telegram': return ['Send ', value(inlineVariables(config.message), 'a message'), ' to ', value(config.chat, 'a chat')];
     case 'discord': return ['Send ', value(inlineVariables(config.message), 'a message'), ' to Discord'];
-    case 'pagerduty': return config.eventAction === 'resolve' ? ['Resolve ', value(config.dedupKey, 'an incident')] : config.eventAction === 'acknowledge' ? ['Acknowledge ', value(config.dedupKey, 'an incident')] : ['Open an incident: ', value(inlineVariables(config.summary), 'no summary yet')];
+    case 'pagerduty': return config.operation === 'resolve' ? ['Resolve ', value(config.incidentKey, 'an incident')] : config.operation === 'acknowledge' ? ['Acknowledge ', value(config.incidentKey, 'an incident')] : ['Open an incident: ', value(inlineVariables(config.summary), 'no summary yet')];
     case 'github': return config.operation === 'addComment' ? ['Comment on ', value(config.repository, 'a repository'), ' #', value(config.issueNumber, '?')] : config.operation === 'closeIssue' ? ['Close ', value(config.repository, 'a repository'), ' #', value(config.issueNumber, '?')] : ['Create ', value(inlineVariables(config.title), 'an issue'), ' in ', value(config.repository, 'a repository')];
     case 'jira': return config.operation === 'addComment' ? ['Comment on ', value(config.issueKey, 'an issue')] : ['Create ', value(inlineVariables(config.summary), 'an issue'), ' in ', value(config.project, 'a project')];
     case 'redis': return config.operation === 'set' ? ['Write ', value(config.key, 'a key')] : config.operation === 'increment' ? ['Increment ', value(config.key, 'a key')] : config.operation === 'delete' ? ['Delete ', value(config.key, 'a key')] : ['Read ', value(config.key, 'a key')];

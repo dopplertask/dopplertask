@@ -31,7 +31,7 @@ class TelegramAction : Action() {
     var token: String? = null
 
     @Column
-    var chatId: String? = null
+    var chat: String? = null
 
     @Lob
     @Column(columnDefinition = "TEXT")
@@ -45,7 +45,7 @@ class TelegramAction : Action() {
         broadcastListener: BroadcastListener?
     ): ActionResult {
         val tokenValue = variableExtractorUtil.extract(token, execution, scriptLanguage)
-        val chatValue = variableExtractorUtil.extract(chatId, execution, scriptLanguage)
+        val chatValue = variableExtractorUtil.extract(chat, execution, scriptLanguage)
         val messageValue = variableExtractorUtil.extract(message, execution, scriptLanguage)
         if (tokenValue.isBlank()) return ActionResult.failure("Telegram needs a bot token, which BotFather gives.")
         if (chatValue.isBlank()) return ActionResult.failure("Telegram needs a chat id, or a channel such as @alerts.")
@@ -68,7 +68,7 @@ class TelegramAction : Action() {
         get() {
             val actionInfo = super.actionInfo
             actionInfo.add(PropertyInformation("token", "Bot token", PropertyInformationType.STRING, "", "The token that BotFather gives for your bot.", mutableListOf(), PropertyInformationCategory.CREDENTIAL))
-            actionInfo.add(PropertyInformation("chatId", "Chat", PropertyInformationType.STRING, "", "A chat id, or a channel such as @alerts. The bot has to be able to write there."))
+            actionInfo.add(PropertyInformation("chat", "Chat", PropertyInformationType.STRING, "", "A chat id, or a channel such as @alerts. The bot has to be able to write there."))
             actionInfo.add(PropertyInformation("message", "Message", PropertyInformationType.MULTILINE, "", "The text to send, up to 4096 characters."))
             actionInfo.add(PropertyInformation("baseUrl", "Base URL", PropertyInformationType.STRING, "https://api.telegram.org", "Only change this to go through a proxy or your own Bot API server."))
             return actionInfo

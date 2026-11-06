@@ -313,7 +313,7 @@ Sends a message to a Telegram chat. The next step can read the id of the message
 
 ##### Variables
 * token: The token that BotFather gives for your bot.
-* chatId: A chat id, or a channel such as `@alerts`.
+* chat: A chat id, or a channel such as `@alerts`.
 * message: Up to 4096 characters.
 * baseUrl: Optional. Only change this to go through a proxy or your own Bot API server.
 
@@ -325,14 +325,14 @@ Sends a message to a Discord channel through a webhook. The next step can read t
 * message: Up to 2000 characters.
 
 #### PagerDutyAction
-Opens, acknowledges or resolves an incident through the Events API v2. The next step can read the key of the incident from `$lastLog.outputVariables.dedupKey`.
+Opens, acknowledges or resolves an incident through the Events API v2. The next step can read the key of the incident from `$lastLog.outputVariables.incidentKey`.
 
 ##### Variables
-* routingKey: The integration key of an Events API v2 integration on a service.
-* eventAction: `trigger`, `acknowledge` or `resolve`.
+* integrationKey: Shown on an Events API v2 integration of a service.
+* operation: `open`, `acknowledge` or `resolve`.
 * summary: What is wrong. Required to open an incident.
 * severity: `critical`, `error`, `warning` or `info`.
-* dedupKey: Optional when opening, and then the same key does not open a second incident. Required to acknowledge or resolve.
+* incidentKey: Optional when opening, and then the same key does not open a second incident. Required to acknowledge or resolve.
 * baseUrl: Optional. An account in the EU uses `https://events.eu.pagerduty.com`.
 
 #### GitHubAction
@@ -348,7 +348,7 @@ Creates, comments on or closes an issue. The next step can read `$lastLog.output
 * baseUrl: Optional. GitHub Enterprise uses `https://your-host/api/v3`.
 
 #### JiraAction
-Creates or comments on an issue, both in the cloud and on your own server. After creating, the next step can read `$lastLog.outputVariables.issueKey` and `url`.
+Creates or comments on an issue, both in the cloud and on your own server. The next step can read `$lastLog.outputVariables.issueKey` and `url`.
 
 ##### Variables
 * siteUrl: Such as `https://acme.atlassian.net`.
@@ -380,13 +380,13 @@ Runs a query on a PostgreSQL database. Rows are given as JSON, such as `[{"id":1
 * queryValues: One value per line, for each `?`. Use this for text from earlier steps, since it cannot change the query.
 
 #### SlackAction
-Sends a message to a Slack channel. The bot needs the `chat:write` permission and has to be a member of the channel. The next step can read the time stamp of the message from `$lastLog.outputVariables.ts`, for example to reply in its thread.
+Sends a message to a Slack channel. The bot needs the `chat:write` permission and has to be a member of the channel. The next step can read the id of the message from `$lastLog.outputVariables.messageId`, for example to reply in its thread.
 
 ##### Variables
 * token: A bot token that starts with `xoxb-`.
 * channel: Such as `#deploys` or a channel id.
 * message
-* threadTs: Optional. The time stamp of a message to reply to.
+* replyToMessageId: Optional. The id of a message, to answer in its thread.
 * baseUrl: Optional. Only change this to go through a proxy.
 
 #### MySQLAction
