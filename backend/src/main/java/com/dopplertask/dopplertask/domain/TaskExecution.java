@@ -47,6 +47,10 @@ public class TaskExecution {
 
     private boolean success = true;
 
+    // Why the run failed, for the caller waiting on it. The logs hold it permanently.
+    @Transient
+    private String failureReason;
+
     public Long getId() {
         return id;
     }
@@ -89,6 +93,14 @@ public class TaskExecution {
 
     public boolean isSuccess() {
         return success;
+    }
+
+    public String getFailureReason() {
+        return failureReason;
+    }
+
+    public void setFailureReason(String failureReason) {
+        this.failureReason = failureReason;
     }
 
     public void setSuccess(boolean success) {
