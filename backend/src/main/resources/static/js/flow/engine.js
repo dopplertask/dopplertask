@@ -212,7 +212,7 @@ function describeNode(node) {
       return ({
         manual: ['Starts ', { value: 'when I run it' }],
         webhook: ['Starts on ', { value: `${config.method || 'POST'} /${config.path || ''}` }],
-        interval: ['Starts every ', { value: `${config.time || 1} ${(config.timeUnit || 'HOURS').toLowerCase()}` }],
+        interval: ['Starts every ', { value: intervalText(config) }],
         activemq: ['Starts on messages from ', value(config.queue, 'no queue')],
       })[config.trigger] || ['Starts'];
     case 'if': return ['If ', value(readableExpression(config.condition), 'a condition')];
@@ -941,6 +941,12 @@ function formatDuration(ms) {
   return `${(ms / 1000).toFixed(1)} s`;
 }
 
+function intervalText(config) {
+  const time = config.time || 1;
+  const unit = (config.timeUnit || 'HOURS').toLowerCase();
+  return `${time} ${String(time) === '1' ? unit.replace(/s$/, '') : unit}`;
+}
+
 function formatAgo(timestamp) {
   const minutes = Math.round((Date.now() - timestamp) / 60000);
   if (minutes < 1) return 'just now';
@@ -955,6 +961,6 @@ export default async function bootEngine() {
     ACTIONS, CATEGORIES, FAILURE_FIELDS,
     createStore, stepsMatching, portsOf, edgeFrom, nodeById, rootNode,
     describeNode, summaryText, fieldVisible, interpolate,
-    formatDuration, formatAgo,
+    formatDuration, formatAgo, intervalText,
   };
 }

@@ -48,7 +48,7 @@ export default function boot() {
   const TRIGGER_ICONS = { webhook: 'webhook', interval: 'clock', activemq: 'server', manual: 'play' };
   function triggerText(config) {
     if (config.trigger === 'webhook') return `${config.method || 'POST'} /${config.path || ''}`;
-    if (config.trigger === 'interval') return `Every ${config.time || 1} ${String(config.timeUnit || 'HOURS').toLowerCase().replace(/s$/, '')}`;
+    if (config.trigger === 'interval') return `Every ${DT.intervalText(config)}`;
     if (config.trigger === 'activemq') return config.queue || 'Queue';
     return 'Run by hand';
   }
