@@ -138,6 +138,8 @@ A web page on another site cannot change or run anything here, since requests wi
 
 #### Build a task through the API
 
+The `example.com` addresses below are placeholders. Replace them with your own, since a request to them answers 404, which fails the step.
+
 * `GET /task/actions` lists every action and its fields. A field can be nested under the options of another field, like `body` under `method` in HttpAction.
 * `POST /task` saves a new version of the task, and the newest version is the one that runs. If it fails, the response says why.
 * `GET /task/{name}/taskname` reads back the newest version of a task, and `GET /task/grouped` lists all tasks.
