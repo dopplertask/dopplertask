@@ -178,7 +178,7 @@ export default function boot() {
     if (action === 'library') setLibrary(!libraryOpen || !!store.selectedId);
     if (action === 'diagram') { store.select(null); if (core.isHistoryOpen()) byId('rail').querySelector('[data-wb="history"]').click(); setLibrary(false); }
     if (action === 'shortcuts') DT.ui.openShortcutsDialog();
-    if (action === 'save') store.save().then(() => DT.ui.toast('Saved'), (error) => DT.ui.toast(error.message, { tone: 'danger' }));
+    if (action === 'save') store.save().then((message) => DT.ui.toast(message), (error) => DT.ui.toast(error.message, { tone: 'danger' }));
     if (action === 'new') { store.newTask(); byId('barName').select(); }
     if (action === 'export') DT.ui.exportTask(store);
     if (action === 'import') DT.ui.importTask(store);
