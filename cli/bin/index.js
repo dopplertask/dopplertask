@@ -3,7 +3,35 @@
 
 const yargs = require("yargs");
 const http = require('http');
-const Stomp = require('stompjs')
+
+const FOLLOW_POLL_MS = 250;
+
+// Prints each step as it finishes, and ends with a failing exit code if the run failed.
+function followRun(executionId, printedSteps = 0) {
+    callBackend("/execution/" + executionId, "GET", null, function(execution) {
+        const steps = execution.steps || [];
+        steps.slice(printedSteps).forEach(step => {
+            if (step.output) {
+                console.log(step.output.trimEnd());
+            }
+            if (step.error) {
+                console.error(step.error);
+            }
+        });
+
+        if (execution.status === "FINISHED") {
+            return;
+        }
+        if (execution.status === "FAILED") {
+            if (steps.length === 0) {
+                execution.output.forEach(line => console.error(line));
+            }
+            process.exitCode = 1;
+            return;
+        }
+        setTimeout(() => followRun(executionId, steps.length), FOLLOW_POLL_MS);
+    });
+}
 
 function callBackend(path, method, data, callbackResult) {
 
@@ -97,42 +125,7 @@ const options = yargs
                 if(obj != undefined) {
                     console.log(obj.id)
                     if(argv.d == undefined) {
-                        let client = Stomp.overWS("ws://localhost:61614/stomp");
-                        let headers = {
-                            id: 'JUST.FCX',
-                            ack: 'client',
-                            selector: 'executionId=' + obj.id
-                        };
-
-                        client.connect("admin", "admin", function () {
-                            client.subscribe("/queue/taskexecution_destination",
-                                             function (message) {
-                                                 let messageBody = JSON.parse(message.body);
-                                                 var tagsToReplace = {
-                                                     '&': '&amp;',
-                                                     '<': '&lt;',
-                                                     '>': '&gt;'
-                                                 };
-
-                                                 function replaceTag(tag) {
-                                                     return tagsToReplace[tag] || tag;
-                                                 }
-
-                                                 function safe_tags_replace(str) {
-                                                     return str.replace(/[&<>]/g, replaceTag);
-                                                 }
-
-                                                 console.log(safe_tags_replace(messageBody.output) + "");
-                                                 message.ack();
-
-                                                 if (message.headers["lastMessage"] == "true"
-                                                     && message.headers["executionId"] == obj.id) {
-                                                     client.disconnect();
-                                                 }
-                                             }, headers);
-                        }, function(e) {
-                            console.log(e)
-                        });
+                        followRun(obj.id);
                     }  
                 }
             });
