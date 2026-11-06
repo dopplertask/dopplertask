@@ -71,6 +71,7 @@ class ExecuteCommandAction : Action() {
                 actionResult.statusCode = StatusCode.SUCCESS
             } else {
                 actionResult.statusCode = StatusCode.FAILURE
+                actionResult.errorMsg = "The command exited with code $exitCode."
             }
             actionResult.output = output.toString()
         } catch (e: InterruptedException) {

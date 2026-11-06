@@ -60,7 +60,8 @@ export default function boot() {
     const zoom = Math.max(0.4, Math.min(1, usableWidth / (maxX - minX), usableHeight / (maxY - minY)));
     return {
       zoom,
-      x: left + 20 + (usableWidth - (maxX - minX) * zoom) / 2 - minX * zoom,
+      /* A diagram too long to fit starts at Start, rather than cut off at both ends. */
+      x: left + 20 + Math.max(0, usableWidth - (maxX - minX) * zoom) / 2 - minX * zoom,
       y: options.topInset + (usableHeight - (maxY - minY) * zoom) / 2 - minY * zoom,
     };
   }
