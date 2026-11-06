@@ -58,6 +58,7 @@ object JsonApi {
         listOf("message", "description", "error", "error_description").forEach { field ->
             if (answer.path(field).isTextual) return answer.path(field).asText()
         }
-        return answer.path("errorMessages").path(0).asText("")
+        // Jira names a wrong field under errors, which is the only reason it gives.
+        return answer.path("errorMessages").path(0).asText("").ifEmpty { answer.path("errors").elements().asSequence().firstOrNull()?.asText("") ?: "" }
     }
 }

@@ -347,6 +347,18 @@ Creates, comments on or closes an issue. The next step can read `$lastLog.output
 * text: The description of the issue, or the comment. Required to comment.
 * baseUrl: Optional. GitHub Enterprise uses `https://your-host/api/v3`.
 
+#### JiraAction
+Creates or comments on an issue, both in the cloud and on your own server. After creating, the next step can read `$lastLog.outputVariables.issueKey` and `url`.
+
+##### Variables
+* siteUrl: Such as `https://acme.atlassian.net`.
+* email: The email of the account, for Jira in the cloud. Leave it empty on your own server.
+* token: An API token in the cloud, or a personal access token on your own server.
+* operation: `createIssue` or `addComment`.
+* project, issueType, summary: Used to create. The type is `Task` if nothing else is said.
+* issueKey: Such as `OPS-12`. Used to comment.
+* text: The description of the issue, or the comment.
+
 #### SlackAction
 Sends a message to a Slack channel. The bot needs the `chat:write` permission and has to be a member of the channel. The next step can read the time stamp of the message from `$lastLog.outputVariables.ts`, for example to reply in its thread.
 

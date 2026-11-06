@@ -17,6 +17,7 @@ import com.dopplertask.dopplertask.domain.action.integration.chat.TelegramAction
 import com.dopplertask.dopplertask.domain.action.integration.chat.DiscordAction
 import com.dopplertask.dopplertask.domain.action.integration.incident.PagerDutyAction
 import com.dopplertask.dopplertask.domain.action.integration.code.GitHubAction
+import com.dopplertask.dopplertask.domain.action.integration.code.JiraAction
 import com.dopplertask.dopplertask.domain.action.integration.openai.OpenAIAction
 import com.dopplertask.dopplertask.domain.action.integration.rockmelon.RockmelonAction
 import com.dopplertask.dopplertask.domain.action.io.ReadFileAction
@@ -89,6 +90,7 @@ import javax.persistence.OneToMany
     JsonSubTypes.Type(value = DiscordAction::class, name = "DiscordAction"),
     JsonSubTypes.Type(value = PagerDutyAction::class, name = "PagerDutyAction"),
     JsonSubTypes.Type(value = GitHubAction::class, name = "GitHubAction"),
+    JsonSubTypes.Type(value = JiraAction::class, name = "JiraAction"),
     JsonSubTypes.Type(value = SlackAction::class, name = "SlackAction")
 )
 @JsonIgnoreProperties(ignoreUnknown = true)
