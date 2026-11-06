@@ -91,4 +91,26 @@ public class McpTest {
                 .andExpect(jsonPath("$.result.isError").value(true))
                 .andExpect(jsonPath("$.result.content[0].text", containsString("no tool called")));
     }
+
+    private String taskWithCondition(String name, String condition) {
+        return "{\"name\":\"" + name + "\",\"active\":false,\"parameters\":[],\"actions\":["
+                + "{\"@type\":\"StartAction\",\"ports\":[{\"externalId\":\"s\",\"portType\":\"OUTPUT\"}]},"
+                + "{\"@type\":\"IfAction\",\"condition\":\"" + condition + "\",\"ports\":[{\"externalId\":\"i\",\"portType\":\"INPUT\"}]}],"
+                + "\"connections\":[{\"source\":{\"externalId\":\"s\"},\"target\":{\"externalId\":\"i\"}}]}";
+    }
+
+    @Test
+    public void testAProposalWarnsAboutAVariableThatDoesNotExistSuccess() throws Exception {
+        // This condition was written by a real agent. It ran without an error and always took the same branch.
+        String warned = textOf(tool("propose_task", "{\"task\":" + taskWithCondition("mcp_warned", "$result.statusCode < 400") + "}"));
+        Assert.assertTrue(warned, warned.contains("$result does not exist here"));
+        String clean = textOf(tool("propose_task", "{\"task\":" + taskWithCondition("mcp_clean", "$lastLog.outputVariables.statusCode < 400") + "}"));
+        Assert.assertEquals(warned, 0, ((net.minidev.json.JSONArray) JsonPath.read(clean, "$.warnings")).size());
+    }
+
+    @Test
+    public void testAnAgentCanReadBackItsProposalSuccess() throws Exception {
+        String checksum = JsonPath.read(textOf(tool("propose_task", "{\"task\":" + taskWithCondition("mcp_read_back", "true") + "}")), "$.checksum");
+        Assert.assertTrue(textOf(tool("get_task", "{\"name\":\"mcp_read_back\",\"checksum\":\"" + checksum + "\"}")).contains("IfAction"));
+    }
 }
