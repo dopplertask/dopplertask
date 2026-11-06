@@ -41,6 +41,7 @@ export default function boot() {
 
   /* Browsing history should not keep opening the panel over what you are reading. */
   options.shouldOpenFailure = () => !historyOpen;
+  options.closeHistory = () => setHistory(false);
 
   /* ---------- Task controls ---------- */
 
