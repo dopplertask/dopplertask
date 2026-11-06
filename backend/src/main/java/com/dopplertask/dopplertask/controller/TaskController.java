@@ -34,6 +34,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.velocity.app.VelocityEngine;
 import org.jetbrains.annotations.NotNull;
 import org.reflections.Reflections;
+import com.dopplertask.dopplertask.filter.AccessFilter;
+import com.dopplertask.dopplertask.filter.Caller;
+import com.dopplertask.dopplertask.service.ApprovalRequiredException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -87,8 +90,15 @@ public class TaskController {
         return hexString.toString();
     }
 
+    private void requireApprovedForAgent(TaskRequestDTO request, HttpServletRequest servletRequest) {
+        if (AccessFilter.callerOf(servletRequest) == Caller.AGENT && (request.getTask() != null || taskService.getTaskByName(request.getTaskName()) == null)) {
+            throw new ApprovalRequiredException("Task " + request.getTaskName() + " has no approved version yet. A person has to approve it before it can run.");
+        }
+    }
+
     @PostMapping(path = "/schedule/task")
-    public ResponseEntity<SimpleIdResponseDto> scheduleTask(@RequestBody TaskRequestDTO taskRequestDTO) {
+    public ResponseEntity<SimpleIdResponseDto> scheduleTask(@RequestBody TaskRequestDTO taskRequestDTO, HttpServletRequest servletRequest) {
+        requireApprovedForAgent(taskRequestDTO, servletRequest);
         boolean removeTaskAfterExecution = false;
         String token = "_UNSAVED_" + (int) (Math.random() * 1000000);
         if (taskRequestDTO.getTask() != null) {
@@ -117,7 +127,8 @@ public class TaskController {
 
 
     @PostMapping(path = "/schedule/directtask")
-    public ResponseEntity<TaskExecutionLogResponseDTO> runTask(@RequestBody TaskRequestDTO taskRequestDTO) {
+    public ResponseEntity<TaskExecutionLogResponseDTO> runTask(@RequestBody TaskRequestDTO taskRequestDTO, HttpServletRequest servletRequest) {
+        requireApprovedForAgent(taskRequestDTO, servletRequest);
         Map<String, ExecutionParameter> parameters = new HashMap<>();
         taskRequestDTO.getParameters().forEach((parameterName, parameterValue) -> parameters.put(parameterName, new ExecutionParameter(parameterName, parameterValue.getBytes(StandardCharsets.UTF_8), false)));
 
@@ -245,7 +256,7 @@ public class TaskController {
     }
 
     @PostMapping(path = "/task")
-    public ResponseEntity<SimpleChecksumResponseDto> createTask(@RequestBody String body, @RequestParam(defaultValue = "false") boolean autoSaved) throws IOException, NoSuchAlgorithmException {
+    public ResponseEntity<SimpleChecksumResponseDto> createTask(@RequestBody String body, @RequestParam(defaultValue = "false") boolean autoSaved, HttpServletRequest servletRequest) throws IOException, NoSuchAlgorithmException {
 
         // Translate JSON to object
         ObjectMapper mapper = new ObjectMapper();
@@ -259,7 +270,13 @@ public class TaskController {
         byte[] encodedhash = digest.digest(compactJSON.getBytes(StandardCharsets.UTF_8));
         String sha256Hex = bytesToHex(encodedhash);
 
-        Long id = taskService.createTask(taskCreationDTO.getName(), taskCreationDTO.getParameters(), taskCreationDTO.getActions(), taskCreationDTO.getDescription(), taskCreationDTO.getConnections(), sha256Hex, taskCreationDTO.isActive(), true, autoSaved);
+        boolean byAgent = AccessFilter.callerOf(servletRequest) == Caller.AGENT;
+        if (byAgent && taskCreationDTO.isActive()) {
+            throw new ApprovalRequiredException("An agent cannot turn a task on. Save it with active set to false, and a person can turn it on.");
+        }
+        Long id = byAgent
+                ? taskService.proposeTask(taskCreationDTO.getName(), taskCreationDTO.getParameters(), taskCreationDTO.getActions(), taskCreationDTO.getDescription(), taskCreationDTO.getConnections(), sha256Hex)
+                : taskService.createTask(taskCreationDTO.getName(), taskCreationDTO.getParameters(), taskCreationDTO.getActions(), taskCreationDTO.getDescription(), taskCreationDTO.getConnections(), sha256Hex, taskCreationDTO.isActive(), true, autoSaved);
 
         if (id != null) {
             SimpleChecksumResponseDto checksumResponseDto = new SimpleChecksumResponseDto();
@@ -268,6 +285,16 @@ public class TaskController {
         }
 
         return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+    }
+
+    @PostMapping(path = "/task/{checksum}/approve")
+    public ResponseEntity<SimpleChecksumResponseDto> approveTask(@PathVariable("checksum") String checksum) {
+        if (!taskService.approveTask(checksum)) {
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        }
+        SimpleChecksumResponseDto response = new SimpleChecksumResponseDto();
+        response.setChecksum(checksum);
+        return new ResponseEntity<>(response, HttpStatus.OK);
     }
 
     @PostMapping(path = "/task/action")
@@ -335,6 +362,8 @@ public class TaskController {
             taskDto.setActive(task.isActive());
             taskDto.setDescription(task.getDescription());
             taskDto.setAutoSaved(task.isAutoSaved());
+            taskDto.setProposed(task.isProposed());
+            taskDto.setMadeByAgent(task.isMadeByAgent());
 
             if (!groupedTasks.containsKey(task.getName())) {
                 groupedTasks.put(task.getName(), new ArrayList<>());

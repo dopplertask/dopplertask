@@ -9,13 +9,14 @@ import java.util.Optional;
 
 @Repository
 public interface TaskDao extends JpaRepository<Task, Long> {
-    Optional<Task> findFirstByNameOrderByCreatedDesc(String taskName);
+    // The version that runs, which is the newest one that does not wait for approval.
+    Optional<Task> findFirstByNameAndProposedFalseOrderByCreatedDesc(String taskName);
 
     Optional<Task> findByChecksum(String checksum);
 
     Optional<Task> findFirstByChecksumStartingWith(String checksum);
 
-    Optional<Task> findByNameOrderByCreatedDesc(String taskName);
+    Optional<Task> findFirstByChecksumStartingWithAndProposedFalse(String checksum);
 
     List<Task> findAllByName(String name);
 

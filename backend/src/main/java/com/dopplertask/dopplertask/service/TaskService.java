@@ -51,6 +51,18 @@ public interface TaskService {
      */
     List<Task> getAllTasks();
 
+    /**
+     * Saves a version from an agent. It stays out of runs, webhooks and schedules until a person approves it.
+     */
+    Long proposeTask(String name, List<TaskParameter> taskParameters, List<Action> actions, String description, List<Connection> connections, String checksum);
+
+    /**
+     * Makes a proposal the current version.
+     *
+     * @return false if there is no such proposal.
+     */
+    boolean approveTask(String checksum);
+
     Long createTask(String name, List<TaskParameter> taskParameters, List<Action> actions, String description, List<Connection> connections, String checksum, boolean active);
 
     Long createTask(String name, List<TaskParameter> taskParameters, List<Action> actions, String description, List<Connection> connections, String checksum, boolean active, boolean buildTask);

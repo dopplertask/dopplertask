@@ -67,7 +67,7 @@ public class ExecutionServiceTest {
         Optional<TaskExecution> executionOptional = Optional.of(execution);
 
         // Assign values
-        when(taskDao.findFirstByNameOrderByCreatedDesc(eq("ExampleTask"))).thenReturn(exampleTaskOptional);
+        when(taskDao.findFirstByNameAndProposedFalseOrderByCreatedDesc(eq("ExampleTask"))).thenReturn(exampleTaskOptional);
         when(taskExecutionDao.findById(eq(10L))).thenReturn(executionOptional);
 
         // Run test with data
@@ -185,8 +185,8 @@ public class ExecutionServiceTest {
         Optional<TaskExecution> executionOptional = Optional.of(execution);
 
         // Assign values
-        when(taskDao.findFirstByNameOrderByCreatedDesc(eq("ExampleTask"))).thenReturn(exampleTaskOptional);
-        when(taskDao.findFirstByChecksumStartingWith(eq("123123"))).thenReturn(exampleTaskOptional);
+        when(taskDao.findFirstByNameAndProposedFalseOrderByCreatedDesc(eq("ExampleTask"))).thenReturn(exampleTaskOptional);
+        when(taskDao.findFirstByChecksumStartingWithAndProposedFalse(eq("123123"))).thenReturn(exampleTaskOptional);
         when(taskExecutionDao.findById(eq(10L))).thenReturn(executionOptional);
 
         // Run test with data
@@ -213,8 +213,8 @@ public class ExecutionServiceTest {
         Optional<TaskExecution> executionOptional = Optional.of(execution);
 
         // Assign values
-        when(taskDao.findFirstByNameOrderByCreatedDesc(eq("ExampleTask"))).thenReturn(exampleTaskOptional);
-        when(taskDao.findFirstByChecksumStartingWith(eq("123123"))).thenReturn(exampleTaskOptional);
+        when(taskDao.findFirstByNameAndProposedFalseOrderByCreatedDesc(eq("ExampleTask"))).thenReturn(exampleTaskOptional);
+        when(taskDao.findFirstByChecksumStartingWithAndProposedFalse(eq("123123"))).thenReturn(exampleTaskOptional);
         when(taskExecutionDao.findById(eq(10L))).thenReturn(executionOptional);
 
         // Run test with data
@@ -244,8 +244,8 @@ public class ExecutionServiceTest {
         Optional<TaskExecution> executionOptional = Optional.of(execution);
 
         // Assign values
-        when(taskDao.findFirstByNameOrderByCreatedDesc(eq("ExampleTask"))).thenReturn(exampleTaskOptional);
-        when(taskDao.findFirstByChecksumStartingWith(eq("123123"))).thenReturn(exampleTaskOptional);
+        when(taskDao.findFirstByNameAndProposedFalseOrderByCreatedDesc(eq("ExampleTask"))).thenReturn(exampleTaskOptional);
+        when(taskDao.findFirstByChecksumStartingWithAndProposedFalse(eq("123123"))).thenReturn(exampleTaskOptional);
         when(taskExecutionDao.findById(eq(10L))).thenReturn(executionOptional);
 
         // Run test with data
@@ -272,8 +272,8 @@ public class ExecutionServiceTest {
         Optional<TaskExecution> executionOptional = Optional.of(execution);
 
         // Assign values
-        when(taskDao.findFirstByNameOrderByCreatedDesc(eq("ExampleTask"))).thenReturn(exampleTaskOptional);
-        when(taskDao.findFirstByChecksumStartingWith(eq("123123"))).thenReturn(exampleTaskOptional);
+        when(taskDao.findFirstByNameAndProposedFalseOrderByCreatedDesc(eq("ExampleTask"))).thenReturn(exampleTaskOptional);
+        when(taskDao.findFirstByChecksumStartingWithAndProposedFalse(eq("123123"))).thenReturn(exampleTaskOptional);
         when(taskExecutionDao.findById(eq(10L))).thenReturn(executionOptional);
 
         // Run test with data
@@ -299,7 +299,7 @@ public class ExecutionServiceTest {
         exampleTask.setName("ExampleTask");
         exampleTask.setChecksum("123123");
         Optional<Task> exampleTaskOptional = Optional.of(exampleTask);
-        when(taskDao.findFirstByNameOrderByCreatedDesc(eq("ExampleTask"))).thenReturn(exampleTaskOptional);
+        when(taskDao.findFirstByNameAndProposedFalseOrderByCreatedDesc(eq("ExampleTask"))).thenReturn(exampleTaskOptional);
 
         Optional<Task> task = executionService.pullTask("ExampleTask", taskService);
 

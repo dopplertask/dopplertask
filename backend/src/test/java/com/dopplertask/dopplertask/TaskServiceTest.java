@@ -57,7 +57,7 @@ public class TaskServiceTest {
 
         // Prepare behavior
         Optional<Task> taskOptional = Optional.of(task);
-        when(taskDao.findFirstByNameOrderByCreatedDesc(eq("doppler-test"))).thenReturn(taskOptional);
+        when(taskDao.findFirstByNameAndProposedFalseOrderByCreatedDesc(eq("doppler-test"))).thenReturn(taskOptional);
 
         Optional<TaskExecution> executionOptional = Optional.of(taskExecution);
         when(taskExecutionDao.findById(eq(283471L))).thenReturn(executionOptional);
@@ -118,7 +118,7 @@ public class TaskServiceTest {
 
         // Prepare behavior
         Optional<Task> taskOptional = Optional.of(task);
-        when(taskDao.findFirstByNameOrderByCreatedDesc(eq("doppler-test"))).thenReturn(taskOptional);
+        when(taskDao.findFirstByNameAndProposedFalseOrderByCreatedDesc(eq("doppler-test"))).thenReturn(taskOptional);
 
         Optional<TaskExecution> executionOptional = Optional.of(taskExecution);
         when(taskExecutionDao.findById(eq(283472L))).thenReturn(executionOptional);
