@@ -377,13 +377,17 @@ function fromBackend(saved) {
 
 /* ---------- Server ---------- */
 
+const ACCESS_TOKEN_KEY = 'accessToken';
+
 async function request(url, options = {}) {
-  const response = await fetch(url, { ...options, headers: { Accept: 'application/json', ...(options.body ? { 'Content-Type': 'application/json' } : {}) } })
+  const accessToken = sessionStorage.getItem(ACCESS_TOKEN_KEY);
+  const response = await fetch(url, { ...options, headers: { Accept: 'application/json', ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) } })
     .catch(() => { throw new Error('The server could not be reached. Nothing was changed there.'); });
   const text = await response.text();
   let body = null;
   try { body = text ? JSON.parse(text) : null; } catch (error) { body = null; }
-  if (!response.ok) throw new Error(body?.message || body?.error || `The server answered ${response.status}.`);
+  if (response.status === 401) sessionStorage.removeItem(ACCESS_TOKEN_KEY);
+  if (!response.ok) throw Object.assign(new Error(body?.message || body?.error || `The server answered ${response.status}.`), { status: response.status });
   return body;
 }
 

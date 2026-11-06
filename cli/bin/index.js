@@ -45,7 +45,8 @@ function callBackend(path, method, data, callbackResult) {
         method: method,
         headers: {
             'Content-Type': 'application/json',
-            'Content-Length': data.length
+            'Content-Length': data.length,
+            ...(process.env.DOPPLERTASK_TOKEN ? { Authorization: 'Bearer ' + process.env.DOPPLERTASK_TOKEN } : {})
         }
     }
 
@@ -57,6 +58,12 @@ function callBackend(path, method, data, callbackResult) {
         })
 
         res.on("end", function () {
+
+            if (res.statusCode === 401 || res.statusCode === 403) {
+                console.error(JSON.parse(resultData).message);
+                process.exitCode = 1;
+                return;
+            }
 
             const obj = JSON.parse(resultData);
 
