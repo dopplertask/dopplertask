@@ -44,6 +44,7 @@ const AUTO_SAVE_DELAY_MS = 30000;
 const AUTO_SAVE_KEY = 'autoSave';
 const LAST_TASK_KEY = 'lastTask';
 const RUNS_SHOWN = 100;
+const LIVE_POLL_MS = 250;
 
 const ACTIONS = {};
 const FAILURE_FIELDS = [];
@@ -559,50 +560,30 @@ function createStore() {
     return edge ? edge.to : null;
   };
 
-  /* The broker streams each step as it finishes. The execution record decides the final result, and
-     is polled rather than read on the last message, because that message arrives before the run commits. */
+  /* While a run is going the server reports the steps finished so far. Its final record decides the result. */
   const followRun = (run) => {
-    let finished = false;
-    let client = null;
-    const finish = async () => {
-      if (finished) return;
-      finished = true;
-      clearInterval(poll);
-      try { client?.disconnect(); } catch (error) { /* already closed */ }
-      applyExecution(run, await request(`/execution/${run.id}`));
-      run.live = false;
-      if (runner.run === run) { runner.cursorMs = run.durationMs; runner.playing = false; }
-      emit('run');
-    };
-    const poll = setInterval(async () => {
+    const poll = async () => {
       try {
         const execution = await request(`/execution/${run.id}`);
-        if (RUN_STATUSES[execution.status]) finish();
-      } catch (error) { /* the next poll tries again */ }
-    }, 400);
-    try {
-      client = window.Stomp.client(`ws://${window.location.hostname}:61614/stomp`, 'v11.stomp');
-      client.debug = null;
-      client.connect('admin', 'admin', () => {
-        client.subscribe('/queue/taskexecution_destination', (message) => {
-          message.ack();
-          if (finished) return;
-          const { headers } = message;
-          if (headers.stepPortId !== undefined || headers.stepActionType) {
-            const body = JSON.parse(message.body);
-            const failed = headers.stepStatus === 'FAILURE';
-            const step = toStep({ portId: headers.stepPortId, actionType: headers.stepActionType, status: headers.stepStatus, output: failed ? '' : body.output, error: failed ? body.output : null, durationMs: Number(headers.stepDurationMs) }, run.durationMs, run.steps[run.steps.length - 1], run.parameters, run.id);
-            if (step) {
-              run.steps.push(step);
-              run.durationMs += step.durationMs;
-              run.nextNodeId = nextNodeAfter(step);
-              if (runner.run === run) runner.cursorMs = run.durationMs;
-              emit('run');
-            }
-          }
-        }, { id: `run-${run.id}`, ack: 'client', selector: `executionId=${run.id}` });
-      }, () => { /* No live stream, so the poll still reports the result. */ });
-    } catch (error) { /* same as above */ }
+        if (RUN_STATUSES[execution.status]) {
+          applyExecution(run, execution);
+          run.live = false;
+          if (runner.run === run) { runner.cursorMs = run.durationMs; runner.playing = false; }
+          emit('run');
+          return;
+        }
+        const steps = stepsOf(execution.steps || [], run.parameters, run.id);
+        if (steps.length > run.steps.length) {
+          run.steps = steps;
+          run.durationMs = steps.reduce((total, step) => total + step.durationMs, 0);
+          run.nextNodeId = nextNodeAfter(steps.at(-1));
+          if (runner.run === run) runner.cursorMs = run.durationMs;
+          emit('run');
+        }
+      } catch (error) { /* The next poll tries again. */ }
+      setTimeout(poll, LIVE_POLL_MS);
+    };
+    poll();
   };
 
   const store = {

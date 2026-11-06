@@ -111,10 +111,14 @@ public class TaskServiceImpl implements TaskService {
                 return execution;
             } else {
                 TaskExecution taskExecution;
-                if (isTrigger) {
-                    taskExecution = executionService.processActions(execution.getTask().getId(), execution.getId(), this, taskExecutionRequest.getTriggerInfo());
-                } else {
-                    taskExecution = executionService.processActions(execution.getTask().getId(), execution.getId(), this);
+                try {
+                    if (isTrigger) {
+                        taskExecution = executionService.processActions(execution.getTask().getId(), execution.getId(), this, taskExecutionRequest.getTriggerInfo());
+                    } else {
+                        taskExecution = executionService.processActions(execution.getTask().getId(), execution.getId(), this);
+                    }
+                } finally {
+                    executionService.forgetLiveSteps(execution.getId());
                 }
                 // If set to true, then remove the task after finish executing. This is used for mainly for unsaved workflows.
                 if (taskExecutionRequest.isRemoveTaskAfterExecution()) {

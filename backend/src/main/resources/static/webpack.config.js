@@ -16,7 +16,6 @@ module.exports = {
         new CopyPlugin({
             patterns: [
                 { from: 'css/flow', to: 'css' },
-                { from: 'js/flow/stomp.min.js', to: 'stomp.min.js' },
                 { from: 'icon.png', to: 'icon.png' },
                 { from: 'node_modules/@fontsource/plus-jakarta-sans/files/plus-jakarta-sans-latin-400-normal.woff2', to: 'fonts' },
                 { from: 'node_modules/@fontsource/plus-jakarta-sans/files/plus-jakarta-sans-latin-500-normal.woff2', to: 'fonts' },

@@ -24,6 +24,8 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
@@ -35,6 +37,9 @@ public class ExecutionServiceImpl implements ExecutionService {
     private static final Logger LOG = LoggerFactory.getLogger(ExecutionServiceImpl.class);
     private static final String DOPPLERTASK_WORKFLOW_DOWNLOAD = "https://www.dopplertask.com/getworkflow.php";
     private static final int MAX_ACTION_ACCESS_LIMIT = 2000;
+
+    // A run commits when it ends, so these are what a reader can see of a run in progress.
+    private final Map<Long, List<TaskExecutionStep>> liveSteps = new ConcurrentHashMap<>();
     private static final String TRIGGER_PARAMETER_PREFIX = "TRIGGER";
 
     private JmsTemplate jmsTemplate;
@@ -480,17 +485,17 @@ public class ExecutionServiceImpl implements ExecutionService {
         String portId = action.getPorts() == null || action.getPorts().isEmpty() ? null : action.getPorts().get(0).getExternalId();
         TaskExecutionStep step = new TaskExecutionStep(execution, portId, action.getClass().getSimpleName(), result, durationMs);
         execution.addStep(step);
+        liveSteps.computeIfAbsent(execution.getId(), id -> new CopyOnWriteArrayList<>()).add(step);
+    }
 
-        BroadcastResult broadcast = new BroadcastResult(result.getStatusCode() == StatusCode.FAILURE ? result.getErrorMsg() : result.getOutput(), result.getOutputType());
-        executor.execute(() -> jmsTemplate.convertAndSend("taskexecution_destination", broadcast, message -> {
-            message.setLongProperty("executionId", execution.getId());
-            message.setBooleanProperty("lastMessage", false);
-            message.setStringProperty("stepPortId", portId);
-            message.setStringProperty("stepActionType", step.getActionType());
-            message.setStringProperty("stepStatus", result.getStatusCode().name());
-            message.setLongProperty("stepDurationMs", durationMs);
-            return message;
-        }));
+    @Override
+    public List<TaskExecutionStep> getLiveSteps(Long executionId) {
+        return liveSteps.getOrDefault(executionId, List.of());
+    }
+
+    @Override
+    public void forgetLiveSteps(Long executionId) {
+        liveSteps.remove(executionId);
     }
 
     private void broadcastResults(Long executionId, String output, OutputType outputType) {

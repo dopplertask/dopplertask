@@ -2,11 +2,21 @@ package com.dopplertask.dopplertask.service;
 
 import com.dopplertask.dopplertask.domain.Task;
 import com.dopplertask.dopplertask.domain.TaskExecution;
+import com.dopplertask.dopplertask.domain.TaskExecutionStep;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 
+import java.util.List;
+
 public interface ExecutionService {
+    /**
+     * The steps a run has finished so far, which its execution does not show until the run ends.
+     */
+    List<TaskExecutionStep> getLiveSteps(Long executionId);
+
+    void forgetLiveSteps(Long executionId);
+
     /**
      * Initiates execution based on a request.
      *
