@@ -48,8 +48,36 @@ public class BranchingTest {
 
     @Test
     public void testSwitchToUnconnectedBranchEndsRunSuccess() throws Exception {
-        String action = "{\"@type\":\"SwitchAction\",\"value\":\"b\",\"switchCases\":[{\"currentCase\":\"a\"},{\"currentCase\":\"b\"}],\"ports\":" + ports(2) + "}";
-        Assert.assertFalse(run("switch_b", action).contains("first branch"));
+        Assert.assertFalse(run("switch_b", switchAction("b", 2)).contains("first branch"));
+    }
+
+    @Test
+    public void testSwitchMatchesFirstCaseSuccess() throws Exception {
+        Assert.assertTrue(run("switch_a", switchAction("a", 2)).contains("first branch"));
+    }
+
+    @Test
+    public void testSwitchValueWithDoubleQuotesSuccess() throws Exception {
+        Assert.assertTrue(run("switch_quotes", switchAction("#set($v = \\\"a\\\")$v", 2)).contains("first branch"));
+    }
+
+    @Test
+    public void testSwitchWithoutMatchUsesExtraPortAsDefaultSuccess() throws Exception {
+        Assert.assertTrue(run("switch_default", switchActionWithFirstPortAsDefault()).contains("first branch"));
+    }
+
+    @Test
+    public void testSwitchWithoutMatchOrDefaultExplainsWhyFail() throws Exception {
+        Assert.assertTrue(run("switch_none", switchAction("z", 2)).contains("No case or output port matched the value [z]"));
+    }
+
+    private String switchAction(String value, int outputs) {
+        return "{\"@type\":\"SwitchAction\",\"value\":\"" + value + "\",\"switchCases\":[{\"currentCase\":\"a\"},{\"currentCase\":\"b\"}],\"ports\":" + ports(outputs) + "}";
+    }
+
+    // No cases, so the only port is the one after the last case.
+    private String switchActionWithFirstPortAsDefault() {
+        return "{\"@type\":\"SwitchAction\",\"value\":\"z\",\"switchCases\":[],\"ports\":" + ports(1) + "}";
     }
 
     private String ifAction(String condition, int outputs) {
