@@ -445,7 +445,9 @@ public class ExecutionServiceImpl implements ExecutionService {
                 // Only wait if we are in a retry.
                 if (tries > 0) {
                     String retryWaitAmount = variableExtractorUtil.extract(currentAction.getRetryWait(), execution, null, currentAction.getScriptLanguage(), Map.of("retryCount", tries + 1));
-                    Thread.sleep(Long.parseLong(retryWaitAmount));
+                    if (retryWaitAmount != null && !retryWaitAmount.isEmpty()) {
+                        Thread.sleep(Long.parseLong(retryWaitAmount));
+                    }
                 }
                 actionResult = currentAction.run(taskService, execution, variableExtractorUtil, (output, outputType) -> addLog(execution, output, outputType, Map.of(), true));
 

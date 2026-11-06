@@ -263,9 +263,7 @@ class MainApp extends React.Component {
         // Make a copy to avoid using the same reference, overwriting each others values
         currentActionDetails = Object.assign({}, currentActionDetails);
 
-        if(customData != undefined) {
-            currentActionDetails.customData = customData;
-        }
+        currentActionDetails.customData = customData != undefined ? customData : $.extend(true, {}, currentActionDetails.customData);
 
         if (actionName == "IfAction") {
             action = new IfAction({
@@ -315,7 +313,7 @@ class MainApp extends React.Component {
                     userData: currentActionDetails
                 });
                 action.onDoubleClick = () => this.editModelForFigure();
-                if(action.userData.customData.triggerSuffix == undefined) {
+                if(!action.userData.customData.triggerSuffix) {
                     action.userData.customData.triggerSuffix = this.generateString(10);
                 }
             } else {
