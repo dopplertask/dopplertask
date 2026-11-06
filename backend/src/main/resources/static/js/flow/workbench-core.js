@@ -289,7 +289,7 @@ export default function boot() {
       return;
     }
     host.innerHTML = `
-      <div class="strip-summary" id="stripStatus"></div>
+      <div class="strip-summary" id="stripStatus" role="status"></div>
       <button type="button" class="labelled-button" data-wb="toggle-play" id="stripToggle"></button>
       <span class="strip-time" id="stripNow"></span>
       <div class="track" id="stripTrack" role="slider" aria-label="Position in run" aria-valuemin="0" aria-valuemax="${run.durationMs}" tabindex="0">${run.steps.map((step) => `<span class="track-part is-${step.status}" style="flex:${Math.max(step.durationMs, 1)} 1 0" data-start="${step.startMs}" data-duration="${step.durationMs}" title="${escapeHtml(step.name)}"><i></i></span>`).join('')}</div>

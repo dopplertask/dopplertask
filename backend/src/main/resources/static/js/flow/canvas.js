@@ -134,7 +134,7 @@ export default function boot() {
     const portsHtml = portsOf(node).map((port) => {
       const connected = !!edgeFrom(store.task, node.id, port.id);
       const top = portY(node, port.id) - (connected ? 9 : 11);
-      return `<button type="button" class="port-out ${connected ? '' : 'is-open'}" style="top:${top}px" data-port="${escapeHtml(port.id)}" aria-label="${connected ? 'Rewire' : 'Add next step'}${port.label ? ` for ${escapeHtml(port.label)}` : ''}">${connected ? '' : icon('plus')}</button>`;
+      return `<button type="button" class="port-out ${connected ? '' : 'is-open'}" ${connected ? 'tabindex="-1"' : ''} style="top:${top}px" data-port="${escapeHtml(port.id)}" aria-label="${connected ? 'Rewire' : 'Add next step'}${port.label ? ` for ${escapeHtml(port.label)}` : ''}">${connected ? '' : icon('plus')}</button>`;
     }).join('');
     return `
       ${node.type === 'start' || ACTIONS[node.type].trigger ? '' : '<span class="port-in"></span>'}
@@ -166,7 +166,8 @@ export default function boot() {
         element.className = 'node';
         element.dataset.node = node.id;
         element.tabIndex = 0;
-        element.setAttribute('role', 'button');
+        /* A tile holds its own port buttons, so it is a group of controls rather than one button. */
+        element.setAttribute('role', 'group');
         nodeElements.set(node.id, element);
         elements.nodes.append(element);
         displayed.set(node.id, { ...node.position });
@@ -321,15 +322,21 @@ export default function boot() {
     DT.ui.openRunDialog(store, (values) => { store.select(null); store.startRun(values).catch((error) => DT.ui.toast(error.message, { tone: 'danger' })); }, { values: runner.run?.parameters, onFixIssue: () => { renderInspector(); } });
   }
 
+  /* Picked by keyboard, so the keyboard should land on what was added. */
+  function addAndFocus(type, target) {
+    store.addStep(type, target);
+    requestAnimationFrame(() => elements.inspector.querySelector('[data-field]')?.focus());
+  }
+
   function openStepPicker(target) {
-    DT.ui.openPalette({ store, handlers, stepsOnly: true, title: 'Find a step to add', onPick: (type) => store.addStep(type, target) });
+    DT.ui.openPalette({ store, handlers, stepsOnly: true, title: 'Find a step to add', onPick: (type) => addAndFocus(type, target) });
   }
 
   const api = DT.canvas = { options, store, runner, view, applyView, fitTarget, revealSelectedNode, renderWires, wires: elements.wires };
 
   const handlers = {
     run: requestRun,
-    palette: () => DT.ui.openPalette({ store, handlers, onPick: (type) => store.addStep(type) }),
+    palette: () => DT.ui.openPalette({ store, handlers, onPick: (type) => addAndFocus(type) }),
     extraCommands: [
       { id: 'fit', label: 'Fit to screen', icon: 'fit', shortcut: 'F', run: fitView },
       { id: 'tidy', label: 'Tidy layout', icon: 'tidy', shortcut: 'T', run: () => store.tidy() },
