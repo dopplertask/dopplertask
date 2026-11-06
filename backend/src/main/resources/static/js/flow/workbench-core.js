@@ -412,7 +412,12 @@ export default function boot() {
   });
 
   document.addEventListener('change', (event) => {
-    if (event.target.matches('[data-wb-trigger]')) store.updateTask({ active: event.target.checked });
+    /* A switch that does nothing until Save would leave a schedule running after it looks off, so this saves at once. */
+    if (event.target.matches('[data-wb-trigger]')) {
+      const { checked } = event.target;
+      store.updateTask({ active: checked });
+      store.save().then(() => DT.ui.toast(checked ? 'Trigger is on' : 'Trigger is off'), (error) => DT.ui.toast(error.message, { tone: 'danger' }));
+    }
     if (event.target.matches('[data-wb-autosave]')) store.setAutoSave(event.target.checked);
   });
 
