@@ -352,7 +352,12 @@ export default function boot() {
       { id: 'fit', label: 'Fit to screen', icon: 'fit', shortcut: 'F', run: fitView },
       { id: 'tidy', label: 'Tidy layout', icon: 'tidy', shortcut: 'T', run: () => store.tidy() },
     ],
-    escape: () => { if (store.selectedId) store.select(null); else if (runner.run && runner.finished) runner.clear(); },
+    /* Each press closes the nearest thing: the step, then the history, then the run. */
+    escape: () => {
+      if (store.selectedId) store.select(null);
+      else if (DT.workbench.isHistoryOpen()) options.closeHistory();
+      else if (runner.run && runner.finished) runner.clear();
+    },
     key: (event) => {
       const key = event.key.toLowerCase();
       if (key === 'f') fitView();
