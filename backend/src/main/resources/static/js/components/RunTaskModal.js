@@ -121,7 +121,7 @@ class RunTaskModal extends React.Component {
                 runTaskModal.setState({
                     executionId: execution.id
                 }, createStomp => {
-                    let client = Stomp.client("ws://localhost:61614/stomp", "v11.stomp");
+                    let client = Stomp.client("ws://" + window.location.hostname + ":61614/stomp", "v11.stomp");
                     let headers = {
                         id: 'JUST.FCX',
                         ack: 'client',
