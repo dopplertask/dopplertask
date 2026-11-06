@@ -1,2 +1,2 @@
 #!/bin/sh -x
-java -jar /opt/spring-boot/*.jar
+java -XX:+ExitOnOutOfMemoryError -jar /opt/spring-boot/*.jar

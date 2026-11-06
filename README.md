@@ -710,6 +710,14 @@ If the server has tokens, add `--header "Authorization: Bearer your-agent-token"
 
 What an agent saves appears in the editor as a proposal. Nothing runs until you have approved it, and you see what changed before you do.
 
+## Running it around the clock
+* **Restart it automatically.** The compose file does this with `restart: unless-stopped`. The image exits when it runs out of memory, so that it comes back instead of limping along.
+* **Watch `GET /health`,** which needs no token. It answers 503 and says why when the database does not answer or the queue for runs is full, also when the pages still load.
+* **Runs that a restart interrupts are marked as failed** when the server starts, with the reason in their output. Runs waiting in the queue at that moment are also marked, since the queue is kept in memory.
+* **Decide how long to keep runs.** Everything is kept unless `DOPPLERTASK_KEEP_RUNS_DAYS` is set, and the database grows with every run and the size of its output. With it, runs that ended longer ago than that are deleted.
+* **Back up the database** by copying `~/dopplerdb.mv.db` while the server is stopped.
+* **A step has no time limit of its own.** Up to about 40 to 50 runs go at once, so steps that hang forever can use up the room for new runs. Use commands that have their own timeout.
+
 ## Upgrading
 Existing tasks, versions and webhook addresses keep working, and the database is updated when the new version starts. A few things behave differently since version 0.14.7:
 
