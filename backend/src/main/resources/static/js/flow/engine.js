@@ -507,6 +507,7 @@ function createStore() {
   let savedName = null;
   let showingOlderVersion = false;
   let review = null;
+  let person = null;
 
   const emit = (change) => listeners.forEach((listener) => listener(change));
 
@@ -658,6 +659,12 @@ function createStore() {
     get issues() { return findIssues(task); },
     get defaults() { return Object.fromEntries(task.parameters.map((parameter) => [parameter.name, parameter.defaultValue || ''])); },
     get autoSave() { return autoSave; },
+    get person() { return person; },
+    async loadPerson() { person = (await request('/sso/status')).person || null; },
+    async signOut() {
+      await request('/sso/logout', { method: 'POST' });
+      window.location.assign('/public/index.html');
+    },
     get hasSecrets() { return task.nodes.some((node) => SECRET_FIELDS.some((key) => node.config[key])); },
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     loadTaskList,

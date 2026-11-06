@@ -25,13 +25,13 @@ public class Application {
     }
 
     @Bean
-    public BrokerService broker(@Value("${dopplertask.personToken:}") String personToken) throws Exception {
+    public BrokerService broker(@Value("${dopplertask.personToken:}") String personToken, @Value("${dopplertask.sso.issuer:}") String ssoIssuer) throws Exception {
         final BrokerService broker = new BrokerService();
         broker.addConnector("tcp://localhost:61616");
         broker.addConnector("vm://localhost");
         broker.addConnector("stomp://localhost:61613");
         // Any web page can reach this socket and it has no real login, so it stays off once access is protected.
-        if (personToken.isEmpty()) {
+        if (personToken.isEmpty() && ssoIssuer.isEmpty()) {
             broker.addConnector("ws://0.0.0.0:61614");
         }
         broker.setPersistent(false);

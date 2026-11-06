@@ -2,6 +2,7 @@ package com.dopplertask.dopplertask;
 
 import com.dopplertask.dopplertask.filter.AccessFilter;
 import com.dopplertask.dopplertask.filter.Caller;
+import com.dopplertask.dopplertask.service.SsoService;
 import org.junit.Assert;
 import org.junit.Test;
 import org.springframework.mock.web.MockFilterChain;
@@ -10,7 +11,8 @@ import org.springframework.mock.web.MockHttpServletResponse;
 
 public class AccessFilterTest {
 
-    private static final AccessFilter WITH_TOKENS = new AccessFilter("person-token", "agent-token");
+    private static final SsoService NO_SSO = new SsoService("", "", "", "");
+    private static final AccessFilter WITH_TOKENS = new AccessFilter("person-token", "agent-token", NO_SSO);
 
     private int statusOf(AccessFilter filter, String method, String path, String token) throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest(method, path);
@@ -24,7 +26,7 @@ public class AccessFilterTest {
 
     @Test
     public void testWithoutTokensEverythingStaysOpenSuccess() throws Exception {
-        Assert.assertEquals(200, statusOf(new AccessFilter("", ""), "DELETE", "/task/x", null));
+        Assert.assertEquals(200, statusOf(new AccessFilter("", "", NO_SSO), "DELETE", "/task/x", null));
     }
 
     @Test
@@ -73,7 +75,7 @@ public class AccessFilterTest {
 
     @Test(expected = IllegalStateException.class)
     public void testAnAgentTokenAloneIsRefusedFail() {
-        new AccessFilter("", "agent-token");
+        new AccessFilter("", "agent-token", NO_SSO);
     }
 
     @Test
@@ -85,7 +87,7 @@ public class AccessFilterTest {
     @Test
     public void testWithoutTokensTheAgentEndpointCountsAsAnAgentSuccess() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/mcp");
-        new AccessFilter("", "").doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
+        new AccessFilter("", "", NO_SSO).doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
         Assert.assertEquals(Caller.AGENT, AccessFilter.callerOf(request));
     }
 }

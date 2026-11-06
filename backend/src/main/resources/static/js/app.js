@@ -16,13 +16,24 @@ bootEngine().then(() => {
   else document.body.textContent = `DopplerTask could not reach its server. ${error.message}`;
 });
 
-function askForToken() {
+async function askForToken() {
+  const status = await fetch('/sso/status').then((response) => response.json());
+  const signInError = new URLSearchParams(window.location.search).get('signInError');
+  const tokenForm = `<label class="ui-label" for="accessToken">Access token</label>
+    <input class="ui-input" id="accessToken" type="password" autocomplete="current-password">
+    <button type="submit" class="ui-button ${status.sso ? '' : 'is-primary'}">Open with token</button>`;
   document.body.innerHTML = `<form class="sign-in">
     <h1>DopplerTask</h1>
-    <label class="ui-label" for="accessToken">Access token</label>
-    <input class="ui-input" id="accessToken" type="password" autocomplete="current-password" autofocus>
-    <button type="submit" class="ui-button is-primary">Open</button>
+    <p class="sign-in-error" role="alert" hidden></p>
+    ${status.sso ? '<a class="ui-button is-primary" href="/sso/login">Sign in with SSO</a>' : ''}
+    ${status.sso && status.tokens ? '<p class="sign-in-or">or</p>' : ''}
+    ${status.tokens ? tokenForm : ''}
   </form>`;
+  if (signInError) {
+    const message = document.querySelector('.sign-in-error');
+    message.textContent = signInError;
+    message.hidden = false;
+  }
   document.querySelector('form').addEventListener('submit', (event) => {
     event.preventDefault();
     sessionStorage.setItem('accessToken', document.getElementById('accessToken').value);
