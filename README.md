@@ -141,7 +141,7 @@ Example of the call:
 * `GET /task/{name}/taskname` reads back the newest version of a task, and `GET /task/grouped` lists all tasks.
 * `DELETE /task/{checksum}` deletes one version.
 * Every task needs a StartAction, also when a webhook starts it.
-* Actions are connected through their ports. A connection goes from the `externalId` of an OUTPUT port to the `externalId` of an INPUT port.
+* Actions are connected through their ports. A connection goes from the `externalId` of an OUTPUT port to the `externalId` of an INPUT port. Several OUTPUT ports can connect to the same INPUT port, so two branches can continue with the same action.
 * A field of the type MAP is a list of objects, which use the option names of the field as keys.
 * All fields are evaluated with Velocity by default. With `"scriptLanguage": "JAVASCRIPT"` every field of the action is evaluated as a script, so plain text must be quoted, like `"\"https://example.com\""`. This also applies to header names and values. In a script the variables are read as `parameters.get("name")` and `lastLog.getOutput()`, and the last expression is the value.
 
@@ -392,7 +392,7 @@ Routes the flow by comparing a value with a list of cases.
 * value: The value to compare.
 * switchCases: A list of cases, like `[{"currentCase": "high"}, {"currentCase": "low"}]`.
 
-The first OUTPUT ports match the cases in order. One more OUTPUT port after the last case is the default path, which is used when no case matches. Without it, a value that matches no case fails the run.
+The first OUTPUT ports match the cases in order. One more OUTPUT port after the last case is the default path, which is used when no case matches. Without it, a value that matches no case fails the run. With `"scriptLanguage": "JAVASCRIPT"` the value is treated as text, so compute it first with SetVariableAction and read it with Velocity.
 
 #### ExecuteCommandAction
 Executes a command on the current machine.
