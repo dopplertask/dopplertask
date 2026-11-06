@@ -139,6 +139,12 @@ public class Task {
         return actions.get(0);
     }
 
+    public Action getActionByPort(String portId) {
+        return actionList.stream()
+                .filter(action -> action.getPorts() != null && !action.getPorts().isEmpty() && portId.equals(action.getPorts().get(0).getExternalId()))
+                .findFirst().orElse(null);
+    }
+
     public Action getStartAction(String triggerName, String triggerSuffix) {
         List<Action> actions = actionList.stream().filter(action -> action.getClass().getSimpleName().equalsIgnoreCase(triggerName) && action instanceof Trigger && ((Trigger) action).getTriggerSuffix().equals(triggerSuffix == null ? "" : triggerSuffix)).collect(Collectors.toList());
         if (actions.isEmpty()) {

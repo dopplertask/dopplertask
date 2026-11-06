@@ -42,6 +42,10 @@ public class TaskExecution {
     @Transient
     private Action currentAction;
 
+    // The step a resumed run starts at, named by its first port as in TaskExecutionStep.
+    @Column
+    private String resumePortId;
+
     @Transient
     private Map<Long, Integer> actionAccessCountMap = new HashMap<>();
 
@@ -141,6 +145,14 @@ public class TaskExecution {
 
     public void setDepth(Integer depth) {
         this.depth = depth;
+    }
+
+    public String getResumePortId() {
+        return resumePortId;
+    }
+
+    public void setResumePortId(String resumePortId) {
+        this.resumePortId = resumePortId;
     }
 
     public Action getCurrentAction() {

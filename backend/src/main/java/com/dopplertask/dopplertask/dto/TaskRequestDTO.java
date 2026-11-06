@@ -7,6 +7,15 @@ public class TaskRequestDTO {
     private String taskName;
     private Map<String, String> parameters;
     private TaskCreationDTO task;
+    private Long resumeFromExecutionId;
+
+    public Long getResumeFromExecutionId() {
+        return resumeFromExecutionId;
+    }
+
+    public void setResumeFromExecutionId(Long resumeFromExecutionId) {
+        this.resumeFromExecutionId = resumeFromExecutionId;
+    }
 
     public String getTaskName() {
         return taskName;

@@ -101,6 +101,7 @@ public class TaskController {
 
         TaskRequest request = new TaskRequest(removeTaskAfterExecution ? taskRequestDTO.getTaskName() + token : taskRequestDTO.getTaskName(), parameters, removeTaskAfterExecution);
         request.setChecksum(taskRequestDTO.getTaskName());
+        request.setResumeFromExecutionId(taskRequestDTO.getResumeFromExecutionId());
 
 
         TaskExecution taskExecution = taskService.delegate(request);
@@ -122,6 +123,7 @@ public class TaskController {
 
         TaskRequest request = new TaskRequest(taskRequestDTO.getTaskName(), parameters);
         request.setChecksum(taskRequestDTO.getTaskName());
+        request.setResumeFromExecutionId(taskRequestDTO.getResumeFromExecutionId());
         TaskExecution execution = taskService.runRequest(request);
         ResponseEntity<TaskExecutionLogResponseDTO> result = runResult(execution, taskRequestDTO.getTaskName());
         if (execution != null) {

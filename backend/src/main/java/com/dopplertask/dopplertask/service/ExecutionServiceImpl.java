@@ -82,6 +82,20 @@ public class ExecutionServiceImpl implements ExecutionService {
 
             execution.setStartdate(new Date());
 
+            String cannotResume = taskExecutionRequest.getResumeFromExecutionId() == null ? null : prepareResume(execution, task, taskExecutionRequest.getResumeFromExecutionId());
+            if (cannotResume != null) {
+                execution.setStatus(TaskExecutionStatus.FAILED);
+                TaskExecutionLog resumeFailed = new TaskExecutionLog();
+                resumeFailed.setTaskExecution(execution);
+                resumeFailed.setOutput(cannotResume);
+                resumeFailed.setBroadcasted(true);
+                execution.addLog(resumeFailed);
+                execution.setSuccess(false);
+                execution.setFailureReason(cannotResume);
+                broadcastResults(resumeFailed, true);
+                return execution;
+            }
+
             // Check if task is started by trigger when the active is set to false, if so, fail.
             if (startedByTrigger && !task.isActive()) {
                 execution.setSuccess(false);
@@ -124,6 +138,15 @@ public class ExecutionServiceImpl implements ExecutionService {
             executionStarted.setOutput("Task execution started [taskId=" + task.getId() + ", executionId=" + execution.getId() + "]");
             executionStarted.setBroadcasted(true);
             execution.addLog(executionStarted);
+
+            // A resumed step reads the output of the step before it, which this run did not produce.
+            if (execution.getResumePortId() != null && !execution.getSteps().isEmpty()) {
+                TaskExecutionLog previousOutput = new TaskExecutionLog();
+                previousOutput.setTaskExecution(execution);
+                previousOutput.setOutput(execution.getSteps().get(execution.getSteps().size() - 1).getOutput());
+                previousOutput.setBroadcasted(true);
+                execution.addLog(previousOutput);
+            }
 
             taskExecutionDao.save(execution);
 
@@ -326,7 +349,7 @@ public class ExecutionServiceImpl implements ExecutionService {
             Task task = taskRequest.get();
             TaskExecution execution = executionReq.get();
 
-            execution.setCurrentAction(task.getWebhookStartAction());
+            execution.setCurrentAction(execution.getResumePortId() != null ? task.getActionByPort(execution.getResumePortId()) : task.getWebhookStartAction());
 
             return executeActions(taskService, task, execution);
         }
@@ -426,6 +449,31 @@ public class ExecutionServiceImpl implements ExecutionService {
         execution.setStatus(execution.isSuccess() ? TaskExecutionStatus.FINISHED : TaskExecutionStatus.FAILED);
 
         return execution;
+    }
+
+    /**
+     * Sets up the execution to continue where an earlier run failed: with its values and its finished steps.
+     *
+     * @return why the run cannot be resumed, or null when it can.
+     */
+    private String prepareResume(TaskExecution execution, Task task, Long resumeFromExecutionId) {
+        TaskExecution earlierRun = taskExecutionDao.findById(resumeFromExecutionId).orElse(null);
+        if (earlierRun == null || earlierRun.getTask() == null || !earlierRun.getTask().getName().equals(task.getName())) {
+            return "Could not resume. Execution " + resumeFromExecutionId + " is not a run of " + task.getName() + ".";
+        }
+        List<TaskExecutionStep> steps = earlierRun.getSteps();
+        if (steps.isEmpty() || steps.get(steps.size() - 1).getStatus() != StatusCode.FAILURE || earlierRun.getStatus() != TaskExecutionStatus.FAILED) {
+            return "Could not resume. Execution " + resumeFromExecutionId + " did not fail at a step.";
+        }
+        String failedPort = steps.get(steps.size() - 1).getPortId();
+        if (failedPort == null || task.getActionByPort(failedPort) == null) {
+            return "Could not resume. The step that failed is no longer in this task, so run the whole task instead.";
+        }
+
+        earlierRun.getParameters().forEach((name, parameter) -> execution.getParameters().putIfAbsent(name, new ExecutionParameter(name, parameter.getParamValue(), parameter.isBinary())));
+        steps.subList(0, steps.size() - 1).forEach(step -> execution.addStep(step.copyTo(execution)));
+        execution.setResumePortId(failedPort);
+        return null;
     }
 
     private void recordStep(TaskExecution execution, Action action, ActionResult result, long durationMs) {
