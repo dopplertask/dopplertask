@@ -31,6 +31,7 @@ const PRESENTATION = {
   MouseAction: ['mouse', 'Use the mouse', 'browser', 'pointer'],
   OpenAIAction: ['openAI', 'OpenAI', 'integration', 'sparkles', ['model', 'userInput']],
   JenkinsAction: ['jenkins', 'Jenkins', 'integration', 'wrench', ['jenkinsUrl']],
+  SlackAction: ['slack', 'Slack', 'integration', 'message', ['token', 'channel', 'message']],
   /* Without these a trigger stops at once, and nothing but the server log says so. */
   IntervalTrigger: ['IntervalTrigger', 'Schedule', 'logic', 'clock', ['time']],
   ActiveMQTrigger: ['ActiveMQTrigger', 'Queue', 'logic', 'server', ['url', 'queue']],
@@ -233,6 +234,7 @@ function describeNode(node) {
     case 'writeFile': return ['Write ', value(inlineVariables(config.filename), 'a file')];
     case 'browseWeb': return ['Open ', value(inlineVariables(config.url), 'a page')];
     case 'mouse': return [{ value: (config.action || 'CLICK').toLowerCase() }, ' the mouse'];
+    case 'slack': return ['Send ', value(inlineVariables(config.message), 'a message'), ' to ', value(config.channel, 'a channel')];
     case 'openAI': return ['Ask ', { value: config.model || 'OpenAI' }, ' ', value(readableExpression(config.userInput), 'a prompt')];
     case 'jenkins': return [{ value: config.operation || 'Call' }, ' on Jenkins'];
     default: return [ACTIONS[node.type].description || ACTIONS[node.type].label];

@@ -185,10 +185,10 @@ export default function boot() {
 
   function renderForm(node, store) {
     const action = ACTIONS[node.type];
-    /* Most steps never need another language, and in a script it is the first thing to decide. */
-    const isLanguageSetting = (field) => field.key === 'scriptLanguage' && node.type !== 'script';
-    const visibleFields = action.fields.filter((field) => DT.fieldVisible(field, node.config) && !isLanguageSetting(field));
-    const languageField = action.fields.find(isLanguageSetting);
+    /* Most steps never need another language or address, and in a script the language is the first thing to decide. */
+    const isAdvanced = (field) => field.key === 'baseUrl' || (field.key === 'scriptLanguage' && node.type !== 'script');
+    const visibleFields = action.fields.filter((field) => DT.fieldVisible(field, node.config) && !isAdvanced(field));
+    const advancedFields = action.fields.filter(isAdvanced);
     const issues = store.issues.filter((issue) => issue.nodeId === node.id && !issue.field);
     const canFail = node.type !== 'start';
     const hasFailureSettings = canFail && (node.config.retries || node.config.continueOnFailure || node.config.failOn);
@@ -197,7 +197,7 @@ export default function boot() {
       <div class="ui-field-grid">${visibleFields.map((field) => renderField(field, node)).join('')}</div>
       ${node.type === 'start' && node.config.trigger === 'webhook' ? `<div class="ui-field"><span class="ui-label">Call this URL</span><div class="ui-copy-row"><code data-webhook-url>${escapeHtml(webhookUrl(store.task, node))}</code><button type="button" class="ui-icon-button" data-copy="${escapeHtml(webhookUrl(store.task, node))}" aria-label="Copy URL">${icon('copy')}</button></div><p class="ui-hint">Works once the task is saved with its trigger on.</p></div>` : ''}
       ${canFail ? `<details class="ui-disclosure" ${hasFailureSettings ? 'open' : ''}><summary>${icon('chevronRight')}If this step fails${node.config.retries ? `<span class="ui-pill">${node.config.retries} ${node.config.retries === 1 ? 'retry' : 'retries'}</span>` : ''}</summary><div class="ui-field-grid">${FAILURE_FIELDS.map((field) => renderField(field, node)).join('')}</div></details>` : ''}
-      ${languageField ? `<details class="ui-disclosure" ${node.config.scriptLanguage === 'JAVASCRIPT' ? 'open' : ''}><summary>${icon('chevronRight')}Advanced</summary><div class="ui-field-grid">${renderField(languageField, node)}</div></details>` : ''}
+      ${advancedFields.length ? `<details class="ui-disclosure" ${node.config.scriptLanguage === 'JAVASCRIPT' || node.config.baseUrl ? 'open' : ''}><summary>${icon('chevronRight')}Advanced</summary><div class="ui-field-grid">${advancedFields.map((field) => renderField(field, node)).join('')}</div></details>` : ''}
       <p class="ui-backend-name">${escapeHtml(action.backend)}</p>`;
   }
 
