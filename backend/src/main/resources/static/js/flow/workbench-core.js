@@ -167,7 +167,7 @@ export default function boot() {
   const rerunButton = () => {
     const run = runner.run;
     const resumable = canResume(run, run.steps.find((step) => step.status === 'failed'));
-    return `<div class="result-actions">${resumable ? `<button type="button" class="ui-button is-primary" data-wb="resume" title="Keep the results before this step and continue from here">${icon('replay')}Rerun from this step</button>` : ''}${runAgainButton}${changeParametersButton()}</div>`;
+    return `<div class="result-actions">${resumable ? `<button type="button" class="ui-button is-primary" data-wb="resume" title="Keep the results before this step and continue from here">${icon('replay')}Rerun from this step</button>` : ''}${runAgainButton}${changeParametersButton()}<button type="button" class="ui-link-button" data-wb="continue-on-failure">Let the task continue when this step fails</button></div>`;
   };
 
   let resultKey = null;
@@ -437,6 +437,11 @@ export default function boot() {
     if (action === 'trigger') store.select(rootNode(store.task).id);
     if (action === 'test') testSelectedStep();
     if (action === 'history') setHistory(!historyOpen);
+    if (action === 'continue-on-failure') {
+      store.updateConfig(store.selectedId, 'continueOnFailure', true);
+      mountPanel();
+      DT.ui.toast('This step no longer stops the task. It takes effect from the next run.');
+    }
     if (action === 'resume') { store.select(null); store.startRun(runner.run.parameters, { resumeFrom: runner.run }).catch((error) => DT.ui.toast(error.message, { tone: 'danger' })); }
     if (action === 'again') { store.select(null); store.startRun(runner.run.parameters).catch((error) => DT.ui.toast(error.message, { tone: 'danger' })); }
     if (action === 'toggle-play') { if (runner.playing) runner.pause(); else runner.play(); }
