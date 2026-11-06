@@ -399,14 +399,17 @@ export default function boot() {
     const lastValues = values || store.runs[0]?.parameters || {};
     const dialog = openDialog(`${dialogHeader(`Run “${store.task.name}”`, 'Choose the values for this run.')}
       <form method="dialog" class="ui-form" novalidate>
-        ${store.task.parameters.map((parameter) => `<div class="ui-field"><label class="ui-label" for="run-${escapeHtml(parameter.name)}">${escapeHtml(parameter.name)}${parameter.required ? '' : '<span class="ui-optional">optional</span>'}</label><input class="ui-input" id="run-${escapeHtml(parameter.name)}" name="${escapeHtml(parameter.name)}" data-required="${parameter.required ? 1 : ''}" autocomplete="off" spellcheck="false" value="${escapeHtml(lastValues[parameter.name] ?? parameter.defaultValue ?? '')}">${parameter.description ? `<p class="ui-hint">${escapeHtml(parameter.description)}</p>` : ''}</div>`).join('')}
+        ${store.task.parameters.map((parameter) => `<div class="ui-field"><label class="ui-label" for="run-${escapeHtml(parameter.name)}">${escapeHtml(parameter.name)}<span class="ui-optional">${parameter.required ? 'required' : 'optional'}</span></label><input class="ui-input" id="run-${escapeHtml(parameter.name)}" name="${escapeHtml(parameter.name)}" data-required="${parameter.required ? 1 : ''}" autocomplete="off" spellcheck="false" value="${escapeHtml(lastValues[parameter.name] ?? parameter.defaultValue ?? '')}">${parameter.description ? `<p class="ui-hint">${escapeHtml(parameter.description)}</p>` : ''}</div>`).join('')}
         <footer class="ui-dialog-foot"><button type="button" class="ui-button" data-dialog-close>Cancel</button><button type="submit" class="ui-button is-primary">${icon('play')}Run ${kbd(`${modKey}↵`)}</button></footer>
       </form>`, { className: 'is-small' });
     const form = dialog.querySelector('form');
     const submit = (event) => {
       event.preventDefault();
       const missing = [...form.querySelectorAll('[data-required="1"]')].filter((input) => !input.value.trim());
-      form.querySelectorAll('.ui-input').forEach((input) => input.classList.toggle('is-invalid', missing.includes(input)));
+      form.querySelectorAll('.ui-input').forEach((input) => {
+        input.classList.toggle('is-invalid', missing.includes(input));
+        input.setAttribute('aria-invalid', missing.includes(input));
+      });
       if (missing.length) { missing[0].focus(); return; }
       const values = Object.fromEntries(new FormData(form));
       dialog.close();
