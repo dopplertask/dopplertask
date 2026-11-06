@@ -332,10 +332,11 @@ export default function boot() {
     DT.ui.openRunDialog(store, (values) => { store.select(null); store.startRun(values).catch((error) => DT.ui.toast(error.message, { tone: 'danger' })); }, { values: runner.run?.parameters, onFixIssue: () => { renderInspector(); } });
   }
 
-  /* Picked by keyboard, so the keyboard should land on what was added. */
+  /* A step is added to be filled in, so typing should go straight to its first field. */
   function addAndFocus(type, target) {
-    store.addStep(type, target);
+    const node = store.addStep(type, target);
     requestAnimationFrame(() => elements.inspector.querySelector('[data-field]')?.focus());
+    return node;
   }
 
   function openStepPicker(target) {
@@ -437,7 +438,7 @@ export default function boot() {
       } else {
         const offset = HEAD_HEIGHT / 2;
         DT.ui.openPalette({ store, handlers, stepsOnly: true, title: 'Find a step to add', onPick: (type) => {
-          const node = store.addStep(type, { fromId: finished.fromId, port: finished.port });
+          const node = addAndFocus(type, { fromId: finished.fromId, port: finished.port });
           displayed.set(node.id, { x: dropPoint.x, y: dropPoint.y - offset });
           store.moveNode(node.id, { x: dropPoint.x, y: dropPoint.y - offset });
           renderNodes();
@@ -482,12 +483,12 @@ export default function boot() {
     const onUp = (upEvent) => {
       document.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerup', onUp);
-      if (!ghost) { store.addStep(type); return; }
+      if (!ghost) { addAndFocus(type); return; }
       ghost.remove();
-      if (dropWire) store.addStep(type, { fromId: dropWire.dataset.from, port: dropWire.dataset.port });
+      if (dropWire) addAndFocus(type, { fromId: dropWire.dataset.from, port: dropWire.dataset.port });
       else if (upEvent.target.closest('.stage') && !upEvent.target.closest('.library, .inspector')) {
         const point = toWorld(upEvent.clientX, upEvent.clientY);
-        store.addStep(type, { position: { x: point.x - NODE_WIDTH / 2, y: point.y - HEAD_HEIGHT / 2 } });
+        addAndFocus(type, { position: { x: point.x - NODE_WIDTH / 2, y: point.y - HEAD_HEIGHT / 2 } });
       }
     };
     document.addEventListener('pointermove', onMove);
@@ -511,7 +512,7 @@ export default function boot() {
   document.addEventListener('click', (event) => {
     /* Pointers add from the library on release. A keyboard only produces this click. */
     const libraryItem = event.target.closest('.library-item');
-    if (libraryItem && event.detail === 0) store.addStep(libraryItem.dataset.type);
+    if (libraryItem && event.detail === 0) addAndFocus(libraryItem.dataset.type);
     const openPort = event.target.closest('.port-out.is-open');
     if (openPort && event.detail === 0) { /* Keyboard activation; pointers are handled by the wire gesture. */
       openStepPicker({ fromId: openPort.closest('.node').dataset.node, port: openPort.dataset.port });
@@ -546,7 +547,7 @@ export default function boot() {
       DT.ui.toast('Press Run to see it work.');
     }
     const firstStep = event.target.closest('[data-first-step]');
-    if (firstStep) store.addStep(firstStep.dataset.firstStep, { fromId: DT.rootNode(store.task).id });
+    if (firstStep) addAndFocus(firstStep.dataset.firstStep, { fromId: DT.rootNode(store.task).id });
   });
 
   /* SVG buttons do not turn Enter or Space into a click by themselves. */

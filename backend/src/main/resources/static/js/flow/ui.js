@@ -515,7 +515,7 @@ export default function boot() {
     openDialog(`${dialogHeader('Keyboard shortcuts')}<dl class="ui-shortcuts">${rows.map(([keys, label]) => `<div><dt>${escapeHtml(label)}</dt><dd>${kbd(keys)}</dd></div>`).join('')}</dl>`, { className: 'is-small', animate: false });
   }
 
-  const saveStatus = (store) => ({ saving: 'Saving…', saved: 'Saved', unsaved: 'Unsaved changes' })[store.saveState];
+  const saveStatus = (store) => ({ saving: 'Saving…', saved: 'Saved', unsaved: store.task.checksum ? 'Unsaved changes' : 'Not saved yet' })[store.saveState];
 
   /* ---------- Shortcuts ---------- */
 

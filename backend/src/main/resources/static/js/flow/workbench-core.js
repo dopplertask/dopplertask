@@ -223,7 +223,7 @@ export default function boot() {
       <div class="panel-head">
         <span class="node-icon ${isStart ? 'is-start' : ''}" data-category="${action.category}">${icon(action.icon)}</span>
         <div class="panel-title">
-          <input class="inspector-name" aria-label="Step name" value="${escapeHtml(node.name)}" ${isStart ? 'readonly' : ''}>
+          <input class="inspector-name" aria-label="Step name" title="Click to rename this step" value="${escapeHtml(node.name)}" ${isStart ? 'readonly' : ''}>
           <small>${escapeHtml(isStart ? 'How this task starts' : action.description)}</small>
         </div>
         <button type="button" class="ui-icon-button" data-inspector="close" aria-label="Close panel" title="Close (esc)">${icon('x')}</button>
