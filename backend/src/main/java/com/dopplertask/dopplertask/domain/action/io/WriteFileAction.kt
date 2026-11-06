@@ -52,7 +52,7 @@ class WriteFileAction : Action() {
                     Paths.get(filenameVariable),
                     contentsVariable,
                     StandardOpenOption.CREATE,
-                    StandardOpenOption.WRITE
+                    StandardOpenOption.TRUNCATE_EXISTING
                 )
             } else {
                 try {
