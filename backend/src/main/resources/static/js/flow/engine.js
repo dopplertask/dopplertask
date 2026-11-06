@@ -352,7 +352,8 @@ function fromBackend(saved) {
 /* ---------- Server ---------- */
 
 async function request(url, options = {}) {
-  const response = await fetch(url, { ...options, headers: { Accept: 'application/json', ...(options.body ? { 'Content-Type': 'application/json' } : {}) } });
+  const response = await fetch(url, { ...options, headers: { Accept: 'application/json', ...(options.body ? { 'Content-Type': 'application/json' } : {}) } })
+    .catch(() => { throw new Error('The server could not be reached. Nothing was changed there.'); });
   const text = await response.text();
   let body = null;
   try { body = text ? JSON.parse(text) : null; } catch (error) { body = null; }
@@ -437,6 +438,8 @@ function createStore() {
   let coalesceKey = null;
   let coalesceTime = 0;
   let runs = [];
+  /* The task this editor last read or wrote, which a Save may add a version to. */
+  let savedName = null;
 
   const emit = (change) => listeners.forEach((listener) => listener(change));
 
@@ -704,15 +707,20 @@ function createStore() {
     /* Every save is a new version on the server, unless the content is unchanged. */
     async save({ autoSaved = false } = {}) {
       clearTimeout(autoSaveTimer);
+      const renamedFrom = savedName && savedName !== task.name ? savedName : null;
+      if (task.name !== savedName && tasks.some((candidate) => candidate.name === task.name)) {
+        throw new Error(`A task called ${task.name} already exists. Choose another name, or open that task to change it.`);
+      }
       setSaveState('saving');
       try {
         const { checksum } = await request(autoSaved ? '/task?autoSaved=true' : '/task', { method: 'POST', body: JSON.stringify(toBackend(task)) });
         task.checksum = checksum;
         task.id = task.name;
         localStorage.setItem(LAST_TASK_KEY, task.name);
+        savedName = task.name;
         setSaveState('saved');
         await loadTaskList();
-        return checksum;
+        return renamedFrom ? `Saved as a new task. ${renamedFrom} is still there.` : 'Saved';
       } catch (error) {
         setSaveState('unsaved');
         throw error;
@@ -722,11 +730,12 @@ function createStore() {
       task.name = name;
       task.description = description;
       emit('meta');
-      await store.save();
+      return store.save();
     },
     async openVersion(checksum) {
       task = fromBackend(await request(`/task/${checksum}/checksum`));
       localStorage.setItem(LAST_TASK_KEY, task.name);
+      savedName = task.name;
       selectedId = null; undoStack = []; redoStack = [];
       runner.clear();
       saveState = 'saved';
@@ -742,11 +751,12 @@ function createStore() {
       const entry = tasks.find((candidate) => candidate.id === name);
       /* One at a time, so the last deletion can see that no versions remain and stop the task's triggers. */
       for (const version of entry.versions) await request(`/task/${version.checksum}`, { method: 'DELETE' });
-      if (task.name === name) { task.checksum = undefined; setSaveState('unsaved'); runs = []; emit('run'); }
+      if (task.name === name) { savedName = null; task.checksum = undefined; setSaveState('unsaved'); runs = []; emit('run'); }
       await loadTaskList();
     },
     newTask() {
       task = freshTask();
+      savedName = null;
       selectedId = null; undoStack = []; redoStack = []; runs = [];
       runner.clear();
       saveState = 'unsaved';
@@ -754,6 +764,8 @@ function createStore() {
     },
     importTask(serialized) {
       task = fromBackend(JSON.parse(serialized));
+      /* Importing under an existing name is how an exported version is restored. */
+      savedName = task.name;
       selectedId = null; undoStack = []; redoStack = []; runs = [];
       runner.clear();
       saveState = 'unsaved';

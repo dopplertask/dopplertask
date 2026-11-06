@@ -470,7 +470,7 @@ export default function boot() {
     nameInput.select();
     dialog.querySelector('form').addEventListener('submit', () => {
       store.saveAs(nameInput.value.trim().replace(/\s+/g, '_') || store.task.name, dialog.querySelector('#save-as-description').value)
-        .then(() => toast('Task saved'), (error) => toast(error.message, { tone: 'danger' }));
+        .then((message) => toast(message), (error) => toast(error.message, { tone: 'danger' }));
     });
   }
 
@@ -515,7 +515,7 @@ export default function boot() {
       if (modified && event.key.toLowerCase() === 'k') { event.preventDefault(); if (!dialogOpen) handlers.palette(); return; }
       if (dialogOpen) return;
       if (modified && event.key === 'Enter') { event.preventDefault(); handlers.run(); return; }
-      if (modified && event.key.toLowerCase() === 's') { event.preventDefault(); store.save().then(() => toast('Saved'), (error) => toast(error.message, { tone: 'danger' })); return; }
+      if (modified && event.key.toLowerCase() === 's') { event.preventDefault(); store.save().then((message) => toast(message), (error) => toast(error.message, { tone: 'danger' })); return; }
       if (typing) { if (event.key === 'Escape') event.target.blur(); return; }
       if (modified && event.key.toLowerCase() === 'z') { event.preventDefault(); if (event.shiftKey) store.redo(); else store.undo(); return; }
       if (modified && event.key.toLowerCase() === 'd' && store.selectedId) { event.preventDefault(); store.duplicateNode(store.selectedId); return; }
