@@ -43,7 +43,7 @@ class ScriptAction : Action() {
                     "Script",
                     PropertyInformationType.MULTILINE,
                     "",
-                    "Command to execute."
+                    "The value of the last line is the result."
                 )
             )
             return actionInfo

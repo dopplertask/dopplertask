@@ -142,10 +142,10 @@ class HttpAction : Action() {
     override val actionInfo: MutableList<PropertyInformation>
         get() {
             val actionInfo = super.actionInfo
-            actionInfo.add(PropertyInformation("url", "URL", PropertyInformationType.STRING, "", "Hostname or IP"))
+            actionInfo.add(PropertyInformation("url", "URL", PropertyInformationType.STRING, "", "The full address, such as https://example.com/status"))
             actionInfo.add(
                 PropertyInformation(
-                    "method", "Method", PropertyInformationType.DROPDOWN, "GET", "HTTP Method",
+                    "method", "Method", PropertyInformationType.DROPDOWN, "GET", "",
                     mutableListOf(
                         PropertyInformation("GET", "GET"),
                         PropertyInformation(
