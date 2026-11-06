@@ -473,6 +473,14 @@ Starts the flow at an interval, while the task has `"active": true`. A trigger i
 * When a queue trigger starts a task, the message can be accessed using `$parameters.get("TRIGGER_Message")`.
 * When a webhook is called from an HTTP call, the headers can be accessed using the following syntax: $parameters.get("TRIGGER_*headername*"). Example: $parameters.get("TRIGGER_authorization"). The body of the request can be accessed using $parameters.get("TRIGGER_body").
 
+## Upgrading
+Existing tasks, versions and webhook addresses keep working, and the database is updated when the new version starts. A few things behave differently since version 0.14.7:
+
+* **An HTTP step fails on a status of 400 or above.** This also applies to steps built on it, such as OpenAI. A task that should carry on needs Continue on failure on that step.
+* **Requests from web pages on other sites are refused.** A page that should have access needs `dopplertask.allowedOrigins`. Webhooks and clients that are not browsers are not affected.
+* **The command line tool exits with 1 when a run fails,** and prints the output of each step rather than internal log lines.
+* **The editor no longer uses port 61614,** so it does not need to be published for the editor.
+
 ## Security
 DopplerTask runs commands on the machine it is installed on, so treat access to it as access to that machine.
 
