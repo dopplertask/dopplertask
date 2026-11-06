@@ -485,6 +485,8 @@ function createStore() {
   const loadRuns = async () => {
     const { executions } = await request('/executions');
     runs = executions.filter((execution) => execution.taskName === task.name && execution.startDate).map(runListItem).sort((first, second) => second.startedAt - first.startedAt);
+    /* The latest run supplies the values shown in the step panel, also after a reload. */
+    if (runs[0]) applyExecution(runs[0], await request(`/execution/${runs[0].id}`));
     emit('run');
   };
 
@@ -773,12 +775,12 @@ function createStore() {
       if (!run.complete) applyExecution(run, await request(`/execution/${run.id}`));
       runner.load(run);
     },
-    /* Runs one step on its own, without touching the run history. */
-    async testStep(nodeId) {
+    /* Runs one step on its own with the values given, without touching the run history. */
+    async testStep(nodeId, { parameters, lastOutput }) {
       const node = nodeById(task, nodeId);
       const action = { '@type': ACTIONS[node.type].backend, ...withoutEmptyValues(node.config), ports: [] };
       const started = performance.now();
-      const result = await request('/task/action', { method: 'POST', body: JSON.stringify(action) });
+      const result = await request('/task/action/test', { method: 'POST', body: JSON.stringify({ action, parameters, lastOutput }) });
       const failed = result.statusCode === 'FAILURE';
       return { nodeId, status: failed ? 'failed' : 'success', output: failed && !result.errorMsg ? '' : result.output, error: failed ? result.errorMsg || result.output || 'This step failed.' : null, durationMs: performance.now() - started };
     },

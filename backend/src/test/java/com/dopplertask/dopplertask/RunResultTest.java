@@ -111,4 +111,12 @@ public class RunResultTest {
         return this.mockMvc.perform(post("/schedule/directtask").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"taskName\":\"" + name + "\",\"parameters\":" + parameters + "}"));
     }
+
+    @Test
+    public void testActionTestSeesTheValuesItIsGivenSuccess() throws Exception {
+        this.mockMvc.perform(post("/task/action/test").contentType(MediaType.APPLICATION_JSON).content(
+                "{\"action\": {\"@type\": \"PrintAction\", \"message\": \"$parameters.get('name') after $lastLog.output\"}, \"parameters\": {\"name\": \"Ada\"}, \"lastOutput\": \"build\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.output").value("Ada after build"));
+    }
 }
