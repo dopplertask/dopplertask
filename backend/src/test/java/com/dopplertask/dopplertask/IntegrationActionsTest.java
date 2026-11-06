@@ -169,4 +169,13 @@ public class IntegrationActionsTest {
         Assert.assertTrue(run(telegram).getErrorMsg().contains("4096"));
         Assert.assertNull(path);
     }
+
+    @Test
+    public void testTelegramKeepsTheTokenOutOfTheMessageAboutAWrongAddressFail() throws IOException {
+        TelegramAction telegram = telegram();
+        telegram.setToken("123:my secret");
+        String message = run(telegram).getErrorMsg();
+        Assert.assertTrue(message, message.contains("not valid"));
+        Assert.assertFalse(message, message.contains("secret"));
+    }
 }

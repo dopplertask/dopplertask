@@ -25,6 +25,12 @@ object JsonApi {
         return result
     }
 
+    // Some services take their secret in the address, and the messages about a wrong address repeat the address.
+    fun withoutSecret(result: ActionResult, secret: String): ActionResult {
+        result.errorMsg = result.errorMsg?.replace(secret, "(hidden)")
+        return result
+    }
+
     fun failure(message: String): ActionResult {
         val result = ActionResult()
         result.errorMsg = message
