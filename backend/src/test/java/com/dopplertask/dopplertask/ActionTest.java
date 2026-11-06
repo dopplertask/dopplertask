@@ -4,6 +4,7 @@ import com.dopplertask.dopplertask.domain.ActionPort;
 import com.dopplertask.dopplertask.domain.ActionPortType;
 import com.dopplertask.dopplertask.domain.ActionResult;
 import com.dopplertask.dopplertask.domain.Connection;
+import com.dopplertask.dopplertask.domain.SSHManager;
 import com.dopplertask.dopplertask.domain.StatusCode;
 import com.dopplertask.dopplertask.domain.TaskExecution;
 import com.dopplertask.dopplertask.domain.action.common.ExecuteCommandAction;
@@ -286,5 +287,11 @@ public class ActionTest {
         ActionResult result = requestTo("http://localhost:1/x");
         Assert.assertEquals(StatusCode.FAILURE, result.getStatusCode());
         Assert.assertTrue(result.getErrorMsg(), result.getErrorMsg().startsWith("Could not connect to localhost."));
+    }
+
+    @Test
+    public void testSshExplainsAHostThatCannotBeReached() {
+        Assert.assertEquals("Could not find the host no-such-host.invalid. Check the address.", new SSHManager("me", "secret", "no-such-host.invalid", "").connect());
+        Assert.assertEquals("Could not connect to localhost on port 1. Check the address, and that SSH is running there.", new SSHManager("me", "secret", "localhost", "", 1).connect());
     }
 }
