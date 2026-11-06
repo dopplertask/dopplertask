@@ -718,6 +718,18 @@ function createStore() {
       task.edges = task.edges.filter((edge) => !(edge.from === fromId && edge.port === port));
       changed('structure');
     },
+    /* Needs nothing but this machine, so a first run works and shows steps, a branch and a value passed along. */
+    addExample() {
+      remember();
+      const greet = createNode(`n${uniqueId()}`, 'command', 'Say hello', { command: 'echo Hello from DopplerTask' });
+      const check = createNode(`n${uniqueId()}`, 'if', 'Did it say hello?', { condition: '$lastLog.output.contains("Hello")' });
+      const yes = createNode(`n${uniqueId()}`, 'print', 'Yes', { message: 'Yes, the first step said hello.' });
+      const no = createNode(`n${uniqueId()}`, 'print', 'No', { message: 'No, the first step said something else.' });
+      task.nodes.push(greet, check, yes, no);
+      task.edges.push({ from: rootNode(task).id, port: 'out', to: greet.id }, { from: greet.id, port: 'out', to: check.id }, { from: check.id, port: 'true', to: yes.id }, { from: check.id, port: 'false', to: no.id });
+      layoutTask(task);
+      changed('task');
+    },
     tidy() { remember(); layoutTask(task); changed('structure'); },
     undo() { if (!undoStack.length) return; redoStack.push(snapshot()); restore(undoStack.pop()); coalesceKey = null; changed('structure'); },
     redo() { if (!redoStack.length) return; undoStack.push(snapshot()); restore(redoStack.pop()); coalesceKey = null; changed('structure'); },
