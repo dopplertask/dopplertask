@@ -22,6 +22,16 @@ import com.dopplertask.dopplertask.domain.action.connection.RedisAction
 import com.dopplertask.dopplertask.domain.action.connection.PostgresAction
 import com.dopplertask.dopplertask.domain.action.integration.mail.EmailAction
 import com.dopplertask.dopplertask.domain.action.integration.storage.S3Action
+import com.dopplertask.dopplertask.domain.action.integration.chat.TeamsAction
+import com.dopplertask.dopplertask.domain.action.integration.chat.MattermostAction
+import com.dopplertask.dopplertask.domain.action.integration.chat.TwilioAction
+import com.dopplertask.dopplertask.domain.action.integration.code.GitLabAction
+import com.dopplertask.dopplertask.domain.action.integration.code.LinearAction
+import com.dopplertask.dopplertask.domain.action.integration.code.ZendeskAction
+import com.dopplertask.dopplertask.domain.action.integration.storage.NotionAction
+import com.dopplertask.dopplertask.domain.action.integration.storage.GoogleSheetsAction
+import com.dopplertask.dopplertask.domain.action.integration.anthropic.ClaudeAction
+import com.dopplertask.dopplertask.domain.action.integration.mail.ReadEmailAction
 import com.dopplertask.dopplertask.domain.action.integration.openai.OpenAIAction
 import com.dopplertask.dopplertask.domain.action.integration.rockmelon.RockmelonAction
 import com.dopplertask.dopplertask.domain.action.io.ReadFileAction
@@ -99,6 +109,16 @@ import javax.persistence.OneToMany
     JsonSubTypes.Type(value = PostgresAction::class, name = "PostgresAction"),
     JsonSubTypes.Type(value = EmailAction::class, name = "EmailAction"),
     JsonSubTypes.Type(value = S3Action::class, name = "S3Action"),
+    JsonSubTypes.Type(value = TeamsAction::class, name = "TeamsAction"),
+    JsonSubTypes.Type(value = MattermostAction::class, name = "MattermostAction"),
+    JsonSubTypes.Type(value = TwilioAction::class, name = "TwilioAction"),
+    JsonSubTypes.Type(value = GitLabAction::class, name = "GitLabAction"),
+    JsonSubTypes.Type(value = LinearAction::class, name = "LinearAction"),
+    JsonSubTypes.Type(value = ZendeskAction::class, name = "ZendeskAction"),
+    JsonSubTypes.Type(value = NotionAction::class, name = "NotionAction"),
+    JsonSubTypes.Type(value = GoogleSheetsAction::class, name = "GoogleSheetsAction"),
+    JsonSubTypes.Type(value = ClaudeAction::class, name = "ClaudeAction"),
+    JsonSubTypes.Type(value = ReadEmailAction::class, name = "ReadEmailAction"),
     JsonSubTypes.Type(value = SlackAction::class, name = "SlackAction")
 )
 @JsonIgnoreProperties(ignoreUnknown = true)

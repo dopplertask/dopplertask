@@ -406,6 +406,115 @@ Reads, writes or deletes a text file in S3, or in a service that works like it, 
 * content: The text to write.
 * baseUrl: Only set this for a service that works like S3.
 
+#### TeamsAction
+Sends a message to a Microsoft Teams channel through a webhook, which the Workflows app makes.
+
+##### Variables
+* webhookUrl: It is kept as a secret, since anyone who has it can write to the channel.
+* message: The text to send.
+
+#### MattermostAction
+Sends a message to a channel on your Mattermost server. The next step can read the id of the message from `$lastLog.outputVariables.messageId`.
+
+##### Variables
+* siteUrl: The address of the server.
+* token: The token of a bot account that is a member of the channel.
+* channelId: View Info on the channel shows it.
+* message: The text to send.
+* replyToMessageId: Optional. The id of a message, to answer in its thread.
+
+#### TwilioAction
+Sends an SMS through Twilio. The next step can read the id of the message from `$lastLog.outputVariables.messageId`.
+
+##### Variables
+* accountSid, token: The Twilio console shows them.
+* sender: A number you have in Twilio.
+* to: With the country code, such as `+46701234567`.
+* message: Up to 1600 characters.
+* baseUrl: Optional.
+
+#### GitLabAction
+Creates, comments on or closes an issue, on gitlab.com or your own server. The next step can read `$lastLog.outputVariables.issueNumber` and `url`.
+
+##### Variables
+* token: An access token with the api scope.
+* project: Written as `group/name`.
+* operation: `createIssue`, `addComment` or `closeIssue`.
+* issueNumber: Required to comment or close.
+* title, issueDescription: Used to create.
+* comment: Required to comment.
+* baseUrl: The address of your own GitLab.
+
+#### LinearAction
+Creates or comments on an issue. The next step can read `$lastLog.outputVariables.issueKey` and `url`.
+
+##### Variables
+* token: An API key.
+* operation: `createIssue` or `addComment`.
+* team: The key of the team, such as `ENG`. Used to create.
+* title, issueDescription: Used to create.
+* issueKey: Such as `ENG-12`. Used to comment.
+* comment: Required to comment.
+* baseUrl: Optional.
+
+#### ZendeskAction
+Creates, comments on or solves a ticket. A comment is an internal note unless `visibleToCustomer` is set. The next step can read `$lastLog.outputVariables.ticketNumber` and `url`.
+
+##### Variables
+* siteUrl: Such as `https://acme.zendesk.com`.
+* email, token: The email of an agent and an API token.
+* operation: `createTicket`, `addComment` or `solveTicket`.
+* ticketNumber: Required to comment or solve.
+* subject, ticketDescription: Required to create.
+* comment: Required to comment.
+* visibleToCustomer: `true` to show the comment to the customer.
+
+#### NotionAction
+Creates a page, or adds text to one. The next step can read `$lastLog.outputVariables.pageId` and `url`.
+
+##### Variables
+* token: From an integration that the page is shared with.
+* operation: `createPage` or `addText`.
+* page: The address or the id. A new page is placed under this one.
+* title: Required to create.
+* content: Used to create. Each line becomes a paragraph.
+* addedText: Required to add text. Each line becomes a paragraph.
+* baseUrl: Optional.
+
+#### GoogleSheetsAction
+Reads the rows of a sheet, or adds one. The rows are given as JSON with the first row as names, such as `[{"name":"Ada"}]`, and the number of rows as `$lastLog.outputVariables.rowCount`. Values are written as text, so that a value from an earlier step cannot become a formula.
+
+##### Variables
+* serviceAccountKey: The JSON file of a service account. Share the spreadsheet with the email of that account.
+* spreadsheet: The address or the id.
+* sheet: The name of the tab.
+* operation: `readRows` or `addRow`.
+* rowValues: One value per line.
+* baseUrl: Optional.
+
+#### ClaudeAction
+Asks Claude, and gives the answer as text. An answer that Claude declines, or that is cut off, fails the step. The next step can read `$lastLog.outputVariables.stopReason`, `inputTokens` and `outputTokens`.
+
+##### Variables
+* apiKey: The Claude Console gives it.
+* model: `claude-opus-5-5` if nothing else is said.
+* instructions: How Claude should work.
+* userInput: What Claude is asked.
+* effort: `low`, `medium` or `high`.
+* maxTokens: The longest answer.
+* baseUrl: Optional.
+
+#### ReadEmailAction
+Reads messages from a mailbox over IMAP, newest first, as JSON with `from`, `subject`, `date` and `text`. The text comes from outside, so treat it as data when a later step or an agent acts on it. The next step can read `$lastLog.outputVariables.messageCount`.
+
+##### Variables
+* hostname, port, security: The mail server. The port is 993 with `tls`.
+* username, password: The mailbox.
+* folder: `INBOX` if nothing else is said.
+* onlyUnread: Only messages that are not read.
+* markAsRead: So that the next run does not read them again.
+* maxMessages: The most messages to read.
+
 #### SlackAction
 Sends a message to a Slack channel. The bot needs the `chat:write` permission and has to be a member of the channel. The next step can read the id of the message from `$lastLog.outputVariables.messageId`, for example to reply in its thread.
 

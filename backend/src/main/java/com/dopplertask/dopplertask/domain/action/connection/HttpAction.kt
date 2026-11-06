@@ -76,10 +76,10 @@ class HttpAction : Action() {
     /**
      * Sends a request with values that are final, so that text coming from a service or a step is never evaluated.
      */
-    fun send(urlVariable: String, bodyVariable: String, headerVariables: Map<String, String>, sslContext: SSLContext? = SSLContext.getDefault()): ActionResult {
+    fun send(urlVariable: String, bodyVariable: String, headerVariables: Map<String, String>, sslContext: SSLContext? = SSLContext.getDefault(), timeout: Duration = Duration.ofMinutes(1)): ActionResult {
         val actionResult = ActionResult()
         var builder = try {
-            HttpRequest.newBuilder().uri(URI.create(urlVariable.trim())).timeout(Duration.ofMinutes(1))
+            HttpRequest.newBuilder().uri(URI.create(urlVariable.trim())).timeout(timeout)
         } catch (e: IllegalArgumentException) {
             actionResult.errorMsg = "The address \"$urlVariable\" is not valid. It should start with http:// or https://, such as https://example.com/status."
             actionResult.statusCode = StatusCode.FAILURE
