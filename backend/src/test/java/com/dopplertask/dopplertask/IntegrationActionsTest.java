@@ -4,7 +4,9 @@ import com.dopplertask.dopplertask.domain.ActionResult;
 import com.dopplertask.dopplertask.domain.StatusCode;
 import com.dopplertask.dopplertask.domain.TaskExecution;
 import com.dopplertask.dopplertask.domain.action.Action;
+import com.dopplertask.dopplertask.domain.action.connection.PostgresAction;
 import com.dopplertask.dopplertask.domain.action.connection.RedisAction;
+import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import com.dopplertask.dopplertask.domain.action.integration.chat.DiscordAction;
 import com.dopplertask.dopplertask.domain.action.integration.code.GitHubAction;
 import com.dopplertask.dopplertask.domain.action.integration.code.JiraAction;
@@ -399,5 +401,50 @@ public class IntegrationActionsTest {
         redis.setExpirySeconds(null);
         redis.setPort("first");
         Assert.assertTrue(run(redis).getErrorMsg().contains("port as a number"));
+    }
+
+    private PostgresAction postgres(EmbeddedPostgres server, String command, String values) {
+        PostgresAction postgres = new PostgresAction();
+        postgres.setHostname("localhost");
+        postgres.setPort(String.valueOf(server.getPort()));
+        postgres.setDatabase("postgres");
+        postgres.setUsername("postgres");
+        postgres.setCommand(command);
+        postgres.setQueryValues(values);
+        return postgres;
+    }
+
+    @Test
+    public void testPostgresRunsAgainstARealServerAndKeepsValuesApartFromTheQuerySuccess() throws IOException {
+        try (EmbeddedPostgres server = EmbeddedPostgres.start()) {
+            run(postgres(server, "CREATE TABLE people (id integer, name text, born date)", null));
+            String attack = "x'); DROP TABLE people; --";
+            ActionResult inserted = run(postgres(server, "INSERT INTO people VALUES (?, ?, ?)", "7\n" + attack + "\n1815-12-10"));
+            Assert.assertEquals(StatusCode.SUCCESS, inserted.getStatusCode());
+            Assert.assertEquals(1, inserted.getOutputVariables().get("rowCount"));
+
+            ActionResult selected = run(postgres(server, "SELECT id, name, born, NULL AS nothing FROM people WHERE id = ?", "7"));
+            JsonNode row = new ObjectMapper().readTree(selected.getOutput()).path(0);
+            Assert.assertEquals(7, row.path("id").asInt());
+            Assert.assertTrue(row.path("id").isNumber());
+            Assert.assertEquals(attack, row.path("name").asText());
+            Assert.assertEquals("1815-12-10", row.path("born").asText());
+            Assert.assertTrue(row.path("nothing").isNull());
+            Assert.assertEquals(1, selected.getOutputVariables().get("rowCount"));
+
+            ActionResult wrong = run(postgres(server, "SELECT * FROM nothing_here", null));
+            Assert.assertEquals(StatusCode.FAILURE, wrong.getStatusCode());
+            Assert.assertTrue(wrong.getErrorMsg(), wrong.getErrorMsg().startsWith("Postgres answered: ERROR: relation \"nothing_here\" does not exist"));
+        }
+    }
+
+    @Test
+    public void testPostgresSaysWhereItCouldNotConnectFail() throws IOException {
+        PostgresAction postgres = new PostgresAction();
+        postgres.setHostname("localhost");
+        postgres.setPort("1");
+        postgres.setDatabase("postgres");
+        postgres.setCommand("SELECT 1");
+        Assert.assertEquals("Could not connect to Postgres at localhost:1. Check the address, and that the service is running.", run(postgres).getErrorMsg());
     }
 }
