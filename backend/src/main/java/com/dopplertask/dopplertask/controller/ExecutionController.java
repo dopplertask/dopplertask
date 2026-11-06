@@ -41,6 +41,14 @@ public class ExecutionController {
                 responseDTO.getOutput().add(log.getOutput());
             }
             responseDTO.setStatus(executionObj.getStatus().name());
+            responseDTO.setSteps(executionObj.getSteps());
+            responseDTO.setStartDate(executionObj.getStartdate());
+            responseDTO.setEndDate(executionObj.getEnddate());
+            executionObj.getParameters().forEach((name, parameter) -> {
+                if (!name.startsWith("TRIGGER_")) {
+                    responseDTO.getParameters().put(name, parameter.toString());
+                }
+            });
 
             return new ResponseEntity<>(responseDTO, HttpStatus.OK);
         }

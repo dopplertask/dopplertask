@@ -1,5 +1,6 @@
 package com.dopplertask.dopplertask;
 
+import com.jayway.jsonpath.JsonPath;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,6 +15,7 @@ import org.springframework.test.web.servlet.ResultActions;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -35,6 +37,24 @@ public class RunResultTest {
                 .andExpect(jsonPath("$.executionId").isNumber())
                 .andExpect(jsonPath("$.logs", hasItem("hi")))
                 .andExpect(jsonPath("$.error").doesNotExist());
+    }
+
+    @Test
+    public void testExecutionListsEveryStepWithItsResultSuccess() throws Exception {
+        save("run_steps", "[]", false, "boom");
+        String runResponse = run("run_steps", "{}").andReturn().getResponse().getContentAsString();
+        int executionId = JsonPath.read(runResponse, "$.executionId");
+
+        this.mockMvc.perform(get("/execution/" + executionId))
+                .andExpect(jsonPath("$.status").value("FAILED"))
+                .andExpect(jsonPath("$.startDate").exists())
+                .andExpect(jsonPath("$.steps[0].portId").value("run_steps_s"))
+                .andExpect(jsonPath("$.steps[0].actionType").value("StartAction"))
+                .andExpect(jsonPath("$.steps[0].status").value("SUCCESS"))
+                .andExpect(jsonPath("$.steps[1].portId").value("run_steps_p"))
+                .andExpect(jsonPath("$.steps[1].output").value("hi"))
+                .andExpect(jsonPath("$.steps[1].status").value("FAILURE"))
+                .andExpect(jsonPath("$.steps[1].error", containsString("boom")));
     }
 
     @Test
