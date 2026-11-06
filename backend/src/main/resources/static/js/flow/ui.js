@@ -57,6 +57,8 @@ export default function boot() {
 
   /* ---------- Toast ---------- */
 
+  const MAX_TOASTS = 2;
+
   function toast(message, { actionLabel, onAction, tone } = {}) {
     let host = document.querySelector('.ui-toasts');
     if (!host) { host = document.createElement('div'); host.className = 'ui-toasts'; host.setAttribute('role', 'status'); document.body.append(host); }
@@ -65,6 +67,8 @@ export default function boot() {
     element.innerHTML = `<span>${escapeHtml(message)}</span>${actionLabel ? `<button type="button">${escapeHtml(actionLabel)}</button>` : ''}`;
     const dismiss = () => { element.classList.add('is-leaving'); setTimeout(() => element.remove(), 160); };
     element.querySelector('button')?.addEventListener('click', () => { onAction?.(); dismiss(); });
+    /* Fast work should not pile up messages over the diagram. */
+    if (host.children.length >= MAX_TOASTS) host.firstChild.remove();
     host.append(element);
     setTimeout(dismiss, actionLabel ? 6000 : 3000);
   }
