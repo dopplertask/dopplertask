@@ -121,7 +121,15 @@ public class TaskController {
 
         TaskRequest request = new TaskRequest(taskRequestDTO.getTaskName(), parameters);
         request.setChecksum(taskRequestDTO.getTaskName());
-        return runResult(taskService.runRequest(request), taskRequestDTO.getTaskName());
+        TaskExecution execution = taskService.runRequest(request);
+        ResponseEntity<TaskExecutionLogResponseDTO> result = runResult(execution, taskRequestDTO.getTaskName());
+        if (execution != null) {
+            result.getBody().setError(execution.getFailureReason());
+            execution.getLogs().stream().map(TaskExecutionLog::getOutput)
+                    .filter(output -> output != null && !output.isEmpty())
+                    .forEach(result.getBody().getLogs()::add);
+        }
+        return result;
     }
 
     @PostMapping(path = "/webhook/{taskName}/{triggerName}/{triggerSuffix}/{path}")
@@ -181,7 +189,7 @@ public class TaskController {
             i++;
         }
         responseDTO.setStatus(execution.getStatus().name());
-        responseDTO.setError(execution.getFailureReason());
+        responseDTO.setExecutionId(execution.getId());
 
         return new ResponseEntity<>(responseDTO, HttpStatus.OK);
     }

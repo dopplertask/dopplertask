@@ -12,6 +12,10 @@ public class TaskExecutionLogResponseDTO {
     private String status;
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private String error;
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Long executionId;
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private List<String> logs = new ArrayList<>();
 
     public TaskExecutionLogResponseDTO() {
         output = new ArrayList<>();
@@ -23,6 +27,22 @@ public class TaskExecutionLogResponseDTO {
 
     public void setOutput(List<String> output) {
         this.output = output;
+    }
+
+    public Long getExecutionId() {
+        return executionId;
+    }
+
+    public void setExecutionId(Long executionId) {
+        this.executionId = executionId;
+    }
+
+    public List<String> getLogs() {
+        return logs;
+    }
+
+    public void setLogs(List<String> logs) {
+        this.logs = logs;
     }
 
     public String getStatus() {
