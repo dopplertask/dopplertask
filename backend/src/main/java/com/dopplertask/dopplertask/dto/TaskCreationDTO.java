@@ -17,7 +17,7 @@ public class TaskCreationDTO {
     private List<Connection> connections;
 
     @JsonCreator
-    public TaskCreationDTO(@JsonProperty(value = "name", required = true) String name, @JsonProperty(value = "connections", required = true) List<Connection> connections, @JsonProperty(value = "parameters") List<TaskParameter> parameters, @JsonProperty(value = "actions", required = true) List<Action> actions, @JsonProperty(value = "description", required = true) String description, @JsonProperty(value = "active", required = true) boolean active) {
+    public TaskCreationDTO(@JsonProperty(value = "name", required = true) String name, @JsonProperty(value = "connections", required = true) List<Connection> connections, @JsonProperty(value = "parameters") List<TaskParameter> parameters, @JsonProperty(value = "actions", required = true) List<Action> actions, @JsonProperty(value = "description") String description, @JsonProperty(value = "active") boolean active) {
         this.name = name;
         this.parameters = parameters;
         this.actions = actions;

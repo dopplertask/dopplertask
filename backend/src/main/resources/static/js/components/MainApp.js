@@ -817,7 +817,7 @@ class MainApp extends React.Component {
                 // on error
                 error: error => {
                     if (!autoSaved) {
-                        this.showNotification("Could not save task. Please try again later. " + error.responseText);
+                        this.showNotification(error.responseJSON?.message || "Could not save task. " + error.responseText);
                     }
                 },
                 dataType: "json"
