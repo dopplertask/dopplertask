@@ -119,4 +119,37 @@ public class ProposalTest {
     public void testApprovingWhatIsNotAProposalIsNotFoundFail() throws Exception {
         this.mockMvc.perform(post("/task/nothing-here/approve")).andExpect(status().isNotFound());
     }
+
+    private String taskWithSecret(String name, String command, String password) {
+        return "{\"name\":\"" + name + "\",\"active\":false,\"parameters\":[],\"actions\":["
+                + "{\"@type\":\"StartAction\",\"ports\":[{\"externalId\":\"s\",\"portType\":\"OUTPUT\"}]},"
+                + "{\"@type\":\"SSHAction\",\"hostname\":\"h\",\"username\":\"me\",\"password\":\"" + password + "\",\"command\":\"" + command + "\",\"ports\":[{\"externalId\":\"p\",\"portType\":\"INPUT\"}]}],"
+                + "\"connections\":[{\"source\":{\"externalId\":\"s\"},\"target\":{\"externalId\":\"p\"}}]}";
+    }
+
+    @Test
+    public void testAnAgentNeverSeesASecretButCanKeepItSuccess() throws Exception {
+        String name = "proposal_secret";
+        this.mockMvc.perform(post("/task").content(taskWithSecret(name, "ls", "real-secret"))).andExpect(status().isOk());
+
+        this.mockMvc.perform(asAgent(get("/task/" + name + "/taskname")))
+                .andExpect(jsonPath("$.actions[1].password").value("********"))
+                .andExpect(jsonPath("$.actions[1].command").value("ls"));
+
+        String proposal = checksumOf(this.mockMvc.perform(asAgent(post("/task")).content(taskWithSecret(name, "pwd", "********"))));
+        this.mockMvc.perform(post("/task/" + proposal + "/approve")).andExpect(status().isOk());
+
+        this.mockMvc.perform(get("/task/" + name + "/taskname"))
+                .andExpect(jsonPath("$.actions[1].command").value("pwd"))
+                .andExpect(jsonPath("$.actions[1].password").value("real-secret"));
+    }
+
+    @Test
+    public void testAMaskWithNothingBehindItIsNotStoredSuccess() throws Exception {
+        String name = "proposal_no_secret";
+        String proposal = checksumOf(this.mockMvc.perform(asAgent(post("/task")).content(taskWithSecret(name, "ls", "********"))));
+        this.mockMvc.perform(post("/task/" + proposal + "/approve")).andExpect(status().isOk());
+        String stored = this.mockMvc.perform(get("/task/" + name + "/taskname")).andReturn().getResponse().getContentAsString();
+        org.junit.Assert.assertFalse(stored, stored.contains("********"));
+    }
 }

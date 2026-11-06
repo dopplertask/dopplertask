@@ -35,6 +35,7 @@ import org.apache.velocity.app.VelocityEngine;
 import org.jetbrains.annotations.NotNull;
 import org.reflections.Reflections;
 import com.dopplertask.dopplertask.filter.AccessFilter;
+import com.dopplertask.dopplertask.filter.AgentSecrets;
 import com.dopplertask.dopplertask.filter.Caller;
 import com.dopplertask.dopplertask.service.ApprovalRequiredException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -72,8 +73,10 @@ public class TaskController {
 
     private final TaskService taskService;
     private final ExecutionService executionService;
+    private final AgentSecrets agentSecrets;
 
-    public TaskController(@Autowired TaskService taskService, @Autowired ExecutionService executionService) {
+    public TaskController(@Autowired TaskService taskService, @Autowired ExecutionService executionService, @Autowired AgentSecrets agentSecrets) {
+        this.agentSecrets = agentSecrets;
         this.taskService = taskService;
         this.executionService = executionService;
     }
@@ -260,7 +263,9 @@ public class TaskController {
 
         // Translate JSON to object
         ObjectMapper mapper = new ObjectMapper();
-        TaskCreationDTO taskCreationDTO = mapper.readValue(body, TaskCreationDTO.class);
+        boolean byAgent = AccessFilter.callerOf(servletRequest) == Caller.AGENT;
+        String taskJson = byAgent ? agentSecrets.restore(body, taskService.getTaskByName(mapper.readTree(body).path("name").asText())) : body;
+        TaskCreationDTO taskCreationDTO = mapper.readValue(taskJson, TaskCreationDTO.class);
 
         // Generate compact JSON
         String compactJSON = mapper.writeValueAsString(taskCreationDTO);
@@ -270,7 +275,6 @@ public class TaskController {
         byte[] encodedhash = digest.digest(compactJSON.getBytes(StandardCharsets.UTF_8));
         String sha256Hex = bytesToHex(encodedhash);
 
-        boolean byAgent = AccessFilter.callerOf(servletRequest) == Caller.AGENT;
         if (byAgent && taskCreationDTO.isActive()) {
             throw new ApprovalRequiredException("An agent cannot turn a task on. Save it with active set to false, and a person can turn it on.");
         }

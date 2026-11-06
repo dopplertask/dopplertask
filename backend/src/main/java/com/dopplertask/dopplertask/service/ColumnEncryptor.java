@@ -34,6 +34,10 @@ public class ColumnEncryptor implements AttributeConverter<String, String> {
 
     @Override
     public String convertToDatabaseColumn(String attribute) {
+        // A secret is optional, as with SSH without a password.
+        if (attribute == null) {
+            return null;
+        }
         try {
             return Base64.getEncoder().encodeToString(cipher(Cipher.ENCRYPT_MODE).doFinal(attribute.getBytes()));
         } catch (IllegalBlockSizeException | BadPaddingException e) {
@@ -43,6 +47,9 @@ public class ColumnEncryptor implements AttributeConverter<String, String> {
 
     @Override
     public String convertToEntityAttribute(String dbData) {
+        if (dbData == null) {
+            return null;
+        }
         try {
             return new String(cipher(Cipher.DECRYPT_MODE).doFinal(Base64.getDecoder().decode(dbData)));
         } catch (IllegalBlockSizeException | BadPaddingException e) {
