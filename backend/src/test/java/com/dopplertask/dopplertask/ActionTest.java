@@ -12,6 +12,7 @@ import com.dopplertask.dopplertask.domain.action.common.PrintAction;
 import com.dopplertask.dopplertask.domain.action.common.RegexAction;
 import com.dopplertask.dopplertask.domain.action.common.XMLAction;
 import com.dopplertask.dopplertask.domain.action.common.XMLActionType;
+import com.dopplertask.dopplertask.domain.action.connection.HttpAction;
 import com.dopplertask.dopplertask.service.TaskServiceImpl;
 import com.dopplertask.dopplertask.service.VariableExtractorUtil;
 
@@ -262,5 +263,28 @@ public class ActionTest {
         Assert.assertEquals(StatusCode.FAILURE, result.getStatusCode());
         Assert.assertEquals("The command exited with code 3.", result.getErrorMsg());
         Assert.assertTrue(result.getOutput().contains("partial"));
+    }
+
+    private ActionResult requestTo(String url) throws IOException {
+        HttpAction action = new HttpAction();
+        action.setUrl(url);
+        action.setMethod("GET");
+        return action.run(new TaskServiceImpl(), new TaskExecution(), variableExtractorUtil, null);
+    }
+
+    @Test
+    public void testHttpExplainsAnInvalidAddress() throws IOException {
+        for (String url : List.of("not a url", "example.com/status", "ftp://example.com/x")) {
+            ActionResult result = requestTo(url);
+            Assert.assertEquals(url, StatusCode.FAILURE, result.getStatusCode());
+            Assert.assertTrue(url + ": " + result.getErrorMsg(), result.getErrorMsg().contains("is not valid"));
+        }
+    }
+
+    @Test
+    public void testHttpExplainsAServiceThatCannotBeReached() throws IOException {
+        ActionResult result = requestTo("http://localhost:1/x");
+        Assert.assertEquals(StatusCode.FAILURE, result.getStatusCode());
+        Assert.assertTrue(result.getErrorMsg(), result.getErrorMsg().startsWith("Could not connect to localhost."));
     }
 }

@@ -10,10 +10,12 @@ import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import java.io.IOException
 import java.lang.Boolean
+import java.net.ConnectException
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import java.net.http.HttpTimeoutException
 import java.security.KeyManagementException
 import java.security.NoSuchAlgorithmException
 import java.security.cert.X509Certificate
@@ -65,9 +67,13 @@ class HttpAction : Action() {
         val urlVariable = variableExtractorUtil.extract(url, execution, scriptLanguage)
         val bodyVariable = variableExtractorUtil.extract(body, execution, scriptLanguage)
         val actionResult = ActionResult()
-        var builder = HttpRequest.newBuilder()
-            .uri(URI.create(urlVariable))
-            .timeout(Duration.ofMinutes(1))
+        var builder = try {
+            HttpRequest.newBuilder().uri(URI.create(urlVariable.trim())).timeout(Duration.ofMinutes(1))
+        } catch (e: IllegalArgumentException) {
+            actionResult.errorMsg = "The address \"$urlVariable\" is not valid. It should start with http:// or https://, such as https://example.com/status."
+            actionResult.statusCode = StatusCode.FAILURE
+            return actionResult
+        }
         when (method) {
             "POST" -> builder = builder.POST(HttpRequest.BodyPublishers.ofString(bodyVariable))
             "PUT" -> builder = builder.PUT(HttpRequest.BodyPublishers.ofString(bodyVariable))
@@ -107,6 +113,12 @@ class HttpAction : Action() {
             } else {
                 actionResult.statusCode = StatusCode.SUCCESS
             }
+        } catch (e: ConnectException) {
+            actionResult.errorMsg = "Could not connect to ${request.uri().host}. Check the address, and that the service is running."
+            actionResult.statusCode = StatusCode.FAILURE
+        } catch (e: HttpTimeoutException) {
+            actionResult.errorMsg = "${request.uri().host} did not answer within a minute."
+            actionResult.statusCode = StatusCode.FAILURE
         } catch (e: IOException) {
             actionResult.errorMsg = "Exception when sending http request: $e"
             actionResult.statusCode = StatusCode.FAILURE
