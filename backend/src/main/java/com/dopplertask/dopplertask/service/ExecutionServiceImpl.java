@@ -371,7 +371,7 @@ public class ExecutionServiceImpl implements ExecutionService {
     private TaskExecution executeActions(TaskService taskService, Task task, TaskExecution execution) {
         boolean running = true;
         if (execution.getCurrentAction() != null) {
-            while (running) {
+            while (running && execution.getCurrentAction() != null) {
                 // Start processing task
                 Action currentAction = execution.getCurrentAction();
 

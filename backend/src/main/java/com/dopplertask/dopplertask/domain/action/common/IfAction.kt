@@ -47,7 +47,7 @@ class IfAction : Action() {
                 if (outputPorts.isNotEmpty()) execution.currentAction = outputPorts[0].connectionSource?.target?.action
             } else {
                 actionResult.output = "false"
-                if (outputPorts.size > 1) execution.currentAction = outputPorts[1].connectionSource?.target?.action
+                execution.currentAction = outputPorts.getOrNull(1)?.connectionSource?.target?.action
             }
         } else {
             actionResult.statusCode = StatusCode.FAILURE
