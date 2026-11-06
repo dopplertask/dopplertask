@@ -97,9 +97,7 @@ class SwitchAction : Action() {
                 portNr = localCondition.toInt()
                 if (portNr < outputPorts.size) {
                     actionResult.output = "Switch evaluated to port nr: $localCondition"
-                    if (outputPorts[portNr].connectionSource != null && outputPorts[portNr].connectionSource.target != null) {
-                        execution.currentAction = outputPorts[portNr].connectionSource.target.action
-                    }
+                    execution.currentAction = outputPorts[portNr].connectionSource?.target?.action
                 } else {
                     actionResult.statusCode = StatusCode.FAILURE
                     actionResult.errorMsg = "Could not match any of the cases."
