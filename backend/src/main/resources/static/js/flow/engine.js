@@ -31,6 +31,9 @@ const PRESENTATION = {
   MouseAction: ['mouse', 'Use the mouse', 'browser', 'pointer'],
   OpenAIAction: ['openAI', 'OpenAI', 'integration', 'sparkles', ['model', 'userInput']],
   JenkinsAction: ['jenkins', 'Jenkins', 'integration', 'wrench', ['jenkinsUrl']],
+  /* Without these a trigger stops at once, and nothing but the server log says so. */
+  IntervalTrigger: ['IntervalTrigger', 'Schedule', 'logic', 'clock', ['time']],
+  ActiveMQTrigger: ['ActiveMQTrigger', 'Queue', 'logic', 'server', ['url', 'queue']],
 };
 
 /* Triggers are shown as one Start tile with a choice of how it starts. */
