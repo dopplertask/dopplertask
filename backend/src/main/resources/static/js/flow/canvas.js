@@ -323,7 +323,7 @@ export default function boot() {
 
   function renderEmptyCard() {
     const suggestions = ['command', 'http', 'ssh', 'script', 'if', 'readFile'];
-    elements.emptyCard.innerHTML = `<h2>What should happen first?</h2><p>Choose a step. You can change or rearrange anything later.</p><div class="empty-options">${suggestions.map((type) => `<button type="button" data-first-step="${type}"><span class="node-icon" data-category="${ACTIONS[type].category}">${icon(ACTIONS[type].icon)}</span>${escapeHtml(ACTIONS[type].label)}</button>`).join('')}</div>`;
+    elements.emptyCard.innerHTML = `<h2>What should happen first?</h2><p>Choose a step. You can change or rearrange anything later.</p><div class="empty-options">${suggestions.map((type) => `<button type="button" data-first-step="${type}"><span class="node-icon" data-category="${ACTIONS[type].category}">${icon(ACTIONS[type].icon)}</span>${escapeHtml(ACTIONS[type].label)}</button>`).join('')}</div><button type="button" class="ui-link-button empty-example" data-try-example>Or try an example you can run right away</button>`;
   }
 
   /* ---------- Actions ---------- */
@@ -541,6 +541,10 @@ export default function boot() {
     if (inspectorAction === 'delete') DT.ui.removeWithUndo(store, store.selectedId);
     if (inspectorAction === 'duplicate') store.duplicateNode(store.selectedId);
     if (event.target.closest('[data-run-action="close"]')) runner.clear();
+    if (event.target.closest('[data-try-example]')) {
+      store.addExample();
+      DT.ui.toast('Press Run to see it work.');
+    }
     const firstStep = event.target.closest('[data-first-step]');
     if (firstStep) store.addStep(firstStep.dataset.firstStep, { fromId: DT.rootNode(store.task).id });
   });
