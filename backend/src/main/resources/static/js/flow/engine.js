@@ -31,8 +31,9 @@ const PRESENTATION = {
   MouseAction: ['mouse', 'Use the mouse', 'browser', 'pointer'],
   OpenAIAction: ['openAI', 'OpenAI', 'integration', 'sparkles', ['model', 'userInput']],
   JenkinsAction: ['jenkins', 'Jenkins', 'integration', 'wrench', ['jenkinsUrl']],
-  TelegramAction: ['telegram', 'Telegram', 'integration', 'send', ['token','chatId','message']],
-  DiscordAction: ['discord', 'Discord', 'integration', 'message', ['webhookUrl','message']],
+  TelegramAction: ['telegram', 'Telegram', 'integration', 'send', ['token', 'chatId', 'message']],
+  DiscordAction: ['discord', 'Discord', 'integration', 'message', ['webhookUrl', 'message']],
+  PagerDutyAction: ['pagerduty', 'PagerDuty', 'integration', 'alert', ['routingKey', 'summary']],
   SlackAction: ['slack', 'Slack', 'integration', 'message', ['token', 'channel', 'message']],
   /* Without these a trigger stops at once, and nothing but the server log says so. */
   IntervalTrigger: ['IntervalTrigger', 'Schedule', 'logic', 'clock', ['time']],
@@ -45,7 +46,7 @@ const TRIGGER_KINDS = Object.fromEntries(Object.entries(TRIGGER_ACTIONS).map(([k
 const TRIGGER_DEFAULTS = { webhook: { method: 'POST', authentication: 'none' }, interval: { time: '1', timeUnit: 'MINUTES' }, activemq: {} };
 const STEP_ACTION_NAME = 'actionName';
 const FAILURE_FIELD_NAMES = ['continueOnFailure', 'retries', 'retryWait', 'failOn'];
-const SECRET_FIELDS = ['password', 'apiKey', 'apiToken', 'token', 'webhookUrl'];
+const SECRET_FIELDS = ['password', 'apiKey', 'apiToken', 'token', 'webhookUrl', 'routingKey'];
 const AUTO_SAVE_DELAY_MS = 30000;
 const AUTO_SAVE_KEY = 'autoSave';
 const LAST_TASK_KEY = 'lastTask';
@@ -238,6 +239,7 @@ function describeNode(node) {
     case 'mouse': return [{ value: (config.action || 'CLICK').toLowerCase() }, ' the mouse'];
     case 'telegram': return ['Send ', value(inlineVariables(config.message), 'a message'), ' to ', value(config.chatId, 'a chat')];
     case 'discord': return ['Send ', value(inlineVariables(config.message), 'a message'), ' to Discord'];
+    case 'pagerduty': return config.eventAction === 'resolve' ? ['Resolve ', value(config.dedupKey, 'an incident')] : config.eventAction === 'acknowledge' ? ['Acknowledge ', value(config.dedupKey, 'an incident')] : ['Open an incident: ', value(inlineVariables(config.summary), 'no summary yet')];
     case 'slack': return ['Send ', value(inlineVariables(config.message), 'a message'), ' to ', value(config.channel, 'a channel')];
     case 'openAI': return ['Ask ', { value: config.model || 'OpenAI' }, ' ', value(readableExpression(config.userInput), 'a prompt')];
     case 'jenkins': return [{ value: config.operation || 'Call' }, ' on Jenkins'];

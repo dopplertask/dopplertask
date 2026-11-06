@@ -324,6 +324,17 @@ Sends a message to a Discord channel through a webhook. The next step can read t
 * webhookUrl: Made in the settings of the channel under Integrations. It is kept as a secret, since anyone who has it can write to the channel.
 * message: Up to 2000 characters.
 
+#### PagerDutyAction
+Opens, acknowledges or resolves an incident through the Events API v2. The next step can read the key of the incident from `$lastLog.outputVariables.dedupKey`.
+
+##### Variables
+* routingKey: The integration key of an Events API v2 integration on a service.
+* eventAction: `trigger`, `acknowledge` or `resolve`.
+* summary: What is wrong. Required to open an incident.
+* severity: `critical`, `error`, `warning` or `info`.
+* dedupKey: Optional when opening, and then the same key does not open a second incident. Required to acknowledge or resolve.
+* baseUrl: Optional. An account in the EU uses `https://events.eu.pagerduty.com`.
+
 #### SlackAction
 Sends a message to a Slack channel. The bot needs the `chat:write` permission and has to be a member of the channel. The next step can read the time stamp of the message from `$lastLog.outputVariables.ts`, for example to reply in its thread.
 
