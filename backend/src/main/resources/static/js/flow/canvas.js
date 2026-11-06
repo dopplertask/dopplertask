@@ -16,7 +16,6 @@ export default function boot() {
   const displayed = new Map(); /* nodeId -> position currently drawn, for layout animation */
   const nodeElements = new Map();
   let positionAnimation = null;
-  let viewBeforeReveal = null; /* Canvas offset to return to when the settings panel closes. */
 
   const hasBranches = (node) => !!ACTIONS[node.type].ports;
   const categoryOf = (node) => ACTIONS[node.type].category;
@@ -79,9 +78,13 @@ export default function boot() {
     applyView();
   }
 
-  /* A panel opening or the window shrinking must not leave steps out of sight. */
+  /* A shrinking window or the library opening must not leave steps out of sight. Opening the step panel
+     is left to revealSelectedNode, so that it only moves the view when the selected step would be hidden. */
+  let stageWidth = elements.stage.clientWidth;
   new ResizeObserver(() => {
-    if (!store.task.nodes.some((node) => overflowOf(node, 0) > 0)) return;
+    const shrank = elements.stage.clientWidth < stageWidth;
+    stageWidth = elements.stage.clientWidth;
+    if (!shrank || store.selectedId || !store.task.nodes.some((node) => overflowOf(node, 0) > 0)) return;
     const fitted = fitTarget();
     if (fitted.zoom >= MIN_READABLE_ZOOM) { Object.assign(view, fitted); glideView(); }
   }).observe(elements.stage);
@@ -95,20 +98,12 @@ export default function boot() {
   const overflowOf = (node, panelEdge) => view.x + (node.position.x + NODE_WIDTH + 40) * view.zoom - (elements.stage.clientWidth - panelEdge);
 
   /* Keeps the selected step clear of the settings panel by showing the whole diagram while it still
-     reads well, and by gliding otherwise. Closing the panel goes back. */
+     reads well, and by gliding otherwise. Closing the panel leaves the diagram where it is. */
   function revealSelectedNode() {
     const node = store.selectedNode;
-    if (!node) {
-      if (viewBeforeReveal !== null) {
-        Object.assign(view, viewBeforeReveal);
-        viewBeforeReveal = null;
-        glideView();
-      }
-      return;
-    }
+    if (!node) return;
     const overflow = overflowOf(node, 24);
     if (overflow <= 0) return;
-    if (viewBeforeReveal === null) viewBeforeReveal = { ...view };
     const fitted = fitTarget();
     if (fitted.zoom >= MIN_READABLE_ZOOM) Object.assign(view, fitted);
     else view.x -= overflow;
@@ -405,7 +400,6 @@ export default function boot() {
     const justStarted = !gesture.moved;
     gesture.moved = true;
     if (gesture.kind === 'pan') {
-      viewBeforeReveal = null;
       view.x = gesture.originX + deltaX; view.y = gesture.originY + deltaY; applyView();
     } else if (gesture.kind === 'node') {
       if (justStarted) { store.beginMove(); gesture.element.classList.add('is-dragging'); cancelAnimationFrame(positionAnimation); }
