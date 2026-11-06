@@ -321,6 +321,7 @@ public class TaskController {
         request.getParameters().forEach((name, value) -> execution.getParameters().put(name, new ExecutionParameter(name, value.getBytes(StandardCharsets.UTF_8), false)));
         TaskExecutionLog lastLog = new TaskExecutionLog();
         lastLog.setOutput(request.getLastOutput());
+        lastLog.setOutputVariables(request.getLastOutputVariables());
         execution.addLog(lastLog);
         return runAction(request.getAction(), execution);
     }
@@ -544,7 +545,7 @@ public class TaskController {
             }
             Action instance = currentClass.getDeclaredConstructor().newInstance();
             boolean trigger = instance.getClass().getSuperclass().getSimpleName().equals(Trigger.class.getSimpleName());
-            actionListResponseDto.getActions().add(new ActionInfoDto(currentClass.getSimpleName(), instance.getDescription(), instance.getActionInfo(), trigger));
+            actionListResponseDto.getActions().add(new ActionInfoDto(currentClass.getSimpleName(), instance.getDescription(), instance.getActionInfo(), trigger, instance.getOutputs()));
         }
 
         Collections.sort(actionListResponseDto.getActions(), (Comparator.comparing(ActionInfoDto::getName)));

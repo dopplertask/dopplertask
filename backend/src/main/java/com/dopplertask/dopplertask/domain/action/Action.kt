@@ -253,6 +253,13 @@ abstract class Action {
     @get:JsonIgnore
     abstract val description: String
 
+    /**
+     * What a later step can read from \$lastLog.outputVariables, by name, with what it is.
+     */
+    @get:JsonIgnore
+    open val outputs: Map<String, String>
+        get() = mapOf()
+
     class PropertyInformation
     /**
      * Initialize a property info with name and displayName. Type is set to a String.

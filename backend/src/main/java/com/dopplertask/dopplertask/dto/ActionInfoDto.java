@@ -3,18 +3,25 @@ package com.dopplertask.dopplertask.dto;
 import com.dopplertask.dopplertask.domain.action.Action;
 
 import java.util.List;
+import java.util.Map;
 
 public class ActionInfoDto {
     private String name;
     private String description;
     private List<Action.PropertyInformation> propertyInformationList;
     private boolean trigger;
+    private Map<String, String> outputs;
 
-    public ActionInfoDto(String name, String description, List<Action.PropertyInformation> propertyInformationList, boolean trigger) {
+    public ActionInfoDto(String name, String description, List<Action.PropertyInformation> propertyInformationList, boolean trigger, Map<String, String> outputs) {
         this.name = name;
         this.description = description;
         this.propertyInformationList = propertyInformationList;
         this.trigger = trigger;
+        this.outputs = outputs;
+    }
+
+    public Map<String, String> getOutputs() {
+        return outputs;
     }
 
     public String getName() {

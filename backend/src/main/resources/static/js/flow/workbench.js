@@ -118,7 +118,7 @@ export default function boot() {
       const step = candidate.steps.findLast((candidateStep) => candidateStep.nodeId === nodeId);
       if (step) return step.variables;
     }
-    return { parameters: { ...store.defaults, ...run?.parameters }, lastOutput: '', executionId: run?.id || '' };
+    return { parameters: { ...store.defaults, ...run?.parameters }, lastOutput: '', lastOutputVariables: {}, executionId: run?.id || '' };
   }
 
   /* What each trigger hands to the task, as parameters named by the backend. */
@@ -133,6 +133,7 @@ export default function boot() {
     store.task.nodes.filter((candidate) => candidate.type === 'setVariable').flatMap((candidate) => candidate.config.setVariableList || []).forEach((variable) => { if (variable.name) rows.push({ label: variable.name, insert: `$parameters.get("${variable.name}")`, value: values.parameters[variable.name] ?? '' }); });
     TRIGGER_DATA[rootNode(store.task).config.trigger]?.forEach(([label, name]) => rows.push({ label, insert: `$parameters.get("${name}")`, value: 'Set by the trigger' }));
     if (rootNode(store.task).id !== node.id) rows.push({ label: 'Previous output', insert: '$lastLog.output', value: values.lastOutput });
+    Object.entries(store.outputsBefore(node.id)).forEach(([name, label]) => rows.push({ label, insert: `$lastLog.outputVariables.${name}`, value: values.lastOutputVariables?.[name]?.toString() }));
     rows.push({ label: 'Run ID', insert: '$executionId', value: values.executionId });
     return rows;
   }

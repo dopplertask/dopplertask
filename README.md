@@ -549,7 +549,7 @@ Starts the flow at an interval, while the task has `"active": true`. A trigger i
 ## Important variables
 
 * $lastLog.output / lastLog.getOutput(): Gets the last actions output. Every action replaces it, also an IfAction, whose output is `true` or `false`. To use a value later, save it with SetVariableAction first.
-* $lastLog.outputVariables / lastLog.getOutputVariables(): Gets the extra values of the last action, like `statusCode` from HttpAction.
+* $lastLog.outputVariables / lastLog.getOutputVariables(): Gets the extra values of the last action, like `statusCode` from HttpAction. The editor lists what the step before gives under Data you can use, and agents find it under `outputs` in the step type.
 * $parameters.get("paramname") / parameters.get("paramname"): Retrieves a stored parameter value. All Task paramters are stored here. You can also get the byte array of the parameter by adding .getParamValue() to the end of the statement.
 * $logs / logs: A list of all task action logs. Can be traversed to look up specific values.
 * $executionId / executionId: It's the ID of the current execution.

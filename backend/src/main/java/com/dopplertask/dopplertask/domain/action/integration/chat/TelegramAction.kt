@@ -61,6 +61,9 @@ class TelegramAction : Action() {
         return result
     }
 
+    override val outputs: Map<String, String>
+        get() = mapOf("messageId" to "Message id")
+
     override val description: String
         get() = "Sends a message to a Telegram chat"
 

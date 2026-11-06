@@ -123,6 +123,9 @@ class PostgresAction : Action() {
         return rows
     }
 
+    override val outputs: Map<String, String>
+        get() = mapOf("rowCount" to "Number of rows")
+
     override val description: String
         get() = "Runs a query on a PostgreSQL database"
 

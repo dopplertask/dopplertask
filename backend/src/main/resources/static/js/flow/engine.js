@@ -109,7 +109,7 @@ function loadCatalogue(actions) {
     own.sort((first, second) => (first.key === 'scriptLanguage') - (second.key === 'scriptLanguage'));
     if (action.trigger) triggers[backend] = own.filter((field) => !['scriptLanguage', 'triggerSuffix'].includes(field.key));
     TYPE_BY_BACKEND[backend] = type;
-    ACTIONS[type] = { backend, label, category, icon: iconName, description: action.description, fields: own, hidden: type === 'start' || !!action.trigger, trigger: !!action.trigger };
+    ACTIONS[type] = { backend, label, category, icon: iconName, description: action.description, outputs: action.outputs || {}, fields: own, hidden: type === 'start' || !!action.trigger, trigger: !!action.trigger };
   });
 
   ACTIONS.switch.ports = (node) => [...(node.config.switchCases || []).map((switchCase, index) => ({ id: `case:${index}`, label: switchCase.currentCase || `Case ${index + 1}` })), { id: 'default', label: 'Default' }];
@@ -199,6 +199,7 @@ function layoutTask(task) {
 function readableExpression(text) {
   return String(text ?? '')
     .replace(/\$parameters\.get\("([^"]+)"\)/g, '$1')
+    .replace(/\$lastLog\.outputVariables\.(\w+)/g, 'previous $1')
     .replace(/\$lastLog\.output/g, 'previous output')
     .replace(/\s*==\s*"?([^"]*)"?$/, ' is $1')
     .replace(/\s*!=\s*"?([^"]*)"?$/, ' is not $1');
@@ -207,6 +208,7 @@ function readableExpression(text) {
 /* Keeps literal text readable while showing where a parameter lands: /etc/app/{env}.yml */
 const inlineVariables = (text) => String(text ?? '')
   .replace(/\$parameters\.get\("([^"]+)"\)/g, '{$1}')
+  .replace(/\$lastLog\.outputVariables\.(\w+)/g, '{previous $1}')
   .replace(/\$lastLog\.output/g, '{previous output}');
 
 const firstLine = (text) => String(text ?? '').split('\n')[0];
@@ -243,9 +245,9 @@ function describeNode(node) {
     case 'mouse': return [{ value: (config.action || 'CLICK').toLowerCase() }, ' the mouse'];
     case 'telegram': return ['Send ', value(inlineVariables(config.message), 'a message'), ' to ', value(config.chat, 'a chat')];
     case 'discord': return ['Send ', value(inlineVariables(config.message), 'a message'), ' to Discord'];
-    case 'pagerduty': return config.operation === 'resolve' ? ['Resolve ', value(config.incidentKey, 'an incident')] : config.operation === 'acknowledge' ? ['Acknowledge ', value(config.incidentKey, 'an incident')] : ['Open an incident: ', value(inlineVariables(config.summary), 'no summary yet')];
-    case 'github': return config.operation === 'addComment' ? ['Comment on ', value(config.repository, 'a repository'), ' #', value(config.issueNumber, '?')] : config.operation === 'closeIssue' ? ['Close ', value(config.repository, 'a repository'), ' #', value(config.issueNumber, '?')] : ['Create ', value(inlineVariables(config.title), 'an issue'), ' in ', value(config.repository, 'a repository')];
-    case 'jira': return config.operation === 'addComment' ? ['Comment on ', value(config.issueKey, 'an issue')] : ['Create ', value(inlineVariables(config.summary), 'an issue'), ' in ', value(config.project, 'a project')];
+    case 'pagerduty': return config.operation === 'resolve' ? ['Resolve ', value(inlineVariables(config.incidentKey), 'an incident')] : config.operation === 'acknowledge' ? ['Acknowledge ', value(inlineVariables(config.incidentKey), 'an incident')] : ['Open an incident: ', value(inlineVariables(config.summary), 'no summary yet')];
+    case 'github': return config.operation === 'addComment' ? ['Comment on ', value(config.repository, 'a repository'), ' #', value(inlineVariables(config.issueNumber), '?')] : config.operation === 'closeIssue' ? ['Close ', value(config.repository, 'a repository'), ' #', value(inlineVariables(config.issueNumber), '?')] : ['Create ', value(inlineVariables(config.title), 'an issue'), ' in ', value(config.repository, 'a repository')];
+    case 'jira': return config.operation === 'addComment' ? ['Comment on ', value(inlineVariables(config.issueKey), 'an issue')] : ['Create ', value(inlineVariables(config.summary), 'an issue'), ' in ', value(config.project, 'a project')];
     case 'redis': return config.operation === 'set' ? ['Write ', value(config.key, 'a key')] : config.operation === 'increment' ? ['Increment ', value(config.key, 'a key')] : config.operation === 'delete' ? ['Delete ', value(config.key, 'a key')] : ['Read ', value(config.key, 'a key')];
     case 'postgres': return ['On ', value(config.database && `${config.database}@${config.hostname}`, 'a database'), ' run ', value(inlineVariables(config.command), 'a query')];
     case 'slack': return ['Send ', value(inlineVariables(config.message), 'a message'), ' to ', value(config.channel, 'a channel')];
@@ -282,6 +284,7 @@ function findIssues(task) {
 function interpolate(text, variables) {
   return String(text ?? '')
     .replace(/\$parameters\.get\("([^"]+)"\)/g, (match, name) => variables.parameters[name] ?? '')
+    .replace(/\$lastLog\.outputVariables\.(\w+)/g, (match, name) => variables.lastOutputVariables?.[name] ?? '')
     .replace(/\$lastLog\.output/g, variables.lastOutput ?? '')
     .replace(/\$executionId/g, variables.executionId);
 }
@@ -599,7 +602,8 @@ function createStore() {
       status: failed ? (node.config.continueOnFailure ? 'warning' : 'failed') : 'success',
       output: failed && !raw.error ? '' : output, error: failed ? raw.error || output || 'This step failed.' : null,
       port: failed && !node.config.continueOnFailure ? null : choosePort(node, output),
-      variables: { parameters, lastOutput: previous?.output || '', executionId },
+      outputVariables: raw.outputVariables || {},
+      variables: { parameters, lastOutput: previous?.output || '', lastOutputVariables: previous?.outputVariables || {}, executionId },
     };
   };
 
@@ -685,6 +689,8 @@ function createStore() {
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     loadTaskList,
 
+    /* What the steps just before this one give, by name, for $lastLog.outputVariables. */
+    outputsBefore(nodeId) { return Object.assign({}, ...task.edges.filter((edge) => edge.to === nodeId).map((edge) => ACTIONS[nodeById(task, edge.from).type]?.outputs)); },
     select(nodeId) { if (nodeId === selectedId) return; selectedId = nodeId; emit('selection'); },
     updateConfig(nodeId, key, value) {
       remember(`${nodeId}.${key}`);
@@ -926,11 +932,11 @@ function createStore() {
       runner.load(run);
     },
     /* Runs one step on its own with the values given, without touching the run history. */
-    async testStep(nodeId, { parameters, lastOutput }) {
+    async testStep(nodeId, { parameters, lastOutput, lastOutputVariables }) {
       const node = nodeById(task, nodeId);
       const action = { '@type': ACTIONS[node.type].backend, ...withoutEmptyValues(node.config), ports: [] };
       const started = performance.now();
-      const result = await request('/task/action/test', { method: 'POST', body: JSON.stringify({ action, parameters, lastOutput }) });
+      const result = await request('/task/action/test', { method: 'POST', body: JSON.stringify({ action, parameters, lastOutput, lastOutputVariables }) });
       const failed = result.statusCode === 'FAILURE';
       return { nodeId, status: failed ? 'failed' : 'success', output: failed && !result.errorMsg ? '' : result.output, error: failed ? result.errorMsg || result.output || 'This step failed.' : null, durationMs: performance.now() - started };
     },

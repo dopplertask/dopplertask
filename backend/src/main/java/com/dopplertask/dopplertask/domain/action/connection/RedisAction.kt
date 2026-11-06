@@ -100,6 +100,9 @@ class RedisAction : Action() {
         return result
     }
 
+    override val outputs: Map<String, String>
+        get() = mapOf("found" to "Whether the key exists", "deleted" to "Whether a key was deleted")
+
     override val description: String
         get() = "Reads and writes a value in Redis"
 

@@ -4,6 +4,8 @@ import com.dopplertask.dopplertask.domain.ActionResult;
 import com.dopplertask.dopplertask.domain.StatusCode;
 import com.dopplertask.dopplertask.domain.TaskExecution;
 import com.dopplertask.dopplertask.domain.action.Action;
+import com.dopplertask.dopplertask.domain.TaskExecution;
+import com.dopplertask.dopplertask.domain.TaskExecutionStep;
 import com.dopplertask.dopplertask.domain.action.connection.PostgresAction;
 import com.dopplertask.dopplertask.domain.action.connection.RedisAction;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
@@ -24,6 +26,8 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import java.util.Map;
+import java.util.List;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -448,5 +452,14 @@ public class IntegrationActionsTest {
         postgres.setDatabase("postgres");
         postgres.setCommand("SELECT 1");
         Assert.assertEquals("Could not connect to Postgres at localhost:1. Check the address, and that the service is running.", run(postgres).getErrorMsg());
+    }
+
+    @Test
+    public void testARunKeepsOnlyWhatAStepDeclaresSoCookiesAreNotStoredSuccess() {
+        TaskExecutionStep step = new TaskExecutionStep();
+        step.keepOutputs(new GitHubAction().getOutputs().keySet(), Map.of("issueNumber", 7, "set-cookie", List.of("session=secret")));
+        Assert.assertEquals(Map.of("issueNumber", 7), step.getOutputVariables());
+        Assert.assertEquals(Map.of("issueNumber", 7), step.copyTo(new TaskExecution()).getOutputVariables());
+        Assert.assertEquals(Map.of(), new TaskExecutionStep().getOutputVariables());
     }
 }

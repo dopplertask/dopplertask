@@ -74,6 +74,9 @@ class PagerDutyAction : Action() {
         return result
     }
 
+    override val outputs: Map<String, String>
+        get() = mapOf("incidentKey" to "Incident key")
+
     override val description: String
         get() = "Opens, acknowledges or resolves a PagerDuty incident"
 
