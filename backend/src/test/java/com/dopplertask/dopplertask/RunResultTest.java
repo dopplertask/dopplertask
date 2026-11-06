@@ -12,6 +12,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -37,7 +38,8 @@ public class RunResultTest {
     public void testFailedActionReportsReasonFail() throws Exception {
         save("run_failon", "[]", false, "boom");
         run("run_failon", "{}").andExpect(jsonPath("$.status").value("FAILED"))
-                .andExpect(jsonPath("$.error", containsString("boom")));
+                .andExpect(jsonPath("$.error", containsString("boom")))
+                .andExpect(jsonPath("$.output[?(@ == 'Failed on: boom')]", hasSize(1)));
     }
 
     @Test

@@ -463,7 +463,7 @@ public class ExecutionServiceImpl implements ExecutionService {
                         actionResult.setErrorMsg("Failed on: " + failOn);
                         actionResult.setStatusCode(StatusCode.FAILURE);
 
-                        addLog(execution, actionResult.getErrorMsg(), actionResult.getOutputType(), actionResult.getOutputVariables(), true);
+                        addLog(execution, actionResult.getErrorMsg(), actionResult.getOutputType(), actionResult.getOutputVariables(), false);
                     }
                 }
             } catch (Exception e) {
