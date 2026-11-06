@@ -66,6 +66,17 @@ class HttpAction : Action() {
     ): ActionResult { // Extract variables
         val urlVariable = variableExtractorUtil.extract(url, execution, scriptLanguage)
         val bodyVariable = variableExtractorUtil.extract(body, execution, scriptLanguage)
+        val headerVariables = headers.associate {
+            variableExtractorUtil.extract(it.headerName, execution, scriptLanguage) to
+                    variableExtractorUtil.extract(it.headerValue, execution, scriptLanguage)
+        }
+        return send(urlVariable, bodyVariable, headerVariables, insecureContext())
+    }
+
+    /**
+     * Sends a request with values that are final, so that text coming from a service or a step is never evaluated.
+     */
+    fun send(urlVariable: String, bodyVariable: String, headerVariables: Map<String, String>, sslContext: SSLContext? = SSLContext.getDefault()): ActionResult {
         val actionResult = ActionResult()
         var builder = try {
             HttpRequest.newBuilder().uri(URI.create(urlVariable.trim())).timeout(Duration.ofMinutes(1))
@@ -87,14 +98,9 @@ class HttpAction : Action() {
                 actionResult.statusCode = StatusCode.FAILURE
             }
         }
-        for (entry in headers) {
-            builder = builder.header(
-                variableExtractorUtil.extract(entry.headerName, execution, scriptLanguage),
-                variableExtractorUtil.extract(entry.headerValue, execution, scriptLanguage)
-            )
-        }
+        headerVariables.forEach { (name, value) -> builder = builder.header(name, value) }
 
-        val client = HttpClient.newBuilder().sslContext(insecureContext()).build();
+        val client = HttpClient.newBuilder().sslContext(sslContext).build();
         val request = builder.build()
 
         var response: HttpResponse<String>?
