@@ -509,6 +509,9 @@ export default function boot() {
   }
 
   document.addEventListener('click', (event) => {
+    /* Pointers add from the library on release. A keyboard only produces this click. */
+    const libraryItem = event.target.closest('.library-item');
+    if (libraryItem && event.detail === 0) store.addStep(libraryItem.dataset.type);
     const openPort = event.target.closest('.port-out.is-open');
     if (openPort && event.detail === 0) { /* Keyboard activation; pointers are handled by the wire gesture. */
       openStepPicker({ fromId: openPort.closest('.node').dataset.node, port: openPort.dataset.port });

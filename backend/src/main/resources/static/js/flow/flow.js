@@ -41,12 +41,11 @@ export default function boot() {
   function libraryListHtml() {
     const query = librarySearch.trim().toLowerCase();
     const matches = (text) => !query || text.toLowerCase().includes(query);
-    const steps = Object.entries(ACTIONS).filter(([, action]) => !action.hidden);
     const starts = START_OPTIONS.filter(([, , label, detail]) => matches(`${label} ${detail}`));
-    const groups = CATEGORIES.map((category) => ({ category, items: steps.filter(([type, action]) => action.category === category.id && matches(`${action.label} ${action.description} ${action.backend} ${type}`)) })).filter((group) => group.items.length);
+    const groups = DT.stepsMatching(query).map(({ category, items }) => ({ category, items: items.map(({ type, action }) => [type, action]) }));
     if (!starts.length && !groups.length) return `<p class="ui-empty">No step matches “${escapeHtml(librarySearch)}”.</p>`;
     return `${starts.length ? `<details class="side-group" ${query ? 'open' : ''}><summary>${icon('chevronRight')}Starts when</summary>${starts.map(([value, iconName, label, detail]) => `<button type="button" class="side-item" data-start="${value}"><span class="side-icon">${icon(iconName)}</span><span><b>${label}</b><small>${detail}</small></span></button>`).join('')}</details>` : ''}
-      ${groups.map(({ category, items }, index) => `<details class="side-group" data-category="${category.id}" ${query || index === 0 ? 'open' : ''}><summary>${icon('chevronRight')}<i class="side-swatch"></i>${escapeHtml(category.label)}</summary>${items.map(([type, action]) => `<button type="button" class="side-item library-item" data-type="${type}" title="Click to add after the last step, or drag onto the canvas"><span class="side-icon">${icon(action.icon)}</span><span><b>${escapeHtml(action.label)}</b><small>${escapeHtml(action.description)}</small></span></button>`).join('')}</details>`).join('')}`;
+      ${groups.map(({ category, items }, index) => `<details class="side-group" data-category="${category.id}" ${query || index === 0 ? 'open' : ''}><summary>${icon('chevronRight')}${query ? '' : '<i class="side-swatch"></i>'}${escapeHtml(category.label)}</summary>${items.map(([type, action]) => `<button type="button" class="side-item library-item" data-type="${type}" data-category="${action.category}" title="Click to add after the last step, or drag onto the canvas"><span class="side-icon">${icon(action.icon)}</span><span><b>${escapeHtml(action.label)}</b><small>${escapeHtml(action.description)}</small></span></button>`).join('')}</details>`).join('')}`;
   }
 
   function renderSide() {
@@ -57,6 +56,9 @@ export default function boot() {
     const input = byId('sideSearch');
     input.value = librarySearch;
     input.addEventListener('input', () => { librarySearch = input.value; byId('sideList').innerHTML = libraryListHtml(); });
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') byId('sideList').querySelector('.library-item')?.click();
+    });
   }
 
   function setLibrary(open) {
