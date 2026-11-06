@@ -449,7 +449,11 @@ export default function boot() {
       if (event.target.closest('[data-remove]')) { parameters.splice(Number(event.target.closest('[data-index]').dataset.index), 1); render(); }
       if (event.target.closest('[data-add]')) { parameters.push({ name: '', defaultValue: '', description: '', required: false }); render(); host.querySelector('.ui-params-row:last-child input').focus(); }
       if (event.target.closest('[data-save]')) {
-        store.setParameters(parameters.filter((parameter) => parameter.name.trim()));
+        const named = parameters.filter((parameter) => parameter.name.trim());
+        const names = named.map((parameter) => parameter.name.trim());
+        const repeated = names.find((name, index) => names.indexOf(name) !== index);
+        if (repeated) { toast(`Two parameters are called ${repeated}. Give each its own name.`, { tone: 'danger' }); return; }
+        store.setParameters(named);
         dialog.close();
         toast('Parameters saved');
       }
