@@ -228,7 +228,9 @@ export default function boot() {
       const node = currentNode();
       if (target.dataset.field) {
         const newValue = target.type === 'checkbox' ? target.checked : target.type === 'number' ? (target.value === '' ? '' : Number(target.value)) : target.value;
-        store.updateConfig(nodeId, target.dataset.field, newValue);
+        /* Leaving a field fires change with the value input already saved. Saving it again rebuilds the panel
+           under the pointer, which would swallow the click that left the field. */
+        if (node.config[target.dataset.field] !== newValue) store.updateConfig(nodeId, target.dataset.field, newValue);
         if (event.type === 'change' && (target.tagName === 'SELECT' || target.type === 'checkbox') && hasConditionalFields()) render();
         updatePreviews(root, store);
         const urlElement = root.querySelector('[data-webhook-url]');
