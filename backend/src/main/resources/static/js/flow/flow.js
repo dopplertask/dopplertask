@@ -105,6 +105,20 @@ export default function boot() {
     <button type="button" class="zoom-fit" data-view="fit" title="Fit the whole task on screen (F)">${icon('fit')}<span>Fit</span></button>`;
   DT.canvas.afterView = () => { byId('zoomValue').textContent = `${Math.round(view.zoom * 100)}%`; };
 
+  function renderReview() {
+    const { review } = store;
+    const host = byId('review');
+    host.hidden = !review;
+    if (!review) return;
+    const count = (number, what) => `${number} ${number === 1 ? 'step' : 'steps'} ${what}`;
+    const summary = review.isNewTask
+      ? `a new task with ${count(review.added.size, '').trim()}`
+      : `a change: ${[count(review.added.size, 'added'), count(review.changed.size, 'changed'), count(review.removed.length, 'removed')].join(', ')}`;
+    host.innerHTML = `<div><b>An agent proposes ${escapeHtml(summary)}.</b><small>${review.removed.length ? `Removed: ${escapeHtml(review.removed.join(', '))}. ` : ''}Nothing here runs until you approve it.</small></div>
+      <button type="button" class="ui-button" data-flow="reject">Reject</button>
+      <button type="button" class="ui-button is-primary" data-flow="approve">${icon('check')}Approve</button>`;
+  }
+
   byId('title').innerHTML = `
     <div class="bar-task">
       <input class="bar-name" id="barName" aria-label="Task name" spellcheck="false" autocomplete="off">
@@ -158,6 +172,7 @@ export default function boot() {
   }
 
   store.subscribe((change) => {
+    if (change === 'task' || change === 'review') renderReview();
     if (change === 'run') { syncRunPill(); syncRunMode(); return; }
     if (change === 'selection') { renderQuick(); renderSide(); return; }
     if (change === 'meta') { syncParameters(); return; }
@@ -181,6 +196,8 @@ export default function boot() {
     if (action === 'diagram') { store.select(null); if (core.isHistoryOpen()) byId('rail').querySelector('[data-wb="history"]').click(); setLibrary(false); }
     if (action === 'shortcuts') DT.ui.openShortcutsDialog();
     if (action === 'save') store.save().then((message) => DT.ui.toast(message), (error) => DT.ui.toast(error.message, { tone: 'danger' }));
+    if (action === 'approve') store.approveProposal().then(() => DT.ui.toast('Approved. This version is now the current one.'), (error) => DT.ui.toast(error.message, { tone: 'danger' }));
+    if (action === 'reject') store.rejectProposal().then(() => DT.ui.toast('Proposal rejected.'), (error) => DT.ui.toast(error.message, { tone: 'danger' }));
     if (action === 'new') { store.newTask(); byId('barName').select(); }
     if (action === 'export') DT.ui.exportTask(store);
     if (action === 'import') DT.ui.importTask(store);

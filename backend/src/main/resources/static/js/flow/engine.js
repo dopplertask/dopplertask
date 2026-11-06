@@ -337,6 +337,7 @@ function fromBackend(saved) {
     const savedId = !ACTIONS[type].trigger && action.ports?.[0]?.externalId.match(/^([^:]+):/)?.[1];
     const node = createNode(savedId || `n${uniqueId()}`, type, action[STEP_ACTION_NAME] && action[STEP_ACTION_NAME] !== action['@type'] ? action[STEP_ACTION_NAME] : undefined, config);
     node.position = { x: action.guiXPos || 0, y: action.guiYPos || 0 };
+    node.savedPort = action.ports?.[0]?.externalId;
     node.backendAction = action;
     (action.ports || []).forEach((port) => { portOwners[port.externalId] = node.id; });
     return node;
@@ -373,6 +374,30 @@ function fromBackend(saved) {
   const positions = new Set(task.nodes.map((node) => `${node.position.x},${node.position.y}`));
   if (positions.size < task.nodes.length) layoutTask(task);
   return task;
+}
+
+/* ---------- Review ---------- */
+
+/* What a proposal changes compared to the current version. A step is the same step if it keeps its first port. */
+function compareVersions(current, proposed) {
+  const keyOf = (node) => node.savedPort || node.id;
+  const earlier = new Map(current.nodes.map((node) => [keyOf(node), node]));
+  const nextOf = (task, node) => task.edges.filter((edge) => edge.from === node.id).map((edge) => `${edge.port}>${keyOf(nodeById(task, edge.to))}`).sort().join();
+  const added = new Set();
+  const changed = new Map();
+  proposed.nodes.forEach((node) => {
+    const before = earlier.get(keyOf(node));
+    if (!before) { added.add(node.id); return; }
+    const fields = [...new Set([...Object.keys(node.config), ...Object.keys(before.config)])]
+      .filter((key) => JSON.stringify(node.config[key] ?? null) !== JSON.stringify(before.config[key] ?? null))
+      .map((key) => ({ key, before: SECRET_FIELDS.includes(key) ? null : before.config[key] }));
+    if (node.name !== before.name) fields.push({ key: 'name', before: before.name });
+    if (nextOf(proposed, node) !== nextOf(current, before)) fields.push({ key: 'next step', before: null });
+    if (fields.length) changed.set(node.id, fields);
+  });
+  const kept = new Set(proposed.nodes.map(keyOf));
+  const removed = current.nodes.filter((node) => !kept.has(keyOf(node))).map((node) => node.name);
+  return { added, changed, removed };
 }
 
 /* ---------- Server ---------- */
@@ -481,6 +506,7 @@ function createStore() {
   /* The task this editor last read or wrote, which a Save may add a version to. */
   let savedName = null;
   let showingOlderVersion = false;
+  let review = null;
 
   const emit = (change) => listeners.forEach((listener) => listener(change));
 
@@ -624,6 +650,7 @@ function createStore() {
     get selectedNode() { return selectedId ? nodeById(task, selectedId) : null; },
     get saveState() { return saveState; },
     get showingOlderVersion() { return showingOlderVersion; },
+    get review() { return review; },
     get canUndo() { return undoStack.length > 0; },
     get canRedo() { return redoStack.length > 0; },
     get tasks() { return tasks; },
@@ -757,6 +784,10 @@ function createStore() {
         task.id = task.name;
         localStorage.setItem(LAST_TASK_KEY, task.name);
         savedName = task.name;
+        /* What a person saves replaces the proposal it started from. */
+        if (review && review.checksum !== checksum) await request(`/task/${review.checksum}`, { method: 'DELETE' });
+        review = null;
+        emit('review');
         const restored = showingOlderVersion;
         showingOlderVersion = false;
         setSaveState('saved');
@@ -777,12 +808,19 @@ function createStore() {
     async openVersion(checksum) {
       if (!mayLeaveTask()) return;
       task = fromBackend(await request(`/task/${checksum}/checksum`));
+      const versions = tasks.find((candidate) => candidate.name === task.name)?.versions || [];
+      const current = versions.find((version) => !version.proposed);
+      review = null;
+      if (versions.find((version) => version.checksum === checksum)?.proposed) {
+        const baseline = current ? fromBackend(await request(`/task/${current.checksum}/checksum`)) : { nodes: [], edges: [] };
+        review = { checksum, isNewTask: !current, ...compareVersions(baseline, task) };
+      }
       localStorage.setItem(LAST_TASK_KEY, task.name);
       savedName = task.name;
       selectedId = null; undoStack = []; redoStack = [];
       runner.clear();
       /* A run always uses the newest version, so an older one on screen has to be saved before it can run. */
-      showingOlderVersion = tasks.find((candidate) => candidate.name === task.name)?.versions[0].checksum !== checksum;
+      showingOlderVersion = !review && current?.checksum !== checksum;
       saveState = showingOlderVersion ? 'unsaved' : 'saved';
       emit('task');
       await loadRuns();
@@ -809,6 +847,7 @@ function createStore() {
     newTask() {
       if (!mayLeaveTask()) return;
       showingOlderVersion = false;
+      review = null;
       task = freshTask(tasks.map((candidate) => candidate.name));
       savedName = null;
       selectedId = null; undoStack = []; redoStack = []; runs = [];
@@ -820,6 +859,7 @@ function createStore() {
       const imported = fromBackend(JSON.parse(serialized));
       if (!mayLeaveTask()) return false;
       showingOlderVersion = false;
+      review = null;
       task = imported;
       /* Importing under an existing name is how an exported version is restored. */
       savedName = task.name;
@@ -832,7 +872,22 @@ function createStore() {
     exportTask() { return JSON.stringify(toBackend(task), null, 2); },
 
     /* With resumeFrom, continues a failed run at its failed step: the steps before it keep their results. */
+    async approveProposal() {
+      const { checksum } = review;
+      await request(`/task/${checksum}/approve`, { method: 'POST' });
+      await loadTaskList();
+      await store.openVersion(checksum);
+    },
+    async rejectProposal() {
+      const { name } = task;
+      await request(`/task/${review.checksum}`, { method: 'DELETE' });
+      await loadTaskList();
+      review = null;
+      if (tasks.some((candidate) => candidate.name === name)) await store.switchTask(name);
+      else store.newTask();
+    },
     async startRun(parameterValues, { resumeFrom } = {}) {
+      if (review) throw new Error('This is a proposal. Approve or reject it before running.');
       if (saveState !== 'saved') await store.save();
       const { id } = await request('/schedule/task', { method: 'POST', body: JSON.stringify({ taskName: task.name, parameters: parameterValues, resumeFromExecutionId: resumeFrom?.id }) });
       const finishedSteps = resumeFrom ? resumeFrom.steps.slice(0, -1) : [];

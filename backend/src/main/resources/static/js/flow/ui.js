@@ -461,7 +461,7 @@ export default function boot() {
   }
 
   /* The sv-SE locale formats local time as YYYY-MM-DD HH:mm:ss. */
-  const versionLabel = (version) => `${new Date(version.created).toLocaleString('sv-SE')}${version.description ? ` - ${version.description}` : ''}${version.autoSaved ? ' - AUTO SAVED' : ''}`;
+  const versionLabel = (version) => `${new Date(version.created).toLocaleString('sv-SE')}${version.description ? ` - ${version.description}` : ''}${version.autoSaved ? ' - AUTO SAVED' : ''}${version.proposed ? ' - PROPOSED BY AN AGENT' : version.madeByAgent ? ' - MADE BY AN AGENT' : ''}`;
 
   function openTaskDialog(store) {
     const dialog = openDialog(`${dialogHeader('Tasks', 'Open any saved version, or delete a task.')}<div class="ui-task-list">${store.tasks.length ? store.tasks.map((task) => `<div class="ui-task-row ${task.id === store.task.id ? 'is-current' : ''}" data-task="${escapeHtml(task.id)}"><span><b>${escapeHtml(task.name)}</b><div class="ui-select"><select aria-label="Version of ${escapeHtml(task.name)}">${task.versions.map((version) => `<option value="${version.checksum}">${escapeHtml(versionLabel(version))}</option>`).join('')}</select>${icon('chevronDown')}</div></span><button type="button" class="ui-button" data-open>Open</button><button type="button" class="ui-button" data-delete aria-label="Delete ${escapeHtml(task.name)}">${icon('trash')}Delete</button></div>`).join('') : '<p class="ui-empty">No saved tasks yet.</p>'}</div><footer class="ui-dialog-foot"><button type="button" class="ui-button" data-import>${icon('upload')}Import…</button><span class="ui-spacer"></span><button type="button" class="ui-button is-primary" data-new>${icon('plus')}New task</button></footer>`, { className: 'is-medium' });
@@ -522,7 +522,7 @@ export default function boot() {
     openDialog(`${dialogHeader('Keyboard shortcuts')}<dl class="ui-shortcuts">${rows.map(([keys, label]) => `<div><dt>${escapeHtml(label)}</dt><dd>${kbd(keys)}</dd></div>`).join('')}</dl>`, { className: 'is-small', animate: false });
   }
 
-  const saveStatus = (store) => ({ saving: 'Saving…', saved: 'Saved', unsaved: store.showingOlderVersion ? 'Older version, not current' : store.task.checksum ? 'Unsaved changes' : 'Not saved yet' })[store.saveState];
+  const saveStatus = (store) => (store.review ? 'Proposal, not running' : { saving: 'Saving…', saved: 'Saved', unsaved: store.showingOlderVersion ? 'Older version, not current' : store.task.checksum ? 'Unsaved changes' : 'Not saved yet' }[store.saveState]);
 
   /* ---------- Shortcuts ---------- */
 

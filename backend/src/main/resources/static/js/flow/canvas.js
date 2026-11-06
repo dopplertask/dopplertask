@@ -132,6 +132,12 @@ export default function boot() {
 
   const summaryHtml = (node) => describeNode(node).map((part) => (typeof part === 'string' ? escapeHtml(part) : `<span class="val ${part.empty ? 'is-empty' : ''}">${escapeHtml(part.value)}</span>`)).join('');
 
+  function changeBadge(node) {
+    const { review } = store;
+    if (review?.added.has(node.id)) return '<span class="node-change">New</span>';
+    return review?.changed.has(node.id) ? '<span class="node-change is-changed">Changed</span>' : '';
+  }
+
   function nodeInnerHtml(node) {
     const issue = store.issues.some((candidate) => candidate.nodeId === node.id);
     const portsHtml = portsOf(node).map((port) => {
@@ -147,6 +153,7 @@ export default function boot() {
       </div>
       ${hasBranches(node) ? portsOf(node).map((port) => `<div class="branch-row" data-branch="${escapeHtml(port.id)}"><span>${escapeHtml(port.label)}</span></div>`).join('') : ''}
       ${portsHtml}
+      ${changeBadge(node)}
       <span class="node-status"></span>
       ${issue ? `<span class="node-issue" title="Needs attention">${icon('alert')}</span>` : ''}
       <div class="node-result"></div>`;
@@ -585,7 +592,7 @@ export default function boot() {
       revealSelectedNode();
       return;
     }
-    if (change === 'config') { renderNodes(); return; }
+    if (change === 'config' || change === 'review') { renderNodes(); return; }
     if (change === 'task') {
       nodeElements.forEach((element) => element.remove());
       nodeElements.clear(); displayed.clear();
