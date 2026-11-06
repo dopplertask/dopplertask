@@ -59,11 +59,11 @@ class GitHubAction : Action() {
         val numberValue = variableExtractorUtil.extract(issueNumber, execution, scriptLanguage).trim()
         val titleValue = variableExtractorUtil.extract(title, execution, scriptLanguage)
         val textValue = variableExtractorUtil.extract(text, execution, scriptLanguage)
-        if (tokenValue.isBlank()) return JsonApi.failure("GitHub needs a token, with permission to write issues in the repository.")
-        if (repositoryValue.count { it == '/' } != 1) return JsonApi.failure("GitHub needs a repository written as owner/name, and got \"$repositoryValue\".")
-        if (operationValue == CREATE_ISSUE && titleValue.isBlank()) return JsonApi.failure("GitHub needs a title for the issue.")
-        if (operationValue != CREATE_ISSUE && numberValue.toLongOrNull() == null) return JsonApi.failure("GitHub needs the number of the issue, and got \"$numberValue\".")
-        if (operationValue == ADD_COMMENT && textValue.isBlank()) return JsonApi.failure("GitHub needs the text of the comment.")
+        if (tokenValue.isBlank()) return ActionResult.failure("GitHub needs a token, with permission to write issues in the repository.")
+        if (repositoryValue.count { it == '/' } != 1) return ActionResult.failure("GitHub needs a repository written as owner/name, and got \"$repositoryValue\".")
+        if (operationValue == CREATE_ISSUE && titleValue.isBlank()) return ActionResult.failure("GitHub needs a title for the issue.")
+        if (operationValue != CREATE_ISSUE && numberValue.toLongOrNull() == null) return ActionResult.failure("GitHub needs the number of the issue, and got \"$numberValue\".")
+        if (operationValue == ADD_COMMENT && textValue.isBlank()) return ActionResult.failure("GitHub needs the text of the comment.")
 
         val issues = variableExtractorUtil.extract(baseUrl, execution, scriptLanguage).trimEnd('/') + "/repos/$repositoryValue/issues"
         val headers = mapOf("Authorization" to "Bearer $tokenValue")
@@ -71,7 +71,7 @@ class GitHubAction : Action() {
             CREATE_ISSUE -> JsonApi.call("GitHub", "POST", issues, headers, mapOf("title" to titleValue, "body" to textValue))
             ADD_COMMENT -> JsonApi.call("GitHub", "POST", "$issues/$numberValue/comments", headers, mapOf("body" to textValue))
             CLOSE_ISSUE -> JsonApi.call("GitHub", "PATCH", "$issues/$numberValue", headers, mapOf("state" to "closed"))
-            else -> JsonApi.failure("GitHub has no operation called \"$operationValue\".")
+            else -> ActionResult.failure("GitHub has no operation called \"$operationValue\".")
         }
         if (result.statusCode == StatusCode.SUCCESS) {
             val answer = JsonApi.parsed(result)

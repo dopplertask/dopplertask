@@ -359,6 +359,17 @@ Creates or comments on an issue, both in the cloud and on your own server. After
 * issueKey: Such as `OPS-12`. Used to comment.
 * text: The description of the issue, or the comment.
 
+#### RedisAction
+Reads and writes a value in Redis. A key that does not exist is not a failure, and a later step can branch on `$lastLog.outputVariables.found`.
+
+##### Variables
+* hostname, port, password: Where the server is. The port is 6379 if nothing else is said.
+* useTls: `true` for most hosted Redis services.
+* operation: `get`, `set`, `increment` or `delete`.
+* key: The key.
+* value: The value to write.
+* expirySeconds: Optional. The key is removed after this time.
+
 #### SlackAction
 Sends a message to a Slack channel. The bot needs the `chat:write` permission and has to be a member of the channel. The next step can read the time stamp of the message from `$lastLog.outputVariables.ts`, for example to reply in its thread.
 

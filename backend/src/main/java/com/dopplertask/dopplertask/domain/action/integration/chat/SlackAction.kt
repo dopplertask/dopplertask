@@ -50,9 +50,9 @@ class SlackAction : Action() {
         val tokenValue = variableExtractorUtil.extract(token, execution, scriptLanguage)
         val channelValue = variableExtractorUtil.extract(channel, execution, scriptLanguage)
         val messageValue = variableExtractorUtil.extract(message, execution, scriptLanguage)
-        if (tokenValue.isBlank()) return JsonApi.failure("Slack needs a bot token, which starts with xoxb-.")
-        if (channelValue.isBlank()) return JsonApi.failure("Slack needs a channel, such as #deploys or a channel id.")
-        if (messageValue.isBlank()) return JsonApi.failure("Slack needs a message to send.")
+        if (tokenValue.isBlank()) return ActionResult.failure("Slack needs a bot token, which starts with xoxb-.")
+        if (channelValue.isBlank()) return ActionResult.failure("Slack needs a channel, such as #deploys or a channel id.")
+        if (messageValue.isBlank()) return ActionResult.failure("Slack needs a message to send.")
 
         val body = mutableMapOf("channel" to channelValue, "text" to messageValue)
         val thread = variableExtractorUtil.extract(threadTs, execution, scriptLanguage)
@@ -64,7 +64,7 @@ class SlackAction : Action() {
         // Slack answers 200 also when it refuses, and says so in the body.
         val answer = JsonApi.parsed(result)
         if (result.statusCode == StatusCode.SUCCESS && !answer.path("ok").asBoolean(false)) {
-            return JsonApi.failure("Slack refused the message: ${answer.path("error").asText("no reason given")}.")
+            return ActionResult.failure("Slack refused the message: ${answer.path("error").asText("no reason given")}.")
         }
         if (answer.hasNonNull("ts")) result.outputVariables["ts"] = answer.path("ts").asText()
         return result

@@ -33,13 +33,6 @@ object JsonApi {
         return result
     }
 
-    fun failure(message: String): ActionResult {
-        val result = ActionResult()
-        result.errorMsg = message
-        result.statusCode = StatusCode.FAILURE
-        return result
-    }
-
     fun parsed(result: ActionResult): JsonNode = try {
         mapper.readTree(result.output)
     } catch (e: Exception) {

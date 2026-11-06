@@ -68,12 +68,12 @@ class JiraAction : Action() {
         val keyValue = variableExtractorUtil.extract(issueKey, execution, scriptLanguage).trim()
         val summaryValue = variableExtractorUtil.extract(summary, execution, scriptLanguage)
         val textValue = variableExtractorUtil.extract(text, execution, scriptLanguage)
-        if (site.isBlank()) return JsonApi.failure("Jira needs the address of the site, such as https://acme.atlassian.net.")
-        if (tokenValue.isBlank()) return JsonApi.failure("Jira needs an API token.")
-        if (operationValue == CREATE_ISSUE && projectValue.isBlank()) return JsonApi.failure("Jira needs the key of a project, such as OPS.")
-        if (operationValue == CREATE_ISSUE && summaryValue.isBlank()) return JsonApi.failure("Jira needs a summary for the issue.")
-        if (operationValue == ADD_COMMENT && keyValue.isBlank()) return JsonApi.failure("Jira needs the key of the issue, such as OPS-12.")
-        if (operationValue == ADD_COMMENT && textValue.isBlank()) return JsonApi.failure("Jira needs the text of the comment.")
+        if (site.isBlank()) return ActionResult.failure("Jira needs the address of the site, such as https://acme.atlassian.net.")
+        if (tokenValue.isBlank()) return ActionResult.failure("Jira needs an API token.")
+        if (operationValue == CREATE_ISSUE && projectValue.isBlank()) return ActionResult.failure("Jira needs the key of a project, such as OPS.")
+        if (operationValue == CREATE_ISSUE && summaryValue.isBlank()) return ActionResult.failure("Jira needs a summary for the issue.")
+        if (operationValue == ADD_COMMENT && keyValue.isBlank()) return ActionResult.failure("Jira needs the key of the issue, such as OPS-12.")
+        if (operationValue == ADD_COMMENT && textValue.isBlank()) return ActionResult.failure("Jira needs the text of the comment.")
 
         // Jira in the cloud signs in with an email and a token, and on your own server with the token alone.
         val authorization = if (emailValue.isEmpty()) "Bearer $tokenValue"
@@ -88,7 +88,7 @@ class JiraAction : Action() {
                 "description" to textValue
             )))
             ADD_COMMENT -> JsonApi.call("Jira", "POST", "$site/rest/api/2/issue/$keyValue/comment", headers, mapOf("body" to textValue))
-            else -> JsonApi.failure("Jira has no operation called \"$operationValue\".")
+            else -> ActionResult.failure("Jira has no operation called \"$operationValue\".")
         }
         if (result.statusCode == StatusCode.SUCCESS && operationValue == CREATE_ISSUE) {
             val key = JsonApi.parsed(result).path("key").asText()

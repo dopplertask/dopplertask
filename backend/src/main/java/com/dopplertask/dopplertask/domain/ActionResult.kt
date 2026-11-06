@@ -18,4 +18,8 @@ data class ActionResult(
     )
 
     constructor() : this(StatusCode.SUCCESS, "", "")
+
+    companion object {
+        fun failure(message: String) = ActionResult(StatusCode.FAILURE, "", message)
+    }
 }

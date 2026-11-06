@@ -4,6 +4,7 @@ import com.dopplertask.dopplertask.domain.ActionResult;
 import com.dopplertask.dopplertask.domain.StatusCode;
 import com.dopplertask.dopplertask.domain.TaskExecution;
 import com.dopplertask.dopplertask.domain.action.Action;
+import com.dopplertask.dopplertask.domain.action.connection.RedisAction;
 import com.dopplertask.dopplertask.domain.action.integration.chat.DiscordAction;
 import com.dopplertask.dopplertask.domain.action.integration.code.GitHubAction;
 import com.dopplertask.dopplertask.domain.action.integration.code.JiraAction;
@@ -375,5 +376,28 @@ public class IntegrationActionsTest {
         answerStatus = 404;
         answerBody = "{\"errorMessages\":[\"Issue does not exist\"],\"errors\":{}}";
         Assert.assertEquals("Jira answered with status 404: Issue does not exist.", run(jira()).getErrorMsg());
+    }
+
+    private RedisAction redis() {
+        RedisAction redis = new RedisAction();
+        redis.setHostname("localhost");
+        redis.setPort("1");
+        redis.setKey("visits");
+        return redis;
+    }
+
+    @Test
+    public void testRedisSaysWhereItCouldNotConnectFail() throws IOException {
+        Assert.assertEquals("Could not connect to Redis at localhost:1. Check the address, and that the service is running.", run(redis()).getErrorMsg());
+    }
+
+    @Test
+    public void testRedisSaysWhatIsWrongBeforeConnectingFail() throws IOException {
+        RedisAction redis = redis();
+        redis.setExpirySeconds("soon");
+        Assert.assertTrue(run(redis).getErrorMsg().contains("number of seconds"));
+        redis.setExpirySeconds(null);
+        redis.setPort("first");
+        Assert.assertTrue(run(redis).getErrorMsg().contains("port as a number"));
     }
 }
