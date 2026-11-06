@@ -8,16 +8,15 @@ import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.Prop
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
 import com.dopplertask.dopplertask.domain.action.integration.JsonApi
 import com.dopplertask.dopplertask.service.BroadcastListener
-import com.dopplertask.dopplertask.service.ColumnEncryptor
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import java.io.IOException
 import javax.persistence.Column
-import javax.persistence.Convert
 import javax.persistence.DiscriminatorValue
 import javax.persistence.Entity
 import javax.persistence.Lob
 import javax.persistence.Table
+import javax.persistence.Transient
 
 @Entity
 @Table(name = "SlackAction")
@@ -26,8 +25,7 @@ class SlackAction : Action() {
     @Column
     var baseUrl: String? = "https://slack.com/api"
 
-    @Column
-    @Convert(converter = ColumnEncryptor::class)
+    @Transient
     var token: String? = null
 
     @Column
@@ -79,7 +77,7 @@ class SlackAction : Action() {
     override val actionInfo: MutableList<PropertyInformation>
         get() {
             val actionInfo = super.actionInfo
-            actionInfo.add(PropertyInformation("token", "Bot token", PropertyInformationType.STRING, "", "A bot token that starts with xoxb-, with the chat:write permission.", mutableListOf(), PropertyInformationCategory.CREDENTIAL))
+            actionInfo.add(PropertyInformation("token", "Bot token", PropertyInformationType.STRING, "", "A bot token that starts with xoxb-, with the chat:write permission.", mutableListOf(), PropertyInformationCategory.SECRET))
             actionInfo.add(PropertyInformation("channel", "Channel", PropertyInformationType.STRING, "", "Such as #deploys or a channel id. The bot has to be a member of it."))
             actionInfo.add(PropertyInformation("message", "Message", PropertyInformationType.MULTILINE, "", "The text to send."))
             actionInfo.add(PropertyInformation("replyToMessageId", "Reply to message", PropertyInformationType.STRING, "", "Answers in the thread of this message. A Slack step gives the id as \$lastLog.outputVariables.messageId."))

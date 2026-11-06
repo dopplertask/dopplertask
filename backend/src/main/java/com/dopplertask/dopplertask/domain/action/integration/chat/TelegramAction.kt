@@ -8,16 +8,15 @@ import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.Prop
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
 import com.dopplertask.dopplertask.domain.action.integration.JsonApi
 import com.dopplertask.dopplertask.service.BroadcastListener
-import com.dopplertask.dopplertask.service.ColumnEncryptor
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import java.io.IOException
 import javax.persistence.Column
-import javax.persistence.Convert
 import javax.persistence.DiscriminatorValue
 import javax.persistence.Entity
 import javax.persistence.Lob
 import javax.persistence.Table
+import javax.persistence.Transient
 
 @Entity
 @Table(name = "TelegramAction")
@@ -26,8 +25,7 @@ class TelegramAction : Action() {
     @Column
     var baseUrl: String? = "https://api.telegram.org"
 
-    @Column
-    @Convert(converter = ColumnEncryptor::class)
+    @Transient
     var token: String? = null
 
     @Column
@@ -54,7 +52,7 @@ class TelegramAction : Action() {
         if (messageValue.length > MAX_MESSAGE_LENGTH) return ActionResult.failure("Telegram allows $MAX_MESSAGE_LENGTH characters in a message, and this one has ${messageValue.length}.")
 
         val base = variableExtractorUtil.extract(baseUrl, execution, scriptLanguage).trimEnd('/')
-        val result = JsonApi.withoutSecret(JsonApi.call("Telegram", "POST", "$base/bot$tokenValue/sendMessage", mapOf(), mapOf("chat_id" to chatValue, "text" to messageValue)), tokenValue)
+        val result = JsonApi.call("Telegram", "POST", "$base/bot$tokenValue/sendMessage", mapOf(), mapOf("chat_id" to chatValue, "text" to messageValue))
         if (result.statusCode == StatusCode.SUCCESS) {
             result.outputVariables["messageId"] = JsonApi.parsed(result).path("result").path("message_id").asLong()
         }
@@ -70,7 +68,7 @@ class TelegramAction : Action() {
     override val actionInfo: MutableList<PropertyInformation>
         get() {
             val actionInfo = super.actionInfo
-            actionInfo.add(PropertyInformation("token", "Bot token", PropertyInformationType.STRING, "", "The token that BotFather gives for your bot.", mutableListOf(), PropertyInformationCategory.CREDENTIAL))
+            actionInfo.add(PropertyInformation("token", "Bot token", PropertyInformationType.STRING, "", "The token that BotFather gives for your bot.", mutableListOf(), PropertyInformationCategory.SECRET))
             actionInfo.add(PropertyInformation("chat", "Chat", PropertyInformationType.STRING, "", "A chat id, or a channel such as @alerts. The bot has to be able to write there."))
             actionInfo.add(PropertyInformation("message", "Message", PropertyInformationType.MULTILINE, "", "The text to send, up to 4096 characters."))
             actionInfo.add(PropertyInformation("baseUrl", "Base URL", PropertyInformationType.STRING, "https://api.telegram.org", "Only change this to go through a proxy or your own Bot API server."))

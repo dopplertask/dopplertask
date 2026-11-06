@@ -50,14 +50,16 @@ public class ExecutionServiceImpl implements ExecutionService {
 
     private JmsTemplate jmsTemplate;
     private JmsTemplate broadcasts;
+    private CredentialService credentialService;
     private TaskDao taskDao;
     private VariableExtractorUtil variableExtractorUtil;
     private TaskExecutionDao taskExecutionDao;
     private Executor executor;
 
     @Autowired
-    public ExecutionServiceImpl(JmsTemplate jmsTemplate, TaskDao taskDao, VariableExtractorUtil variableExtractorUtil, TaskExecutionDao taskExecutionDao) {
+    public ExecutionServiceImpl(JmsTemplate jmsTemplate, TaskDao taskDao, VariableExtractorUtil variableExtractorUtil, CredentialService credentialService, TaskExecutionDao taskExecutionDao) {
         this.jmsTemplate = jmsTemplate;
+        this.credentialService = credentialService;
         this.broadcasts = Application.broadcastTemplate(jmsTemplate);
         this.taskDao = taskDao;
         this.variableExtractorUtil = variableExtractorUtil;
@@ -530,7 +532,7 @@ public class ExecutionServiceImpl implements ExecutionService {
                         Thread.sleep(Long.parseLong(retryWaitAmount));
                     }
                 }
-                actionResult = currentAction.run(taskService, execution, variableExtractorUtil, (output, outputType) -> addLog(execution, output, outputType, Map.of(), true));
+                actionResult = credentialService.runWith(currentAction, () -> currentAction.run(taskService, execution, variableExtractorUtil, (output, outputType) -> addLog(execution, output, outputType, Map.of(), true)));
 
                 if (!actionResult.getOutput().isEmpty()) {
                     addLog(execution, actionResult.getOutput(), actionResult.getOutputType(), actionResult.getOutputVariables(), actionResult.isBroadcastMessage());

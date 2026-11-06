@@ -8,17 +8,16 @@ import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.Prop
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
 import com.dopplertask.dopplertask.domain.action.integration.JsonApi
 import com.dopplertask.dopplertask.service.BroadcastListener
-import com.dopplertask.dopplertask.service.ColumnEncryptor
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import java.io.IOException
 import java.util.Base64
 import javax.persistence.Column
-import javax.persistence.Convert
 import javax.persistence.DiscriminatorValue
 import javax.persistence.Entity
 import javax.persistence.Lob
 import javax.persistence.Table
+import javax.persistence.Transient
 
 @Entity
 @Table(name = "JiraAction")
@@ -27,11 +26,10 @@ class JiraAction : Action() {
     @Column
     var siteUrl: String? = null
 
-    @Column
+    @Transient
     var email: String? = null
 
-    @Column
-    @Convert(converter = ColumnEncryptor::class)
+    @Transient
     var token: String? = null
 
     @Column
@@ -115,7 +113,7 @@ class JiraAction : Action() {
             val creating = mapOf("operation" to arrayOf(CREATE_ISSUE))
             actionInfo.add(PropertyInformation("siteUrl", "Site", PropertyInformationType.STRING, "", "Such as https://acme.atlassian.net."))
             actionInfo.add(PropertyInformation("email", "Email", PropertyInformationType.STRING, "", "The email of the account, for Jira in the cloud. Leave it empty on your own server.", mutableListOf(), PropertyInformationCategory.CREDENTIAL))
-            actionInfo.add(PropertyInformation("token", "API token", PropertyInformationType.STRING, "", "An API token in the cloud, or a personal access token on your own server.", mutableListOf(), PropertyInformationCategory.CREDENTIAL))
+            actionInfo.add(PropertyInformation("token", "API token", PropertyInformationType.STRING, "", "An API token in the cloud, or a personal access token on your own server.", mutableListOf(), PropertyInformationCategory.SECRET))
             actionInfo.add(PropertyInformation("operation", "Action", PropertyInformationType.DROPDOWN, CREATE_ISSUE, "", listOf(
                 PropertyInformation(CREATE_ISSUE, "Create an issue"),
                 PropertyInformation(ADD_COMMENT, "Comment on an issue")

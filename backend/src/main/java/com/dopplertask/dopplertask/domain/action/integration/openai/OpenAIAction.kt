@@ -7,17 +7,16 @@ import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.Prop
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
 import com.dopplertask.dopplertask.domain.action.integration.JsonApi
 import com.dopplertask.dopplertask.service.BroadcastListener
-import com.dopplertask.dopplertask.service.ColumnEncryptor
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import java.io.IOException
 import java.time.Duration
 import javax.persistence.Column
-import javax.persistence.Convert
 import javax.persistence.DiscriminatorValue
 import javax.persistence.Entity
 import javax.persistence.Lob
 import javax.persistence.Table
+import javax.persistence.Transient
 
 @Entity
 @Table(name = "OpenAIAction")
@@ -27,8 +26,7 @@ class OpenAIAction : Action() {
     @Column(columnDefinition = "TEXT")
     var baseUrl: String? = "https://api.openai.com/v1"
 
-    @Column
-    @Convert(converter = ColumnEncryptor::class)
+    @Transient
     var apiKey: String? = null
 
     @Column
@@ -56,7 +54,7 @@ class OpenAIAction : Action() {
         val headers = if (keyValue.isBlank()) mapOf() else mapOf("Authorization" to "Bearer $keyValue")
         val url = read(baseUrl).trim().trimEnd('/') + "/chat/completions"
         val request = mapOf("model" to modelValue, "messages" to listOf(mapOf("role" to "user", "content" to inputValue)))
-        return JsonApi.withoutSecret(JsonApi.call("OpenAI", "POST", url, headers, request, Duration.ofMinutes(ANSWER_MINUTES)), keyValue)
+        return JsonApi.call("OpenAI", "POST", url, headers, request, Duration.ofMinutes(ANSWER_MINUTES))
     }
 
     override val description: String
@@ -65,7 +63,7 @@ class OpenAIAction : Action() {
     override val actionInfo: MutableList<PropertyInformation>
         get() {
             val actionInfo = super.actionInfo
-            actionInfo.add(PropertyInformation("apiKey", "API key", PropertyInformationType.STRING, "", "Leave it empty if your own server does not ask for one.", mutableListOf(), PropertyInformationCategory.CREDENTIAL))
+            actionInfo.add(PropertyInformation("apiKey", "API key", PropertyInformationType.STRING, "", "Leave it empty if your own server does not ask for one.", mutableListOf(), PropertyInformationCategory.SECRET))
             actionInfo.add(PropertyInformation("model", "Model", PropertyInformationType.STRING, "", "Such as gpt-5."))
             actionInfo.add(PropertyInformation("userInput", "Prompt", PropertyInformationType.MULTILINE, "", "What the model is asked."))
             actionInfo.add(PropertyInformation("baseUrl", "Base URL", PropertyInformationType.STRING, "https://api.openai.com/v1", "Only change this for a server of your own. Its certificate has to be valid."))

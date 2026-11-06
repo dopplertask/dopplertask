@@ -4,6 +4,7 @@ import com.dopplertask.dopplertask.domain.ActionResult
 import com.dopplertask.dopplertask.domain.StatusCode
 import com.dopplertask.dopplertask.domain.TaskExecution
 import com.dopplertask.dopplertask.domain.action.Action
+import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationCategory
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
 import com.dopplertask.dopplertask.service.BroadcastListener
 import com.dopplertask.dopplertask.service.TaskService
@@ -32,6 +33,7 @@ import javax.persistence.Entity
 import javax.persistence.Lob
 import javax.persistence.OneToMany
 import javax.persistence.Table
+import javax.persistence.Transient
 import kotlin.Array
 import kotlin.String
 import kotlin.Throws
@@ -50,6 +52,12 @@ class HttpAction : Action() {
 
     @OneToMany(mappedBy = "httpAction", cascade = [CascadeType.ALL])
     private var headers: List<HttpHeader> = ArrayList()
+
+    @Transient
+    var authHeaderName: String? = null
+
+    @Transient
+    var authHeaderValue: String? = null
 
     @Column
     var method: String? = null
@@ -70,7 +78,7 @@ class HttpAction : Action() {
         val headerVariables = headers.associate {
             variableExtractorUtil.extract(it.headerName, execution, scriptLanguage) to
                     variableExtractorUtil.extract(it.headerValue, execution, scriptLanguage)
-        }
+        } + credentialHeader(variableExtractorUtil, execution)
         return send(urlVariable, bodyVariable, headerVariables, insecureContext())
     }
 
@@ -164,6 +172,8 @@ class HttpAction : Action() {
     override val actionInfo: MutableList<PropertyInformation>
         get() {
             val actionInfo = super.actionInfo
+            actionInfo.add(PropertyInformation("authHeaderName", "Header name", PropertyInformationType.STRING, "", "Such as Authorization.", mutableListOf(), PropertyInformationCategory.CREDENTIAL))
+            actionInfo.add(PropertyInformation("authHeaderValue", "Header value", PropertyInformationType.STRING, "", "Such as Bearer and the token.", mutableListOf(), PropertyInformationCategory.SECRET))
             actionInfo.add(PropertyInformation("url", "URL", PropertyInformationType.STRING, "", "The full address, such as https://example.com/status"))
             actionInfo.add(
                 PropertyInformation(
@@ -224,6 +234,11 @@ class HttpAction : Action() {
 
     override val outputs: Map<String, String>
         get() = mapOf("statusCode" to "Status of the answer")
+
+    private fun credentialHeader(variableExtractorUtil: VariableExtractorUtil, execution: TaskExecution): Map<String, String> {
+        val name = authHeaderName
+        return if (name.isNullOrBlank()) mapOf() else mapOf(variableExtractorUtil.extract(name, execution, scriptLanguage) to variableExtractorUtil.extract(authHeaderValue, execution, scriptLanguage))
+    }
 
     override val description: String
         get() = "Makes an HTTP request and returns the result"

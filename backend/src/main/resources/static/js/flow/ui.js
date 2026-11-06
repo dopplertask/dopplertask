@@ -20,6 +20,7 @@ export default function boot() {
     server: '<rect x="3" y="4" width="18" height="7" rx="1.5"/><rect x="3" y="13" width="18" height="7" rx="1.5"/><path d="M7 7.5h.01M7 16.5h.01"/>',
     send: '<path d="M21 3 10 14M21 3l-7 18-4-7-7-4z"/>',
     database: '<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>',
+    key: '<circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M16 7l3 3M13 10l2 2"/>',
     terminal: '<path d="m5 7 5 5-5 5M12 18h7"/>',
     fileText: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>',
     filePen: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 17l5-5 1.5 1.5-5 5H9z"/>',
@@ -155,8 +156,14 @@ export default function boot() {
         const current = fieldValue ?? options[0].value;
         return wrap(`${label.replace('<span class="ui-optional">optional</span>', '')}<div class="ui-select"><select ${common}>${options.map((option) => `<option value="${escapeHtml(option.value)}" ${option.value === current ? 'selected' : ''}>${escapeHtml(option.label)}</option>`).join('')}</select>${icon('chevronDown')}</div>`);
       }
+      case 'credential': {
+        const choices = DT.canvas.store.credentials.filter((credential) => credential.stepType === field.stepType);
+        const missing = fieldValue && !choices.some((credential) => credential.name === fieldValue);
+        const options = [{ name: '', text: choices.length ? 'Choose a credential' : 'No credential yet' }, ...choices.map(({ name }) => ({ name, text: name })), ...(missing ? [{ name: fieldValue, text: `${fieldValue} (does not exist)` }] : [])];
+        return wrap(`${label}<div class="ui-credential-row"><div class="ui-select"><select ${common}>${options.map(({ name, text }) => `<option value="${escapeHtml(name)}" ${name === (fieldValue || '') ? 'selected' : ''}>${escapeHtml(text)}</option>`).join('')}</select>${icon('chevronDown')}</div>${fieldValue && !missing ? '<button type="button" class="ui-button" data-credential-edit>Edit</button>' : ''}<button type="button" class="ui-button" data-credential-new>New</button></div>`);
+      }
       case 'number': return wrap(`${label}<input class="ui-input" type="number" min="0" ${common} ${placeholder} value="${escapeHtml(fieldValue ?? '')}">`);
-      case 'password': return wrap(`${label}<div class="ui-input-wrap"><input class="ui-input" type="password" autocomplete="off" ${common} value="${escapeHtml(fieldValue ?? '')}"><button type="button" class="ui-input-action" data-reveal aria-label="Show value">${icon('eye')}</button></div>`);
+      case 'password': return wrap(`${label}<div class="ui-input-wrap"><input class="ui-input" type="password" autocomplete="off" ${common} ${placeholder} value="${escapeHtml(fieldValue ?? '')}"><button type="button" class="ui-input-action" data-reveal aria-label="Show value">${icon('eye')}</button></div>`);
       case 'toggle': return wrap(`<label class="ui-toggle"><input type="checkbox" ${common} ${fieldValue ? 'checked' : ''}><span class="ui-toggle-track"></span><span>${escapeHtml(field.label)}</span></label>`);
       case 'code': return wrap(`${label}<textarea class="ui-input is-mono" rows="${Math.min(8, Math.max(3, String(fieldValue ?? '').split('\n').length + 1))}" spellcheck="false" data-variables ${common} ${placeholder}>${escapeHtml(fieldValue ?? '')}</textarea><p class="ui-hint">Type <code>$</code> to insert a parameter or earlier output.</p>`);
       case 'expression': {
@@ -233,7 +240,7 @@ export default function boot() {
         /* Leaving a field fires change with the value input already saved. Saving it again rebuilds the panel
            under the pointer, which would swallow the click that left the field. */
         if (node.config[target.dataset.field] !== newValue) store.updateConfig(nodeId, target.dataset.field, newValue);
-        if (event.type === 'change' && (target.tagName === 'SELECT' || target.type === 'checkbox') && hasConditionalFields()) render();
+        if (event.type === 'change' && (target.tagName === 'SELECT' || target.type === 'checkbox') && (hasConditionalFields() || target.dataset.field === 'credential')) render();
         updatePreviews(root, store);
         const urlElement = root.querySelector('[data-webhook-url]');
         if (urlElement) {
@@ -252,6 +259,12 @@ export default function boot() {
       if (!button) return;
       const node = currentNode();
       const mapKey = button.closest('[data-map]')?.dataset.map;
+      if (button.dataset.credentialNew !== undefined || button.dataset.credentialEdit !== undefined) {
+        const field = ACTIONS[node.type].fields.find((candidate) => candidate.key === 'credential' && DT.fieldVisible(candidate, node.config));
+        const editing = button.dataset.credentialEdit !== undefined ? store.credentials.find((credential) => credential.name === node.config.credential) : null;
+        openCredentialDialog(store, field, editing, (name) => { store.updateConfig(nodeId, 'credential', name); render(); });
+        return;
+      }
       if (button.dataset.mapAdd !== undefined) {
         const { columns } = ACTIONS[node.type].fields.find((field) => field.key === mapKey);
         store.updateConfig(nodeId, mapKey, [...(node.config[mapKey] || []), Object.fromEntries(columns.map((column) => [column.key, column.options ? column.options[0] : '']))]);
@@ -343,6 +356,7 @@ export default function boot() {
       { id: 'params', label: 'Task parameters', icon: 'sliders', shortcut: 'P', run: () => openParametersDialog(store) },
       { id: 'new', label: 'New task', icon: 'filePlus', run: () => store.newTask() },
       { id: 'open', label: 'Open task…', icon: 'folder', shortcut: 'O', run: () => openTaskDialog(store) },
+      { id: 'credentials', label: 'Credentials…', icon: 'key', run: () => openCredentialsDialog(store) },
       { id: 'duplicate', label: 'Save as…', icon: 'copy', run: () => openSaveAsDialog(store) },
       { id: 'export', label: 'Export task as JSON', icon: 'download', run: () => exportTask(store) },
       { id: 'import', label: 'Import task from JSON…', icon: 'upload', run: () => importTask(store) },
@@ -487,6 +501,61 @@ export default function boot() {
     });
   }
 
+  /* A saved value is never sent back, so a field is shown empty and stays as it is unless something is typed. */
+  function openCredentialDialog(store, field, editing, onSaved) {
+    const form = { id: 'credential', config: {} };
+    const dialog = openDialog(`${dialogHeader(editing ? `Edit ${editing.name}` : 'New credential', 'Encrypted when saved, and never shown again. Steps name it, and get its values only while they run.')}
+      <form class="ui-form">
+        ${editing ? '' : '<div class="ui-field"><label class="ui-label" for="credential-name">Name</label><input class="ui-input" id="credential-name" autocomplete="off" spellcheck="false" placeholder="such as prod-slack"></div>'}
+        ${field.fields.map((one) => renderField({ ...one, required: one.required && !editing, placeholder: editing?.fieldsSet.includes(one.key) ? 'Saved. Leave empty to keep it.' : one.placeholder }, form)).join('')}
+        <footer class="ui-dialog-foot"><button type="button" class="ui-button" data-dialog-close>Cancel</button><button type="submit" class="ui-button is-primary">Save</button></footer>
+      </form>`);
+    dialog.querySelector('.ui-input')?.focus();
+    dialog.addEventListener('click', (event) => {
+      const reveal = event.target.closest('[data-reveal]');
+      if (reveal) { const input = reveal.parentElement.querySelector('input'); input.type = input.type === 'password' ? 'text' : 'password'; }
+    });
+    dialog.querySelector('form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const name = editing ? editing.name : dialog.querySelector('#credential-name').value.trim();
+      const values = Object.fromEntries([...dialog.querySelectorAll('[data-field]')].map((input) => [input.dataset.field, input.value]));
+      const missing = field.fields.find((one) => one.required && !editing && !values[one.key]);
+      if (missing) { toast(`${missing.label} is required`, { tone: 'danger' }); return; }
+      try {
+        await store.saveCredential(name, field.stepType, values, !!editing);
+        dialog.close();
+        toast(editing ? `Saved ${name}` : `Created ${name}`);
+        onSaved?.(name);
+      } catch (error) { toast(error.message, { tone: 'danger' }); }
+    });
+  }
+
+  const credentialFieldOf = (stepType) => Object.values(ACTIONS).flatMap((action) => action.fields).find((field) => field.type === 'credential' && field.stepType === stepType);
+  const stepLabel = (stepType) => Object.values(ACTIONS).find((action) => action.backend === stepType)?.label || stepType;
+
+  function openCredentialsDialog(store) {
+    const usedBy = ({ usedBy: names }) => (names.length ? `Used by ${names.join(', ')}` : 'Not used by a task');
+    const stepTypes = [...new Set(Object.values(ACTIONS).flatMap((action) => action.fields).filter((field) => field.type === 'credential').map((field) => field.stepType))]
+      .sort((first, second) => stepLabel(first).localeCompare(stepLabel(second)));
+    const dialog = openDialog(`${dialogHeader('Credentials', 'What steps sign in with. Tasks only hold the name, so they can be shared and exported safely.')}
+      <div class="ui-task-list">${store.credentials.length ? store.credentials.map((credential) => `<div class="ui-task-row" data-credential="${escapeHtml(credential.name)}"><span><b>${escapeHtml(credential.name)}</b><small>${escapeHtml(stepLabel(credential.stepType))}. ${escapeHtml(usedBy(credential))}</small></span><button type="button" class="ui-button" data-edit>Edit</button><button type="button" class="ui-button" data-delete>Delete</button></div>`).join('') : '<p class="ui-hint">No credentials yet. Create one here, or from a step that needs it.</p>'}</div>
+      <footer class="ui-dialog-foot"><div class="ui-select"><select id="credential-kind" aria-label="Kind of step">${stepTypes.map((stepType) => `<option value="${escapeHtml(stepType)}">${escapeHtml(stepLabel(stepType))}</option>`).join('')}</select>${icon('chevronDown')}</div><button type="button" class="ui-button is-primary" data-new>New credential</button><button type="button" class="ui-button" data-dialog-close>Close</button></footer>`);
+    dialog.addEventListener('click', (event) => {
+      const name = event.target.closest('[data-credential]')?.dataset.credential;
+      const credential = store.credentials.find((candidate) => candidate.name === name);
+      if (event.target.closest('[data-new]')) {
+        const stepType = dialog.querySelector('#credential-kind').value;
+        dialog.close();
+        openCredentialDialog(store, credentialFieldOf(stepType), null);
+      }
+      if (event.target.closest('[data-edit]')) { dialog.close(); openCredentialDialog(store, credentialFieldOf(credential.stepType), credential); }
+      if (event.target.closest('[data-delete]') && confirm(`Delete ${name}? This cannot be undone.`)) {
+        dialog.close();
+        store.deleteCredential(name).then(() => toast(`Deleted ${name}`), (error) => toast(error.message, { tone: 'danger' }));
+      }
+    });
+  }
+
   function openSaveAsDialog(store) {
     const dialog = openDialog(`${dialogHeader('Save as', 'Saves a new version. A new name starts a separate task.')}<form method="dialog" class="ui-form"><div class="ui-field"><label class="ui-label" for="save-as-name">Task name</label><input class="ui-input" id="save-as-name" autocomplete="off" value="${escapeHtml(store.task.name)}"></div><div class="ui-field"><label class="ui-label" for="save-as-description">Description<span class="ui-optional">optional</span></label><input class="ui-input" id="save-as-description" autocomplete="off" value="${escapeHtml(store.task.description || '')}"><p class="ui-hint">Shown next to this version in the task list.</p></div><footer class="ui-dialog-foot"><button type="button" class="ui-button" data-dialog-close>Cancel</button><button type="submit" class="ui-button is-primary">Save</button></footer></form>`, { className: 'is-small' });
     const nameInput = dialog.querySelector('#save-as-name');
@@ -503,7 +572,7 @@ export default function boot() {
     link.download = `${store.task.name}.json`;
     link.click();
     URL.revokeObjectURL(link.href);
-    toast(store.hasSecrets ? `Exported ${link.download}. It contains passwords in clear text, so keep it private.` : `Exported ${link.download}`);
+    toast(`Exported ${link.download}`);
   }
 
   function importTask(store) {
@@ -585,7 +654,7 @@ export default function boot() {
   window.DT.ui = {
     statusGlyph, RUN_STATUS_LABELS, runParameterSummary,
     icon, escapeHtml, modKey, toast, openPopover, mountForm, openPalette,
-    openRunDialog, openParametersDialog, openTaskDialog, openSaveAsDialog, exportTask, importTask, openShortcutsDialog,
+    openRunDialog, openParametersDialog, openTaskDialog, openCredentialsDialog, openSaveAsDialog, exportTask, importTask, openShortcutsDialog,
     saveStatus, bindShortcuts, removeWithUndo, renderStepResult, formatDuration, formatAgo,
   };
 }

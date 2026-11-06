@@ -57,6 +57,14 @@ public class AccessFilterTest {
     }
 
     @Test
+    public void testAnAgentCanListCredentialsButNotChangeThemFail() throws Exception {
+        Assert.assertEquals(200, statusOf(WITH_TOKENS, "GET", "/credentials", "agent-token"));
+        Assert.assertEquals(403, statusOf(WITH_TOKENS, "POST", "/credentials", "agent-token"));
+        Assert.assertEquals(403, statusOf(WITH_TOKENS, "PUT", "/credentials/x", "agent-token"));
+        Assert.assertEquals(403, statusOf(WITH_TOKENS, "DELETE", "/credentials/x", "agent-token"));
+    }
+
+    @Test
     public void testAnAgentCannotDeleteOrRunAnythingDirectlyFail() throws Exception {
         Assert.assertEquals(403, statusOf(WITH_TOKENS, "DELETE", "/task/x", "agent-token"));
         Assert.assertEquals(403, statusOf(WITH_TOKENS, "DELETE", "/execution/12", "agent-token"));

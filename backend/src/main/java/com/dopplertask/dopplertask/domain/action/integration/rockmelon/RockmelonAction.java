@@ -6,18 +6,17 @@ import com.dopplertask.dopplertask.domain.action.Action;
 import com.dopplertask.dopplertask.domain.action.common.ScriptLanguage;
 import com.dopplertask.dopplertask.domain.action.connection.HttpAction;
 import com.dopplertask.dopplertask.service.BroadcastListener;
-import com.dopplertask.dopplertask.service.ColumnEncryptor;
 import com.dopplertask.dopplertask.service.TaskService;
 import com.dopplertask.dopplertask.service.VariableExtractorUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.persistence.CascadeType;
-import javax.persistence.Convert;
 import javax.persistence.DiscriminatorValue;
 import javax.persistence.Entity;
 import javax.persistence.OneToMany;
 import javax.persistence.Table;
+import javax.persistence.Transient;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -32,7 +31,7 @@ public class RockmelonAction extends Action {
 
     private static final String ROCKMELON_API_URL = "https://www.rockmelon.app/api/link-group/create";
 
-    @Convert(converter = ColumnEncryptor.class)
+    @Transient
     private String apiKey;
 
     private String name;
@@ -71,7 +70,7 @@ public class RockmelonAction extends Action {
     @Override
     public List<PropertyInformation> getActionInfo() {
         List<PropertyInformation> actionList = super.getActionInfo();
-        actionList.add(new PropertyInformation("apiKey", "API Key", PropertyInformation.PropertyInformationType.STRING, "", "Rockmelon API Key", Collections.emptyList(), PropertyInformation.PropertyInformationCategory.CREDENTIAL));
+        actionList.add(new PropertyInformation("apiKey", "API Key", PropertyInformation.PropertyInformationType.STRING, "", "Rockmelon API Key", Collections.emptyList(), PropertyInformation.PropertyInformationCategory.SECRET));
         actionList.add(new PropertyInformation("name", "Name", PropertyInformation.PropertyInformationType.STRING, "", "Name of Rockmelon Link", Collections.emptyList(), PropertyInformation.PropertyInformationCategory.PROPERTY));
         actionList.add(new PropertyInformation("rcIdentifier", "RC Identifier", PropertyInformation.PropertyInformationType.STRING, "", "Rockmelon Collection identifier, which this Rockmelon Link belongs to", Collections.emptyList(), PropertyInformation.PropertyInformationCategory.PROPERTY));
         actionList.add(new PropertyInformation("links", "Links", PropertyInformation.PropertyInformationType.MAP, "", "List of links to add to this RL", List.of(

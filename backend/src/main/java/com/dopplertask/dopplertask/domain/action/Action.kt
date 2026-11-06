@@ -153,6 +153,12 @@ abstract class Action {
     open var actionName: String? = this.javaClass.simpleName
 
     /**
+     * The name of the credential this step signs in with. It never holds the values.
+     */
+    @Column
+    open var credential: String? = null
+
+    /**
      * All action values are evaluated with VELOCITY as standard, but can be changed to other languages.
      */
     @Enumerated(EnumType.STRING)
@@ -351,7 +357,7 @@ abstract class Action {
         }
 
         enum class PropertyInformationCategory {
-            PROPERTY, CREDENTIAL, SETTING
+            PROPERTY, CREDENTIAL, SECRET, SETTING
         }
 
     }

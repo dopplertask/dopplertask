@@ -4,6 +4,7 @@ import com.dopplertask.dopplertask.domain.ActionResult
 import com.dopplertask.dopplertask.domain.StatusCode
 import com.dopplertask.dopplertask.domain.TaskExecution
 import com.dopplertask.dopplertask.domain.action.Action
+import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationCategory
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
 import com.dopplertask.dopplertask.service.BroadcastListener
 import com.dopplertask.dopplertask.service.ColumnEncryptor
@@ -21,6 +22,7 @@ import javax.persistence.DiscriminatorValue
 import javax.persistence.Entity
 import javax.persistence.Lob
 import javax.persistence.Table
+import javax.persistence.Transient
 
 @Entity
 @Table(name = "MySQLAction")
@@ -30,12 +32,10 @@ class MySQLAction : Action() {
     @Convert(converter = ColumnEncryptor::class)
     var hostname: String? = null
 
-    @Column
-    @Convert(converter = ColumnEncryptor::class)
+    @Transient
     var username: String? = null
 
-    @Column
-    @Convert(converter = ColumnEncryptor::class)
+    @Transient
     var password: String? = null
 
     @Column
@@ -164,7 +164,7 @@ class MySQLAction : Action() {
             actionInfo.add(
                 PropertyInformation(
                     "hostname", "Hostname", PropertyInformationType.STRING, "", "Hostname or IP", emptyList(),
-                    PropertyInformation.PropertyInformationCategory.CREDENTIAL
+                    PropertyInformation.PropertyInformationCategory.PROPERTY
                 )
             )
             actionInfo.add(
@@ -177,19 +177,19 @@ class MySQLAction : Action() {
             actionInfo.add(
                 PropertyInformation(
                     "password", "Password", PropertyInformationType.STRING, "", "Password", emptyList(),
-                    PropertyInformation.PropertyInformationCategory.CREDENTIAL
+                    PropertyInformation.PropertyInformationCategory.SECRET
                 )
             )
             actionInfo.add(
                 PropertyInformation(
                     "database", "Database", PropertyInformationType.STRING, "", "Database name", emptyList(),
-                    PropertyInformation.PropertyInformationCategory.CREDENTIAL
+                    PropertyInformation.PropertyInformationCategory.PROPERTY
                 )
             )
             actionInfo.add(
                 PropertyInformation(
                     "port", "Port", PropertyInformationType.STRING, "3306", "Default is 3306", emptyList(),
-                    PropertyInformation.PropertyInformationCategory.CREDENTIAL
+                    PropertyInformation.PropertyInformationCategory.PROPERTY
                 )
             )
             actionInfo.add(
@@ -200,7 +200,7 @@ class MySQLAction : Action() {
                     "",
                     "Specify timezone. Example CET",
                     emptyList(),
-                    PropertyInformation.PropertyInformationCategory.CREDENTIAL
+                    PropertyInformation.PropertyInformationCategory.PROPERTY
                 )
             )
             actionInfo.add(

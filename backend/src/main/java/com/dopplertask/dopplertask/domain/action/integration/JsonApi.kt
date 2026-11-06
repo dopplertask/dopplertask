@@ -37,15 +37,6 @@ object JsonApi {
         return result
     }
 
-    // Some services take their secret in the address, and the messages about a wrong address repeat the address.
-    // Others repeat a key they refuse. What a step gives is stored with the run, so the secret is taken out of both.
-    fun withoutSecret(result: ActionResult, secret: String): ActionResult {
-        if (secret.isEmpty()) return result
-        result.errorMsg = result.errorMsg?.replace(secret, "(hidden)")
-        result.output = result.output?.replace(secret, "(hidden)")
-        return result
-    }
-
     fun parsed(result: ActionResult): JsonNode = try {
         mapper.readTree(result.output)
     } catch (e: Exception) {

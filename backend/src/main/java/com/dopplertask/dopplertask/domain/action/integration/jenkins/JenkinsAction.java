@@ -24,6 +24,7 @@ import javax.persistence.Entity;
 import javax.persistence.Lob;
 import javax.persistence.OneToMany;
 import javax.persistence.Table;
+import javax.persistence.Transient;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -40,10 +41,10 @@ import java.util.Map;
 public class JenkinsAction extends Action {
 
     // Credentials
-    @Convert(converter = ColumnEncryptor.class)
+    @Transient
     private String username;
 
-    @Convert(converter = ColumnEncryptor.class)
+    @Transient
     private String apiToken;
 
     @Convert(converter = ColumnEncryptor.class)
@@ -250,9 +251,9 @@ public class JenkinsAction extends Action {
         List<PropertyInformation> actionList = super.getActionInfo();
 
         actionList.add(new PropertyInformation("username", "Username", PropertyInformation.PropertyInformationType.STRING, "", "Jenkins username", Collections.emptyList(), PropertyInformation.PropertyInformationCategory.CREDENTIAL));
-        actionList.add(new PropertyInformation("apiToken", "API Token", PropertyInformation.PropertyInformationType.STRING, "", "Jenkins API Token", Collections.emptyList(), PropertyInformation.PropertyInformationCategory.CREDENTIAL));
-        actionList.add(new PropertyInformation("jenkinsUrl", "Jenkins URL", PropertyInformation.PropertyInformationType.STRING, "", "Jenkins URL", Collections.emptyList(), PropertyInformation.PropertyInformationCategory.CREDENTIAL));
-        actionList.add(new PropertyInformation("useCrumb", "Use Crumb", PropertyInformation.PropertyInformationType.BOOLEAN, "true", "If CSRF protection is on, leave this activated", Collections.emptyList(), PropertyInformation.PropertyInformationCategory.CREDENTIAL));
+        actionList.add(new PropertyInformation("apiToken", "API Token", PropertyInformation.PropertyInformationType.STRING, "", "Jenkins API Token", Collections.emptyList(), PropertyInformation.PropertyInformationCategory.SECRET));
+        actionList.add(new PropertyInformation("jenkinsUrl", "Jenkins URL", PropertyInformation.PropertyInformationType.STRING, "", "Jenkins URL", Collections.emptyList(), PropertyInformation.PropertyInformationCategory.PROPERTY));
+        actionList.add(new PropertyInformation("useCrumb", "Use Crumb", PropertyInformation.PropertyInformationType.BOOLEAN, "true", "If CSRF protection is on, leave this activated", Collections.emptyList(), PropertyInformation.PropertyInformationCategory.PROPERTY));
 
 
         actionList.add(new PropertyInformation("resourceType", "Resource Type", PropertyInformation.PropertyInformationType.DROPDOWN, "job", "", List.of(

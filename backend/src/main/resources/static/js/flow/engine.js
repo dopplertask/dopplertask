@@ -66,7 +66,6 @@ const TRIGGER_KINDS = Object.fromEntries(Object.entries(TRIGGER_ACTIONS).map(([k
 const TRIGGER_DEFAULTS = { webhook: { method: 'POST', authentication: 'none' }, interval: { time: '1', timeUnit: 'MINUTES' }, activemq: {} };
 const STEP_ACTION_NAME = 'actionName';
 const FAILURE_FIELD_NAMES = ['continueOnFailure', 'retries', 'retryWait', 'failOn'];
-const SECRET_FIELDS = ['password', 'apiKey', 'apiToken', 'token', 'webhookUrl', 'integrationKey', 'secretAccessKey', 'serviceAccountKey'];
 const AUTO_SAVE_DELAY_MS = 30000;
 const AUTO_SAVE_KEY = 'autoSave';
 const LAST_TASK_KEY = 'lastTask';
@@ -78,6 +77,7 @@ const FAILURE_FIELDS = [];
 const TYPE_BY_BACKEND = {};
 const layout = { columnGap: 256, rowGap: 172 };
 
+const CREDENTIAL_CATEGORIES = ['CREDENTIAL', 'SECRET'];
 const uniqueId = () => Math.random().toString(36).slice(2, 9);
 const clone = (value) => JSON.parse(JSON.stringify(value));
 
@@ -87,7 +87,7 @@ function toField(information) {
   /* A hint that only repeats the label takes room and says nothing. */
   const label = information.displayName || information.name;
   const hint = information.description && information.description.replace(/\.$/, '').toLowerCase() !== label.toLowerCase() ? information.description : undefined;
-  const common = { key: information.name, label, hint, defaultValue: information.defaultValue || undefined };
+  const common = { key: information.name, label, hint, defaultValue: information.defaultValue || undefined, credential: CREDENTIAL_CATEGORIES.includes(information.category) };
   const showWhen = information.displayOptions && Object.keys(information.displayOptions).length ? information.displayOptions : undefined;
   if (showWhen) common.showWhen = showWhen;
   switch (information.type) {
@@ -107,11 +107,26 @@ function toField(information) {
       return [select, ...children];
     }
     default:
-      return [{ ...common, type: SECRET_FIELDS.includes(information.name) ? 'password' : 'expression' }];
+      return [{ ...common, type: information.category === 'SECRET' ? 'password' : 'expression' }];
   }
 }
 
 const fieldsOf = (information) => information.flatMap(toField);
+
+/* What a step signs in with lives in a credential, so the step has one field that names it, where its first one was.
+   It shows when any of them would, such as for a webhook with one of its ways of signing in. */
+function withCredentialField(fields, backend) {
+  const inCredential = fields.filter((field) => field.credential);
+  if (!inCredential.length) return fields;
+  const conditions = inCredential.map((field) => field.showWhen);
+  const showWhen = conditions.every(Boolean) ? conditions.reduce((all, condition) => {
+    Object.entries(condition).forEach(([key, choices]) => { all[key] = [...(all[key] || []), ...choices]; });
+    return all;
+  }, {}) : undefined;
+  const field = { key: 'credential', label: 'Credential', type: 'credential', stepType: backend, fields: inCredential, required: inCredential.some((one) => one.required) || !!showWhen, ...(showWhen ? { showWhen } : {}) };
+  const first = fields.indexOf(inCredential[0]);
+  return [...fields.slice(0, first), field, ...fields.slice(first).filter((one) => !one.credential)];
+}
 
 function loadCatalogue(actions) {
   const triggers = {};
@@ -120,7 +135,7 @@ function loadCatalogue(actions) {
     const [type, label, category, iconName, required] = PRESENTATION[backend] || [backend, backend.replace(/Action$/, ''), 'integration', 'workflow'];
     const fields = fieldsOf(action.propertyInformationList.filter((information) => information.name !== STEP_ACTION_NAME));
     if (!FAILURE_FIELDS.length) FAILURE_FIELDS.push(...fields.filter((field) => FAILURE_FIELD_NAMES.includes(field.key)));
-    const own = fields.filter((field) => !FAILURE_FIELD_NAMES.includes(field.key)).map((field) => ({ ...field, required: !!required?.includes(field.key) }));
+    const own = withCredentialField(fields.filter((field) => !FAILURE_FIELD_NAMES.includes(field.key)).map((field) => ({ ...field, required: !!required?.includes(field.key) })), backend);
     /* The language control stays last, so what the step does comes first. */
     own.sort((first, second) => (first.key === 'scriptLanguage') - (second.key === 'scriptLanguage'));
     if (action.trigger) triggers[backend] = own.filter((field) => !['scriptLanguage', 'triggerSuffix'].includes(field.key));
@@ -437,7 +452,7 @@ function compareVersions(current, proposed) {
     if (!before) { added.add(node.id); return; }
     const fields = [...new Set([...Object.keys(node.config), ...Object.keys(before.config)])]
       .filter((key) => JSON.stringify(node.config[key] ?? null) !== JSON.stringify(before.config[key] ?? null))
-      .map((key) => ({ key, before: SECRET_FIELDS.includes(key) ? null : before.config[key] }));
+      .map((key) => ({ key, before: before.config[key] }));
     if (node.name !== before.name) fields.push({ key: 'name', before: before.name });
     if (nextOf(proposed, node) !== nextOf(current, before)) fields.push({ key: 'next step', before: null });
     if (fields.length) changed.set(node.id, fields);
@@ -540,6 +555,7 @@ function freshTask(takenNames = []) {
 function createStore() {
   const listeners = new Set();
   let tasks = [];
+  let credentials = [];
   let task = freshTask();
   let selectedId = null;
   let saveState = 'unsaved';
@@ -589,6 +605,11 @@ function createStore() {
   const changed = (change) => { markChanged(); emit(change); };
 
   const runner = createRunner((kind) => emit(kind === 'tick' ? 'tick' : 'run'));
+
+  const loadCredentials = async () => {
+    credentials = await request('/credentials');
+    emit('tasks');
+  };
 
   const loadTaskList = async () => {
     const grouped = await request('/task/grouped');
@@ -703,6 +724,16 @@ function createStore() {
     get canUndo() { return undoStack.length > 0; },
     get canRedo() { return redoStack.length > 0; },
     get tasks() { return tasks; },
+    get credentials() { return credentials; },
+    loadCredentials,
+    async saveCredential(name, stepType, values, editing) {
+      await request(editing ? `/credentials/${encodeURIComponent(name)}` : '/credentials', { method: editing ? 'PUT' : 'POST', body: JSON.stringify(editing ? values : { name, stepType, values }) });
+      await loadCredentials();
+    },
+    async deleteCredential(name) {
+      await request(`/credentials/${encodeURIComponent(name)}`, { method: 'DELETE' });
+      await loadCredentials();
+    },
     get runs() { return runs; },
     get issues() { return findIssues(task); },
     get defaults() { return Object.fromEntries(task.parameters.map((parameter) => [parameter.name, parameter.defaultValue || ''])); },
@@ -713,7 +744,6 @@ function createStore() {
       await request('/sso/logout', { method: 'POST' });
       window.location.assign('/public/index.html');
     },
-    get hasSecrets() { return task.nodes.some((node) => SECRET_FIELDS.some((key) => node.config[key])); },
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     loadTaskList,
 

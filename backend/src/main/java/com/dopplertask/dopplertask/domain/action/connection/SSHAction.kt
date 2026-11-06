@@ -6,18 +6,18 @@ import com.dopplertask.dopplertask.domain.SSHManager
 import com.dopplertask.dopplertask.domain.StatusCode
 import com.dopplertask.dopplertask.domain.TaskExecution
 import com.dopplertask.dopplertask.domain.action.Action
+import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationCategory
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
 import com.dopplertask.dopplertask.service.BroadcastListener
-import com.dopplertask.dopplertask.service.ColumnEncryptor
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import java.io.IOException
 import javax.persistence.Column
-import javax.persistence.Convert
 import javax.persistence.DiscriminatorValue
 import javax.persistence.Entity
 import javax.persistence.Lob
 import javax.persistence.Table
+import javax.persistence.Transient
 
 @Entity
 @Table(name = "SSHAction")
@@ -26,12 +26,10 @@ class SSHAction : Action() {
     @Column
     var hostname: String? = null
 
-    @Column
-    @Convert(converter = ColumnEncryptor::class)
+    @Transient
     var username: String? = null
 
-    @Column
-    @Convert(converter = ColumnEncryptor::class)
+    @Transient
     var password: String? = null
 
     @Lob
@@ -82,8 +80,8 @@ class SSHAction : Action() {
                     "Hostname or IP"
                 )
             )
-            actionInfo.add(PropertyInformation("username", "Username", PropertyInformationType.STRING, "", "Username"))
-            actionInfo.add(PropertyInformation("password", "Password", PropertyInformationType.STRING, "", "Password"))
+            actionInfo.add(PropertyInformation("username", "Username", PropertyInformationType.STRING, "", "Username", mutableListOf(), PropertyInformationCategory.CREDENTIAL))
+            actionInfo.add(PropertyInformation("password", "Password", PropertyInformationType.STRING, "", "Password", mutableListOf(), PropertyInformationCategory.SECRET))
             actionInfo.add(
                 PropertyInformation(
                     "command",

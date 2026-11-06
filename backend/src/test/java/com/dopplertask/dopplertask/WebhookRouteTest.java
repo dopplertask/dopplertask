@@ -13,7 +13,7 @@ import org.springframework.boot.autoconfigure.web.servlet.DispatcherServletAutoC
 import org.springframework.boot.autoconfigure.web.servlet.ServletWebServerFactoryAutoConfiguration;
 import org.springframework.boot.autoconfigure.web.servlet.WebMvcAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
-import com.dopplertask.dopplertask.filter.AgentSecrets;
+import com.dopplertask.dopplertask.service.CredentialService;
 import com.dopplertask.dopplertask.service.SsoService;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.web.server.LocalServerPort;
@@ -39,7 +39,7 @@ public class WebhookRouteTest {
     private TaskService taskService;
 
     @MockBean
-    private AgentSecrets agentSecrets;
+    private CredentialService credentialService;
 
     @MockBean
     private SsoService ssoService;

@@ -1,6 +1,7 @@
 package com.dopplertask.dopplertask;
 
 import java.util.List;
+import com.dopplertask.dopplertask.service.LegacySecretMigration;
 import com.dopplertask.dopplertask.service.RunHousekeeping;
 import org.apache.activemq.broker.BrokerService;
 import org.apache.activemq.broker.region.policy.PolicyEntry;
@@ -41,8 +42,11 @@ public class Application {
      * After everything is created and before any listener or the web server starts, so that no new run is touched.
      */
     @Bean
-    public SmartInitializingSingleton failInterruptedRuns(RunHousekeeping housekeeping) {
-        return housekeeping::failInterruptedRuns;
+    public SmartInitializingSingleton prepareSavedData(RunHousekeeping housekeeping, LegacySecretMigration secrets) {
+        return () -> {
+            secrets.migrate();
+            housekeeping.failInterruptedRuns();
+        };
     }
 
     @Bean

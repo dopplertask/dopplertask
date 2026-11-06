@@ -35,9 +35,9 @@ import org.apache.velocity.app.VelocityEngine;
 import org.jetbrains.annotations.NotNull;
 import org.reflections.Reflections;
 import com.dopplertask.dopplertask.filter.AccessFilter;
-import com.dopplertask.dopplertask.filter.AgentSecrets;
 import com.dopplertask.dopplertask.filter.Caller;
 import com.dopplertask.dopplertask.service.ApprovalRequiredException;
+import com.dopplertask.dopplertask.service.CredentialService;
 import com.dopplertask.dopplertask.service.SsoService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -74,11 +74,11 @@ public class TaskController {
 
     private final TaskService taskService;
     private final ExecutionService executionService;
-    private final AgentSecrets agentSecrets;
+    private final CredentialService credentialService;
     private final SsoService ssoService;
 
-    public TaskController(@Autowired TaskService taskService, @Autowired ExecutionService executionService, @Autowired AgentSecrets agentSecrets, @Autowired SsoService ssoService) {
-        this.agentSecrets = agentSecrets;
+    public TaskController(@Autowired TaskService taskService, @Autowired ExecutionService executionService, @Autowired CredentialService credentialService, @Autowired SsoService ssoService) {
+        this.credentialService = credentialService;
         this.ssoService = ssoService;
         this.taskService = taskService;
         this.executionService = executionService;
@@ -108,6 +108,7 @@ public class TaskController {
         boolean removeTaskAfterExecution = false;
         String token = "_UNSAVED_" + (int) (Math.random() * 1000000);
         if (taskRequestDTO.getTask() != null) {
+            credentialService.adoptInlineSecrets(taskRequestDTO.getTask().getActions(), AccessFilter.callerOf(servletRequest) == Caller.AGENT);
             this.taskService.createTask(taskRequestDTO.getTask().getName() + token, taskRequestDTO.getTask().getParameters(), taskRequestDTO.getTask().getActions(), taskRequestDTO.getTask().getDescription(), taskRequestDTO.getTask().getConnections(), taskRequestDTO.getTask().getName() + token, taskRequestDTO.getTask().isActive());
             removeTaskAfterExecution = true;
         }
@@ -269,8 +270,8 @@ public class TaskController {
         // Translate JSON to object
         ObjectMapper mapper = new ObjectMapper();
         boolean byAgent = AccessFilter.callerOf(servletRequest) == Caller.AGENT;
-        String taskJson = byAgent ? agentSecrets.restore(body, taskService.getTaskByName(mapper.readTree(body).path("name").asText())) : body;
-        TaskCreationDTO taskCreationDTO = mapper.readValue(taskJson, TaskCreationDTO.class);
+        TaskCreationDTO taskCreationDTO = mapper.readValue(body, TaskCreationDTO.class);
+        credentialService.adoptInlineSecrets(taskCreationDTO.getActions(), byAgent);
 
         // Generate compact JSON
         String compactJSON = mapper.writeValueAsString(taskCreationDTO);
@@ -328,8 +329,8 @@ public class TaskController {
 
     private ResponseEntity<ActionResult> runAction(Action action, TaskExecution execution) throws IOException {
         try {
-            ActionResult actionResult = action.run(taskService, execution, new VariableExtractorUtil(new VelocityEngine()), (output, outputType) -> {
-            });
+            ActionResult actionResult = credentialService.runWith(action, () -> action.run(taskService, execution, new VariableExtractorUtil(new VelocityEngine()), (output, outputType) -> {
+            }));
             if (actionResult != null) {
                 return new ResponseEntity<>(actionResult, HttpStatus.OK);
             }

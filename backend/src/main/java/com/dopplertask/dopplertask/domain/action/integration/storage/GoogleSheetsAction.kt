@@ -8,7 +8,6 @@ import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.Prop
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
 import com.dopplertask.dopplertask.domain.action.integration.JsonApi
 import com.dopplertask.dopplertask.service.BroadcastListener
-import com.dopplertask.dopplertask.service.ColumnEncryptor
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import com.fasterxml.jackson.databind.JsonNode
@@ -26,11 +25,11 @@ import java.util.Base64
 import java.util.Date
 import java.io.IOException
 import javax.persistence.Column
-import javax.persistence.Convert
 import javax.persistence.DiscriminatorValue
 import javax.persistence.Entity
 import javax.persistence.Lob
 import javax.persistence.Table
+import javax.persistence.Transient
 
 @Entity
 @Table(name = "GoogleSheetsAction")
@@ -39,9 +38,7 @@ class GoogleSheetsAction : Action() {
     @Column
     var baseUrl: String? = "https://sheets.googleapis.com"
 
-    @Lob
-    @Column(columnDefinition = "TEXT")
-    @Convert(converter = ColumnEncryptor::class)
+    @Transient
     var serviceAccountKey: String? = null
 
     @Column
@@ -142,7 +139,7 @@ class GoogleSheetsAction : Action() {
     override val actionInfo: MutableList<PropertyInformation>
         get() {
             val actionInfo = super.actionInfo
-            actionInfo.add(PropertyInformation("serviceAccountKey", "Service account key", PropertyInformationType.STRING, "", "The JSON file that Google Cloud gives for a service account. Share the spreadsheet with the email of that account.", mutableListOf(), PropertyInformationCategory.CREDENTIAL))
+            actionInfo.add(PropertyInformation("serviceAccountKey", "Service account key", PropertyInformationType.STRING, "", "The JSON file that Google Cloud gives for a service account. Share the spreadsheet with the email of that account.", mutableListOf(), PropertyInformationCategory.SECRET))
             actionInfo.add(PropertyInformation("spreadsheet", "Spreadsheet", PropertyInformationType.STRING, "", "The address or the id."))
             actionInfo.add(PropertyInformation("sheet", "Sheet", PropertyInformationType.STRING, "Sheet1", "The name of the tab."))
             actionInfo.add(PropertyInformation("operation", "Action", PropertyInformationType.DROPDOWN, READ_ROWS, "", listOf(

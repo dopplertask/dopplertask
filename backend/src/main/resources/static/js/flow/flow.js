@@ -26,6 +26,7 @@ export default function boot() {
       ${railButton('workflow', 'Diagram', 'data-flow="diagram"', !core.isHistoryOpen())}
       ${railButton('folder', 'Tasks', 'data-wb="tasks"', false, 'Switch task, new, import or export')}
       ${railButton('history', 'Runs', 'data-wb="history"', core.isHistoryOpen(), 'Run history')}
+      ${railButton('key', 'Credentials', 'data-flow="credentials"', false, 'What steps sign in with')}
       <span class="rail-space"></span>
       ${railButton('keyboard', 'Shortcuts', 'data-flow="shortcuts"', false, 'Keyboard shortcuts (?)')}`;
   }
@@ -195,6 +196,7 @@ export default function boot() {
     if (action === 'library') setLibrary(!libraryOpen || !!store.selectedId);
     if (action === 'diagram') { store.select(null); if (core.isHistoryOpen()) byId('rail').querySelector('[data-wb="history"]').click(); setLibrary(false); }
     if (action === 'shortcuts') DT.ui.openShortcutsDialog();
+    if (action === 'credentials') store.loadCredentials().then(() => DT.ui.openCredentialsDialog(store), (error) => DT.ui.toast(error.message, { tone: 'danger' }));
     if (action === 'save') store.save().then((message) => DT.ui.toast(message), (error) => DT.ui.toast(error.message, { tone: 'danger' }));
     if (action === 'approve') store.approveProposal().then(() => DT.ui.toast('Approved. This version is now the current one.'), (error) => DT.ui.toast(error.message, { tone: 'danger' }));
     if (action === 'reject') store.rejectProposal().then(() => DT.ui.toast('Proposal rejected.'), (error) => DT.ui.toast(error.message, { tone: 'danger' }));
@@ -220,7 +222,7 @@ export default function boot() {
   core.syncTaskControls();
   syncParameters();
   store.loadPerson().catch(() => {});
-  store.loadTaskList().then(store.openLastTask).catch((error) => DT.ui.toast(error.message, { tone: 'danger' }));
+  Promise.all([store.loadCredentials().catch(() => {}), store.loadTaskList()]).then(store.openLastTask).catch((error) => DT.ui.toast(error.message, { tone: 'danger' }));
   renderWires();
   Object.assign(view, fitTarget());
   applyView();

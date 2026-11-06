@@ -1,7 +1,5 @@
 package com.dopplertask.dopplertask.service;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -16,20 +14,20 @@ import java.security.Key;
 import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
 
+/**
+ * What steps stored before credentials: it reads what is moved to them, and the address fields of MySQL and Jenkins.
+ * Secrets are not kept with this, see {@link CredentialCipher}.
+ */
 @Component
 public class ColumnEncryptor implements AttributeConverter<String, String> {
 
-    private static final Logger LOG = LoggerFactory.getLogger(ColumnEncryptor.class);
     private static final String AES = "AES";
     private static final String PUBLIC_DEFAULT_KEY = "KbPeShVmYq3t6v9y";
 
     private final Key key;
 
-    public ColumnEncryptor(@Value("${dopplertask.encryptionKey}") String secret) {
-        key = new SecretKeySpec(secret.getBytes(), AES);
-        if (PUBLIC_DEFAULT_KEY.equals(secret)) {
-            LOG.warn("Secrets are encrypted with the public default key. Set DOPPLERTASK_ENCRYPTION_KEY before storing any.");
-        }
+    public ColumnEncryptor(@Value("${dopplertask.encryptionKey:}") String secret) {
+        key = new SecretKeySpec((secret.isEmpty() ? PUBLIC_DEFAULT_KEY : secret).getBytes(), AES);
     }
 
     @Override

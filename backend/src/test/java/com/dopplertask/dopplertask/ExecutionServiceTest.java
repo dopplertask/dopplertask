@@ -10,6 +10,7 @@ import com.dopplertask.dopplertask.domain.TaskExecution;
 import com.dopplertask.dopplertask.domain.action.StartAction;
 import com.dopplertask.dopplertask.domain.action.common.SetVariable;
 import com.dopplertask.dopplertask.domain.action.common.SetVariableAction;
+import com.dopplertask.dopplertask.service.CredentialService;
 import com.dopplertask.dopplertask.service.ExecutionServiceImpl;
 import com.dopplertask.dopplertask.service.TaskExecutionRequest;
 import com.dopplertask.dopplertask.service.TaskServiceImpl;
@@ -39,11 +40,21 @@ public class ExecutionServiceTest {
     @InjectMocks
     private ExecutionServiceImpl executionService;
 
+    @org.junit.Before
+    public void runStepsWithoutCredentials() throws Exception {
+        org.mockito.MockitoAnnotations.openMocks(this);
+        org.mockito.Mockito.lenient().when(credentialService.runWith(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(call -> ((CredentialService.StepRun) call.getArgument(1)).run());
+    }
+
     @Mock
     private TaskServiceImpl taskService;
 
     @Mock
     private TaskDao taskDao;
+
+    @Mock
+    private CredentialService credentialService;
 
     @Mock
     private TaskExecutionDao taskExecutionDao;

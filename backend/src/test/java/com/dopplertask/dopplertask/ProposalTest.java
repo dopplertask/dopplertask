@@ -128,29 +128,26 @@ public class ProposalTest {
     }
 
     @Test
-    public void testAnAgentNeverSeesASecretButCanKeepItSuccess() throws Exception {
+    public void testASavedSecretBecomesACredentialThatNobodyCanReadBackSuccess() throws Exception {
         String name = "proposal_secret";
         this.mockMvc.perform(post("/task").content(taskWithSecret(name, "ls", "real-secret"))).andExpect(status().isOk());
 
+        for (String asked : java.util.List.of("/task/" + name + "/taskname", "/credentials")) {
+            for (MockHttpServletRequestBuilder request : java.util.List.of(get(asked), asAgent(get(asked)))) {
+                String answer = this.mockMvc.perform(request).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+                org.junit.Assert.assertFalse(answer, answer.contains("real-secret"));
+            }
+        }
         this.mockMvc.perform(asAgent(get("/task/" + name + "/taskname")))
-                .andExpect(jsonPath("$.actions[1].password").value("********"))
+                .andExpect(jsonPath("$.actions[1].credential").isNotEmpty())
                 .andExpect(jsonPath("$.actions[1].command").value("ls"));
-
-        String proposal = checksumOf(this.mockMvc.perform(asAgent(post("/task")).content(taskWithSecret(name, "pwd", "********"))));
-        this.mockMvc.perform(post("/task/" + proposal + "/approve")).andExpect(status().isOk());
-
-        this.mockMvc.perform(get("/task/" + name + "/taskname"))
-                .andExpect(jsonPath("$.actions[1].command").value("pwd"))
-                .andExpect(jsonPath("$.actions[1].password").value("real-secret"));
     }
 
     @Test
-    public void testAMaskWithNothingBehindItIsNotStoredSuccess() throws Exception {
-        String name = "proposal_no_secret";
-        String proposal = checksumOf(this.mockMvc.perform(asAgent(post("/task")).content(taskWithSecret(name, "ls", "********"))));
-        this.mockMvc.perform(post("/task/" + proposal + "/approve")).andExpect(status().isOk());
-        String stored = this.mockMvc.perform(get("/task/" + name + "/taskname")).andReturn().getResponse().getContentAsString();
-        org.junit.Assert.assertFalse(stored, stored.contains("********"));
+    public void testAnAgentCannotSendASecretInAStepFail() throws Exception {
+        this.mockMvc.perform(asAgent(post("/task")).content(taskWithSecret("proposal_no_secret", "ls", "real-secret")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("list_credentials")));
     }
 
     @Test

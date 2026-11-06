@@ -8,16 +8,15 @@ import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.Prop
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
 import com.dopplertask.dopplertask.domain.action.integration.JsonApi
 import com.dopplertask.dopplertask.service.BroadcastListener
-import com.dopplertask.dopplertask.service.ColumnEncryptor
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import java.io.IOException
 import javax.persistence.Column
-import javax.persistence.Convert
 import javax.persistence.DiscriminatorValue
 import javax.persistence.Entity
 import javax.persistence.Lob
 import javax.persistence.Table
+import javax.persistence.Transient
 
 @Entity
 @Table(name = "NotionAction")
@@ -26,8 +25,7 @@ class NotionAction : Action() {
     @Column
     var baseUrl: String? = "https://api.notion.com"
 
-    @Column
-    @Convert(converter = ColumnEncryptor::class)
+    @Transient
     var token: String? = null
 
     @Column
@@ -102,7 +100,7 @@ class NotionAction : Action() {
     override val actionInfo: MutableList<PropertyInformation>
         get() {
             val actionInfo = super.actionInfo
-            actionInfo.add(PropertyInformation("token", "Token", PropertyInformationType.STRING, "", "From an integration in Notion. The page has to be shared with it.", mutableListOf(), PropertyInformationCategory.CREDENTIAL))
+            actionInfo.add(PropertyInformation("token", "Token", PropertyInformationType.STRING, "", "From an integration in Notion. The page has to be shared with it.", mutableListOf(), PropertyInformationCategory.SECRET))
             actionInfo.add(PropertyInformation("operation", "Action", PropertyInformationType.DROPDOWN, CREATE_PAGE, "", listOf(
                 PropertyInformation(CREATE_PAGE, "Create a page"),
                 PropertyInformation(ADD_TEXT, "Add text to a page")
