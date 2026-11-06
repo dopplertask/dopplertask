@@ -303,6 +303,7 @@ const outputPortsOf = (action) => (action.ports || []).filter((port) => port.por
 /* Reads any saved or imported task, including ones made before this UI, whose port ids carry no meaning. */
 function fromBackend(saved) {
   const portOwners = {};
+  if (!Array.isArray(saved.actions)) throw new Error('That file is not a task, since it has no steps.');
   const nodes = saved.actions.map((action) => {
     const type = TYPE_BY_BACKEND[action['@type']];
     if (!type) throw new Error(`This task uses a step this version does not know: ${action['@type']}.`);
@@ -606,6 +607,7 @@ function createStore() {
     get issues() { return findIssues(task); },
     get defaults() { return Object.fromEntries(task.parameters.map((parameter) => [parameter.name, parameter.defaultValue || ''])); },
     get autoSave() { return autoSave; },
+    get hasSecrets() { return task.nodes.some((node) => SECRET_FIELDS.some((key) => node.config[key])); },
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     loadTaskList,
 

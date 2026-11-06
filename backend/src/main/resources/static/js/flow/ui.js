@@ -480,7 +480,7 @@ export default function boot() {
     link.download = `${store.task.name}.json`;
     link.click();
     URL.revokeObjectURL(link.href);
-    toast(`Exported ${link.download}`);
+    toast(store.hasSecrets ? `Exported ${link.download}. It contains passwords in clear text, so keep it private.` : `Exported ${link.download}`);
   }
 
   function importTask(store) {
@@ -489,7 +489,7 @@ export default function boot() {
     picker.accept = 'application/json,.json';
     picker.addEventListener('change', async () => {
       try { store.importTask(await picker.files[0].text()); toast('Task imported'); }
-      catch (error) { toast(error.message || 'That file could not be read.', { tone: 'danger' }); }
+      catch (error) { toast(error instanceof SyntaxError ? 'That file is not valid JSON, so it is not a task.' : error.message, { tone: 'danger' }); }
     });
     picker.click();
   }
