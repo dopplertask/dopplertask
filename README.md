@@ -55,6 +55,8 @@ If CLI is installed as mentioned in the prerequisites, it can be run like so (Se
 
 ## Usage
 
+To build a task through the API, start at [Build a task through the API](#build-a-task-through-the-api).
+
 ### Example
 #### Add a task
 
@@ -136,11 +138,12 @@ Example of the call:
 
 * `GET /task/actions` lists every action and its fields. A field can be nested under the options of another field, like `body` under `method` in HttpAction.
 * `POST /task` saves a new version of the task, and the newest version is the one that runs. If it fails, the response says why.
+* `GET /task/{name}/taskname` reads back the newest version of a task, and `GET /task/grouped` lists all tasks.
 * `DELETE /task/{checksum}` deletes one version.
 * Every task needs a StartAction, also when a webhook starts it.
 * Actions are connected through their ports. A connection goes from the `externalId` of an OUTPUT port to the `externalId` of an INPUT port.
 * A field of the type MAP is a list of objects, which use the option names of the field as keys.
-* All fields are evaluated with Velocity by default. With `"scriptLanguage": "JAVASCRIPT"` every field of the action is evaluated as a script, so plain text must be quoted, like `"\"https://example.com\""`.
+* All fields are evaluated with Velocity by default. With `"scriptLanguage": "JAVASCRIPT"` every field of the action is evaluated as a script, so plain text must be quoted, like `"\"https://example.com\""`. This also applies to header names and values. In a script the variables are read as `parameters.get("name")` and `lastLog.getOutput()`, and the last expression is the value.
 
 This task sends a request to another service when an order is received on a webhook:
 
@@ -172,6 +175,49 @@ This task sends a request to another service when an order is received on a webh
 ```
 
 It is called with `POST /webhook/notify_on_order/Webhook/orders`.
+
+This task uses data from two earlier responses. The first response is saved with SetVariableAction, since the next action replaces `lastLog`. JavaScript reads JSON with `JSON.parse(lastLog.getOutput())`:
+
+```json
+{
+  "name": "user_summary",
+  "actions": [
+    {"@type": "StartAction", "ports": [{"externalId": "summary_start", "portType": "OUTPUT"}]},
+    {
+      "@type": "HttpAction",
+      "url": "https://example.com/user",
+      "method": "GET",
+      "ports": [{"externalId": "user_in", "portType": "INPUT"}, {"externalId": "user_out", "portType": "OUTPUT"}]
+    },
+    {
+      "@type": "SetVariableAction",
+      "scriptLanguage": "JAVASCRIPT",
+      "setVariableList": [{"name": "userName", "value": "JSON.parse(lastLog.getOutput()).name"}],
+      "ports": [{"externalId": "save_in", "portType": "INPUT"}, {"externalId": "save_out", "portType": "OUTPUT"}]
+    },
+    {
+      "@type": "HttpAction",
+      "url": "https://example.com/orders",
+      "method": "GET",
+      "ports": [{"externalId": "orders_in", "portType": "INPUT"}, {"externalId": "orders_out", "portType": "OUTPUT"}]
+    },
+    {
+      "@type": "HttpAction",
+      "scriptLanguage": "JAVASCRIPT",
+      "url": "\"https://example.com/summary\"",
+      "method": "POST",
+      "body": "parameters.get(\"userName\") + \" owes \" + JSON.parse(lastLog.getOutput()).total",
+      "ports": [{"externalId": "summary_in", "portType": "INPUT"}]
+    }
+  ],
+  "connections": [
+    {"source": {"externalId": "summary_start"}, "target": {"externalId": "user_in"}},
+    {"source": {"externalId": "user_out"}, "target": {"externalId": "save_in"}},
+    {"source": {"externalId": "save_out"}, "target": {"externalId": "orders_in"}},
+    {"source": {"externalId": "orders_out"}, "target": {"externalId": "summary_in"}}
+  ]
+}
+```
 
 This task retries a request until the other service stops answering with a server error, and then only continues if the response says that it is ok:
 
@@ -260,6 +306,8 @@ Connects to a machine via SSH and executes a command
 Every HTTP status counts as a success. To fail on a status, use failOn with `$result.outputVariables.statusCode`.
 
 #### MySQLAction
+The output is JSON in the form `[{"query": "...", "rows": [{"columns": [{"name": "...", "value": "..."}]}]}]`.
+
 Executes a MySQL statement, like a SELECT statement.
 ##### Variables
 * hostname: hostname to connect to
@@ -334,9 +382,17 @@ Reads a file from disk.
 * type: JSON_TO_XML or XML_TO_JSON.
 
 #### SetVariableAction
-Sets or modifies a variable for the current execution.
+Sets or modifies a variable for the current execution. A variable is read with `$parameters.get("name")`.
 ##### Variables
-* setVariableList: A list of key-value pairs of variables.
+* setVariableList: A list of variables, like `[{"name": "city", "value": "Oslo"}]`. Only `value` is evaluated.
+
+#### SwitchAction
+Routes the flow by comparing a value with a list of cases.
+##### Variables
+* value: The value to compare.
+* switchCases: A list of cases, like `[{"currentCase": "high"}, {"currentCase": "low"}]`.
+
+The first OUTPUT ports match the cases in order. One more OUTPUT port after the last case is the default path, which is used when no case matches. Without it, a value that matches no case fails the run.
 
 #### ExecuteCommandAction
 Executes a command on the current machine.
@@ -375,17 +431,41 @@ A task name containing a forward slash must be URL-encoded: `folder/task` become
 * method: HTTP Method which this webhook will respond to.
 
 #### Webhook
-This webhook will respond to a REST call and start the flow. The body of the call is available as `$parameters.get("TRIGGER_body")`.
+This webhook will respond to a REST call and start the flow. The body of the call is available as `$parameters.get("TRIGGER_body")`. Send it with a `Content-Type` such as `application/json`, since a form-encoded body is changed on the way.
+
+A webhook only starts the flow when the task is active. To require credentials, set `authentication`:
+* `none`: No credentials.
+* `bearer`: The call must have the header `Authorization: Bearer <token>`, where `token` is set on the action.
+* `basic`: The call must use basic authentication with `username` and `password` set on the action.
+* `header`: The call must have the header `headerName` with the value `headerValue`, both set on the action.
+
+A call that is rejected ends as a failed execution and does not continue the flow.
 
 #### IntervalTrigger
-Starts the flow at an interval, while the task is active.
+Starts the flow at an interval, while the task has `"active": true`. A trigger is an action next to the StartAction, and its OUTPUT port connects to the first action to run:
+
+```json
+{
+  "name": "ping_every_minute",
+  "active": true,
+  "actions": [
+    {"@type": "StartAction"},
+    {"@type": "IntervalTrigger", "time": "1", "timeUnit": "MINUTES", "ports": [{"externalId": "timer_out", "portType": "OUTPUT"}]},
+    {"@type": "HttpAction", "url": "https://example.com/ping", "method": "GET", "ports": [{"externalId": "ping_in", "portType": "INPUT"}]}
+  ],
+  "connections": [
+    {"source": {"externalId": "timer_out"}, "target": {"externalId": "ping_in"}}
+  ]
+}
+```
 ##### Variables
 * time: The length of the interval.
 * timeUnit: SECONDS, MINUTES, HOURS or DAYS.
 
 ## Important variables
 
-* $lastLog.output / lastLog.getOutput(): Gets the last actions output
+* $lastLog.output / lastLog.getOutput(): Gets the last actions output. Every action replaces it, also an IfAction, whose output is `true` or `false`. To use a value later, save it with SetVariableAction first.
+* $lastLog.outputVariables / lastLog.getOutputVariables(): Gets the extra values of the last action, like `statusCode` from HttpAction.
 * $parameters.get("paramname") / parameters.get("paramname"): Retrieves a stored parameter value. All Task paramters are stored here. You can also get the byte array of the parameter by adding .getParamValue() to the end of the statement.
 * $logs / logs: A list of all task action logs. Can be traversed to look up specific values.
 * $executionId / executionId: It's the ID of the current execution.
