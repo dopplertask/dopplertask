@@ -94,6 +94,7 @@ class HttpAction : Action() {
 
             response = client.send(request, HttpResponse.BodyHandlers.ofString())
             actionResult.output = response.body()
+            actionResult.outputVariables["statusCode"] = response.statusCode()
             response.headers().map().forEach { (key, value) ->
                 actionResult.outputVariables[key] = value
             }

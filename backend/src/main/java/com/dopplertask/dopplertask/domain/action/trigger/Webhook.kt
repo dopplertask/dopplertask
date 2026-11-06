@@ -139,6 +139,11 @@ class Webhook : Trigger() {
             val actionInfo = super.actionInfo
             actionInfo.add(
                 PropertyInformation(
+                    "triggerSuffix", "Webhook URL suffix", PropertyInformation.PropertyInformationType.STRING, "", "Part of the webhook URL that makes it unique."
+                )
+            )
+            actionInfo.add(
+                PropertyInformation(
                     "method", "Method", PropertyInformation.PropertyInformationType.DROPDOWN, "GET", "HTTP Method",
                     mutableListOf(
                         PropertyInformation("GET", "GET"),
