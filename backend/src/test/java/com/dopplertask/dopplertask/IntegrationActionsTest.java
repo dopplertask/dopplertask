@@ -25,6 +25,11 @@ import org.apache.velocity.app.VelocityEngine;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import com.dopplertask.dopplertask.domain.action.integration.mail.EmailAction;
+import com.dopplertask.dopplertask.domain.action.integration.storage.S3Action;
+import com.icegreen.greenmail.util.GreenMail;
+import com.icegreen.greenmail.util.ServerSetupTest;
+import javax.mail.internet.MimeMessage;
 import org.junit.Test;
 import java.util.Map;
 import java.util.List;
@@ -263,6 +268,16 @@ public class IntegrationActionsTest {
     }
 
     @Test
+    public void testPagerDutyOpensWithTheKeyForTheNewIncidentSuccess() throws IOException {
+        answerStatus = 202;
+        PagerDutyAction pagerDuty = pagerDuty();
+        pagerDuty.setNewIncidentKey("disk-web-1");
+        pagerDuty.setIncidentKey("an-old-one");
+        run(pagerDuty);
+        Assert.assertEquals("disk-web-1", received.path("dedup_key").asText());
+    }
+
+    @Test
     public void testPagerDutyAsksForTheKeyBeforeResolvingFail() throws IOException {
         PagerDutyAction pagerDuty = pagerDuty();
         pagerDuty.setOperation("resolve");
@@ -276,7 +291,8 @@ public class IntegrationActionsTest {
         gitHub.setToken("ghp");
         gitHub.setRepository("acme/site");
         gitHub.setTitle("Disk is full");
-        gitHub.setText("On web-1");
+        gitHub.setIssueDescription("On web-1");
+        gitHub.setComment("Looking at it");
         return gitHub;
     }
 
@@ -342,7 +358,8 @@ public class IntegrationActionsTest {
         jira.setToken("pat");
         jira.setProject("OPS");
         jira.setSummary("Disk is full");
-        jira.setText("On web-1");
+        jira.setIssueDescription("On web-1");
+        jira.setComment("Looking at it");
         return jira;
     }
 
@@ -372,7 +389,7 @@ public class IntegrationActionsTest {
         Assert.assertEquals(StatusCode.SUCCESS, result.getStatusCode());
         Assert.assertEquals("/rest/api/2/issue/OPS-12/comment", path);
         Assert.assertEquals("Basic YUBiLnNlOnBhdA==", authorization);
-        Assert.assertEquals("On web-1", received.path("body").asText());
+        Assert.assertEquals("Looking at it", received.path("body").asText());
         Assert.assertEquals(baseUrl + "/browse/OPS-12", result.getOutputVariables().get("url"));
     }
 
@@ -461,5 +478,98 @@ public class IntegrationActionsTest {
         Assert.assertEquals(Map.of("issueNumber", 7), step.getOutputVariables());
         Assert.assertEquals(Map.of("issueNumber", 7), step.copyTo(new TaskExecution()).getOutputVariables());
         Assert.assertEquals(Map.of(), new TaskExecutionStep().getOutputVariables());
+    }
+
+    private EmailAction email(int port) {
+        EmailAction email = new EmailAction();
+        email.setHostname("localhost");
+        email.setPort(String.valueOf(port));
+        email.setSecurity("none");
+        email.setFrom("alerts@example.com");
+        email.setTo("ada@example.com, grace@example.com");
+        email.setSubject("Disk is full\nBcc: everyone@example.com");
+        email.setMessage("On web-1");
+        return email;
+    }
+
+    @Test
+    public void testEmailReachesARealServerAndAnEarlierStepCannotAddAHeaderSuccess() throws Exception {
+        GreenMail server = new GreenMail(ServerSetupTest.SMTP);
+        server.start();
+        try {
+            ActionResult result = run(email(server.getSmtp().getPort()));
+            Assert.assertEquals(result.getErrorMsg(), StatusCode.SUCCESS, result.getStatusCode());
+            Assert.assertNotNull(result.getOutputVariables().get("messageId"));
+            MimeMessage[] messages = server.getReceivedMessages();
+            Assert.assertEquals(2, messages.length);
+            Assert.assertEquals("Disk is full Bcc: everyone@example.com", messages[0].getSubject());
+            Assert.assertNull(messages[0].getHeader("Bcc"));
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
+    public void testEmailDoesNotSendWithoutEncryptionWhenItIsAskedForFail() throws IOException {
+        GreenMail server = new GreenMail(ServerSetupTest.SMTP);
+        server.start();
+        try {
+            EmailAction email = email(server.getSmtp().getPort());
+            email.setSecurity("starttls");
+            ActionResult result = run(email);
+            Assert.assertEquals(StatusCode.FAILURE, result.getStatusCode());
+            Assert.assertEquals(0, server.getReceivedMessages().length);
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
+    public void testEmailSaysWhatIsWrongFail() throws IOException {
+        EmailAction email = email(1);
+        Assert.assertEquals("Could not connect to the mail server at localhost:1. Check the address, and that the service is running.", run(email).getErrorMsg());
+        email.setTo("not an address");
+        Assert.assertTrue(run(email).getErrorMsg().startsWith("Email could not read the address"));
+    }
+
+    // The example that AWS publishes for Signature Version 4, so the signature is checked against AWS and not against this code.
+    @Test
+    public void testS3SignsAsThePublishedExampleFromAwsSuccess() {
+        Map<String, String> headers = Map.of(
+                "host", "examplebucket.s3.amazonaws.com",
+                "range", "bytes=0-9",
+                "x-amz-content-sha256", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "x-amz-date", "20130524T000000Z");
+        String authorization = S3Action.Companion.authorization("GET", "/test.txt", headers, "AKIAIOSFODNN7EXAMPLE", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", "us-east-1", "20130524T000000Z");
+        Assert.assertEquals("AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request,SignedHeaders=host;range;x-amz-content-sha256;x-amz-date,Signature=f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039c6036bdb41", authorization);
+    }
+
+    private S3Action s3() {
+        S3Action s3 = new S3Action();
+        s3.setBaseUrl(baseUrl);
+        s3.setAccessKeyId("key");
+        s3.setSecretAccessKey("secret");
+        s3.setBucket("reports");
+        s3.setKey("2026/today report.txt");
+        return s3;
+    }
+
+    @Test
+    public void testS3WritesToAnEncodedPathSuccess() throws IOException {
+        S3Action s3 = s3();
+        s3.setOperation("write");
+        s3.setContent("{\"state\":\"fine\"}");
+        ActionResult result = run(s3);
+        Assert.assertEquals(result.getErrorMsg(), StatusCode.SUCCESS, result.getStatusCode());
+        Assert.assertEquals("PUT", method);
+        Assert.assertEquals("/reports/2026/today report.txt", path);
+        Assert.assertTrue(authorization.startsWith("AWS4-HMAC-SHA256 Credential=key/"));
+    }
+
+    @Test
+    public void testS3ReadsTheReasonFromItsAnswerFail() throws IOException {
+        answerStatus = 404;
+        answerBody = "<Error><Code>NoSuchKey</Code><Message>The specified key does not exist.</Message></Error>";
+        Assert.assertEquals("S3 answered with status 404: The specified key does not exist.", run(s3()).getErrorMsg());
     }
 }

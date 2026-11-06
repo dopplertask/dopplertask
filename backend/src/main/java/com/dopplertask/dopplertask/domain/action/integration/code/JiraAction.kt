@@ -51,7 +51,11 @@ class JiraAction : Action() {
 
     @Lob
     @Column(columnDefinition = "TEXT")
-    var text: String? = null
+    var issueDescription: String? = null
+
+    @Lob
+    @Column(columnDefinition = "TEXT")
+    var comment: String? = null
 
     @Throws(IOException::class)
     override fun run(
@@ -67,13 +71,14 @@ class JiraAction : Action() {
         val projectValue = variableExtractorUtil.extract(project, execution, scriptLanguage).trim()
         val keyValue = variableExtractorUtil.extract(issueKey, execution, scriptLanguage).trim()
         val summaryValue = variableExtractorUtil.extract(summary, execution, scriptLanguage)
-        val textValue = variableExtractorUtil.extract(text, execution, scriptLanguage)
+        val descriptionValue = variableExtractorUtil.extract(issueDescription, execution, scriptLanguage)
+        val commentValue = variableExtractorUtil.extract(comment, execution, scriptLanguage)
         if (site.isBlank()) return ActionResult.failure("Jira needs the address of the site, such as https://acme.atlassian.net.")
         if (tokenValue.isBlank()) return ActionResult.failure("Jira needs an API token.")
         if (operationValue == CREATE_ISSUE && projectValue.isBlank()) return ActionResult.failure("Jira needs the key of a project, such as OPS.")
         if (operationValue == CREATE_ISSUE && summaryValue.isBlank()) return ActionResult.failure("Jira needs a summary for the issue.")
         if (operationValue == ADD_COMMENT && keyValue.isBlank()) return ActionResult.failure("Jira needs the key of the issue, such as OPS-12.")
-        if (operationValue == ADD_COMMENT && textValue.isBlank()) return ActionResult.failure("Jira needs the text of the comment.")
+        if (operationValue == ADD_COMMENT && commentValue.isBlank()) return ActionResult.failure("Jira needs the text of the comment.")
 
         // Jira in the cloud signs in with an email and a token, and on your own server with the token alone.
         val authorization = if (emailValue.isEmpty()) "Bearer $tokenValue"
@@ -85,9 +90,9 @@ class JiraAction : Action() {
                 "project" to mapOf("key" to projectValue),
                 "issuetype" to mapOf("name" to variableExtractorUtil.extract(issueType, execution, scriptLanguage)),
                 "summary" to summaryValue,
-                "description" to textValue
+                "description" to descriptionValue
             )))
-            ADD_COMMENT -> JsonApi.call("Jira", "POST", "$site/rest/api/2/issue/$keyValue/comment", headers, mapOf("body" to textValue))
+            ADD_COMMENT -> JsonApi.call("Jira", "POST", "$site/rest/api/2/issue/$keyValue/comment", headers, mapOf("body" to commentValue))
             else -> ActionResult.failure("Jira has no operation called \"$operationValue\".")
         }
         if (result.statusCode == StatusCode.SUCCESS) {
@@ -119,7 +124,8 @@ class JiraAction : Action() {
             actionInfo.add(PropertyInformation("issueType", "Issue type", PropertyInformationType.STRING, "Task", "As it is named in the project, such as Task or Bug.", mutableListOf(), PropertyInformationCategory.PROPERTY, creating))
             actionInfo.add(PropertyInformation("summary", "Summary", PropertyInformationType.STRING, "", "", mutableListOf(), PropertyInformationCategory.PROPERTY, creating))
             actionInfo.add(PropertyInformation("issueKey", "Issue key", PropertyInformationType.STRING, "", "Such as OPS-12. A step that creates an issue gives it as \$lastLog.outputVariables.issueKey.", mutableListOf(), PropertyInformationCategory.PROPERTY, mapOf("operation" to arrayOf(ADD_COMMENT))))
-            actionInfo.add(PropertyInformation("text", "Text", PropertyInformationType.MULTILINE, "", "The description of the issue, or the comment."))
+            actionInfo.add(PropertyInformation("issueDescription", "Description", PropertyInformationType.MULTILINE, "", "", mutableListOf(), PropertyInformationCategory.PROPERTY, creating))
+            actionInfo.add(PropertyInformation("comment", "Comment", PropertyInformationType.MULTILINE, "", "", mutableListOf(), PropertyInformationCategory.PROPERTY, mapOf("operation" to arrayOf(ADD_COMMENT))))
             return actionInfo
         }
 

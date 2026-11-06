@@ -332,7 +332,8 @@ Opens, acknowledges or resolves an incident through the Events API v2. The next 
 * operation: `open`, `acknowledge` or `resolve`.
 * summary: What is wrong. Required to open an incident.
 * severity: `critical`, `error`, `warning` or `info`.
-* incidentKey: Optional when opening, and then the same key does not open a second incident. Required to acknowledge or resolve.
+* newIncidentKey: Optional when opening. Opening with the same key again does not open a second incident.
+* incidentKey: Required to acknowledge or resolve.
 * baseUrl: Optional. An account in the EU uses `https://events.eu.pagerduty.com`.
 
 #### GitHubAction
@@ -344,7 +345,8 @@ Creates, comments on or closes an issue. The next step can read `$lastLog.output
 * operation: `createIssue`, `addComment` or `closeIssue`.
 * issueNumber: Required to comment or close.
 * title: Required to create.
-* text: The description of the issue, or the comment. Required to comment.
+* issueDescription: Used to create.
+* comment: Required to comment.
 * baseUrl: Optional. GitHub Enterprise uses `https://your-host/api/v3`.
 
 #### JiraAction
@@ -357,7 +359,8 @@ Creates or comments on an issue, both in the cloud and on your own server. The n
 * operation: `createIssue` or `addComment`.
 * project, issueType, summary: Used to create. The type is `Task` if nothing else is said.
 * issueKey: Such as `OPS-12`. Used to comment.
-* text: The description of the issue, or the comment.
+* issueDescription: Used to create.
+* comment: Required to comment.
 
 #### RedisAction
 Reads and writes a value in Redis. A key that does not exist is not a failure, and a later step can branch on `$lastLog.outputVariables.found`.
@@ -378,6 +381,30 @@ Runs a query on a PostgreSQL database. Rows are given as JSON, such as `[{"id":1
 * useTls: Requires an encrypted connection. The certificate of the server is not verified.
 * command: The query. Write `?` where a value goes.
 * queryValues: One value per line, for each `?`. Use this for text from earlier steps, since it cannot change the query.
+
+#### EmailAction
+Sends an email through a mail server. With STARTTLS or TLS nothing is sent unless the connection is encrypted and the certificate of the server is valid.
+
+##### Variables
+* hostname, port: The mail server. The port is 587 if nothing else is said.
+* security: `starttls`, `tls` or `none`.
+* username, password: Leave them empty if the server does not ask for them.
+* from: The address to send from.
+* to: One address, or several separated by commas.
+* subject, message: The content.
+* asHtml: `true` to send the message as HTML.
+
+#### S3Action
+Reads, writes or deletes a text file in S3, or in a service that works like it, such as MinIO. A file that is read becomes the output of the step.
+
+##### Variables
+* accessKeyId, secretAccessKey: The credentials.
+* region: Such as `eu-north-1`.
+* operation: `read`, `write` or `delete`.
+* bucket: The bucket.
+* key: The path of the file in the bucket.
+* content: The text to write.
+* baseUrl: Only set this for a service that works like S3.
 
 #### SlackAction
 Sends a message to a Slack channel. The bot needs the `chat:write` permission and has to be a member of the channel. The next step can read the id of the message from `$lastLog.outputVariables.messageId`, for example to reply in its thread.

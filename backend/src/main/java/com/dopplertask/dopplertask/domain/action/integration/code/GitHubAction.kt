@@ -44,7 +44,11 @@ class GitHubAction : Action() {
 
     @Lob
     @Column(columnDefinition = "TEXT")
-    var text: String? = null
+    var issueDescription: String? = null
+
+    @Lob
+    @Column(columnDefinition = "TEXT")
+    var comment: String? = null
 
     @Throws(IOException::class)
     override fun run(
@@ -58,18 +62,19 @@ class GitHubAction : Action() {
         val operationValue = variableExtractorUtil.extract(operation, execution, scriptLanguage)
         val numberValue = variableExtractorUtil.extract(issueNumber, execution, scriptLanguage).trim()
         val titleValue = variableExtractorUtil.extract(title, execution, scriptLanguage)
-        val textValue = variableExtractorUtil.extract(text, execution, scriptLanguage)
+        val descriptionValue = variableExtractorUtil.extract(issueDescription, execution, scriptLanguage)
+        val commentValue = variableExtractorUtil.extract(comment, execution, scriptLanguage)
         if (tokenValue.isBlank()) return ActionResult.failure("GitHub needs a token, with permission to write issues in the repository.")
         if (repositoryValue.count { it == '/' } != 1) return ActionResult.failure("GitHub needs a repository written as owner/name, and got \"$repositoryValue\".")
         if (operationValue == CREATE_ISSUE && titleValue.isBlank()) return ActionResult.failure("GitHub needs a title for the issue.")
         if (operationValue != CREATE_ISSUE && numberValue.toLongOrNull() == null) return ActionResult.failure("GitHub needs the number of the issue, and got \"$numberValue\".")
-        if (operationValue == ADD_COMMENT && textValue.isBlank()) return ActionResult.failure("GitHub needs the text of the comment.")
+        if (operationValue == ADD_COMMENT && commentValue.isBlank()) return ActionResult.failure("GitHub needs the text of the comment.")
 
         val issues = variableExtractorUtil.extract(baseUrl, execution, scriptLanguage).trimEnd('/') + "/repos/$repositoryValue/issues"
         val headers = mapOf("Authorization" to "Bearer $tokenValue")
         val result = when (operationValue) {
-            CREATE_ISSUE -> JsonApi.call("GitHub", "POST", issues, headers, mapOf("title" to titleValue, "body" to textValue))
-            ADD_COMMENT -> JsonApi.call("GitHub", "POST", "$issues/$numberValue/comments", headers, mapOf("body" to textValue))
+            CREATE_ISSUE -> JsonApi.call("GitHub", "POST", issues, headers, mapOf("title" to titleValue, "body" to descriptionValue))
+            ADD_COMMENT -> JsonApi.call("GitHub", "POST", "$issues/$numberValue/comments", headers, mapOf("body" to commentValue))
             CLOSE_ISSUE -> JsonApi.call("GitHub", "PATCH", "$issues/$numberValue", headers, mapOf("state" to "closed"))
             else -> ActionResult.failure("GitHub has no operation called \"$operationValue\".")
         }
@@ -99,7 +104,8 @@ class GitHubAction : Action() {
             )))
             actionInfo.add(PropertyInformation("issueNumber", "Issue number", PropertyInformationType.STRING, "", "A step that creates an issue gives it as \$lastLog.outputVariables.issueNumber.", mutableListOf(), PropertyInformationCategory.PROPERTY, mapOf("operation" to arrayOf(ADD_COMMENT, CLOSE_ISSUE))))
             actionInfo.add(PropertyInformation("title", "Title", PropertyInformationType.STRING, "", "", mutableListOf(), PropertyInformationCategory.PROPERTY, mapOf("operation" to arrayOf(CREATE_ISSUE))))
-            actionInfo.add(PropertyInformation("text", "Text", PropertyInformationType.MULTILINE, "", "The description of the issue, or the comment. Markdown can be used.", mutableListOf(), PropertyInformationCategory.PROPERTY, mapOf("operation" to arrayOf(CREATE_ISSUE, ADD_COMMENT))))
+            actionInfo.add(PropertyInformation("issueDescription", "Description", PropertyInformationType.MULTILINE, "", "Markdown can be used.", mutableListOf(), PropertyInformationCategory.PROPERTY, mapOf("operation" to arrayOf(CREATE_ISSUE))))
+            actionInfo.add(PropertyInformation("comment", "Comment", PropertyInformationType.MULTILINE, "", "Markdown can be used.", mutableListOf(), PropertyInformationCategory.PROPERTY, mapOf("operation" to arrayOf(ADD_COMMENT))))
             actionInfo.add(PropertyInformation("baseUrl", "Base URL", PropertyInformationType.STRING, "https://api.github.com", "Only change this for GitHub Enterprise, which uses https://your-host/api/v3."))
             return actionInfo
         }

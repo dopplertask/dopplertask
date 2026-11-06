@@ -39,6 +39,9 @@ class PagerDutyAction : Action() {
     var severity: String? = "error"
 
     @Column
+    var newIncidentKey: String? = null
+
+    @Column
     var incidentKey: String? = null
 
     @Throws(IOException::class)
@@ -58,7 +61,8 @@ class PagerDutyAction : Action() {
         if (operationValue != OPEN && incidentKeyValue.isBlank()) return ActionResult.failure("PagerDuty needs the incident key to $operationValue an incident. The step that opened it gives it as \$lastLog.outputVariables.incidentKey.")
 
         val event = mutableMapOf<String, Any>("routing_key" to integrationKeyValue, "event_action" to (if (operationValue == OPEN) "trigger" else operationValue))
-        if (incidentKeyValue.isNotBlank()) event["dedup_key"] = incidentKeyValue
+        val keyValue = if (operationValue == OPEN) variableExtractorUtil.extract(newIncidentKey, execution, scriptLanguage) else incidentKeyValue
+        if (keyValue.isNotBlank()) event["dedup_key"] = keyValue
         if (operationValue == OPEN) {
             event["payload"] = mapOf(
                 "summary" to summaryValue,
@@ -97,7 +101,8 @@ class PagerDutyAction : Action() {
                 PropertyInformation("warning", "Warning"),
                 PropertyInformation("info", "Info")
             ), PropertyInformationCategory.PROPERTY, opening))
-            actionInfo.add(PropertyInformation("incidentKey", "Incident key", PropertyInformationType.STRING, "", "Opening with the same key does not open a second incident. To acknowledge or resolve, use the key of the incident, which the step that opened it gives as \$lastLog.outputVariables.incidentKey."))
+            actionInfo.add(PropertyInformation("newIncidentKey", "Key for the incident", PropertyInformationType.STRING, "", "Opening with the same key again does not open a second incident, which is useful for a task on a schedule.", mutableListOf(), PropertyInformationCategory.PROPERTY, opening))
+            actionInfo.add(PropertyInformation("incidentKey", "Incident key", PropertyInformationType.STRING, "", "The step that opened the incident gives it as \$lastLog.outputVariables.incidentKey.", mutableListOf(), PropertyInformationCategory.PROPERTY, mapOf("operation" to arrayOf("acknowledge", "resolve"))))
             actionInfo.add(PropertyInformation("baseUrl", "Base URL", PropertyInformationType.STRING, "https://events.pagerduty.com", "Only change this to go through a proxy, or for an account in the EU, which uses https://events.eu.pagerduty.com."))
             return actionInfo
         }
