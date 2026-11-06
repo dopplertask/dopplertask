@@ -6,6 +6,7 @@ import com.dopplertask.dopplertask.domain.ActionResult;
 import com.dopplertask.dopplertask.domain.Connection;
 import com.dopplertask.dopplertask.domain.StatusCode;
 import com.dopplertask.dopplertask.domain.TaskExecution;
+import com.dopplertask.dopplertask.domain.action.common.ExecuteCommandAction;
 import com.dopplertask.dopplertask.domain.action.common.IfAction;
 import com.dopplertask.dopplertask.domain.action.common.PrintAction;
 import com.dopplertask.dopplertask.domain.action.common.RegexAction;
@@ -251,5 +252,15 @@ public class ActionTest {
         ActionResult result = new RegexAction("[0-9", "abc").run(new TaskServiceImpl(), new TaskExecution(), variableExtractorUtil, null);
         Assert.assertEquals(StatusCode.FAILURE, result.getStatusCode());
         Assert.assertTrue(result.getErrorMsg().startsWith("Regex is not valid: "));
+    }
+
+    @Test
+    public void testCommandFailureNamesTheExitCodeAndKeepsTheOutput() throws IOException {
+        ExecuteCommandAction action = new ExecuteCommandAction();
+        action.setCommand("echo partial; exit 3");
+        ActionResult result = action.run(new TaskServiceImpl(), new TaskExecution(), variableExtractorUtil, null);
+        Assert.assertEquals(StatusCode.FAILURE, result.getStatusCode());
+        Assert.assertEquals("The command exited with code 3.", result.getErrorMsg());
+        Assert.assertTrue(result.getOutput().contains("partial"));
     }
 }
