@@ -1,6 +1,6 @@
 /* Forms, command palette, dialogs, toasts and shortcuts. */
 export default function boot() {
-  const { ACTIONS, CATEGORIES, FAILURE_FIELDS, formatDuration, formatAgo } = window.DT;
+  const { ACTIONS, FAILURE_FIELDS, formatDuration, formatAgo } = window.DT;
 
   const ICON_PATHS = {
     play: '<path d="M7 4.5v15l12-7.5z"/>',
@@ -335,7 +335,6 @@ export default function boot() {
   /* Opens instantly with no animation: this is a repeated, keyboard-driven surface. */
   function openPalette({ store, handlers, title = 'Add a step or run a command', onPick, stepsOnly = false }) {
     const commands = stepsOnly ? [] : buildCommands(store, handlers);
-    const steps = Object.entries(ACTIONS).filter(([, action]) => !action.hidden);
     const dialog = openDialog(`<div class="ui-palette-search">${icon('search')}<input aria-label="${escapeHtml(title)}" placeholder="${escapeHtml(title)}" autocomplete="off" spellcheck="false"></div><div class="ui-palette-list" role="listbox"></div><footer class="ui-palette-foot"><span>${kbd('↑')}${kbd('↓')} move</span><span>${kbd('↵')} choose</span><span>${kbd('esc')} close</span></footer>`, { className: 'ui-palette', animate: false });
     const input = dialog.querySelector('input');
     const list = dialog.querySelector('.ui-palette-list');
@@ -344,12 +343,10 @@ export default function boot() {
     const render = () => {
       const query = input.value.trim().toLowerCase();
       const matches = (text) => !query || text.toLowerCase().includes(query);
-      const groups = [];
-      CATEGORIES.forEach((category) => {
-        const items = steps.filter(([type, action]) => action.category === category.id && matches(`${action.label} ${action.description} ${action.backend} ${type}`))
-          .map(([type, action]) => ({ kind: 'step', type, label: action.label, detail: action.description, icon: action.icon, category: category.id }));
-        if (items.length) groups.push({ label: category.label, items });
-      });
+      const groups = DT.stepsMatching(query).map(({ category, items }) => ({
+        label: category.label,
+        items: items.map(({ type, action }) => ({ kind: 'step', type, label: action.label, detail: action.description, icon: action.icon, category: action.category })),
+      }));
       const commandItems = commands.filter((command) => matches(command.label)).map((command) => ({ kind: 'command', ...command }));
       if (commandItems.length) groups.push({ label: 'Commands', items: commandItems });
       flatItems = groups.flatMap((group) => group.items);

@@ -114,6 +114,23 @@ function loadCatalogue(actions) {
   ];
 }
 
+/* Without a search the steps are grouped by category. With one they form a single list, names before descriptions. */
+function stepsMatching(query) {
+  const steps = Object.entries(ACTIONS).filter(([, action]) => !action.hidden).map(([type, action]) => ({ type, action }));
+  const needle = query.trim().toLowerCase();
+  if (!needle) {
+    return CATEGORIES.map((category) => ({ category, items: steps.filter(({ action }) => action.category === category.id) })).filter((group) => group.items.length);
+  }
+  const rankOf = ({ type, action }) => {
+    if (action.label.toLowerCase().startsWith(needle)) return 0;
+    if (action.label.toLowerCase().includes(needle)) return 1;
+    if (`${action.backend} ${type}`.toLowerCase().includes(needle)) return 2;
+    return String(action.description).toLowerCase().includes(needle) ? 3 : null;
+  };
+  const items = steps.filter((step) => rankOf(step) !== null).sort((first, second) => rankOf(first) - rankOf(second));
+  return items.length ? [{ category: { id: 'matches', label: 'Matching steps' }, items }] : [];
+}
+
 /* ---------- Graph helpers ---------- */
 
 const portsOf = (node) => (ACTIONS[node.type].ports ? ACTIONS[node.type].ports(node) : [{ id: 'out', label: '' }]);
@@ -843,7 +860,7 @@ export default async function bootEngine() {
   loadCatalogue((await request('/task/actions')).actions);
   window.DT = {
     ACTIONS, CATEGORIES, FAILURE_FIELDS,
-    createStore, portsOf, edgeFrom, nodeById, rootNode,
+    createStore, stepsMatching, portsOf, edgeFrom, nodeById, rootNode,
     describeNode, summaryText, fieldVisible, interpolate,
     formatDuration, formatAgo,
   };
