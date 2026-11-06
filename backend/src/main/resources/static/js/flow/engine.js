@@ -476,10 +476,11 @@ function createStore() {
   let runs = [];
   /* The task this editor last read or wrote, which a Save may add a version to. */
   let savedName = null;
+  let showingOlderVersion = false;
 
   const emit = (change) => listeners.forEach((listener) => listener(change));
 
-  const hasUnsavedWork = () => saveState === 'unsaved' && task.nodes.length > 1;
+  const hasUnsavedWork = () => saveState === 'unsaved' && task.nodes.length > 1 && !showingOlderVersion;
   window.addEventListener('beforeunload', (event) => {
     if (hasUnsavedWork()) event.preventDefault();
   });
@@ -492,7 +493,7 @@ function createStore() {
     clearTimeout(autoSaveTimer);
     if (autoSave && !task.active && saveState === 'unsaved' && task.checksum) autoSaveTimer = setTimeout(() => store.save({ autoSaved: true }).catch(() => {}), AUTO_SAVE_DELAY_MS);
   };
-  const markChanged = () => { setSaveState('unsaved'); scheduleAutoSave(); };
+  const markChanged = () => { showingOlderVersion = false; setSaveState('unsaved'); scheduleAutoSave(); };
 
   const snapshot = () => JSON.stringify(task);
   const remember = (key) => {
@@ -618,6 +619,7 @@ function createStore() {
     get selectedId() { return selectedId; },
     get selectedNode() { return selectedId ? nodeById(task, selectedId) : null; },
     get saveState() { return saveState; },
+    get showingOlderVersion() { return showingOlderVersion; },
     get canUndo() { return undoStack.length > 0; },
     get canRedo() { return redoStack.length > 0; },
     get tasks() { return tasks; },
@@ -751,8 +753,11 @@ function createStore() {
         task.id = task.name;
         localStorage.setItem(LAST_TASK_KEY, task.name);
         savedName = task.name;
+        const restored = showingOlderVersion;
+        showingOlderVersion = false;
         setSaveState('saved');
         await loadTaskList();
+        if (restored) return 'This version is now the current one.';
         return renamedFrom ? `Saved as a new task. ${renamedFrom} is still there.` : 'Saved';
       } catch (error) {
         setSaveState('unsaved');
@@ -772,7 +777,9 @@ function createStore() {
       savedName = task.name;
       selectedId = null; undoStack = []; redoStack = [];
       runner.clear();
-      saveState = 'saved';
+      /* A run always uses the newest version, so an older one on screen has to be saved before it can run. */
+      showingOlderVersion = tasks.find((candidate) => candidate.name === task.name)?.versions[0].checksum !== checksum;
+      saveState = showingOlderVersion ? 'unsaved' : 'saved';
       emit('task');
       await loadRuns();
     },
@@ -797,6 +804,7 @@ function createStore() {
     },
     newTask() {
       if (!mayLeaveTask()) return;
+      showingOlderVersion = false;
       task = freshTask(tasks.map((candidate) => candidate.name));
       savedName = null;
       selectedId = null; undoStack = []; redoStack = []; runs = [];
@@ -807,6 +815,7 @@ function createStore() {
     importTask(serialized) {
       const imported = fromBackend(JSON.parse(serialized));
       if (!mayLeaveTask()) return false;
+      showingOlderVersion = false;
       task = imported;
       /* Importing under an existing name is how an exported version is restored. */
       savedName = task.name;
