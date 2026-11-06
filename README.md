@@ -9,7 +9,7 @@ DopplerTask is a revolutionary open-source software that allows you to easily au
 
 On top of all of this life-simplifying project, we are striving to make an climate friendly software that is fast, easy and consumes as little resources as possible.
 
-![DopplerTask - GUI](https://github.com/dopplertask/dopplertask/blob/ce7050284e58eb90f8b76f28d6b1214aab8471ea/docs/images/dopplertask_gui.png)
+![DopplerTask - GUI](docs/images/dopplertask_gui.png)
 </div>
 
 ## Demo
