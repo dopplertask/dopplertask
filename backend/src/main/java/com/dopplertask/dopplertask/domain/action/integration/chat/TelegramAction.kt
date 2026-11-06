@@ -54,7 +54,7 @@ class TelegramAction : Action() {
         if (messageValue.length > MAX_MESSAGE_LENGTH) return JsonApi.failure("Telegram allows $MAX_MESSAGE_LENGTH characters in a message, and this one has ${messageValue.length}.")
 
         val base = variableExtractorUtil.extract(baseUrl, execution, scriptLanguage).trimEnd('/')
-        val result = JsonApi.call("Telegram", "POST", "$base/bot$tokenValue/sendMessage", mapOf(), mapOf("chat_id" to chatValue, "text" to messageValue))
+        val result = JsonApi.withoutSecret(JsonApi.call("Telegram", "POST", "$base/bot$tokenValue/sendMessage", mapOf(), mapOf("chat_id" to chatValue, "text" to messageValue)), tokenValue)
         if (result.statusCode == StatusCode.SUCCESS) {
             result.outputVariables["messageId"] = JsonApi.parsed(result).path("result").path("message_id").asLong()
         }
