@@ -30,7 +30,9 @@ import com.dopplertask.dopplertask.domain.action.integration.storage.S3Action;
 import com.icegreen.greenmail.util.GreenMail;
 import com.icegreen.greenmail.util.ServerSetupTest;
 import javax.mail.internet.MimeMessage;
+import com.dopplertask.dopplertask.domain.ExecutionParameter;
 import com.dopplertask.dopplertask.domain.action.integration.anthropic.ClaudeAction;
+import com.dopplertask.dopplertask.domain.action.integration.openai.OpenAIAction;
 import com.dopplertask.dopplertask.domain.action.integration.chat.MattermostAction;
 import com.dopplertask.dopplertask.domain.action.integration.chat.TeamsAction;
 import com.dopplertask.dopplertask.domain.action.integration.chat.TwilioAction;
@@ -1029,5 +1031,59 @@ public class IntegrationActionsTest {
         closed.setSecurity("none");
         closed.setUsername("ops");
         Assert.assertEquals("Could not connect to the mail server at localhost:1. Check the address, and that the service is running.", run(closed).getErrorMsg());
+    }
+
+    private OpenAIAction openAI() {
+        OpenAIAction openAI = new OpenAIAction();
+        openAI.setBaseUrl(baseUrl + "/v1/");
+        openAI.setApiKey("sk-test");
+        openAI.setModel("gpt-test");
+        openAI.setUserInput("A\ttab and a \"quote\" from an earlier step");
+        return openAI;
+    }
+
+    @Test
+    public void testOpenAISendsValidJsonForAnyTextAndKeepsTheWholeAnswerAsOutputSuccess() throws IOException {
+        answerBody = "{\"choices\":[{\"message\":{\"content\":\"Yes.\"}}]}";
+        ActionResult result = run(openAI());
+        Assert.assertEquals("/v1/chat/completions", path);
+        Assert.assertEquals("Bearer sk-test", authorization);
+        Assert.assertEquals("gpt-test", received.path("model").asText());
+        Assert.assertEquals("A\ttab and a \"quote\" from an earlier step", received.path("messages").path(0).path("content").asText());
+        Assert.assertEquals(answerBody, result.getOutput());
+    }
+
+    @Test
+    public void testOpenAISendsNoKeyToAServerThatDoesNotAskForOneSuccess() throws IOException {
+        OpenAIAction openAI = openAI();
+        openAI.setApiKey(null);
+        Assert.assertEquals(StatusCode.SUCCESS, run(openAI).getStatusCode());
+        Assert.assertNull(authorization);
+    }
+
+    @Test
+    public void testOpenAIDoesNotEvaluateTextFromAnEarlierStepTwiceSuccess() throws IOException {
+        TaskExecution execution = new TaskExecution();
+        execution.getParameters().put("text", new ExecutionParameter("text", "$executionId".getBytes(StandardCharsets.UTF_8), false));
+        OpenAIAction openAI = openAI();
+        openAI.setUserInput("$parameters.get(\"text\")");
+        openAI.run(new TaskServiceImpl(), execution, new VariableExtractorUtil(new VelocityEngine()), null);
+        Assert.assertEquals("$executionId", received.path("messages").path(0).path("content").asText());
+    }
+
+    @Test
+    public void testOpenAIGivesTheReasonFromItsAnswerFail() throws IOException {
+        answerStatus = 401;
+        answerBody = "{\"error\":{\"message\":\"Incorrect API key provided.\",\"type\":\"invalid_request_error\"}}";
+        Assert.assertEquals("OpenAI answered with status 401: Incorrect API key provided.", run(openAI()).getErrorMsg());
+    }
+
+    @Test
+    public void testOpenAIKeepsARefusedKeyOutOfWhatIsStoredWithTheRunFail() throws IOException {
+        answerStatus = 401;
+        answerBody = "{\"error\":{\"message\":\"Incorrect API key provided: sk-test.\"}}";
+        ActionResult result = run(openAI());
+        Assert.assertEquals("OpenAI answered with status 401: Incorrect API key provided: (hidden).", result.getErrorMsg());
+        Assert.assertFalse(result.getOutput(), result.getOutput().contains("sk-test"));
     }
 }

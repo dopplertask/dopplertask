@@ -3,16 +3,15 @@ package com.dopplertask.dopplertask.domain.action.integration.openai
 import com.dopplertask.dopplertask.domain.ActionResult
 import com.dopplertask.dopplertask.domain.TaskExecution
 import com.dopplertask.dopplertask.domain.action.Action
-import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationCategory
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
-import com.dopplertask.dopplertask.domain.action.connection.HttpAction
-import com.dopplertask.dopplertask.domain.action.connection.HttpHeader
+import com.dopplertask.dopplertask.domain.action.integration.JsonApi
 import com.dopplertask.dopplertask.service.BroadcastListener
 import com.dopplertask.dopplertask.service.ColumnEncryptor
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import java.io.IOException
+import java.time.Duration
 import javax.persistence.Column
 import javax.persistence.Convert
 import javax.persistence.DiscriminatorValue
@@ -46,106 +45,34 @@ class OpenAIAction : Action() {
         variableExtractorUtil: VariableExtractorUtil,
         broadcastListener: BroadcastListener?
     ): ActionResult {
-        val baseUrlVar = variableExtractorUtil.extract(baseUrl, execution, scriptLanguage).trimEnd('/')
-        val apiKeyVar = variableExtractorUtil.extract(apiKey, execution, scriptLanguage)
-        val modelVar = variableExtractorUtil.extract(model, execution, scriptLanguage)
-        val userInputVar = variableExtractorUtil.extract(userInput, execution, scriptLanguage)
+        val read = { text: String? -> variableExtractorUtil.extract(text, execution, scriptLanguage) }
+        val modelValue = read(model).trim()
+        val inputValue = read(userInput)
+        if (modelValue.isBlank()) return ActionResult.failure("OpenAI needs a model, such as gpt-5.")
+        if (inputValue.isBlank()) return ActionResult.failure("OpenAI needs a prompt.")
 
-        val request = HttpAction()
-        request.url = concatUrl(baseUrlVar, "/chat/completions")
-        request.method = "POST"
-
-        // Minimal JSON body using model + user input
-        val jsonBody = "{" +
-                "\"model\":\"" + modelVar + "\"," +
-                "\"messages\":[{\"role\":\"user\",\"content\":\"" + userInputVar.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n") + "\"}]}"
-        request.body = jsonBody
-
-        // Headers
-        val headers = ArrayList<HttpHeader>()
-        if (!apiKeyVar.isNullOrBlank()) {
-            headers.add(createHeader("Authorization", "Bearer ${apiKeyVar}"))
-        }
-        headers.add(createHeader("Content-Type", "application/json"))
-        headers.add(createHeader("Accept", "application/json"))
-        request.setHeaders(headers)
-
-        return request.run(taskService, execution, variableExtractorUtil, broadcastListener)
+        // A key is optional, since a server of your own may not ask for one.
+        val keyValue = read(apiKey)
+        val headers = if (keyValue.isBlank()) mapOf() else mapOf("Authorization" to "Bearer $keyValue")
+        val url = read(baseUrl).trim().trimEnd('/') + "/chat/completions"
+        val request = mapOf("model" to modelValue, "messages" to listOf(mapOf("role" to "user", "content" to inputValue)))
+        return JsonApi.withoutSecret(JsonApi.call("OpenAI", "POST", url, headers, request, Duration.ofMinutes(ANSWER_MINUTES)), keyValue)
     }
 
-    private fun concatUrl(base: String, path: String): String {
-        if (path.isBlank()) return base
-        val cleanBase = base.trimEnd('/')
-        val cleanPath = if (path.startsWith("/")) path else "/$path"
-        return cleanBase + cleanPath
-    }
-
-    private fun createHeader(name: String, value: String): HttpHeader {
-        val h = HttpHeader()
-        h.headerName = name
-        h.headerValue = value
-        return h
-    }
+    override val description: String
+        get() = "Asks OpenAI or a compatible server"
 
     override val actionInfo: MutableList<PropertyInformation>
         get() {
             val actionInfo = super.actionInfo
-            actionInfo.add(
-                PropertyInformation(
-                    "baseUrl",
-                    "Base URL",
-                    PropertyInformationType.STRING,
-                    "https://api.openai.com/v1",
-                    "API base URL",
-                    mutableListOf(),
-                    PropertyInformationCategory.PROPERTY
-                )
-            )
-
-            // Credentials
-            actionInfo.add(
-                PropertyInformation(
-                    "apiKey",
-                    "API Key",
-                    PropertyInformationType.STRING,
-                    "",
-                    "OpenAI API Key (kept encrypted)",
-                    mutableListOf(),
-                    PropertyInformationCategory.CREDENTIAL
-                )
-            )
-            
-            // Model
-            actionInfo.add(
-                PropertyInformation(
-                    "model",
-                    "Model",
-                    PropertyInformationType.STRING,
-                    "",
-                    "Model id (free text)",
-                    mutableListOf(),
-                    PropertyInformationCategory.PROPERTY
-                )
-            )
-
-            // User input
-            actionInfo.add(
-                PropertyInformation(
-                    "userInput",
-                    "User input",
-                    PropertyInformationType.MULTILINE,
-                    "",
-                    "Free text that will be sent as the user message",
-                    mutableListOf(),
-                    PropertyInformationCategory.PROPERTY
-                )
-            )
-
+            actionInfo.add(PropertyInformation("apiKey", "API key", PropertyInformationType.STRING, "", "Leave it empty if your own server does not ask for one.", mutableListOf(), PropertyInformationCategory.CREDENTIAL))
+            actionInfo.add(PropertyInformation("model", "Model", PropertyInformationType.STRING, "", "Such as gpt-5."))
+            actionInfo.add(PropertyInformation("userInput", "Prompt", PropertyInformationType.MULTILINE, "", "What the model is asked."))
+            actionInfo.add(PropertyInformation("baseUrl", "Base URL", PropertyInformationType.STRING, "https://api.openai.com/v1", "Only change this for a server of your own. Its certificate has to be valid."))
             return actionInfo
         }
 
-    override val description: String
-        get() = "Call OpenAI API directly or via a custom server"
+    private companion object {
+        const val ANSWER_MINUTES = 10L
+    }
 }
-
-
