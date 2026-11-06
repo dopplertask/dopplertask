@@ -491,7 +491,7 @@ export default function boot() {
     picker.type = 'file';
     picker.accept = 'application/json,.json';
     picker.addEventListener('change', async () => {
-      try { store.importTask(await picker.files[0].text()); toast('Task imported'); }
+      try { if (store.importTask(await picker.files[0].text())) toast('Task imported'); }
       catch (error) { toast(error instanceof SyntaxError ? 'That file is not valid JSON, so it is not a task.' : error.message, { tone: 'danger' }); }
     });
     picker.click();
