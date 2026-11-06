@@ -11,6 +11,8 @@ import com.fasterxml.jackson.databind.ObjectMapper
  * token is sent along, and says what the service answered instead of only a status.
  */
 object JsonApi {
+    private const val LONGEST_SENTENCE = 200
+
     val mapper = ObjectMapper()
 
     fun call(service: String, method: String, url: String, headers: Map<String, String>, body: Any?): ActionResult {
@@ -49,7 +51,9 @@ object JsonApi {
         val answer = try {
             mapper.readTree(body ?: "")
         } catch (e: Exception) {
-            return ""
+            // Some services answer with a plain sentence, and an error page is not worth repeating.
+            val sentence = body.orEmpty().trim()
+            return if (sentence.length <= LONGEST_SENTENCE && !sentence.startsWith("<")) sentence else ""
         }
         listOf("message", "description", "error", "error_description").forEach { field ->
             if (answer.path(field).isTextual) return answer.path(field).asText()
