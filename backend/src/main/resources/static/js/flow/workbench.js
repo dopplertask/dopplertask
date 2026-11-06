@@ -91,7 +91,7 @@ export default function boot() {
       ['keyboard', 'Keyboard shortcuts', () => DT.ui.openShortcutsDialog()],
     ];
     const { element, close } = DT.ui.openPopover(anchor, `<div class="ui-menu task-switcher">
-      <div class="task-switcher-list">${store.tasks.map((task) => `<button type="button" class="is-task ${task.id === store.task.id ? 'is-current' : ''}" data-switch="${escapeHtml(task.id)}">${icon('workflow')}<span><b>${escapeHtml(task.name)}</b><small>${task.versions.length} ${task.versions.length === 1 ? 'version' : 'versions'}</small></span></button>`).join('')}</div>
+      <div class="task-switcher-list">${store.tasks.map((task) => `<button type="button" class="is-task ${task.id === store.task.id ? 'is-current' : ''}" data-switch="${escapeHtml(task.id)}">${icon('workflow')}<span><b>${escapeHtml(task.name)}</b><small>${task.versions[0].proposed ? 'A proposal is waiting' : `${task.versions.length} ${task.versions.length === 1 ? 'version' : 'versions'}`}</small></span></button>`).join('')}</div>
       ${store.tasks.length ? '<hr>' : ''}
       ${others.map((item, index) => `<button type="button" data-other="${index}">${icon(item[0])}<span>${item[1]}</span></button>`).join('')}
       <hr>
@@ -187,6 +187,10 @@ export default function boot() {
     if (tested) {
       host.classList.toggle('is-failed', tested.status === 'failed');
       host.innerHTML = `${resultParts(tested, { tested: true })}${runner.finished && state === 'failed' ? rerunButton() : ''}`;
+    } else if (store.review?.changed.has(node.id)) {
+      host.innerHTML = `<h3>The agent changed this step</h3>${store.review.changed.get(node.id).map(({ key, before }) => `<p class="result-note"><b>${escapeHtml(key)}</b>${before === null || before === undefined ? '' : `, was <code>${escapeHtml(typeof before === 'string' ? before : JSON.stringify(before))}</code>`}</p>`).join('')}`;
+    } else if (store.review?.added.has(node.id)) {
+      host.innerHTML = '<h3>The agent added this step</h3>';
     } else if (!runner.run) host.innerHTML = '';
     else if (state === 'running') host.innerHTML = `<h3>${statusGlyph('running')}Running…</h3>`;
     else if (state === 'pending') host.innerHTML = '<p class="result-note">This run has not reached this step yet.</p>';
