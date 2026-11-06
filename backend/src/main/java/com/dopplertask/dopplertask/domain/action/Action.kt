@@ -182,7 +182,7 @@ abstract class Action {
                 "Continue on failure",
                 PropertyInformationType.BOOLEAN,
                 "false",
-                "true or false. Lets the action continue on failure, ignoring any retry.",
+                "The task carries on with the next step when this step fails. Retries are skipped.",
                 mutableListOf(),
                 PropertyInformation.PropertyInformationCategory.SETTING
             ),
@@ -191,7 +191,7 @@ abstract class Action {
                 "Script Language",
                 PropertyInformationType.DROPDOWN,
                 "VELOCITY",
-                "VELOCITY (default), JAVASCRIPT.",
+                "The language of values such as \$parameters in this step.",
                 mutableListOf(
                     PropertyInformation("VELOCITY", "Velocity"), PropertyInformation(
                         "JAVASCRIPT",
@@ -205,7 +205,7 @@ abstract class Action {
                 "Max. Retries",
                 PropertyInformationType.NUMBER,
                 "0",
-                "Amount of retries.",
+                "How many more times to try after the first attempt.",
                 mutableListOf(),
                 PropertyInformation.PropertyInformationCategory.SETTING
             ),
@@ -223,7 +223,7 @@ abstract class Action {
                 "Fail on",
                 PropertyInformationType.STRING,
                 "",
-                "The current action will fail if this evaluates to anything.",
+                "The step fails if this gives any text, for example #if(\$result.output.contains(\"error\"))Found an error#end",
                 mutableListOf(),
                 PropertyInformation.PropertyInformationCategory.SETTING
             )

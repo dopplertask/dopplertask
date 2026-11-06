@@ -93,7 +93,7 @@ class ExecuteCommandAction : Action() {
                     "Command",
                     PropertyInformationType.MULTILINE,
                     "",
-                    "Command to execute."
+                    "Runs in the shell of the machine DopplerTask is on."
                 )
             )
             return actionInfo

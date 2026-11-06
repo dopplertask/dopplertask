@@ -148,7 +148,7 @@ export default function boot() {
       }
       case 'number': return wrap(`${label}<input class="ui-input" type="number" min="0" ${common} ${placeholder} value="${escapeHtml(fieldValue ?? '')}">`);
       case 'password': return wrap(`${label}<div class="ui-input-wrap"><input class="ui-input" type="password" autocomplete="off" ${common} value="${escapeHtml(fieldValue ?? '')}"><button type="button" class="ui-input-action" data-reveal aria-label="Show value">${icon('eye')}</button></div>`);
-      case 'toggle': return `<label class="ui-toggle"><input type="checkbox" ${common} ${fieldValue ? 'checked' : ''}><span class="ui-toggle-track"></span><span>${escapeHtml(field.label)}</span></label>`;
+      case 'toggle': return wrap(`<label class="ui-toggle"><input type="checkbox" ${common} ${fieldValue ? 'checked' : ''}><span class="ui-toggle-track"></span><span>${escapeHtml(field.label)}</span></label>`);
       case 'code': return wrap(`${label}<textarea class="ui-input is-mono" rows="${Math.min(8, Math.max(3, String(fieldValue ?? '').split('\n').length + 1))}" spellcheck="false" data-variables ${common} ${placeholder}>${escapeHtml(fieldValue ?? '')}</textarea><p class="ui-hint">Type <code>$</code> to insert a parameter or earlier output.</p>`);
       case 'expression': {
         const control = field.multiline
@@ -173,7 +173,10 @@ export default function boot() {
 
   function renderForm(node, store) {
     const action = ACTIONS[node.type];
-    const visibleFields = action.fields.filter((field) => DT.fieldVisible(field, node.config));
+    /* Most steps never need another language, and in a script it is the first thing to decide. */
+    const isLanguageSetting = (field) => field.key === 'scriptLanguage' && node.type !== 'script';
+    const visibleFields = action.fields.filter((field) => DT.fieldVisible(field, node.config) && !isLanguageSetting(field));
+    const languageField = action.fields.find(isLanguageSetting);
     const issues = store.issues.filter((issue) => issue.nodeId === node.id && !issue.field);
     const canFail = node.type !== 'start';
     const hasFailureSettings = canFail && (node.config.retries || node.config.continueOnFailure || node.config.failOn);
@@ -182,6 +185,7 @@ export default function boot() {
       <div class="ui-field-grid">${visibleFields.map((field) => renderField(field, node)).join('')}</div>
       ${node.type === 'start' && node.config.trigger === 'webhook' ? `<div class="ui-field"><span class="ui-label">Call this URL</span><div class="ui-copy-row"><code data-webhook-url>${escapeHtml(webhookUrl(store.task, node))}</code><button type="button" class="ui-icon-button" data-copy="${escapeHtml(webhookUrl(store.task, node))}" aria-label="Copy URL">${icon('copy')}</button></div><p class="ui-hint">Works once the task is saved with its trigger on.</p></div>` : ''}
       ${canFail ? `<details class="ui-disclosure" ${hasFailureSettings ? 'open' : ''}><summary>${icon('chevronRight')}If this step fails${node.config.retries ? `<span class="ui-pill">${node.config.retries} ${node.config.retries === 1 ? 'retry' : 'retries'}</span>` : ''}</summary><div class="ui-field-grid">${FAILURE_FIELDS.map((field) => renderField(field, node)).join('')}</div></details>` : ''}
+      ${languageField ? `<details class="ui-disclosure" ${node.config.scriptLanguage === 'JAVASCRIPT' ? 'open' : ''}><summary>${icon('chevronRight')}Advanced</summary><div class="ui-field-grid">${renderField(languageField, node)}</div></details>` : ''}
       <p class="ui-backend-name">${escapeHtml(action.backend)}</p>`;
   }
 
