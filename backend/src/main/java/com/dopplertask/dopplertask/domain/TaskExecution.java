@@ -42,6 +42,10 @@ public class TaskExecution {
     @Transient
     private Action currentAction;
 
+    // Part of the record of a run, next to what it did.
+    @Column(columnDefinition = "boolean default false")
+    private boolean startedByAgent = false;
+
     // The step a resumed run starts at, named by its first port as in TaskExecutionStep.
     @Column
     private String resumePortId;
@@ -145,6 +149,14 @@ public class TaskExecution {
 
     public void setDepth(Integer depth) {
         this.depth = depth;
+    }
+
+    public boolean isStartedByAgent() {
+        return startedByAgent;
+    }
+
+    public void setStartedByAgent(boolean startedByAgent) {
+        this.startedByAgent = startedByAgent;
     }
 
     public String getResumePortId() {

@@ -550,7 +550,7 @@ function createStore() {
 
   const runListItem = (execution) => ({
     id: execution.executionId, status: RUN_STATUSES[execution.status] || 'running', taskName: execution.taskName,
-    startedAt: new Date(execution.startDate).getTime(), durationMs: execution.endDate ? new Date(execution.endDate) - new Date(execution.startDate) : 0,
+    startedByAgent: execution.startedByAgent, startedAt: new Date(execution.startDate).getTime(), durationMs: execution.endDate ? new Date(execution.endDate) - new Date(execution.startDate) : 0,
     parameters: {}, steps: [], complete: false,
   });
 

@@ -115,6 +115,7 @@ public class TaskController {
         TaskRequest request = new TaskRequest(removeTaskAfterExecution ? taskRequestDTO.getTaskName() + token : taskRequestDTO.getTaskName(), parameters, removeTaskAfterExecution);
         request.setChecksum(taskRequestDTO.getTaskName());
         request.setResumeFromExecutionId(taskRequestDTO.getResumeFromExecutionId());
+        request.setStartedByAgent(AccessFilter.callerOf(servletRequest) == Caller.AGENT);
 
 
         TaskExecution taskExecution = taskService.delegate(request);
@@ -138,6 +139,7 @@ public class TaskController {
         TaskRequest request = new TaskRequest(taskRequestDTO.getTaskName(), parameters);
         request.setChecksum(taskRequestDTO.getTaskName());
         request.setResumeFromExecutionId(taskRequestDTO.getResumeFromExecutionId());
+        request.setStartedByAgent(AccessFilter.callerOf(servletRequest) == Caller.AGENT);
         TaskExecution execution = taskService.runRequest(request);
         ResponseEntity<TaskExecutionLogResponseDTO> result = runResult(execution, taskRequestDTO.getTaskName());
         if (execution != null) {
@@ -485,6 +487,7 @@ public class TaskController {
             dto.setStartDate(item.getStartdate());
             dto.setEndDate(item.getEnddate());
             dto.setExecutionId(Long.toString(item.getId()));
+            dto.setStartedByAgent(item.isStartedByAgent());
             dto.setTaskName(item.getTask().getName() != null ? item.getTask().getName() : Long.toString(item.getTask().getId()));
             executionDTOList.add(dto);
         });
