@@ -10,6 +10,7 @@ import com.dopplertask.dopplertask.domain.TaskExecutionStatus;
 import com.dopplertask.dopplertask.domain.action.Action;
 import com.dopplertask.dopplertask.domain.action.trigger.Trigger;
 import com.dopplertask.dopplertask.dto.ActionInfoDto;
+import com.dopplertask.dopplertask.dto.ActionTestRequestDTO;
 import com.dopplertask.dopplertask.dto.ActionListResponseDto;
 import com.dopplertask.dopplertask.dto.LoginParameters;
 import com.dopplertask.dopplertask.dto.SimpleChecksumResponseDto;
@@ -269,8 +270,25 @@ public class TaskController {
 
     @PostMapping(path = "/task/action")
     public ResponseEntity<ActionResult> runAction(@RequestBody Action action) throws IOException {
+        return runAction(action, new TaskExecution());
+    }
+
+    /**
+     * Runs one action with the values it would have seen in a task, without saving an execution.
+     */
+    @PostMapping(path = "/task/action/test")
+    public ResponseEntity<ActionResult> testAction(@RequestBody ActionTestRequestDTO request) throws IOException {
+        TaskExecution execution = new TaskExecution();
+        request.getParameters().forEach((name, value) -> execution.getParameters().put(name, new ExecutionParameter(name, value.getBytes(StandardCharsets.UTF_8), false)));
+        TaskExecutionLog lastLog = new TaskExecutionLog();
+        lastLog.setOutput(request.getLastOutput());
+        execution.addLog(lastLog);
+        return runAction(request.getAction(), execution);
+    }
+
+    private ResponseEntity<ActionResult> runAction(Action action, TaskExecution execution) throws IOException {
         try {
-            ActionResult actionResult = action.run(taskService, new TaskExecution(), new VariableExtractorUtil(new VelocityEngine()), (output, outputType) -> {
+            ActionResult actionResult = action.run(taskService, execution, new VariableExtractorUtil(new VelocityEngine()), (output, outputType) -> {
             });
             if (actionResult != null) {
                 return new ResponseEntity<>(actionResult, HttpStatus.OK);
@@ -279,7 +297,6 @@ public class TaskController {
             ActionResult actionResult = new ActionResult(StatusCode.FAILURE, "", e.toString());
             return new ResponseEntity<>(actionResult, HttpStatus.OK);
         }
-
 
         return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
     }

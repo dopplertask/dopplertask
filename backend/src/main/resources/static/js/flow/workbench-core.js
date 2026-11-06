@@ -112,10 +112,10 @@ export default function boot() {
   function variablesBefore(nodeId) {
     const run = runner.run || store.runs[0];
     for (const candidate of [run, ...store.runs].filter(Boolean)) {
-      const index = candidate.steps.findIndex((step) => step.nodeId === nodeId);
-      if (index > 0) return candidate.steps[index - 1].variables;
+      const step = candidate.steps.find((candidateStep) => candidateStep.nodeId === nodeId);
+      if (step) return step.variables;
     }
-    return { parameters: run?.parameters || store.defaults, lastOutput: '', executionId: run?.id || '' };
+    return { parameters: { ...store.defaults, ...run?.parameters }, lastOutput: '', executionId: run?.id || '' };
   }
 
   function dataRows(node) {
@@ -220,7 +220,7 @@ export default function boot() {
         <section class="panel-section"><h3>Settings</h3><div id="panelForm"></div></section>
         <section class="panel-section" id="panelData"></section>
       </div>
-      ${isStart ? '' : `<div class="panel-foot"><div class="panel-foot-row"><button type="button" class="ui-button" data-wb="test" id="testButton" ${testing ? 'disabled' : ''}>${icon('play')}${testing ? 'Testing…' : 'Test this step'}</button><span class="panel-foot-space"></span><button type="button" class="labelled-button" data-inspector="duplicate" title="Duplicate (${modKey}D)">${icon('copy')}<span>Duplicate</span></button><button type="button" class="labelled-button" data-inspector="delete" title="Delete (⌫)">${icon('trash')}<span>Delete</span></button></div><small>Test runs only this step. Values from earlier steps are not available to it.</small></div>`}`;
+      ${isStart ? '' : `<div class="panel-foot"><div class="panel-foot-row"><button type="button" class="ui-button" data-wb="test" id="testButton" ${testing ? 'disabled' : ''}>${icon('play')}${testing ? 'Testing…' : 'Test this step'}</button><span class="panel-foot-space"></span><button type="button" class="labelled-button" data-inspector="duplicate" title="Duplicate (${modKey}D)">${icon('copy')}<span>Duplicate</span></button><button type="button" class="labelled-button" data-inspector="delete" title="Delete (⌫)">${icon('trash')}<span>Delete</span></button></div><small>Test runs only this step, with the values shown under Data you can use.</small></div>`}`;
     form = DT.ui.mountForm(byId('panelForm'), store, node.id);
     panel.querySelector('.inspector-name').addEventListener('input', (event) => store.rename(node.id, event.target.value));
     byId('panelForm').addEventListener('focusin', (event) => { if (event.target.matches('[data-variables]')) lastDataField = event.target; });
@@ -236,7 +236,7 @@ export default function boot() {
     const node = store.selectedNode;
     testing = true;
     syncTestButton();
-    store.testStep(node.id).then((result) => { testResult = result; }, (error) => {
+    store.testStep(node.id, variablesBefore(node.id)).then((result) => { testResult = result; }, (error) => {
       testResult = { nodeId: node.id, status: 'failed', error: error.message, output: '', durationMs: 0 };
     }).then(() => {
       testing = false;
