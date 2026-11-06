@@ -451,8 +451,11 @@ function createRunner(onChange) {
 
 /* ---------- Store ---------- */
 
-function freshTask() {
-  return { id: `task_${uniqueId()}`, name: `task_${uniqueId()}`, description: '', parameters: [], active: false, nodes: [createNode('start', 'start', 'Start')], edges: [], portOwners: {} };
+/* my_task, my_task_2: a name that reads well, and that a Save will not find taken. */
+function freshTask(takenNames = []) {
+  let name = 'my_task';
+  for (let number = 2; takenNames.includes(name); number += 1) name = `my_task_${number}`;
+  return { id: name, name, description: '', parameters: [], active: false, nodes: [createNode('start', 'start', 'Start')], edges: [], portOwners: {} };
 }
 
 function createStore() {
@@ -758,7 +761,14 @@ function createStore() {
       emit('task');
       await loadRuns();
     },
-    openLastTask() { return store.switchTask(localStorage.getItem(LAST_TASK_KEY)); },
+    /* Otherwise the empty task keeps a name that is free now that the saved ones are known. */
+    openLastTask() {
+      if (tasks.some((candidate) => candidate.name === localStorage.getItem(LAST_TASK_KEY))) return store.switchTask(localStorage.getItem(LAST_TASK_KEY));
+      const { id, name } = freshTask(tasks.map((candidate) => candidate.name));
+      Object.assign(task, { id, name });
+      emit('meta');
+      return null;
+    },
     async switchTask(name) {
       const entry = tasks.find((candidate) => candidate.id === name);
       if (entry) await store.openVersion(entry.versions[0].checksum);
@@ -772,7 +782,7 @@ function createStore() {
     },
     newTask() {
       if (!mayLeaveTask()) return;
-      task = freshTask();
+      task = freshTask(tasks.map((candidate) => candidate.name));
       savedName = null;
       selectedId = null; undoStack = []; redoStack = []; runs = [];
       runner.clear();
