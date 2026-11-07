@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.List;
+import java.util.Optional;
 import java.util.regex.Pattern;
 
 /**
@@ -27,6 +28,7 @@ public class AccessFilter extends OncePerRequestFilter {
 
     private static final Pattern OPEN_PATHS = Pattern.compile("^(/|/public/.*|/webhook/.*|/sso/.*|/health)$");
     private static final String BEARER = "Bearer ";
+    private static final String AGENT_REFUSED = "An agent cannot do this. A person has to.";
     private static final String AGENT_ENDPOINT = "/mcp";
     public static final String SESSION_COOKIE = "dopplertask_session";
 
@@ -62,8 +64,26 @@ public class AccessFilter extends OncePerRequestFilter {
         return request.getAttribute(Caller.REQUEST_ATTRIBUTE) == Caller.AGENT ? Caller.AGENT : Caller.PERSON;
     }
 
+    /** The person making this request, when the sign-in names one. */
+    public static Optional<String> personOf(HttpServletRequest request) {
+        return Optional.ofNullable((String) request.getAttribute(Caller.PERSON_ATTRIBUTE));
+    }
+
+    /**
+     * For a filter in front of this one that signs callers in itself. An agent named here gets the same limits as one
+     * that signed in with the agent token, and a person's name is kept with what that person approves.
+     */
+    public static void signIn(HttpServletRequest request, Caller caller, String name) {
+        request.setAttribute(Caller.REQUEST_ATTRIBUTE, caller);
+        request.setAttribute(Caller.PERSON_ATTRIBUTE, caller == Caller.PERSON ? name : null);
+    }
+
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain) throws ServletException, IOException {
+        if (callerOf(request) == Caller.AGENT && !agentMay(request)) {
+            refuse(response, HttpStatus.FORBIDDEN, AGENT_REFUSED);
+            return;
+        }
         boolean protectedAccess = !personToken.isEmpty() || sso.isEnabled();
         if (!protectedAccess || OPEN_PATHS.matcher(request.getRequestURI()).matches()) {
             // Trying an agent should need no setup, and what it does is still only a proposal.
@@ -75,19 +95,25 @@ public class AccessFilter extends OncePerRequestFilter {
         }
         String header = request.getHeader("Authorization");
         String token = header != null && header.startsWith(BEARER) ? header.substring(BEARER.length()) : "";
-        if (matches(token, personToken) || sso.personOf(sessionIdOf(request)).isPresent()) {
+        Optional<SsoService.Person> person = sso.personOf(sessionIdOf(request));
+        if (matches(token, personToken) || person.isPresent()) {
+            person.ifPresent(signedIn -> signIn(request, Caller.PERSON, signedIn.email()));
             chain.doFilter(request, response);
         } else if (matches(token, agentToken)) {
-            String requested = request.getMethod() + " " + request.getRequestURI();
-            if (AGENT_REQUESTS.stream().anyMatch(allowed -> allowed.matcher(requested).matches())) {
-                request.setAttribute(Caller.REQUEST_ATTRIBUTE, Caller.AGENT);
+            if (agentMay(request)) {
+                signIn(request, Caller.AGENT, null);
                 chain.doFilter(request, response);
             } else {
-                refuse(response, HttpStatus.FORBIDDEN, "An agent cannot do this. A person has to.");
+                refuse(response, HttpStatus.FORBIDDEN, AGENT_REFUSED);
             }
         } else {
             refuse(response, HttpStatus.UNAUTHORIZED, "A valid access token is required.");
         }
+    }
+
+    private static boolean agentMay(HttpServletRequest request) {
+        String requested = request.getMethod() + " " + request.getRequestURI();
+        return AGENT_REQUESTS.stream().anyMatch(allowed -> allowed.matcher(requested).matches());
     }
 
     // Compares the whole token every time, so that the answer's timing does not reveal how much of it was right.
