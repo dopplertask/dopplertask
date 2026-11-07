@@ -197,4 +197,18 @@ public class TaskExecution {
             this.actionAccessCountMap.put(actionId, count + 1);
         }
     }
+
+    /** Ends the run as failed, and says why both in its log and as its reason. */
+    public void fail(String reason) {
+        TaskExecutionLog log = new TaskExecutionLog();
+        log.setTaskExecution(this);
+        log.setOutput(reason);
+        log.setDate(new Date());
+        log.setBroadcasted(true);
+        addLog(log);
+        setStatus(TaskExecutionStatus.FAILED);
+        setSuccess(false);
+        setFailureReason(reason);
+        setEnddate(new Date());
+    }
 }

@@ -19,7 +19,7 @@ To change the editor or the command line tool, use Node 26, which `.nvmrc` names
 * **Runs that a restart interrupts are marked as failed** when the server starts, with the reason in their output. Runs waiting in the queue at that moment are also marked, since the queue is kept in memory.
 * **Decide how long to keep runs.** Everything is kept unless `DOPPLERTASK_KEEP_RUNS_DAYS` is set, and the database grows with every run and the size of its output. With it, runs that ended longer ago than that are deleted.
 * **Back up the database** by copying `~/dopplerdb.mv.db` while the server is stopped.
-* **A step has no time limit of its own.** Up to about 40 to 50 runs go at once, so steps that hang forever can use up the room for new runs. Use commands that have their own timeout.
+* **A run has a time limit of 24 hours.** `DOPPLERTASK_MAXRUNMINUTES` changes it, and 0 turns it off. A run over the limit is asked to stop and then marked as failed. A step that ignores this still takes up one of the 40 to 50 places for runs until the server restarts, so use commands that have their own timeout.
 
 ## Credentials
 What a step signs in with is kept apart from tasks, under **Credentials** in the editor or through the API. A step only has `credential`, the name of one of the type it needs, so a task can be shared, exported and read by an agent without exposing anything. Steps that sign in to the same service share a type: Email and Read email use a `Mail account`, SSH and SCP a `Server login`, Google Sheets, Drive and Calendar a `Google service account`, and Jira and Confluence an `Atlassian account`. Other steps have a type of their own, named after the step.

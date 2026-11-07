@@ -48,6 +48,9 @@ public class TaskServiceImpl implements TaskService {
     private ExecutionService executionService;
 
     @Autowired
+    private RunHousekeeping runHousekeeping;
+
+    @Autowired
     private TriggerListenerServiceImpl triggerListenerService;
 
 
@@ -87,12 +90,32 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     public TaskExecution runRequest(TaskExecutionRequest taskExecutionRequest) {
+        try {
+            return runToTheEnd(taskExecutionRequest);
+        } catch (RuntimeException | Error e) {
+            Long executionId = taskExecutionRequest.getExecutionId();
+            if (executionId == null) {
+                throw e;
+            }
+            // Otherwise the queue would run it again, with everything it has already done, and then give up on it.
+            LOG.error("A run stopped on an unexpected problem [executionId={}]", executionId, e);
+            return executionService.failRun(executionId, "This run stopped on an unexpected problem: " + e);
+        } finally {
+            if (taskExecutionRequest.getExecutionId() != null) {
+                runHousekeeping.finished(taskExecutionRequest.getExecutionId());
+            }
+        }
+    }
+
+    private TaskExecution runToTheEnd(TaskExecutionRequest taskExecutionRequest) {
 
         boolean isTrigger = taskExecutionRequest.getTriggerInfo() != null && taskExecutionRequest.getTriggerInfo().getTriggerName() != null && !taskExecutionRequest.getTriggerInfo().getTriggerName().isEmpty();
 
         TaskExecution execution = executionService.startExecution(taskExecutionRequest, this, isTrigger);
 
         if (execution != null) {
+            taskExecutionRequest.setExecutionId(execution.getId());
+            runHousekeeping.watch(execution.getId(), Thread.currentThread());
             if (execution.getStatus() == TaskExecutionStatus.FAILED) {
 
                 // If set to true, then remove the task after finish executing. This is used for mainly for unsaved workflows.
