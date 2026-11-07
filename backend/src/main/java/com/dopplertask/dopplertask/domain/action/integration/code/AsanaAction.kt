@@ -115,6 +115,6 @@ class AsanaAction : Action() {
         const val CREATE_TASK = "createTask"
         const val ADD_COMMENT = "addComment"
         const val COMPLETE_TASK = "completeTask"
-        const val FIELDS_WANTED = "gid,permalink_url"
+        const val FIELDS_WANTED = "permalink_url"
     }
 }

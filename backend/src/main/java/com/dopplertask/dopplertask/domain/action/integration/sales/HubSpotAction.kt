@@ -76,7 +76,7 @@ class HubSpotAction : Action() {
             }
             FIND_CONTACT -> {
                 val filter = mapOf("propertyName" to "email", "operator" to "EQ", "value" to emailValue)
-                val result = JsonApi.call("HubSpot", "POST", "$base/crm/objects/$API_VERSION/contacts/search", headers, mapOf("filterGroups" to listOf(mapOf("filters" to listOf(filter)))))
+                val result = JsonApi.call("HubSpot", "POST", "$base/crm/objects/$API_VERSION/contacts/search", headers, mapOf("filterGroups" to listOf(mapOf("filters" to listOf(filter))), "properties" to listOf("email"), "sorts" to listOf<String>(), "limit" to 1, "after" to "0"))
                 if (result.statusCode == StatusCode.SUCCESS) {
                     val contactId = JsonApi.parsed(result).path("results").path(0).path("id").asText("")
                     result.outputVariables["contactId"] = contactId
@@ -86,7 +86,7 @@ class HubSpotAction : Action() {
             }
             CREATE_DEAL -> {
                 val properties = filled("dealname" to dealNameValue, "amount" to read(amount).trim(), "dealstage" to read(dealStage).trim())
-                val result = JsonApi.call("HubSpot", "POST", "$base/crm/objects/$API_VERSION/deals", headers, mapOf("properties" to properties))
+                val result = JsonApi.call("HubSpot", "POST", "$base/crm/objects/$API_VERSION/$DEALS_OBJECT", headers, mapOf("properties" to properties, "associations" to listOf<String>()))
                 if (result.statusCode == StatusCode.SUCCESS) result.outputVariables["dealId"] = JsonApi.parsed(result).path("id").asText()
                 result
             }
@@ -127,5 +127,6 @@ class HubSpotAction : Action() {
         const val FIND_CONTACT = "findContact"
         const val CREATE_DEAL = "createDeal"
         const val API_VERSION = "2026-09"
+        const val DEALS_OBJECT = "0-3"
     }
 }

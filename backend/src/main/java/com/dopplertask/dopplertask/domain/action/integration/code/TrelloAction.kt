@@ -77,7 +77,7 @@ class TrelloAction : Action() {
         val api = read(baseUrl).trim().trimEnd('/') + "/1/cards"
         val card = "$api/${JsonApi.encoded(cardValue)}"
         val result = when (operationValue) {
-            CREATE_CARD -> JsonApi.call("Trello", "POST", api, headers, mapOf("idList" to listValue, "name" to titleValue, "desc" to read(cardDescription)))
+            CREATE_CARD -> JsonApi.call("Trello", "POST", "$api?idList=${JsonApi.encoded(listValue)}&name=${JsonApi.encoded(titleValue)}&desc=${JsonApi.encoded(read(cardDescription))}", headers, null)
             MOVE_CARD -> JsonApi.call("Trello", "PUT", "$card?idList=${JsonApi.encoded(listValue)}", headers, null)
             ADD_COMMENT -> JsonApi.call("Trello", "POST", "$card/actions/comments?text=${JsonApi.encoded(commentValue)}", headers, null)
             else -> return ActionResult.failure("Trello has no operation called \"$operationValue\".")

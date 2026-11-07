@@ -70,6 +70,8 @@ object JsonApi {
             if (answer.path(field).isTextual) return answer.path(field).asText()
         }
         if (answer.path("error").path("message").isTextual) return answer.path("error").path("message").asText()
+        // Elasticsearch explains under error, in a field of its own.
+        if (answer.path("error").path("reason").isTextual) return answer.path("error").path("reason").asText()
         if (answer.path("errors").isTextual) return answer.path("errors").asText()
         // Salesforce answers with a list of errors.
         if (answer.path(0).path("message").isTextual) return answer.path(0).path("message").asText()

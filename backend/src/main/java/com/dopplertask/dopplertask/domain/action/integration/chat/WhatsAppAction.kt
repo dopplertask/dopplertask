@@ -67,10 +67,10 @@ class WhatsAppAction : Action() {
         if (operationValue == SEND_MESSAGE && messageValue.isBlank()) return ActionResult.failure("WhatsApp needs the text of the message.")
         if (operationValue == SEND_TEMPLATE && templateValue.isBlank()) return ActionResult.failure("WhatsApp needs the name of a template.")
 
-        val common = mapOf("messaging_product" to "whatsapp", "to" to toValue)
+        val common = mapOf("messaging_product" to "whatsapp", "recipient_type" to "individual", "to" to toValue)
         val sent = when (operationValue) {
             SEND_MESSAGE -> common + mapOf("type" to "text", "text" to mapOf("body" to messageValue))
-            SEND_TEMPLATE -> common + mapOf("type" to "template", "template" to mapOf("name" to templateValue, "language" to mapOf("code" to read(templateLanguage).trim().ifEmpty { "en_US" })))
+            SEND_TEMPLATE -> common + mapOf("type" to "template", "template" to mapOf("name" to templateValue, "language" to mapOf("policy" to "deterministic", "code" to read(templateLanguage).trim().ifEmpty { "en_US" })))
             else -> return ActionResult.failure("WhatsApp has no operation called \"$operationValue\".")
         }
         val url = read(baseUrl).trim().trimEnd('/') + "/$API_VERSION/${JsonApi.encoded(phoneValue)}/messages"

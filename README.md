@@ -893,6 +893,273 @@ Finds, adds, updates or deletes MongoDB documents. The next step can read `$last
 * document: Document. As JSON.
 * changes: Changes. As JSON, such as {"$set": {"status": "done"}}.
 
+#### KafkaAction
+Sends a message to a Kafka topic or reads messages from one. The next step can read `$lastLog.outputVariables.messageCount`, `$lastLog.outputVariables.partition`, `$lastLog.outputVariables.offset`.
+
+##### Variables
+* operation: `sendMessage`, `readMessages`.
+* username: Username. Leave empty when the cluster has no sign-in.
+* password: Password.
+* servers: Servers. Such as broker1.example.com:9092, broker2.example.com:9092.
+* authMechanism: Sign-in method. PLAIN, SCRAM-SHA-256 or SCRAM-SHA-512.
+* useTls: Use TLS.
+* topic: Topic.
+* messageKey: Key. Messages with the same key stay in order.
+* messageBody: Message.
+* consumerGroup: Consumer group. Kafka remembers per group what has been read.
+* messageLimit: Most messages to read.
+
+#### RabbitMQAction
+Sends a message through RabbitMQ or reads messages from a queue. The next step can read `$lastLog.outputVariables.messageCount`.
+
+##### Variables
+* operation: `sendMessage`, `readMessages`.
+* username: Username.
+* password: Password.
+* hostname: Hostname.
+* port: Port.
+* virtualHost: Virtual host.
+* useTls: Use TLS.
+* exchange: Exchange. Leave empty to send straight to the queue named as routing key.
+* routingKey: Routing key.
+* messageBody: Message.
+* queueName: Queue. A message that is read is taken off the queue.
+* messageLimit: Most messages to read.
+
+#### MqttAction
+Publishes an MQTT message or waits for one on a topic. The next step can read `$lastLog.outputVariables.received`.
+
+##### Variables
+* operation: `publishMessage`, `waitForMessage`.
+* username: Username. Leave empty when the broker has no sign-in.
+* password: Password.
+* brokerUrl: Broker address. Such as tcp://broker.example.com:1883, or ssl:// for TLS.
+* topic: Topic. Such as sensors/hall/temperature.
+* messageBody: Message.
+* quality: Quality of service. 0 is at most once, 1 at least once and 2 exactly once.
+* retain: Keep for new subscribers.
+* secondsToWait: Seconds to wait.
+
+#### ElasticsearchAction
+Adds, searches or deletes documents in Elasticsearch. The next step can read `$lastLog.outputVariables.hitCount`, `$lastLog.outputVariables.documentId`.
+
+##### Variables
+* operation: `search`, `addDocument`, `deleteDocument`.
+* apiKey: API key. Leave empty when the cluster has no sign-in.
+* siteUrl: Cluster address. Such as https://search.example.com:9200.
+* indexName: Index.
+* query: Query. As JSON, such as {"match": {"status": "open"}}. Empty finds everything.
+* documentId: Document ID. Leave empty to let Elasticsearch choose one.
+* document: Document. As JSON.
+
+#### PrometheusAction
+Runs a Prometheus query or lists the active alerts. The next step can read `$lastLog.outputVariables.resultCount`, `$lastLog.outputVariables.alertCount`.
+
+##### Variables
+* operation: `runQuery`, `listAlerts`.
+* token: Bearer token. Leave empty when the server has no sign-in.
+* siteUrl: Server address. Such as https://prometheus.example.com.
+* query: PromQL query. Such as up == 0.
+
+#### GrafanaAction
+Marks an event on Grafana graphs, finds dashboards or lists firing alerts. The next step can read `$lastLog.outputVariables.annotationId`, `$lastLog.outputVariables.dashboardCount`, `$lastLog.outputVariables.alertCount`.
+
+##### Variables
+* operation: `addAnnotation`, `findDashboards`, `listFiringAlerts`.
+* token: Service account token. Under Administration, Users and access, Service accounts.
+* siteUrl: Grafana address. Such as https://grafana.example.com.
+* annotationText: What happened.
+* annotationTags: Tags. Separated by commas.
+* dashboardUid: Dashboard UID. Leave empty to mark it on every graph.
+* searchText: Search for.
+
+#### DatadogAction
+Posts a Datadog event, reads a monitor or pauses its alerts. The next step can read `$lastLog.outputVariables.eventId`, `$lastLog.outputVariables.monitorState`, `$lastLog.outputVariables.downtimeId`.
+
+##### Variables
+* operation: `postEvent`, `readMonitor`, `pauseMonitor`.
+* apiKey: API key. Under Organization settings, API keys.
+* applicationKey: Application key. Under Organization settings, Application keys.
+* title: Title.
+* eventText: Text.
+* eventTags: Tags. Separated by commas, such as env:production.
+* monitorId: Monitor ID. The number in the address of the monitor.
+* reason: Reason.
+* baseUrl: Datadog site. Such as https://api.datadoghq.eu in Europe.
+
+#### SentryAction
+Lists or reads Sentry issues, or marks one as resolved. The next step can read `$lastLog.outputVariables.issueCount`, `$lastLog.outputVariables.issueStatus`.
+
+##### Variables
+* operation: `listIssues`, `readIssue`, `resolveIssue`.
+* token: Auth token. Under Settings, Developer settings, Personal tokens.
+* organization: Organization slug. Shown in the address, as sentry.io/organizations/acme.
+* searchText: Search for.
+* issueId: Issue ID.
+* baseUrl: Sentry address. Only change this for a self-hosted Sentry.
+
+#### CloudflareAction
+Purges the Cloudflare cache or changes DNS records. The next step can read `$lastLog.outputVariables.recordId`.
+
+##### Variables
+* operation: `purgeAddresses`, `purgeEverything`, `addDnsRecord`, `deleteDnsRecord`.
+* token: API token. Under My Profile, API Tokens.
+* zoneId: Zone ID. On the overview page of the domain.
+* addresses: Addresses. One on each line.
+* recordType: Type. Such as A, AAAA, CNAME or TXT.
+* recordName: Name. Such as www.example.com.
+* recordContent: Content. Such as 192.0.2.1.
+* recordId: Record ID.
+* baseUrl: Base URL. Only change this to go through a proxy.
+
+#### DigitalOceanAction
+Lists, reads, restarts or powers DigitalOcean servers on and off. The next step can read `$lastLog.outputVariables.dropletCount`, `$lastLog.outputVariables.dropletStatus`, `$lastLog.outputVariables.actionId`.
+
+##### Variables
+* operation: `listDroplets`, `readDroplet`, `rebootDroplet`, `powerOffDroplet`, `powerOnDroplet`.
+* token: Personal access token. Under API, Tokens.
+* tagName: Tag. Leave empty for all droplets.
+* dropletId: Droplet ID. The number in the address of the droplet.
+
+#### OktaAction
+Finds an Okta user, or suspends, restores or deactivates one. The next step can read `$lastLog.outputVariables.userId`, `$lastLog.outputVariables.userStatus`.
+
+##### Variables
+* operation: `findUser`, `suspendUser`, `restoreUser`, `deactivateUser`.
+* token: API token. Under Security, API, Tokens.
+* siteUrl: Okta address. Such as https://acme.okta.com.
+* userLogin: Login or user ID. Such as ada@example.com.
+
+#### GiteaAction
+Creates, comments on or closes Gitea issues, or opens a pull request. The next step can read `$lastLog.outputVariables.number`, `$lastLog.outputVariables.url`.
+
+##### Variables
+* operation: `createIssue`, `addComment`, `closeIssue`, `createPullRequest`.
+* token: Access token. Under Settings, Applications.
+* siteUrl: Gitea address. Such as https://git.example.com.
+* owner: Owner.
+* repository: Repository.
+* issueNumber: Issue number.
+* title: Title.
+* issueDescription: Description.
+* comment: Comment.
+* sourceBranch: From branch.
+* targetBranch: Into branch.
+
+#### BitbucketAction
+Opens, comments on, approves or merges a Bitbucket pull request. The next step can read `$lastLog.outputVariables.pullRequestId`, `$lastLog.outputVariables.pullRequestState`, `$lastLog.outputVariables.url`.
+
+##### Variables
+* operation: `createPullRequest`, `addComment`, `approvePullRequest`, `mergePullRequest`.
+* email: Atlassian email.
+* token: API token. At id.atlassian.com, Security, API tokens.
+* workspace: Workspace.
+* repository: Repository.
+* pullRequestId: Pull request number.
+* title: Title.
+* pullRequestDescription: Description.
+* sourceBranch: From branch.
+* targetBranch: Into branch.
+* comment: Comment.
+* baseUrl: Base URL. Only change this to go through a proxy.
+
+#### CircleCIAction
+Starts or reads a CircleCI pipeline, or reruns or cancels a workflow. The next step can read `$lastLog.outputVariables.pipelineId`, `$lastLog.outputVariables.pipelineNumber`, `$lastLog.outputVariables.pipelineState`.
+
+##### Variables
+* operation: `startPipeline`, `readPipeline`, `rerunWorkflow`, `cancelWorkflow`.
+* token: Personal API token. Under User settings, Personal API Tokens.
+* projectSlug: Project slug. Such as gh/acme/shop, under Project settings, Overview.
+* branch: Branch. Leave empty for the default branch.
+* pipelineId: Pipeline ID.
+* workflowId: Workflow ID.
+* baseUrl: Base URL. Only change this to go through a proxy.
+
+#### WordPressAction
+Writes, reads, changes or lists WordPress posts. The next step can read `$lastLog.outputVariables.postId`, `$lastLog.outputVariables.postStatus`, `$lastLog.outputVariables.url`, `$lastLog.outputVariables.postCount`.
+
+##### Variables
+* operation: `createPost`, `readPost`, `updatePost`, `listPosts`.
+* username: Username.
+* applicationPassword: Application password. Under Users, Profile, Application Passwords.
+* siteUrl: Site. Such as https://blog.example.com.
+* postId: Post ID.
+* title: Title.
+* postContent: Content. HTML is allowed.
+* postStatus: Status. draft, pending or publish. A draft stays hidden until someone publishes it.
+* searchText: Search for.
+
+#### BoxAction
+Finds and reads Box files, creates folders or shares a file. The next step can read `$lastLog.outputVariables.fileCount`, `$lastLog.outputVariables.folderId`, `$lastLog.outputVariables.url`.
+
+##### Variables
+* operation: `findFiles`, `readTextFile`, `createFolder`, `shareFile`.
+* token: Access token. From an app in the Box Developer Console.
+* searchText: Search for.
+* fileId: File ID. The number in the address of the file.
+* folderName: Folder name.
+* parentFolderId: Inside folder ID. 0 is the top folder.
+* sharedAccess: Who can open the link. open, company or collaborators.
+* baseUrl: Base URL. Only change this to go through a proxy.
+
+#### OneDriveAction
+Finds, reads or saves text files in the OneDrive of a person. The next step can read `$lastLog.outputVariables.fileCount`, `$lastLog.outputVariables.fileId`, `$lastLog.outputVariables.url`.
+
+##### Variables
+* operation: `findFiles`, `readTextFile`, `saveTextFile`.
+* tenantId: Directory (tenant) ID. On the overview page of the app registration.
+* clientId: Application (client) ID.
+* clientSecret: Client secret. Under Certificates and secrets.
+* person: Person. The email of the person whose OneDrive it is.
+* searchText: Search for.
+* fileId: File ID.
+* filePath: Path. Such as reports/week-45.txt. A file that is there already is replaced.
+* fileContent: Content.
+* baseUrl: Base URL. Only change this to go through a proxy.
+* signInUrl: Sign-in URL. Only change this to go through a proxy.
+
+#### OutlookAction
+Sends email from an Outlook mailbox, lists unread email or marks it as read. The next step can read `$lastLog.outputVariables.emailCount`.
+
+##### Variables
+* operation: `sendEmail`, `listUnread`, `markAsRead`.
+* tenantId: Directory (tenant) ID. On the overview page of the app registration.
+* clientId: Application (client) ID.
+* clientSecret: Client secret. Under Certificates and secrets.
+* mailbox: Mailbox. The email address that it is sent from or read in.
+* toAddresses: To. Separated by commas.
+* subject: Subject.
+* emailBody: Message.
+* isHtml: The message is HTML.
+* messageId: Email ID.
+* baseUrl: Base URL. Only change this to go through a proxy.
+* signInUrl: Sign-in URL. Only change this to go through a proxy.
+
+#### SendGridAction
+Sends an email through SendGrid. The next step can read `$lastLog.outputVariables.messageId`.
+
+##### Variables
+* apiKey: API key. Under Settings, API Keys.
+* fromAddress: From. An address or domain that is verified in SendGrid.
+* toAddresses: To. Separated by commas.
+* subject: Subject.
+* emailBody: Message.
+* isHtml: The message is HTML.
+
+#### PayPalAction
+Creates, reads or captures a PayPal order, or refunds a payment. The next step can read `$lastLog.outputVariables.orderId`, `$lastLog.outputVariables.orderStatus`, `$lastLog.outputVariables.approvalUrl`, `$lastLog.outputVariables.captureId`, `$lastLog.outputVariables.refundId`.
+
+##### Variables
+* operation: `createOrder`, `readOrder`, `captureOrder`, `refundPayment`.
+* clientId: Client ID. From an app under Apps and Credentials.
+* clientSecret: Secret.
+* amount: Amount. Such as 19.90. When refunding, empty means all of it.
+* currency: Currency.
+* orderDescription: Description.
+* orderId: Order ID.
+* captureId: Capture ID. The step that took the payment gives this.
+* baseUrl: PayPal address. https://api-m.sandbox.paypal.com to try it without real money.
+
 ### Retry
 All actions have retry mechanisms to allow you to retry an action.
 #### Variables

@@ -1,6 +1,26 @@
 package com.dopplertask.dopplertask;
 
 import com.dopplertask.dopplertask.domain.action.integration.sales.HubSpotAction;
+import com.dopplertask.dopplertask.domain.action.integration.connection.KafkaAction;
+import com.dopplertask.dopplertask.domain.action.integration.connection.RabbitMQAction;
+import com.dopplertask.dopplertask.domain.action.integration.connection.MqttAction;
+import com.dopplertask.dopplertask.domain.action.integration.connection.ElasticsearchAction;
+import com.dopplertask.dopplertask.domain.action.integration.incident.PrometheusAction;
+import com.dopplertask.dopplertask.domain.action.integration.incident.GrafanaAction;
+import com.dopplertask.dopplertask.domain.action.integration.incident.DatadogAction;
+import com.dopplertask.dopplertask.domain.action.integration.incident.SentryAction;
+import com.dopplertask.dopplertask.domain.action.integration.infrastructure.CloudflareAction;
+import com.dopplertask.dopplertask.domain.action.integration.infrastructure.DigitalOceanAction;
+import com.dopplertask.dopplertask.domain.action.integration.infrastructure.OktaAction;
+import com.dopplertask.dopplertask.domain.action.integration.code.GiteaAction;
+import com.dopplertask.dopplertask.domain.action.integration.code.BitbucketAction;
+import com.dopplertask.dopplertask.domain.action.integration.code.CircleCIAction;
+import com.dopplertask.dopplertask.domain.action.integration.storage.WordPressAction;
+import com.dopplertask.dopplertask.domain.action.integration.storage.BoxAction;
+import com.dopplertask.dopplertask.domain.action.integration.storage.OneDriveAction;
+import com.dopplertask.dopplertask.domain.action.integration.mail.OutlookAction;
+import com.dopplertask.dopplertask.domain.action.integration.mail.SendGridAction;
+import com.dopplertask.dopplertask.domain.action.integration.commerce.PayPalAction;
 import com.dopplertask.dopplertask.domain.action.integration.sales.SalesforceAction;
 import com.dopplertask.dopplertask.domain.action.integration.sales.PipedriveAction;
 import com.dopplertask.dopplertask.domain.action.integration.sales.MailchimpAction;
@@ -1363,6 +1383,8 @@ public class IntegrationActionsTest {
         whatsApp.setTemplateName("hello_world");
         run(whatsApp);
         Assert.assertEquals("en_US", received.path("template").path("language").path("code").asText());
+        Assert.assertEquals("deterministic", received.path("template").path("language").path("policy").asText());
+        Assert.assertEquals("individual", received.path("recipient_type").asText());
         whatsApp.setTo("not a number");
         assertFailsWith(whatsApp, "country code");
     }
@@ -1377,7 +1399,7 @@ public class IntegrationActionsTest {
         answerBody = "{\"data\":{\"gid\":\"99\",\"permalink_url\":\"https://app.asana.com/99\"}}";
         ActionResult created = run(asana);
         Assert.assertEquals("/api/1.0/tasks", path);
-        Assert.assertEquals("opt_fields=gid,permalink_url", query);
+        Assert.assertEquals("opt_fields=permalink_url", query);
         Assert.assertEquals("12", received.path("data").path("projects").path(0).asText());
         Assert.assertEquals("99", created.getOutputVariables().get("taskId"));
         Assert.assertEquals("https://app.asana.com/99", created.getOutputVariables().get("url"));
@@ -1564,5 +1586,342 @@ public class IntegrationActionsTest {
         assertFailsWith(mongo, "filter");
         mongo.setOperation("addDocument");
         assertFailsWith(mongo, "document");
+    }
+
+    @Test
+    public void testHubSpotCreatesADealWithWhatItsApiRequiresSuccess() throws IOException {
+        HubSpotAction hubspot = new HubSpotAction();
+        hubspot.setBaseUrl(baseUrl);
+        hubspot.setToken("pat");
+        hubspot.setOperation("createDeal");
+        hubspot.setDealName("Big order");
+        assertSucceeded(run(hubspot));
+        Assert.assertEquals("/crm/objects/2026-09/0-3", path);
+        Assert.assertTrue(received.path("associations").isArray());
+        hubspot.setOperation("findContact");
+        hubspot.setEmail("ada@example.com");
+        assertSucceeded(run(hubspot));
+        Assert.assertEquals(1, received.path("limit").asInt());
+        Assert.assertEquals("email", received.path("properties").path(0).asText());
+    }
+
+    @Test
+    public void testTrelloCreatesACardWithItsFieldsInTheAddressSuccess() throws IOException {
+        TrelloAction trello = new TrelloAction();
+        trello.setBaseUrl(baseUrl);
+        trello.setApiKey("key");
+        trello.setToken("tok");
+        trello.setOperation("createCard");
+        trello.setListId("list1");
+        trello.setTitle("Call Ada");
+        trello.setCardDescription("About the order");
+        assertSucceeded(run(trello));
+        Assert.assertEquals("idList=list1&name=Call Ada&desc=About the order", query);
+        Assert.assertEquals("", receivedText);
+    }
+
+    @Test
+    public void testDatadogPausesAMonitorThroughADowntimeSuccess() throws IOException {
+        DatadogAction datadog = new DatadogAction();
+        datadog.setBaseUrl(baseUrl);
+        datadog.setApiKey("api");
+        datadog.setApplicationKey("app");
+        datadog.setOperation("pauseMonitor");
+        datadog.setMonitorId("123");
+        answerBody = "{\"data\":{\"id\":\"down-1\"}}";
+        ActionResult result = run(datadog);
+        assertSucceeded(result);
+        Assert.assertEquals("/api/v2/downtime", path);
+        Assert.assertEquals("app", requestHeaders.get("dd-application-key"));
+        Assert.assertEquals(123, received.path("data").path("attributes").path("monitor_identifier").path("monitor_id").asInt());
+        Assert.assertEquals("down-1", result.getOutputVariables().get("downtimeId"));
+        datadog.setApplicationKey("");
+        assertFailsWith(datadog, "application key");
+    }
+
+    @Test
+    public void testSentryResolvesAnIssueSuccess() throws IOException {
+        SentryAction sentry = new SentryAction();
+        sentry.setBaseUrl(baseUrl);
+        sentry.setToken("tok");
+        sentry.setOrganization("acme");
+        sentry.setOperation("resolveIssue");
+        sentry.setIssueId("55");
+        answerBody = "{\"status\":\"resolved\"}";
+        ActionResult result = run(sentry);
+        assertSucceeded(result);
+        Assert.assertEquals("PUT", method);
+        Assert.assertEquals("/api/0/organizations/acme/issues/55/", path);
+        Assert.assertEquals("resolved", result.getOutputVariables().get("issueStatus"));
+    }
+
+    @Test
+    public void testCloudflareOnlyPurgesEverythingWhenThatIsChosenSuccess() throws IOException {
+        CloudflareAction cloudflare = new CloudflareAction();
+        cloudflare.setBaseUrl(baseUrl);
+        cloudflare.setToken("tok");
+        cloudflare.setZoneId("zone");
+        cloudflare.setOperation("purgeAddresses");
+        assertFailsWith(cloudflare, "at least one address");
+        cloudflare.setAddresses("https://example.com/a\n\nhttps://example.com/b");
+        assertSucceeded(run(cloudflare));
+        Assert.assertEquals("/client/v4/zones/zone/purge_cache", path);
+        Assert.assertEquals(2, received.path("files").size());
+        Assert.assertTrue(received.path("purge_everything").isMissingNode());
+    }
+
+    @Test
+    public void testDigitalOceanRestartsADropletSuccess() throws IOException {
+        DigitalOceanAction digitalOcean = new DigitalOceanAction();
+        digitalOcean.setBaseUrl(baseUrl);
+        digitalOcean.setToken("tok");
+        digitalOcean.setOperation("rebootDroplet");
+        digitalOcean.setDropletId("nope");
+        assertFailsWith(digitalOcean, "droplet ID");
+        digitalOcean.setDropletId("316");
+        assertSucceeded(run(digitalOcean));
+        Assert.assertEquals("/v2/droplets/316/actions", path);
+        Assert.assertEquals("reboot", received.path("type").asText());
+    }
+
+    @Test
+    public void testOktaSignsInWithItsOwnKindOfTokenSuccess() throws IOException {
+        OktaAction okta = new OktaAction();
+        okta.setSiteUrl(baseUrl);
+        okta.setToken("tok");
+        okta.setOperation("suspendUser");
+        okta.setUserLogin("ada@example.com");
+        assertSucceeded(run(okta));
+        Assert.assertEquals("SSWS tok", authorization);
+        Assert.assertEquals("/api/v1/users/ada@example.com/lifecycle/suspend", path);
+    }
+
+    @Test
+    public void testGiteaOpensAPullRequestSuccess() throws IOException {
+        GiteaAction gitea = new GiteaAction();
+        gitea.setSiteUrl(baseUrl);
+        gitea.setToken("tok");
+        gitea.setOwner("acme");
+        gitea.setRepository("shop");
+        gitea.setOperation("createPullRequest");
+        gitea.setTitle("Fix");
+        assertFailsWith(gitea, "branch");
+        gitea.setSourceBranch("fix");
+        answerBody = "{\"number\":2,\"html_url\":\"https://git/pulls/2\"}";
+        ActionResult result = run(gitea);
+        assertSucceeded(result);
+        Assert.assertEquals("/api/v1/repos/acme/shop/pulls", path);
+        Assert.assertEquals("fix", received.path("head").asText());
+        Assert.assertEquals("main", received.path("base").asText());
+        Assert.assertEquals("2", result.getOutputVariables().get("number"));
+    }
+
+    @Test
+    public void testBitbucketNamesBranchesTheWayItWantsSuccess() throws IOException {
+        BitbucketAction bitbucket = new BitbucketAction();
+        bitbucket.setBaseUrl(baseUrl);
+        bitbucket.setEmail("a@b.se");
+        bitbucket.setToken("tok");
+        bitbucket.setWorkspace("acme");
+        bitbucket.setRepository("shop");
+        bitbucket.setOperation("createPullRequest");
+        bitbucket.setTitle("Fix");
+        bitbucket.setSourceBranch("fix");
+        assertSucceeded(run(bitbucket));
+        Assert.assertEquals("/2.0/repositories/acme/shop/pullrequests", path);
+        Assert.assertEquals("fix", received.path("source").path("branch").path("name").asText());
+        Assert.assertEquals(basicOf("a@b.se:tok"), authorization);
+    }
+
+    @Test
+    public void testCircleCIStartsAPipelineSuccess() throws IOException {
+        CircleCIAction circleCI = new CircleCIAction();
+        circleCI.setBaseUrl(baseUrl);
+        circleCI.setToken("tok");
+        circleCI.setOperation("startPipeline");
+        circleCI.setProjectSlug("gh/acme/shop");
+        circleCI.setBranch("main");
+        answerBody = "{\"id\":\"p1\",\"number\":25,\"state\":\"created\"}";
+        ActionResult result = run(circleCI);
+        assertSucceeded(result);
+        Assert.assertEquals("/api/v2/project/gh/acme/shop/pipeline", path);
+        Assert.assertEquals("tok", requestHeaders.get("circle-token"));
+        Assert.assertEquals("p1", result.getOutputVariables().get("pipelineId"));
+    }
+
+    @Test
+    public void testWordPressWritesADraftUnlessToldOtherwiseSuccess() throws IOException {
+        WordPressAction wordPress = new WordPressAction();
+        wordPress.setSiteUrl(baseUrl);
+        wordPress.setUsername("admin");
+        wordPress.setApplicationPassword("pass");
+        wordPress.setOperation("createPost");
+        wordPress.setTitle("Week 45");
+        answerBody = "{\"id\":12,\"status\":\"draft\",\"link\":\"u\"}";
+        ActionResult result = run(wordPress);
+        assertSucceeded(result);
+        Assert.assertEquals("/wp-json/wp/v2/posts", path);
+        Assert.assertEquals("draft", received.path("status").asText());
+        Assert.assertEquals(basicOf("admin:pass"), authorization);
+        Assert.assertEquals("12", result.getOutputVariables().get("postId"));
+    }
+
+    @Test
+    public void testBoxSharesAFileWithTheCompanyByDefaultSuccess() throws IOException {
+        BoxAction box = new BoxAction();
+        box.setBaseUrl(baseUrl);
+        box.setToken("tok");
+        box.setOperation("shareFile");
+        box.setFileId("99");
+        answerBody = "{\"shared_link\":{\"url\":\"https://box/s\"}}";
+        ActionResult result = run(box);
+        assertSucceeded(result);
+        Assert.assertEquals("/2.0/files/99", path);
+        Assert.assertEquals("company", received.path("shared_link").path("access").asText());
+        Assert.assertEquals("https://box/s", result.getOutputVariables().get("url"));
+    }
+
+    @Test
+    public void testOneDriveFindsTheDriveOfThePersonThenSavesSuccess() throws IOException {
+        OneDriveAction oneDrive = new OneDriveAction();
+        oneDrive.setBaseUrl(baseUrl);
+        oneDrive.setSignInUrl(baseUrl);
+        oneDrive.setTenantId("t");
+        oneDrive.setClientId("c");
+        oneDrive.setClientSecret("s");
+        oneDrive.setPerson("ada@example.com");
+        oneDrive.setOperation("saveTextFile");
+        oneDrive.setFilePath("reports/week 45.txt");
+        oneDrive.setFileContent("Hello");
+        answersByRequest.put("/oauth2/v2.0/token", "{\"access_token\":\"signed-in\"}");
+        answersByRequest.put("/v1.0/users/ada@example.com/drive", "{\"id\":\"d1\"}");
+        answerBody = "{\"id\":\"f1\",\"webUrl\":\"u\"}";
+        ActionResult result = run(oneDrive);
+        assertSucceeded(result);
+        Assert.assertEquals("/v1.0/drives/d1/items/root:/reports/week 45.txt:/content", path);
+        Assert.assertEquals("Bearer signed-in", authorization);
+        Assert.assertEquals("Hello", receivedText);
+        Assert.assertEquals("f1", result.getOutputVariables().get("fileId"));
+    }
+
+    @Test
+    public void testOutlookSendsFromTheMailboxSuccess() throws IOException {
+        OutlookAction outlook = new OutlookAction();
+        outlook.setBaseUrl(baseUrl);
+        outlook.setSignInUrl(baseUrl);
+        outlook.setOperation("sendEmail");
+        outlook.setMailbox("ops@example.com");
+        outlook.setToAddresses("ada@example.com, bo@example.com");
+        outlook.setSubject("Hello");
+        assertFailsWith(outlook, "app registration");
+        outlook.setTenantId("t");
+        outlook.setClientId("c");
+        outlook.setClientSecret("s");
+        answersByRequest.put("/oauth2/v2.0/token", "{\"access_token\":\"signed-in\"}");
+        assertSucceeded(run(outlook));
+        Assert.assertEquals("/v1.0/users/ops@example.com/sendMail", path);
+        Assert.assertEquals(2, received.path("message").path("toRecipients").size());
+        Assert.assertEquals("Text", received.path("message").path("body").path("contentType").asText());
+    }
+
+    @Test
+    public void testSendGridSendsToEveryoneNamedSuccess() throws IOException {
+        SendGridAction sendGrid = new SendGridAction();
+        sendGrid.setBaseUrl(baseUrl);
+        sendGrid.setApiKey("SG.x");
+        sendGrid.setFromAddress("ops@example.com");
+        sendGrid.setToAddresses("ada@example.com, bo@example.com");
+        sendGrid.setSubject("Hello");
+        sendGrid.setEmailBody("Text");
+        assertSucceeded(run(sendGrid));
+        Assert.assertEquals("/v3/mail/send", path);
+        Assert.assertEquals(2, received.path("personalizations").path(0).path("to").size());
+        Assert.assertEquals("text/plain", received.path("content").path(0).path("type").asText());
+    }
+
+    @Test
+    public void testPayPalSignsInThenCreatesAnOrderSuccess() throws IOException {
+        PayPalAction payPal = new PayPalAction();
+        payPal.setBaseUrl(baseUrl);
+        payPal.setClientId("c");
+        payPal.setClientSecret("s");
+        payPal.setOperation("createOrder");
+        payPal.setAmount("lots");
+        assertFailsWith(payPal, "amount");
+        payPal.setAmount("19.90");
+        answersByRequest.put("/v1/oauth2/token", "{\"access_token\":\"signed-in\"}");
+        answerBody = "{\"id\":\"o1\",\"status\":\"CREATED\",\"links\":[{\"rel\":\"payer-action\",\"href\":\"https://pay\"}]}";
+        ActionResult result = run(payPal);
+        assertSucceeded(result);
+        Assert.assertEquals("/v2/checkout/orders", path);
+        Assert.assertEquals("Bearer signed-in", authorization);
+        Assert.assertEquals("19.90", received.path("purchase_units").path(0).path("amount").path("value").asText());
+        Assert.assertEquals("https://pay", result.getOutputVariables().get("approvalUrl"));
+    }
+
+    @Test
+    public void testElasticsearchSaysWhyAQueryIsRefusedFailure() throws IOException {
+        ElasticsearchAction elasticsearch = new ElasticsearchAction();
+        elasticsearch.setSiteUrl(baseUrl);
+        elasticsearch.setIndexName("orders");
+        elasticsearch.setOperation("search");
+        elasticsearch.setQuery("not json");
+        assertFailsWith(elasticsearch, "JSON object");
+        elasticsearch.setQuery("{\"nothing\": {}}");
+        answerStatus = 400;
+        answerBody = "{\"error\":{\"reason\":\"unknown query [nothing]\"}}";
+        assertFailsWith(elasticsearch, "unknown query [nothing]");
+    }
+
+    @Test
+    public void testPrometheusCountsWhatTheQueryFoundSuccess() throws IOException {
+        PrometheusAction prometheus = new PrometheusAction();
+        prometheus.setSiteUrl(baseUrl);
+        prometheus.setOperation("runQuery");
+        prometheus.setQuery("up == 0");
+        answerBody = "{\"data\":{\"result\":[{},{}]}}";
+        ActionResult result = run(prometheus);
+        assertSucceeded(result);
+        Assert.assertEquals("query=up == 0", query);
+        Assert.assertEquals(2, result.getOutputVariables().get("resultCount"));
+    }
+
+    @Test
+    public void testGrafanaMarksAnEventWithItsTagsSuccess() throws IOException {
+        GrafanaAction grafana = new GrafanaAction();
+        grafana.setSiteUrl(baseUrl);
+        grafana.setToken("tok");
+        grafana.setOperation("addAnnotation");
+        grafana.setAnnotationText("Deployed");
+        grafana.setAnnotationTags("deploy, shop");
+        answerBody = "{\"id\":65}";
+        ActionResult result = run(grafana);
+        assertSucceeded(result);
+        Assert.assertEquals("/api/annotations", path);
+        Assert.assertEquals("shop", received.path("tags").path(1).asText());
+        Assert.assertEquals("65", result.getOutputVariables().get("annotationId"));
+    }
+
+    @Test
+    public void testMessageStepsSayWhatIsMissingFailure() throws IOException {
+        KafkaAction kafka = new KafkaAction();
+        assertFailsWith(kafka, "servers");
+        kafka.setServers("localhost:1");
+        kafka.setTopic("orders");
+        kafka.setOperation("readMessages");
+        assertFailsWith(kafka, "consumer group");
+        kafka.setConsumerGroup("g");
+        kafka.setMessageLimit("100000");
+        assertFailsWith(kafka, "between 1 and");
+        RabbitMQAction rabbit = new RabbitMQAction();
+        assertFailsWith(rabbit, "hostname");
+        rabbit.setHostname("localhost");
+        assertFailsWith(rabbit, "routing key");
+        MqttAction mqtt = new MqttAction();
+        assertFailsWith(mqtt, "address of the broker");
+        mqtt.setBrokerUrl("tcp://localhost:1");
+        mqtt.setTopic("t");
+        mqtt.setQuality("9");
+        assertFailsWith(mqtt, "quality of service");
     }
 }
