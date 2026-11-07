@@ -76,10 +76,6 @@ public interface TaskService {
 
     Task getTask(long id);
 
-    boolean loginUser(String username, String password);
-
-    boolean pushTask(String taskName);
-
     /**
      * Deletes a task by checksum or name. It searches first for checksum.
      *

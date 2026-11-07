@@ -1,12 +1,9 @@
 package com.dopplertask.dopplertask.service;
 
-import com.dopplertask.dopplertask.Application;
 import com.dopplertask.dopplertask.dao.TaskDao;
 import com.dopplertask.dopplertask.dao.TaskExecutionDao;
 import com.dopplertask.dopplertask.domain.*;
 import com.dopplertask.dopplertask.domain.action.Action;
-import com.dopplertask.dopplertask.dto.TaskCreationDTO;
-import tools.jackson.core.JacksonException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,33 +11,14 @@ import org.springframework.jms.core.JmsTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 
 @Service
 public class ExecutionServiceImpl implements ExecutionService {
-    private static final int LONGEST_BROADCAST = 64 * 1024;
-    private static final int BROADCAST_BACKLOG = 1000;
-
-
-
-    public static final String CHECKSUM_ALGORITHM = "SHA-256";
     private static final Logger LOG = LoggerFactory.getLogger(ExecutionServiceImpl.class);
-    private static final String DOPPLERTASK_WORKFLOW_DOWNLOAD = "https://www.dopplertask.com/getworkflow.php";
     private static final int MAX_ACTION_ACCESS_LIMIT = 2000;
 
     // A run commits when it ends, so these are what a reader can see of a run in progress.
@@ -48,35 +26,18 @@ public class ExecutionServiceImpl implements ExecutionService {
     private static final String TRIGGER_PARAMETER_PREFIX = "TRIGGER";
 
     private JmsTemplate jmsTemplate;
-    private JmsTemplate broadcasts;
     private CredentialService credentialService;
     private TaskDao taskDao;
     private VariableExtractorUtil variableExtractorUtil;
     private TaskExecutionDao taskExecutionDao;
-    private Executor executor;
 
     @Autowired
     public ExecutionServiceImpl(JmsTemplate jmsTemplate, TaskDao taskDao, VariableExtractorUtil variableExtractorUtil, CredentialService credentialService, TaskExecutionDao taskExecutionDao) {
         this.jmsTemplate = jmsTemplate;
         this.credentialService = credentialService;
-        this.broadcasts = Application.broadcastTemplate(jmsTemplate);
         this.taskDao = taskDao;
         this.variableExtractorUtil = variableExtractorUtil;
         this.taskExecutionDao = taskExecutionDao;
-        // One thread keeps the order. When the broker is full the backlog stays bounded, and new broadcasts are dropped.
-        this.executor = new ThreadPoolExecutor(1, 1, 0, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(BROADCAST_BACKLOG), new ThreadPoolExecutor.DiscardPolicy());
-    }
-
-    private static String bytesToHex(byte[] hash) {
-        StringBuilder hexString = new StringBuilder();
-        for (int i = 0; i < hash.length; i++) {
-            String hex = Integer.toHexString(0xff & hash[i]);
-            if (hex.length() == 1) {
-                hexString.append('0');
-            }
-            hexString.append(hex);
-        }
-        return hexString.toString();
     }
 
     @Transactional
@@ -108,7 +69,6 @@ public class ExecutionServiceImpl implements ExecutionService {
                 execution.addLog(resumeFailed);
                 execution.setSuccess(false);
                 execution.setFailureReason(cannotResume);
-                broadcastResults(resumeFailed, true);
                 return execution;
             }
 
@@ -142,7 +102,6 @@ public class ExecutionServiceImpl implements ExecutionService {
                 execution.setSuccess(false);
                 execution.setFailureReason(executionFailed.getOutput());
                 LOG.info("Task execution failed, missing parameters: {} [taskId={}, executionId={}]", missingParametersAsString, task.getId(), execution.getId());
-                broadcastResults(executionFailed, true);
 
                 return execution;
             }
@@ -159,8 +118,6 @@ public class ExecutionServiceImpl implements ExecutionService {
 
             LOG.info("Task execution started [taskId={}, executionId={}]", task.getId(), execution.getId());
 
-            broadcastResults(executionStarted);
-
             return execution;
         } else {
             LOG.warn("Task could not be found [taskId={}]", taskExecutionRequest.getTaskName());
@@ -174,7 +131,6 @@ public class ExecutionServiceImpl implements ExecutionService {
                 noTaskLog.setOutput("Task could not be found [taskId=" + taskExecutionRequest.getTaskName() + "]");
                 noTaskLog.setTaskExecution(taskExecution);
                 noTaskLog.setBroadcasted(true);
-                broadcastResults(noTaskLog, true);
             }
             return null;
         }
@@ -183,162 +139,21 @@ public class ExecutionServiceImpl implements ExecutionService {
     private Optional<Task> lookupTask(TaskExecutionRequest taskExecutionRequest, TaskService taskService) {
         Optional<Task> taskRequest = Optional.empty();
         if (taskExecutionRequest.getChecksum() != null && !taskExecutionRequest.getChecksum().isEmpty()) {
-            taskRequest = findOrDownloadByChecksum(taskExecutionRequest.getChecksum(), taskService);
+            taskRequest = taskDao.findFirstByChecksumStartingWithAndProposedFalse(taskExecutionRequest.getChecksum());
 
             // Search in the local database by taskName
             if (!taskRequest.isPresent() && taskExecutionRequest.getTaskName() != null && !taskExecutionRequest.getTaskName().isEmpty()) {
-                taskRequest = findOrDownloadByName(taskExecutionRequest.getTaskName(), taskService);
+                taskRequest = taskDao.findFirstByNameAndProposedFalseOrderByCreatedDesc(taskExecutionRequest.getTaskName());
             }
         } else if (taskExecutionRequest.getTaskName() != null && !taskExecutionRequest.getTaskName().isEmpty()) {
-            taskRequest = findOrDownloadByName(taskExecutionRequest.getTaskName(), taskService);
+            taskRequest = taskDao.findFirstByNameAndProposedFalseOrderByCreatedDesc(taskExecutionRequest.getTaskName());
         }
         return taskRequest;
-    }
-
-    public Optional<Task> findOrDownloadByName(String taskName, TaskService taskService) {
-        Optional<Task> task = taskDao.findFirstByNameAndProposedFalseOrderByCreatedDesc(taskName);
-
-        if (task.isPresent()) {
-            LOG.info("Found task with with name: {}", taskName);
-            return task;
-        } else {
-            // Try to download it
-            LOG.info("Trying to download task with name: {}", taskName);
-
-            // Persist with checksum
-            HttpRequest.Builder builder = HttpRequest.newBuilder()
-                    .uri(URI.create(DOPPLERTASK_WORKFLOW_DOWNLOAD + "?name=" + taskName))
-                    .timeout(Duration.ofMinutes(1));
-            builder = builder.GET();
-            HttpClient client = HttpClient.newHttpClient();
-            HttpRequest request = builder.build();
-            try {
-                // Get JSON from Hub
-                HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-
-                if (response.statusCode() == 200 && response.body() != null && !response.body().isEmpty() && taskService != null && !response.body().contains("Could not find the workflow")) {
-
-                    // Translate JSON to object
-                    TaskCreationDTO taskCreationDTO = TaskCreationDTO.fromJson(response.body());
-
-                    // Create checksum
-                    MessageDigest digest = MessageDigest.getInstance(CHECKSUM_ALGORITHM);
-                    byte[] encodedhash = digest.digest(response.body().getBytes(StandardCharsets.UTF_8));
-                    String sha256 = bytesToHex(encodedhash);
-
-                    //TODO: check that there is no other checksum with the same value in the DB
-                    Long onlineTaskId = taskService.createTask(taskCreationDTO.getName(), taskCreationDTO.getParameters(), taskCreationDTO.getActions(), taskCreationDTO.getDescription(), taskCreationDTO.getConnections(), sha256, taskCreationDTO.isActive());
-
-                    return taskDao.findById(onlineTaskId);
-                }
-            } catch (IOException | JacksonException | InterruptedException | NoSuchAlgorithmException e) {
-                LOG.error("Exception: {}", e);
-            }
-
-            return Optional.empty();
-        }
-
     }
 
     @Override
     public Optional<TaskExecution> getExecution(long id) {
         return taskExecutionDao.findById(id);
-    }
-
-    @Override
-    @Transactional
-    public void deleteExecution(long id) {
-        Optional<TaskExecution> execution = taskExecutionDao.findById(id);
-        if (execution.isPresent()) {
-            taskExecutionDao.delete(execution.get());
-            return;
-        }
-
-        throw new ExecutionNotFoundException("Execution could not be found.");
-    }
-
-    @Override
-    public Optional<Task> pullTask(String taskName, TaskService taskService) {
-        // Try to download it
-        LOG.info("Pulling task with name: {}", taskName);
-
-        HttpRequest.Builder builder = HttpRequest.newBuilder()
-                .uri(URI.create(DOPPLERTASK_WORKFLOW_DOWNLOAD + "?name=" + taskName))
-                .timeout(Duration.ofMinutes(1));
-        builder = builder.GET();
-        HttpClient client = HttpClient.newHttpClient();
-        HttpRequest request = builder.build();
-        try {
-            // Get JSON from Hub
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-
-            if (response.statusCode() == 200 && response.body() != null && !response.body().isEmpty() && taskService != null) {
-                // Translate JSON to object
-                TaskCreationDTO taskCreationDTO = TaskCreationDTO.fromJson(response.body());
-
-                // Create checksum
-                MessageDigest digest = MessageDigest.getInstance(CHECKSUM_ALGORITHM);
-                byte[] encodedhash = digest.digest(response.body().getBytes(StandardCharsets.UTF_8));
-                String sha256 = bytesToHex(encodedhash);
-
-                // Check current database for existing task with checksum.
-                Optional<Task> existingTask = taskDao.findFirstByChecksumStartingWithAndProposedFalse(sha256);
-                if (!existingTask.isPresent()) {
-                    Long onlineTaskId = taskService.createTask(taskCreationDTO.getName(), taskCreationDTO.getParameters(), taskCreationDTO.getActions(), taskCreationDTO.getDescription(), taskCreationDTO.getConnections(), sha256, taskCreationDTO.isActive());
-                    return taskDao.findById(onlineTaskId);
-                } else {
-                    return existingTask;
-                }
-            }
-        } catch (IOException | JacksonException | InterruptedException | NoSuchAlgorithmException e) {
-            LOG.error("Exception: {}", e);
-        }
-
-
-        return taskDao.findFirstByNameAndProposedFalseOrderByCreatedDesc(taskName);
-    }
-
-    private Optional<Task> findOrDownloadByChecksum(String checksum, TaskService taskService) {
-        Optional<Task> task = taskDao.findFirstByChecksumStartingWithAndProposedFalse(checksum);
-
-        if (task.isPresent()) {
-            LOG.info("Found task with checksum: {}", checksum);
-            return task;
-        } else if (!checksum.isEmpty() && checksum.length() == 255) {
-            // Try to download it
-            LOG.info("Trying to download task with checksum: {}", checksum);
-
-            HttpRequest.Builder builder = HttpRequest.newBuilder()
-                    .uri(URI.create(DOPPLERTASK_WORKFLOW_DOWNLOAD + "?checksum=" + checksum))
-                    .timeout(Duration.ofMinutes(1));
-            builder = builder.GET();
-            HttpClient client = HttpClient.newHttpClient();
-            HttpRequest request = builder.build();
-            try {
-                // Get JSON from Hub
-                HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-
-                if (response.statusCode() == 200 && response.body() != null && !response.body().isEmpty() && taskService != null) {
-
-                    // Translate JSON to object
-                    TaskCreationDTO taskCreationDTO = TaskCreationDTO.fromJson(response.body());
-
-                    // Create checksum
-                    MessageDigest digest = MessageDigest.getInstance(CHECKSUM_ALGORITHM);
-                    byte[] encodedhash = digest.digest(response.body().getBytes(StandardCharsets.UTF_8));
-                    String sha256 = bytesToHex(encodedhash);
-
-                    Long onlineTaskId = taskService.createTask(taskCreationDTO.getName(), taskCreationDTO.getParameters(), taskCreationDTO.getActions(), taskCreationDTO.getDescription(), taskCreationDTO.getConnections(), sha256, taskCreationDTO.isActive());
-
-                    return taskDao.findById(onlineTaskId);
-                }
-            } catch (IOException | JacksonException | InterruptedException | NoSuchAlgorithmException e) {
-                LOG.error("Exception: {}", e);
-            }
-
-            return Optional.empty();
-        }
-        return Optional.empty();
     }
 
     @Override
@@ -438,7 +253,6 @@ public class ExecutionServiceImpl implements ExecutionService {
 
                 // The output stays out of the log: it can be large and hold secrets, and it is stored with the run.
                 LOG.info("Ran current action: {} with status code: {}", currentAction.getClass().getSimpleName(), actionResult.getStatusCode());
-                broadcastResults(execution.getId(), "Ran current action: " + currentAction.getClass().getSimpleName() + " with status code: " + actionResult.getStatusCode(), actionResult.getOutputType());
 
                 // If action did not go well
                 if (actionResult.getStatusCode() == StatusCode.FAILURE && !currentAction.isContinueOnFailure()) {
@@ -455,7 +269,6 @@ public class ExecutionServiceImpl implements ExecutionService {
         executionCompleted.setOutput("Task execution completed [taskId=" + task.getId() + ", executionId=" + execution.getId() + ", success=" + execution.isSuccess() + "]");
         executionCompleted.setBroadcasted(true);
         execution.addLog(executionCompleted);
-        broadcastResults(executionCompleted, true);
 
         LOG.info("Task execution completed [taskId={}, executionId={}]", task.getId(), execution.getId());
 
@@ -506,10 +319,6 @@ public class ExecutionServiceImpl implements ExecutionService {
     @Override
     public void forgetLiveSteps(Long executionId) {
         liveSteps.remove(executionId);
-    }
-
-    private void broadcastResults(Long executionId, String output, OutputType outputType) {
-        broadcast(output, outputType, executionId, false);
     }
 
     private ActionResult runAction(TaskService taskService, TaskExecution execution, Action currentAction) {
@@ -586,7 +395,6 @@ public class ExecutionServiceImpl implements ExecutionService {
         execution.addLog(log);
 
         if (broadcastLog) {
-            broadcastResults(log, lastBroadcastMessage);
         }
 
         return log;
@@ -598,24 +406,6 @@ public class ExecutionServiceImpl implements ExecutionService {
 
     public TaskExecutionLog addLog(TaskExecution execution, String output, OutputType outputType, Map<String, Object> outputVariables, boolean broadcastLog) {
         return addLog(execution, output, outputType, outputVariables, broadcastLog, true);
-    }
-
-    private void broadcastResults(TaskExecutionLog taskExecutionLog) {
-        broadcastResults(taskExecutionLog, false);
-    }
-
-    private void broadcastResults(TaskExecutionLog taskExecutionLog, boolean lastMessage) {
-        broadcast(taskExecutionLog.getOutput(), taskExecutionLog.getOutputType(), taskExecutionLog.getTaskExecution().getId(), lastMessage);
-    }
-
-    // Broadcasts are a live view, and the whole output is stored with the run, so a long one is cut here.
-    private void broadcast(String output, OutputType outputType, Long executionId, boolean lastMessage) {
-        BroadcastResult result = new BroadcastResult(output != null && output.length() > LONGEST_BROADCAST ? output.substring(0, LONGEST_BROADCAST) : output, outputType);
-        executor.execute(() -> broadcasts.convertAndSend(Application.BROADCAST_QUEUE, result, message -> {
-            message.setLongProperty("executionId", executionId);
-            message.setBooleanProperty("lastMessage", lastMessage);
-            return message;
-        }));
     }
 
 }

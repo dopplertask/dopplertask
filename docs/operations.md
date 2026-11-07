@@ -5,7 +5,7 @@
 **Docker.** The `Dockerfile` builds the current code:
 ```bash
 docker build -t dopplertask/dopplertask .
-docker run -d -p 8090:8090 -p 61614:61614 -v $HOME:/root dopplertask/dopplertask
+docker run -d -p 8090:8090 -v $HOME:/root dopplertask/dopplertask
 ```
 `docker compose up -d` runs the image `dopplertask/dopplertask:latest` and keeps your tasks in a named volume. The image on Docker Hub is version 0.14.7 from 2022 until the next release is published.
 
@@ -44,7 +44,6 @@ Existing tasks, versions and webhook addresses keep working, and the database is
 * **The OpenAI step verifies the certificate of the server.** A server of your own with a self-signed certificate needs that certificate added to the trust store of Java.
 * **Requests from web pages on other sites are refused.** A page that should have access needs `dopplertask.allowedOrigins`. Webhooks and clients that are not browsers are not affected.
 * **The command line tool exits with 1 when a run fails,** and prints the output of each step rather than internal log lines.
-* **The editor no longer uses port 61614,** so it does not need to be published for the editor.
 
 ## Security
 DopplerTask runs commands on the machine it is installed on, so treat access to it as access to that machine.
@@ -56,7 +55,6 @@ DopplerTask runs commands on the machine it is installed on, so treat access to 
 * **Steps never hold secrets.** A step names a credential, and gets its values only while it runs. No API, export or agent can read a value back, and a value that a step or a service repeats is hidden from the stored output.
 * **Agents can use credentials but not read, create or change them.** A step can still send its credential to the address it is given, so review the address when approving a proposal.
 * **Keep the encryption key safe.** Credentials use AES-256-GCM. Without `DOPPLERTASK_ENCRYPTION_KEY`, a key is made the first time one is saved, in `~/.dopplertask/encryption.key` readable only by its owner, or at `DOPPLERTASK_KEY_FILE`. Back it up along with the database, since credentials cannot be read without it.
-* **Port 61614 uses the default password of the message broker,** and any web page can reach it. It lets a page read the output of runs and start tasks. It is turned off when a person token is set. Only the older command line tool needs this port, so do not publish it unless you use that tool.
 
 ## Running for many customers
 
@@ -66,6 +64,6 @@ An install trusts its own tasks and serves one customer, which is all most peopl
 * `StepRules` can refuse steps and addresses, and give scripts plain values only. Refused steps also leave the step list.
 * `StepRunner` can run steps, templates and scripts in another process.
 * `RunQueue` can replace the built-in queue for runs.
-* `dopplertask.brokerPort`, `dopplertask.stompPort` and `dopplertask.socketPort` move the broker's ports, and 0 closes one. `dopplertask.templateLoopLimit` limits the loops in a template.
+* `dopplertask.brokerPort` moves the broker's port, and 0 closes it. `dopplertask.templateLoopLimit` limits the loops in a template.
 
 Templates fill in values, and on every install they can no longer reach Java classes or read files. A task that needs that can use a script.
