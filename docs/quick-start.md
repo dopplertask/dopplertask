@@ -1,15 +1,19 @@
 # Quick start
 
-## Install DopplerTask
-To install DopplerTask, run the following command:
+You need JDK 25.
 
-```snap install dopplertask```
+```bash
+git clone https://github.com/dopplertask/dopplertask.git
+cd dopplertask/backend
+./gradlew bootRun
+```
 
-It will download everything needed and install DopplerTask.
+Then open http://localhost:8090. Your tasks are saved in `~/dopplerdb`.
 
-You can then access DopplerTask on: http://localhost:8090/public/index.html
+To let an agent build tasks, connect it to `http://localhost:8090/mcp`. With Claude Code:
 
-## Start via Docker
-To run the built docker image:
+```bash
+claude mcp add --transport http dopplertask http://localhost:8090/mcp
+```
 
-```docker run -p 8090:8090 -p 61617:61617 dopplertask/dopplertask ```
+What the agent builds waits for you in the editor, ready for you to approve or reject.

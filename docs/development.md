@@ -6,10 +6,10 @@ You can easily help improve DopplerTask by create a PR on the github project or 
 ## Developing locally
 
 ### Prerequisites
-Install JDK 11 and gradle.
+Install JDK 25. The Gradle wrapper in `backend` takes care of the rest.
 
 To run the backend, go to backend and run:
-```gradle clean build bootRun```
+```./gradlew clean build bootRun```
 
 To compile and run the cli:
 ```cd cli && go build . && ./cli tasks```

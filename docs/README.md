@@ -1,11 +1,11 @@
 <div align="center">
 
-![DopplerTask - Open-source Workflow Automation](https://raw.githubusercontent.com/dopplertask/doppler/master/docs/images/dopplertask_logo.png)
+![DopplerTask](images/dopplertask_logo.png)
 
-<h1>DopplerTask - Task Automation</h1>
+<h1>Let AI agents build your automations. You decide what goes live.</h1>
 
-DopplerTask is a revolutionary open-source software that allows you to easily automate tasks. Whether it’s a bunch of bash scripts or just starting your car remotely, you can automate it. Build, run, reuse and share automations with anyone around the globe.
-
-On top of all of this life-simplifying project, we are striving to make an climate friendly software that is fast, easy and consumes as little resources as possible.
+![An agent proposes a change, a person reviews and approves it, and it runs](images/agent-proposes-person-approves.gif)
 
 </div>
+
+Start with the [quick start](quick-start.md), or read about the [steps](actions.md) and [running DopplerTask](operations.md).
