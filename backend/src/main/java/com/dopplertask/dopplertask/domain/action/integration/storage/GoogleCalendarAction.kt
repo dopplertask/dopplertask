@@ -7,6 +7,7 @@ import com.dopplertask.dopplertask.domain.action.Action
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationCategory
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
 import com.dopplertask.dopplertask.domain.action.integration.JsonApi
+import com.dopplertask.dopplertask.domain.action.integration.OAuthSignIn
 import com.dopplertask.dopplertask.service.BroadcastListener
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
@@ -66,14 +67,14 @@ class GoogleCalendarAction : Action() {
         val startValue = read(startTime).trim()
         val endValue = read(endTime).trim()
         val eventValue = read(eventId).trim()
-        if (keyText.isBlank()) return ActionResult.failure("Google Calendar needs the key file of a service account.")
+        if (keyText.isBlank() && !OAuthSignIn.isUsedBy(this)) return ActionResult.failure("Google Calendar needs the key file of a service account, or a connected Google account.")
         if (calendarValue.isBlank()) return ActionResult.failure("Google Calendar needs the ID of the calendar, which is under its settings.")
         if (operationValue == CREATE_EVENT && titleValue.isBlank()) return ActionResult.failure("Google Calendar needs a title for the event.")
         if (operationValue != DELETE_EVENT && (startValue.isBlank() || endValue.isBlank())) return ActionResult.failure("Google Calendar needs a start and an end, such as 2026-12-01T09:00:00+01:00.")
         if (operationValue != DELETE_EVENT && listOf(startValue, endValue).any { runCatching { OffsetDateTime.parse(it) }.isFailure }) return ActionResult.failure("Google Calendar needs times with their time zone, such as 2026-12-01T09:00:00+01:00, and got \"$startValue\" and \"$endValue\".")
         if (operationValue == DELETE_EVENT && eventValue.isBlank()) return ActionResult.failure("Google Calendar needs the ID of the event.")
 
-        val signIn = GoogleAccount.signIn("Google Calendar", keyText, SCOPE)
+        val signIn = GoogleAccount.signIn("Google Calendar", this, keyText, SCOPE)
         if (signIn.failure != null) return signIn.failure
         val events = read(baseUrl).trim().trimEnd('/') + "/calendar/v3/calendars/${JsonApi.encoded(calendarValue)}/events"
         return when (operationValue) {
@@ -112,6 +113,7 @@ class GoogleCalendarAction : Action() {
             val showForCreateEventListEvents = mapOf("operation" to arrayOf(CREATE_EVENT, LIST_EVENTS))
             val showForDeleteEvent = mapOf("operation" to arrayOf(DELETE_EVENT))
             actionInfo.add(PropertyInformation("serviceAccountKey", "Key file of the service account", PropertyInformationType.MULTILINE, "", "The JSON file. Share the calendar with the email of the account.", mutableListOf(), PropertyInformationCategory.SECRET))
+            actionInfo.addAll(GoogleAccount.accountFields())
             actionInfo.add(PropertyInformation("operation", "Action", PropertyInformationType.DROPDOWN, CREATE_EVENT, "", listOf(
                 PropertyInformation(CREATE_EVENT, "Create an event"),
                 PropertyInformation(LIST_EVENTS, "List events"),

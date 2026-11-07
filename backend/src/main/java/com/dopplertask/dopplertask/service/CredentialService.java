@@ -102,6 +102,12 @@ public class CredentialService {
         return summaryOf(credential);
     }
 
+    /** The values of a credential, for the server alone, such as to connect its account. They never leave it. */
+    @Transactional(readOnly = true)
+    public Map<String, String> valuesNamed(String name) {
+        return valuesOf(credentialDao.findByName(name).orElseThrow(() -> new CredentialProblemException("There is no credential called \"" + name + "\".")));
+    }
+
     @Transactional
     public void delete(String name) {
         Credential credential = credentialDao.findByName(name).orElseThrow(() -> new CredentialProblemException("There is no credential called \"" + name + "\"."));
@@ -297,11 +303,15 @@ public class CredentialService {
      * Whether a field is left out of the table of its step. The move to credentials removes a column, so this has to hold.
      */
     public static boolean isOnlyInCredentials(Class<?> stepClass, String field) {
-        try {
-            return stepClass.getDeclaredField(field).isAnnotationPresent(Transient.class);
-        } catch (NoSuchFieldException e) {
-            return false;
+        // A field can come from the kind of step it extends, such as signing in with an account.
+        for (Class<?> owner = stepClass; owner != null; owner = owner.getSuperclass()) {
+            try {
+                return owner.getDeclaredField(field).isAnnotationPresent(Transient.class);
+            } catch (NoSuchFieldException e) {
+                // Look in the class it extends.
+            }
         }
+        return false;
     }
 
     public static String credentialTypeOf(Class<?> stepClass) {

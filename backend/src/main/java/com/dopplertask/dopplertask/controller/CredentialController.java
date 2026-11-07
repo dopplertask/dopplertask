@@ -1,6 +1,12 @@
 package com.dopplertask.dopplertask.controller;
 
+import com.dopplertask.dopplertask.service.CredentialProblemException;
 import com.dopplertask.dopplertask.service.CredentialService;
+import com.dopplertask.dopplertask.service.OAuthConnections;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.util.HtmlUtils;
 import com.dopplertask.dopplertask.service.CredentialService.CredentialSummary;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -25,8 +31,37 @@ public class CredentialController {
 
     private final CredentialService credentials;
 
-    public CredentialController(CredentialService credentials) {
+    private final OAuthConnections connections;
+
+    public CredentialController(CredentialService credentials, OAuthConnections connections) {
         this.credentials = credentials;
+        this.connections = connections;
+    }
+
+    /** Where to send the person to connect the account of this credential. */
+    @PostMapping("/credentials/{name}/connect")
+    public Map<String, String> connect(@PathVariable String name, HttpServletRequest request) {
+        return Map.of("url", connections.start(name, serverAddress(request)));
+    }
+
+    /** The service sends the person back here. It is open, since the browser comes from the service, and the state proves the rest. */
+    @GetMapping(value = OAuthConnections.CALLBACK_PATH, produces = MediaType.TEXT_HTML_VALUE)
+    public ResponseEntity<String> connected(@RequestParam(required = false) String state, @RequestParam(required = false) String code, @RequestParam(required = false) String error) {
+        try {
+            return ResponseEntity.ok(page(connections.finish(state, code, error), true));
+        } catch (CredentialProblemException e) {
+            return ResponseEntity.badRequest().body(page(e.getMessage(), false));
+        }
+    }
+
+    private static String serverAddress(HttpServletRequest request) {
+        return request.getScheme() + "://" + request.getHeader("Host");
+    }
+
+    private static String page(String message, boolean connected) {
+        String text = HtmlUtils.htmlEscape(message);
+        String notice = connected ? "<script>if (window.opener) { window.opener.postMessage('dopplertask-account-connected', window.location.origin); }</script>" : "";
+        return "<!doctype html><meta charset=\"utf-8\"><title>DopplerTask</title><body style=\"font:16px system-ui;margin:48px;color:#0f1e2e\"><p>" + text + "</p>" + notice + "</body>";
     }
 
     @GetMapping("/credentials")

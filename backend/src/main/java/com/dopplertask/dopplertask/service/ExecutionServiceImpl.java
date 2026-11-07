@@ -192,6 +192,7 @@ public class ExecutionServiceImpl implements ExecutionService {
             // Check if this is a general trigger or a webhook
             if (triggerInfo instanceof WebhookTriggerInfo info) {
                 action = task.getWebhookStartAction(info.getTriggerName(), info.getTriggerSuffix(), info.getPath(), info.getMethod().name());
+                execution.setWebhookReply(info.getReply());
             } else {
                 action = task.getStartAction(triggerInfo.getTriggerName(), triggerInfo.getTriggerSuffix());
             }
@@ -267,6 +268,12 @@ public class ExecutionServiceImpl implements ExecutionService {
                     break;
                 }
 
+                // A pass of a loop ends where its steps end, and the loop goes on with its next item.
+                if ((!running || execution.getCurrentAction() == null) && execution.getInnermostLoop() != null) {
+                    execution.setCurrentAction(execution.getInnermostLoop().getLoop());
+                    running = true;
+                }
+
 
             }
         }
@@ -319,6 +326,9 @@ public class ExecutionServiceImpl implements ExecutionService {
         String portId = action.getPorts() == null || action.getPorts().isEmpty() ? null : action.getPorts().get(0).getExternalId();
         TaskExecutionStep step = new TaskExecutionStep(execution, portId, action.getClass().getSimpleName(), result, durationMs);
         step.keepOutputs(action.getOutputs().keySet(), result.getOutputVariables());
+        if (execution.getWebhookReply() != null) {
+            execution.getWebhookReply().setLastOutput(result.getOutput());
+        }
         execution.addStep(step);
         liveSteps.computeIfAbsent(live(execution.getId()), run -> new CopyOnWriteArrayList<>()).add(step);
     }
@@ -381,7 +391,7 @@ public class ExecutionServiceImpl implements ExecutionService {
     }
 
     private boolean checkActionOverfloodAccess(TaskExecution execution, Action currentAction) {
-        if (execution.getActionAccessCount(currentAction.getId()) > MAX_ACTION_ACCESS_LIMIT) {
+        if (execution.getActionAccessCount(currentAction.getId()) > MAX_ACTION_ACCESS_LIMIT + execution.getLoopVisits()) {
             addLog(execution, "Action access amount has reached it's maximum limit. Please consider using less loops." + currentAction.getClass().getName(), OutputType.STRING, Map.of(), true, false, false);
             return true;
         }

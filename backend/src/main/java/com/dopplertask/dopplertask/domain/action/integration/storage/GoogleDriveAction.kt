@@ -7,6 +7,7 @@ import com.dopplertask.dopplertask.domain.action.Action
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationCategory
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
 import com.dopplertask.dopplertask.domain.action.integration.JsonApi
+import com.dopplertask.dopplertask.domain.action.integration.OAuthSignIn
 import com.dopplertask.dopplertask.service.BroadcastListener
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
@@ -64,12 +65,12 @@ class GoogleDriveAction : Action() {
         val fileValue = read(fileId).trim()
         val folderValue = read(folderId).trim()
         val emailValue = read(email).trim()
-        if (keyText.isBlank()) return ActionResult.failure("Google Drive needs the key file of a service account.")
+        if (keyText.isBlank() && !OAuthSignIn.isUsedBy(this)) return ActionResult.failure("Google Drive needs the key file of a service account, or a connected Google account.")
         if (operationValue == CREATE_TEXT_FILE && (nameValue.isBlank() || folderValue.isBlank())) return ActionResult.failure("Google Drive needs a name for the file and a folder in a shared drive.")
         if ((operationValue == READ_TEXT_FILE || operationValue == SHARE_FILE) && fileValue.isBlank()) return ActionResult.failure("Google Drive needs the file, which is the long code in its address.")
         if (operationValue == SHARE_FILE && emailValue.isBlank()) return ActionResult.failure("Google Drive needs the email to share with.")
 
-        val signIn = GoogleAccount.signIn("Google Drive", keyText, SCOPE)
+        val signIn = GoogleAccount.signIn("Google Drive", this, keyText, SCOPE)
         if (signIn.failure != null) return signIn.failure
         val base = read(baseUrl).trim().trimEnd('/')
         val files = "$base/drive/v3/files"
@@ -115,6 +116,7 @@ class GoogleDriveAction : Action() {
             val showForCreateTextFile = mapOf("operation" to arrayOf(CREATE_TEXT_FILE))
             val showForShareFile = mapOf("operation" to arrayOf(SHARE_FILE))
             actionInfo.add(PropertyInformation("serviceAccountKey", "Key file of the service account", PropertyInformationType.MULTILINE, "", "The JSON file. Share a folder or a shared drive with the email of the account.", mutableListOf(), PropertyInformationCategory.SECRET))
+            actionInfo.addAll(GoogleAccount.accountFields())
             actionInfo.add(PropertyInformation("operation", "Action", PropertyInformationType.DROPDOWN, FIND_FILES, "", listOf(
                 PropertyInformation(FIND_FILES, "Find files"),
                 PropertyInformation(READ_TEXT_FILE, "Read a text file"),

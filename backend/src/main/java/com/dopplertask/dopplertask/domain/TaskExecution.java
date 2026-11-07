@@ -1,11 +1,15 @@
 package com.dopplertask.dopplertask.domain;
 
+import com.dopplertask.dopplertask.service.WebhookReply;
+
 import com.dopplertask.dopplertask.domain.action.Action;
+import com.dopplertask.dopplertask.domain.action.common.LoopState;
 
 import jakarta.persistence.*;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -62,6 +66,52 @@ public class TaskExecution {
     // Why the run failed, for the caller waiting on it. The logs hold it permanently.
     @Transient
     private String failureReason;
+
+    // The caller of a webhook who waits for an answer, when the trigger lets the task decide it.
+    @Transient
+    private WebhookReply webhookReply;
+
+    // The loops that are running, the innermost last.
+    @Transient
+    private LinkedHashMap<Long, LoopState> loops = new LinkedHashMap<>();
+
+    // How many more visits to a step a run may make, since every item of a loop visits the steps of a pass again.
+    @Transient
+    private long loopVisits = 0;
+
+    public Map<Long, LoopState> getLoops() {
+        return loops;
+    }
+
+    public void startLoop(Long key, LoopState state) {
+        loops.put(key, state);
+        loopVisits += state.getCount();
+    }
+
+    public void endLoop(Long key) {
+        loops.remove(key);
+    }
+
+    /** The loop the run is inside, where a pass that ends goes back to. */
+    public LoopState getInnermostLoop() {
+        LoopState innermost = null;
+        for (LoopState state : loops.values()) {
+            innermost = state;
+        }
+        return innermost;
+    }
+
+    public long getLoopVisits() {
+        return loopVisits;
+    }
+
+    public WebhookReply getWebhookReply() {
+        return webhookReply;
+    }
+
+    public void setWebhookReply(WebhookReply webhookReply) {
+        this.webhookReply = webhookReply;
+    }
 
     public Long getId() {
         return id;

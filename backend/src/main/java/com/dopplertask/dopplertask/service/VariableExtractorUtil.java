@@ -2,7 +2,9 @@ package com.dopplertask.dopplertask.service;
 
 import com.dopplertask.dopplertask.domain.ActionResult;
 import com.dopplertask.dopplertask.domain.TaskExecution;
+import com.dopplertask.dopplertask.domain.action.common.LoopState;
 import com.dopplertask.dopplertask.domain.action.common.ScriptLanguage;
+import com.dopplertask.dopplertask.domain.action.integration.JsonApi;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.velocity.VelocityContext;
 import org.apache.velocity.app.VelocityEngine;
@@ -32,6 +34,7 @@ import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Component
@@ -60,6 +63,12 @@ public class VariableExtractorUtil {
             // Useful for retry
             if (result != null) {
                 context.put("result", result);
+            }
+
+            LoopState innermost = execution.getInnermostLoop();
+            if (innermost != null) {
+                context.put("loop", innermost.variables());
+                context.put("loops", loopsByName(execution));
             }
 
             // Easy access to lastLog
@@ -130,6 +139,8 @@ public class VariableExtractorUtil {
                 context.getBindings("js").putMember("lastLog", execution.getLogs().get(execution.getLogs().size() - 1));
             }
 
+            bindLoops(context, execution);
+
             // Evaluate the original field
             return context.eval(Source.newBuilder("js", fieldValue, "src.js").build());
         }
@@ -164,7 +175,25 @@ public class VariableExtractorUtil {
         if (result != null) {
             context.getBindings("js").putMember("result", plainLog(result.getOutput(), result.getOutputVariables()));
         }
+        bindLoops(context, execution);
         return context.eval(Source.newBuilder("js", fieldValue, "src.js").build());
+    }
+
+    private static Map<String, Object> loopsByName(TaskExecution execution) {
+        Map<String, Object> loops = new LinkedHashMap<>();
+        execution.getLoops().values().forEach(state -> loops.put(state.getName(), state.variables()));
+        return loops;
+    }
+
+    /** Scripts get the loops as plain JavaScript values, so that loop.item.name works as it does in Velocity. */
+    private static void bindLoops(Context context, TaskExecution execution) {
+        LoopState innermost = execution.getInnermostLoop();
+        if (innermost == null) {
+            return;
+        }
+        Value parse = context.eval("js", "JSON.parse");
+        context.getBindings("js").putMember("loop", parse.execute(JsonApi.INSTANCE.getMapper().writeValueAsString(innermost.variables())));
+        context.getBindings("js").putMember("loops", parse.execute(JsonApi.INSTANCE.getMapper().writeValueAsString(loopsByName(execution))));
     }
 
     private static ProxyObject plainLog(String output, Map<String, ?> variables) {

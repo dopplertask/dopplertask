@@ -77,6 +77,7 @@ import com.dopplertask.dopplertask.domain.action.io.ReadFileAction
 import com.dopplertask.dopplertask.domain.action.io.WriteFileAction
 import com.dopplertask.dopplertask.domain.action.trigger.ActiveMQTrigger
 import com.dopplertask.dopplertask.domain.action.trigger.IntervalTrigger
+import com.dopplertask.dopplertask.domain.action.trigger.ScheduleTrigger
 import com.dopplertask.dopplertask.domain.action.trigger.Webhook
 import com.dopplertask.dopplertask.domain.action.ui.BrowseWebAction
 import com.dopplertask.dopplertask.domain.action.ui.MouseAction
@@ -85,6 +86,7 @@ import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
+import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonSubTypes
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import com.fasterxml.jackson.annotation.JsonTypeInfo.As
@@ -103,6 +105,7 @@ import jakarta.persistence.InheritanceType
 import jakarta.persistence.JoinColumn
 import jakarta.persistence.ManyToOne
 import jakarta.persistence.OneToMany
+import jakarta.persistence.Transient
 import java.io.IOException
 import java.util.stream.Collectors
 import org.hibernate.annotations.DiscriminatorOptions
@@ -130,14 +133,17 @@ import org.hibernate.annotations.FetchMode
     JsonSubTypes.Type(value = SetVariableAction::class, name = "SetVariableAction"),
     JsonSubTypes.Type(value = ScriptAction::class, name = "ScriptAction"),
     JsonSubTypes.Type(value = IfAction::class, name = "IfAction"),
+    JsonSubTypes.Type(value = LoopAction::class, name = "LoopAction"),
     JsonSubTypes.Type(value = MouseAction::class, name = "MouseAction"),
     JsonSubTypes.Type(value = StartAction::class, name = "StartAction"),
     JsonSubTypes.Type(value = WriteFileAction::class, name = "WriteFileAction"),
     JsonSubTypes.Type(value = SwitchAction::class, name = "SwitchAction"),
+    JsonSubTypes.Type(value = WebhookReplyAction::class, name = "WebhookReplyAction"),
     JsonSubTypes.Type(value = XMLAction::class, name = "XMLAction"),
     JsonSubTypes.Type(value = Webhook::class, name = "Webhook"),
     JsonSubTypes.Type(value = ActiveMQTrigger::class, name = "ActiveMQTrigger"),
     JsonSubTypes.Type(value = IntervalTrigger::class, name = "IntervalTrigger"),
+    JsonSubTypes.Type(value = ScheduleTrigger::class, name = "ScheduleTrigger"),
     JsonSubTypes.Type(value = JenkinsAction::class, name = "JenkinsAction"),
     JsonSubTypes.Type(value = RegexAction::class, name = "RegexAction"),
     JsonSubTypes.Type(value = OpenAIAction::class, name = "OpenAIAction"),
@@ -238,6 +244,22 @@ abstract class Action {
      */
     @Column
     open var credential: String? = null
+
+    /*
+     * Signing in with an account (OAuth 2). Only a credential fills these in, and only while the step runs, for the
+     * steps whose credential offers it.
+     */
+    @Transient @JsonInclude(JsonInclude.Include.NON_NULL) open var oauthProvider: String? = null
+    @Transient @JsonInclude(JsonInclude.Include.NON_NULL) open var oauthGrant: String? = null
+    @Transient @JsonInclude(JsonInclude.Include.NON_NULL) open var oauthClientId: String? = null
+    @Transient @JsonInclude(JsonInclude.Include.NON_NULL) open var oauthClientSecret: String? = null
+    @Transient @JsonInclude(JsonInclude.Include.NON_NULL) open var oauthScope: String? = null
+    @Transient @JsonInclude(JsonInclude.Include.NON_NULL) open var oauthAuthUrl: String? = null
+    @Transient @JsonInclude(JsonInclude.Include.NON_NULL) open var oauthTokenUrl: String? = null
+    @Transient @JsonInclude(JsonInclude.Include.NON_NULL) open var oauthAuthParameters: String? = null
+    @Transient @JsonInclude(JsonInclude.Include.NON_NULL) open var oauthClientInHeader: String? = null
+    @Transient @JsonInclude(JsonInclude.Include.NON_NULL) open var oauthRefreshToken: String? = null
+    @Transient @JsonInclude(JsonInclude.Include.NON_NULL) open var oauthAccessToken: String? = null
 
     /**
      * Which credentials fit this step. Steps that sign in to the same service share a type, so one account is entered once.

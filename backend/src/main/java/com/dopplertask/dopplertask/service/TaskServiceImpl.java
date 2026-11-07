@@ -1,5 +1,7 @@
 package com.dopplertask.dopplertask.service;
 
+import com.dopplertask.dopplertask.domain.action.trigger.Webhook;
+
 import com.dopplertask.dopplertask.dao.TaskDao;
 import com.dopplertask.dopplertask.dao.TaskExecutionDao;
 import com.dopplertask.dopplertask.domain.ActionPort;
@@ -344,6 +346,25 @@ public class TaskServiceImpl implements TaskService {
             triggerListenerService.stopTriggers(task.getName());
         }
         return task;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public String webhookReplyMode(String taskName, String triggerName, String triggerSuffix, String path, String method) {
+        Webhook webhook = webhookOf(taskName, triggerName, triggerSuffix, path, method);
+        return webhook == null ? null : webhook.getResponseMode();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public String webhookReplyCode(String taskName, String triggerName, String triggerSuffix, String path, String method) {
+        Webhook webhook = webhookOf(taskName, triggerName, triggerSuffix, path, method);
+        return webhook == null ? null : webhook.getResponseCode();
+    }
+
+    private Webhook webhookOf(String taskName, String triggerName, String triggerSuffix, String path, String method) {
+        Task task = getTaskByName(taskName);
+        return task == null ? null : task.getWebhookStartAction(triggerName, triggerSuffix, path, method) instanceof Webhook webhook ? webhook : null;
     }
 
     @Override

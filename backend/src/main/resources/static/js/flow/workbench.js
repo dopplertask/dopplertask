@@ -44,9 +44,10 @@ export default function boot() {
 
   /* ---------- Task controls ---------- */
 
-  const TRIGGER_ICONS = { webhook: 'webhook', interval: 'clock', activemq: 'server', manual: 'play' };
+  const TRIGGER_ICONS = { webhook: 'webhook', schedule: 'clock', interval: 'clock', activemq: 'server', manual: 'play' };
   function triggerText(config) {
     if (config.trigger === 'webhook') return `${config.method || 'POST'} /${config.path || ''}`;
+    if (config.trigger === 'schedule') return DT.scheduleText(config).replace(/^./, (letter) => letter.toUpperCase());
     if (config.trigger === 'interval') return `Every ${DT.intervalText(config)}`;
     if (config.trigger === 'activemq') return config.queue || 'Queue';
     return 'Run by hand';
