@@ -670,16 +670,24 @@ Publishes an MQTT message or waits for one on a topic. The next step can read `$
 * secondsToWait: Seconds to wait.
 
 ## ElasticsearchAction
-Adds, searches or deletes documents in Elasticsearch. The next step can read `$lastLog.outputVariables.hitCount`, `$lastLog.outputVariables.documentId`.
+Searches, reads, adds, updates or deletes documents in Elasticsearch, or lists its indexes. The next step can read `$lastLog.outputVariables.hitCount`, `$lastLog.outputVariables.groups`, `$lastLog.outputVariables.documentId`, `$lastLog.outputVariables.indexCount`.
+
+The credential holds the cluster address and the sign-in, so that a step can only send a key to the cluster the key belongs to.
 
 ### Variables
-* operation: `search`, `addDocument`, `deleteDocument`.
-* apiKey: API key. Leave empty when the cluster has no sign-in.
-* siteUrl: Cluster address. Such as https://search.example.com:9200.
-* indexName: Index.
+* operation: `search`, `readDocument`, `addDocument`, `updateDocument`, `deleteDocument`, `listIndexes`.
+* siteUrl: Cluster address, in the credential. Such as https://search.example.com:9200.
+* apiKey: API key, in the credential. Use an API key, or a username and password. Leave them empty when the cluster has no sign-in.
+* username: Username, in the credential.
+* password: Password, in the credential.
+* indexName: Index. Such as orders, or logs-* for several.
 * query: Query. As JSON, such as {"match": {"status": "open"}}. Empty finds everything.
-* documentId: Document ID. Leave empty to let Elasticsearch choose one.
-* document: Document. As JSON.
+* sortField: Sort by. A field, such as timestamp.
+* sortOrder: Order. `desc` for newest or largest first, `asc` for oldest or smallest first.
+* maxResults: Most results, 10 unless set. The number of hits still counts them all.
+* groupByField: Count per. A keyword field, such as service. The next step reads the counts as groups.
+* documentId: Document ID. When adding, leave it empty to let Elasticsearch choose one.
+* document: Document. As JSON. When updating, only the fields to change.
 
 ## PrometheusAction
 Runs a Prometheus query or lists the active alerts. The next step can read `$lastLog.outputVariables.resultCount`, `$lastLog.outputVariables.alertCount`.
