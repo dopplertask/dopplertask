@@ -1,4 +1,6 @@
 /* Forms, command palette, dialogs, toasts and shortcuts. */
+import { BRAND_ICONS } from './brand-icons';
+
 export default function boot() {
   const { ACTIONS, FAILURE_FIELDS, formatDuration, formatAgo } = window.DT;
 
@@ -41,11 +43,13 @@ export default function boot() {
     download: '<path d="M12 4v11m-4-4 4 4 4-4M4 20h16"/>', upload: '<path d="M12 16V5m-4 4 4-4 4 4M4 20h16"/>',
     folder: '<path d="M3 6a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>', filePlus: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 11v6M9 14h6"/>',
     eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>', eyeOff: '<path d="M4 4l16 16M10 5.2A10 10 0 0 1 22 12a14 14 0 0 1-3 3.6M6.5 7A14 14 0 0 0 2 12s3.5 7 10 7a10 10 0 0 0 4-.8"/>',
+    mail: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/>',
     keyboard: '<rect x="2" y="6" width="20" height="13" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 15h10"/>',
     webhook: '<circle cx="12" cy="6" r="3"/><circle cx="6" cy="17" r="3"/><circle cx="18" cy="17" r="3"/><path d="m10.5 8.6-3 5.8M9 17h6M13.5 8.6l3 5.8"/>',
   };
 
   const icon = (name, className = '') => {
+    if (BRAND_ICONS[name]) return `<svg class="icon brand-icon ${className}" viewBox="${BRAND_ICONS[name].viewBox}" aria-hidden="true">${BRAND_ICONS[name].body}</svg>`;
     if (!ICON_PATHS[name]) console.error(`There is no icon called ${name}.`);
     return `<svg class="icon ${className}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[name] || ''}</svg>`;
   };
