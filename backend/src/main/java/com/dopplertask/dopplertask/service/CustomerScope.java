@@ -5,6 +5,10 @@ package com.dopplertask.dopplertask.service;
  * otherwise. Work that outlives a request, such as a schedule, has to carry the customer along.
  */
 public interface CustomerScope {
+    /** The scope of an install that serves one customer. */
+    CustomerScope ONE_CUSTOMER = new CustomerScope() {
+    };
+
     /** Runs the work once for every customer. */
     default void forEachCustomer(Runnable work) {
         work.run();

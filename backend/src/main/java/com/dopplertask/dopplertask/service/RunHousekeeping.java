@@ -36,8 +36,6 @@ public class RunHousekeeping {
     private final Map<RunOfCustomer, GoingRun> going = new ConcurrentHashMap<>();
 
     /** Two customers can have a run with the same number. */
-    private record RunOfCustomer(String customer, long executionId) {
-    }
 
     private static final class GoingRun {
         final Thread thread;
@@ -58,8 +56,7 @@ public class RunHousekeeping {
         this.keepRunsDays = keepRunsDays;
         this.maxRunMinutes = maxRunMinutes;
         this.executionService = executionService;
-        this.customerScope = customers.getIfAvailable(() -> new CustomerScope() {
-        });
+        this.customerScope = customers.getIfAvailable(() -> CustomerScope.ONE_CUSTOMER);
     }
 
     /** From here on a run counts against the time limit. */

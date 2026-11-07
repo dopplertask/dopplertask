@@ -6,6 +6,7 @@ import com.dopplertask.dopplertask.domain.*;
 import com.dopplertask.dopplertask.domain.action.Action;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jms.core.JmsTemplate;
 import org.springframework.stereotype.Service;
@@ -22,7 +23,7 @@ public class ExecutionServiceImpl implements ExecutionService {
     private static final int MAX_ACTION_ACCESS_LIMIT = 2000;
 
     // A run commits when it ends, so these are what a reader can see of a run in progress.
-    private final Map<Long, List<TaskExecutionStep>> liveSteps = new ConcurrentHashMap<>();
+    private final Map<RunOfCustomer, List<TaskExecutionStep>> liveSteps = new ConcurrentHashMap<>();
     private static final String TRIGGER_PARAMETER_PREFIX = "TRIGGER";
 
     private JmsTemplate jmsTemplate;
@@ -30,14 +31,17 @@ public class ExecutionServiceImpl implements ExecutionService {
     private TaskDao taskDao;
     private VariableExtractorUtil variableExtractorUtil;
     private TaskExecutionDao taskExecutionDao;
+    private CustomerScope customerScope;
 
     @Autowired
-    public ExecutionServiceImpl(JmsTemplate jmsTemplate, TaskDao taskDao, VariableExtractorUtil variableExtractorUtil, CredentialService credentialService, TaskExecutionDao taskExecutionDao) {
+    public ExecutionServiceImpl(JmsTemplate jmsTemplate, TaskDao taskDao, VariableExtractorUtil variableExtractorUtil, CredentialService credentialService, TaskExecutionDao taskExecutionDao,
+                                ObjectProvider<CustomerScope> customers) {
         this.jmsTemplate = jmsTemplate;
         this.credentialService = credentialService;
         this.taskDao = taskDao;
         this.variableExtractorUtil = variableExtractorUtil;
         this.taskExecutionDao = taskExecutionDao;
+        this.customerScope = customers.getIfAvailable(() -> CustomerScope.ONE_CUSTOMER);
     }
 
     @Transactional
@@ -314,17 +318,21 @@ public class ExecutionServiceImpl implements ExecutionService {
         TaskExecutionStep step = new TaskExecutionStep(execution, portId, action.getClass().getSimpleName(), result, durationMs);
         step.keepOutputs(action.getOutputs().keySet(), result.getOutputVariables());
         execution.addStep(step);
-        liveSteps.computeIfAbsent(execution.getId(), id -> new CopyOnWriteArrayList<>()).add(step);
+        liveSteps.computeIfAbsent(live(execution.getId()), run -> new CopyOnWriteArrayList<>()).add(step);
     }
 
     @Override
     public List<TaskExecutionStep> getLiveSteps(Long executionId) {
-        return liveSteps.getOrDefault(executionId, List.of());
+        return liveSteps.getOrDefault(live(executionId), List.of());
     }
 
     @Override
     public void forgetLiveSteps(Long executionId) {
-        liveSteps.remove(executionId);
+        liveSteps.remove(live(executionId));
+    }
+
+    private RunOfCustomer live(long executionId) {
+        return new RunOfCustomer(customerScope.current(), executionId);
     }
 
     private ActionResult runAction(TaskService taskService, TaskExecution execution, Action currentAction) {
