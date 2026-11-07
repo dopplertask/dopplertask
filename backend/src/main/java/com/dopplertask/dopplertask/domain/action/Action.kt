@@ -53,21 +53,21 @@ import org.hibernate.annotations.Fetch
 import org.hibernate.annotations.FetchMode
 import java.io.IOException
 import java.util.stream.Collectors
-import javax.persistence.CascadeType
-import javax.persistence.Column
-import javax.persistence.DiscriminatorColumn
-import javax.persistence.DiscriminatorValue
-import javax.persistence.Entity
-import javax.persistence.EnumType
-import javax.persistence.Enumerated
-import javax.persistence.GeneratedValue
-import javax.persistence.GenerationType
-import javax.persistence.Id
-import javax.persistence.Inheritance
-import javax.persistence.InheritanceType
-import javax.persistence.JoinColumn
-import javax.persistence.ManyToOne
-import javax.persistence.OneToMany
+import jakarta.persistence.CascadeType
+import jakarta.persistence.Column
+import jakarta.persistence.DiscriminatorColumn
+import jakarta.persistence.DiscriminatorValue
+import jakarta.persistence.Entity
+import jakarta.persistence.EnumType
+import jakarta.persistence.Enumerated
+import jakarta.persistence.GeneratedValue
+import jakarta.persistence.GenerationType
+import jakarta.persistence.Id
+import jakarta.persistence.Inheritance
+import jakarta.persistence.InheritanceType
+import jakarta.persistence.JoinColumn
+import jakarta.persistence.ManyToOne
+import jakarta.persistence.OneToMany
 
 @Entity
 @Inheritance(strategy = InheritanceType.JOINED)
@@ -138,7 +138,7 @@ abstract class Action {
     @JsonIgnore
     open var orderPosition: Int? = null
 
-    @Column(nullable = false, columnDefinition = "TINYINT(1)")
+    @Column(nullable = false)
     open var isContinueOnFailure = false
 
     @Column(length = 4096)

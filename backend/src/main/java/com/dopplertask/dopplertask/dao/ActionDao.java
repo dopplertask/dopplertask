@@ -10,6 +10,6 @@ import java.util.List;
 
 @Repository
 public interface ActionDao extends JpaRepository<Action, Long> {
-    @Query("select distinct h.httpAction from HttpHeader h where lower(h.headerName) like '%authorization%' or lower(h.headerName) like '%key%' or lower(h.headerName) like '%token%' or lower(h.headerName) like '%secret%' or lower(h.headerName) like '%password%'")
+    @Query("select distinct h.httpAction from HttpHeader h where lower(cast(h.headerName as string)) like '%authorization%' or lower(cast(h.headerName as string)) like '%key%' or lower(cast(h.headerName as string)) like '%token%' or lower(cast(h.headerName as string)) like '%secret%' or lower(cast(h.headerName as string)) like '%password%'")
     List<HttpAction> findHttpActionsWithSecretHeaders();
 }

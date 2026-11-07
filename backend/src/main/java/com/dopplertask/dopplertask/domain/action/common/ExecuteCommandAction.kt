@@ -16,11 +16,11 @@ import java.io.InputStream
 import java.io.InputStreamReader
 import java.util.*
 import java.util.function.Consumer
-import javax.persistence.Column
-import javax.persistence.DiscriminatorValue
-import javax.persistence.Entity
-import javax.persistence.Lob
-import javax.persistence.Table
+import jakarta.persistence.Column
+import jakarta.persistence.DiscriminatorValue
+import jakarta.persistence.Entity
+import jakarta.persistence.Lob
+import jakarta.persistence.Table
 
 @Entity
 @Table(name = "ExecuteCommandAction")

@@ -18,13 +18,14 @@ import org.openqa.selenium.support.ui.ExpectedConditions
 import org.openqa.selenium.support.ui.Select
 import org.openqa.selenium.support.ui.WebDriverWait
 import java.io.IOException
+import java.time.Duration
 import java.util.function.Consumer
-import javax.persistence.CascadeType
-import javax.persistence.Column
-import javax.persistence.DiscriminatorValue
-import javax.persistence.Entity
-import javax.persistence.OneToMany
-import javax.persistence.Table
+import jakarta.persistence.CascadeType
+import jakarta.persistence.Column
+import jakarta.persistence.DiscriminatorValue
+import jakarta.persistence.Entity
+import jakarta.persistence.OneToMany
+import jakarta.persistence.Table
 
 @Entity
 @Table(name = "BrowseWebAction")
@@ -74,7 +75,7 @@ class BrowseWebAction : Action {
 
 
         val webDriver: WebDriver = ChromeDriver(chromeOptions)
-        val wait = WebDriverWait(webDriver, 10)
+        val wait = WebDriverWait(webDriver, Duration.ofSeconds(10))
         // Open page
         webDriver[urlVariable]
         // Go through all actions
@@ -123,13 +124,13 @@ class BrowseWebAction : Action {
         var element: WebElement? = null
         try {
             element = when (uiAction.findByType) {
-                UIFieldFindByType.ID -> wait.until(ExpectedConditions.visibilityOfElementLocated(By.id(uiAction.fieldName)))
-                UIFieldFindByType.NAME -> wait.until(ExpectedConditions.visibilityOfElementLocated(By.name(uiAction.fieldName)))
-                UIFieldFindByType.XPATH -> wait.until(ExpectedConditions.visibilityOfElementLocated(By.xpath(uiAction.fieldName)))
+                UIFieldFindByType.ID -> wait.until(ExpectedConditions.visibilityOfElementLocated(By.id(uiAction.fieldName.orEmpty())))
+                UIFieldFindByType.NAME -> wait.until(ExpectedConditions.visibilityOfElementLocated(By.name(uiAction.fieldName.orEmpty())))
+                UIFieldFindByType.XPATH -> wait.until(ExpectedConditions.visibilityOfElementLocated(By.xpath(uiAction.fieldName.orEmpty())))
                 UIFieldFindByType.CSS -> wait.until(
                     ExpectedConditions.visibilityOfElementLocated(
                         By.cssSelector(
-                            uiAction.fieldName
+                            uiAction.fieldName.orEmpty()
                         )
                     )
                 )

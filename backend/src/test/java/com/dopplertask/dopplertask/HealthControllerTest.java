@@ -37,7 +37,7 @@ public class HealthControllerTest {
         BrokerService broker = startedBroker();
         try {
             ResponseEntity<Map<String, Object>> answer = new HealthController(workingDatabase(), broker).health();
-            Assert.assertEquals(200, answer.getStatusCodeValue());
+            Assert.assertEquals(200, answer.getStatusCode().value());
             Assert.assertEquals("up", answer.getBody().get("status"));
         } finally {
             broker.stop();
@@ -51,7 +51,7 @@ public class HealthControllerTest {
             broker.getSystemUsage().getMemoryUsage().setLimit(1);
             broker.getSystemUsage().getMemoryUsage().increaseUsage(10);
             ResponseEntity<Map<String, Object>> answer = new HealthController(workingDatabase(), broker).health();
-            Assert.assertEquals(503, answer.getStatusCodeValue());
+            Assert.assertEquals(503, answer.getStatusCode().value());
             Assert.assertEquals(List.of("The queue for runs is full, so new runs cannot start."), answer.getBody().get("problems"));
         } finally {
             broker.stop();
@@ -64,7 +64,7 @@ public class HealthControllerTest {
         try {
             DataSource dataSource = Mockito.mock(DataSource.class);
             Mockito.when(dataSource.getConnection()).thenThrow(new SQLException("no connection"));
-            Assert.assertEquals(503, new HealthController(dataSource, broker).health().getStatusCodeValue());
+            Assert.assertEquals(503, new HealthController(dataSource, broker).health().getStatusCode().value());
         } finally {
             broker.stop();
         }

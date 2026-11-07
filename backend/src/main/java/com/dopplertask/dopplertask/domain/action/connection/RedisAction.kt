@@ -13,12 +13,12 @@ import redis.clients.jedis.Jedis
 import redis.clients.jedis.exceptions.JedisConnectionException
 import redis.clients.jedis.exceptions.JedisDataException
 import java.io.IOException
-import javax.persistence.Column
-import javax.persistence.DiscriminatorValue
-import javax.persistence.Entity
-import javax.persistence.Lob
-import javax.persistence.Table
-import javax.persistence.Transient
+import jakarta.persistence.Column
+import jakarta.persistence.DiscriminatorValue
+import jakarta.persistence.Entity
+import jakarta.persistence.Lob
+import jakarta.persistence.Table
+import jakarta.persistence.Transient
 
 @Entity
 @Table(name = "RedisAction")

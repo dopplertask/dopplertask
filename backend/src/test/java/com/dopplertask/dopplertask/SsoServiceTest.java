@@ -195,7 +195,7 @@ public class SsoServiceTest {
     @Test
     public void testAnIssuerThatGivesAnotherNameIsRefusedFail() throws Exception {
         SsoService sso = new SsoService(issuer + "/other", "client", "", "");
-        Assert.assertThrows(IOException.class, () -> sso.begin(CALLBACK));
+        Assert.assertThrows(tools.jackson.core.JacksonException.class, () -> sso.begin(CALLBACK));
     }
 
     @Test(expected = IllegalStateException.class)

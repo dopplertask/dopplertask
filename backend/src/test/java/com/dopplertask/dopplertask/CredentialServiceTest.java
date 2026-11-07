@@ -14,7 +14,7 @@ import com.dopplertask.dopplertask.domain.action.trigger.Webhook;
 import com.dopplertask.dopplertask.service.CredentialCipher;
 import com.dopplertask.dopplertask.service.CredentialProblemException;
 import com.dopplertask.dopplertask.service.CredentialService;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -23,8 +23,9 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.springframework.beans.BeanWrapperImpl;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.domain.EntityScan;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.persistence.autoconfigure.EntityScan;
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.test.context.ContextConfiguration;
@@ -39,7 +40,8 @@ import java.util.Map;
  * A real database and real encryption, since what matters is what ends up stored and what can be read back.
  */
 @RunWith(SpringRunner.class)
-@DataJpaTest
+@DataJpaTest(properties = "spring.datasource.url=jdbc:h2:mem:credentialservice")
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ContextConfiguration(classes = CredentialServiceTest.DatabaseOnly.class)
 public class CredentialServiceTest {
 

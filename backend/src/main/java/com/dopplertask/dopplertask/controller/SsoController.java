@@ -12,7 +12,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
+import tools.jackson.core.JacksonException;
+
 import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -57,7 +59,7 @@ public class SsoController {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return backToSignIn("Sign-in was interrupted. Please try again.");
-        } catch (IOException | IllegalArgumentException e) {
+        } catch (IOException | JacksonException | IllegalArgumentException e) {
             return backToSignIn("The identity provider could not be reached.");
         }
     }

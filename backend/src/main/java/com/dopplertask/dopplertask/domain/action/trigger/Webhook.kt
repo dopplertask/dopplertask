@@ -9,9 +9,9 @@ import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import java.io.IOException
 import java.util.*
-import javax.persistence.Column
-import javax.persistence.Entity
-import javax.persistence.Transient
+import jakarta.persistence.Column
+import jakarta.persistence.Entity
+import jakarta.persistence.Transient
 
 @Entity
 class Webhook : Trigger() {

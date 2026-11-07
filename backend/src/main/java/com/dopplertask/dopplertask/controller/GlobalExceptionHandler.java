@@ -7,8 +7,8 @@ import com.dopplertask.dopplertask.service.LinkedTaskNotFoundException;
 import com.dopplertask.dopplertask.service.NoStartActionFoundException;
 import com.dopplertask.dopplertask.service.TaskNotFoundException;
 import com.dopplertask.dopplertask.service.WhiteSpaceInNameException;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonMappingException;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.DatabindException;
 import com.dopplertask.dopplertask.service.ApprovalRequiredException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -35,15 +35,15 @@ public class GlobalExceptionHandler {
         return error(ex.getMessage(), HttpStatus.BAD_REQUEST);
     }
 
-    @ExceptionHandler(JsonProcessingException.class)
-    public ResponseEntity<ErrorDto> generateInvalidJsonError(JsonProcessingException ex) {
-        String field = ex instanceof JsonMappingException mappingException ? fieldOf(mappingException) : "";
+    @ExceptionHandler(JacksonException.class)
+    public ResponseEntity<ErrorDto> generateInvalidJsonError(JacksonException ex) {
+        String field = ex instanceof DatabindException mappingException ? fieldOf(mappingException) : "";
         return error("Invalid task JSON" + (field.isEmpty() ? "" : " at " + field) + ": " + ex.getOriginalMessage(), HttpStatus.BAD_REQUEST);
     }
 
-    private String fieldOf(JsonMappingException ex) {
+    private String fieldOf(DatabindException ex) {
         return ex.getPath().stream()
-                .map(reference -> reference.getFieldName() != null ? reference.getFieldName() : "[" + reference.getIndex() + "]")
+                .map(reference -> reference.getPropertyName() != null ? reference.getPropertyName() : "[" + reference.getIndex() + "]")
                 .collect(Collectors.joining("."))
                 .replace(".[", "[");
     }

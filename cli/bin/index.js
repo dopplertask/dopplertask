@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 
-const yargs = require("yargs");
+const yargs = require("yargs")(process.argv.slice(2));
 const http = require('http');
 
 const FOLLOW_POLL_MS = 250;

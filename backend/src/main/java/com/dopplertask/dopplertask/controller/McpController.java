@@ -7,17 +7,17 @@ import com.dopplertask.dopplertask.service.CredentialService;
 import com.dopplertask.dopplertask.filter.Caller;
 import com.dopplertask.dopplertask.service.ApprovalRequiredException;
 import com.dopplertask.dopplertask.service.VariableExtractorUtil;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -136,7 +136,7 @@ public class McpController {
                 default -> throw new IllegalArgumentException("There is no tool called " + name + ".");
             };
             if (!answer.getStatusCode().is2xxSuccessful()) {
-                return toolResult("That failed with status " + answer.getStatusCodeValue() + ". Check the name or id.", true);
+                return toolResult("That failed with status " + answer.getStatusCode().value() + ". Check the name or id.", true);
             }
             JsonNode body = shaped(name, arguments, mapper.valueToTree(answer.getBody()));
             if (name.equals("propose_task")) {
@@ -176,7 +176,7 @@ public class McpController {
             if ("JAVASCRIPT".equals(step.path("scriptLanguage").asText())) {
                 return;
             }
-            step.fields().forEachRemaining(field -> {
+            step.properties().forEach(field -> {
                 if (field.getValue().isTextual() && !FIELDS_WITH_THEIR_OWN_VARIABLES.contains(field.getKey())) {
                     String text = field.getValue().asText();
                     Matcher variables = VELOCITY_VARIABLE.matcher(text);

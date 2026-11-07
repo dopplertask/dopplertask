@@ -13,12 +13,12 @@ import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import com.fasterxml.jackson.annotation.JsonIgnore
 import java.io.IOException
 import java.util.function.Consumer
-import javax.persistence.CascadeType
-import javax.persistence.Column
-import javax.persistence.DiscriminatorValue
-import javax.persistence.Entity
-import javax.persistence.OneToMany
-import javax.persistence.Table
+import jakarta.persistence.CascadeType
+import jakarta.persistence.Column
+import jakarta.persistence.DiscriminatorValue
+import jakarta.persistence.Entity
+import jakarta.persistence.OneToMany
+import jakarta.persistence.Table
 
 @Entity
 @Table(name = "LinkedTaskAction")

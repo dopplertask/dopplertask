@@ -6,8 +6,7 @@ import com.dopplertask.dopplertask.dao.TaskExecutionDao;
 import com.dopplertask.dopplertask.domain.*;
 import com.dopplertask.dopplertask.domain.action.Action;
 import com.dopplertask.dopplertask.dto.TaskCreationDTO;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -220,9 +219,7 @@ public class ExecutionServiceImpl implements ExecutionService {
                 if (response.statusCode() == 200 && response.body() != null && !response.body().isEmpty() && taskService != null && !response.body().contains("Could not find the workflow")) {
 
                     // Translate JSON to object
-                    ObjectMapper mapper = new ObjectMapper();
-                    mapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
-                    TaskCreationDTO taskCreationDTO = mapper.readValue(response.body(), TaskCreationDTO.class);
+                    TaskCreationDTO taskCreationDTO = TaskCreationDTO.fromJson(response.body());
 
                     // Create checksum
                     MessageDigest digest = MessageDigest.getInstance(CHECKSUM_ALGORITHM);
@@ -234,7 +231,7 @@ public class ExecutionServiceImpl implements ExecutionService {
 
                     return taskDao.findById(onlineTaskId);
                 }
-            } catch (IOException | InterruptedException | NoSuchAlgorithmException e) {
+            } catch (IOException | JacksonException | InterruptedException | NoSuchAlgorithmException e) {
                 LOG.error("Exception: {}", e);
             }
 
@@ -277,9 +274,7 @@ public class ExecutionServiceImpl implements ExecutionService {
 
             if (response.statusCode() == 200 && response.body() != null && !response.body().isEmpty() && taskService != null) {
                 // Translate JSON to object
-                ObjectMapper mapper = new ObjectMapper();
-                mapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
-                TaskCreationDTO taskCreationDTO = mapper.readValue(response.body(), TaskCreationDTO.class);
+                TaskCreationDTO taskCreationDTO = TaskCreationDTO.fromJson(response.body());
 
                 // Create checksum
                 MessageDigest digest = MessageDigest.getInstance(CHECKSUM_ALGORITHM);
@@ -295,7 +290,7 @@ public class ExecutionServiceImpl implements ExecutionService {
                     return existingTask;
                 }
             }
-        } catch (IOException | InterruptedException | NoSuchAlgorithmException e) {
+        } catch (IOException | JacksonException | InterruptedException | NoSuchAlgorithmException e) {
             LOG.error("Exception: {}", e);
         }
 
@@ -326,9 +321,7 @@ public class ExecutionServiceImpl implements ExecutionService {
                 if (response.statusCode() == 200 && response.body() != null && !response.body().isEmpty() && taskService != null) {
 
                     // Translate JSON to object
-                    ObjectMapper mapper = new ObjectMapper();
-                    mapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
-                    TaskCreationDTO taskCreationDTO = mapper.readValue(response.body(), TaskCreationDTO.class);
+                    TaskCreationDTO taskCreationDTO = TaskCreationDTO.fromJson(response.body());
 
                     // Create checksum
                     MessageDigest digest = MessageDigest.getInstance(CHECKSUM_ALGORITHM);
@@ -339,7 +332,7 @@ public class ExecutionServiceImpl implements ExecutionService {
 
                     return taskDao.findById(onlineTaskId);
                 }
-            } catch (IOException | InterruptedException | NoSuchAlgorithmException e) {
+            } catch (IOException | JacksonException | InterruptedException | NoSuchAlgorithmException e) {
                 LOG.error("Exception: {}", e);
             }
 

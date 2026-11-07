@@ -9,8 +9,8 @@ import com.dopplertask.dopplertask.service.BroadcastListener
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import java.io.IOException
-import javax.persistence.Column
-import javax.persistence.Entity
+import jakarta.persistence.Column
+import jakarta.persistence.Entity
 
 @Entity
 class IntervalTrigger : Trigger() {

@@ -30,10 +30,9 @@ import com.dopplertask.dopplertask.service.TaskService;
 import com.dopplertask.dopplertask.service.TriggerInfo;
 import com.dopplertask.dopplertask.service.VariableExtractorUtil;
 import com.dopplertask.dopplertask.service.WebhookTriggerInfo;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.apache.velocity.app.VelocityEngine;
 import org.jetbrains.annotations.NotNull;
-import org.reflections.Reflections;
 import com.dopplertask.dopplertask.filter.AccessFilter;
 import com.dopplertask.dopplertask.filter.Caller;
 import com.dopplertask.dopplertask.service.ApprovalRequiredException;
@@ -53,7 +52,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
@@ -268,13 +267,12 @@ public class TaskController {
     public ResponseEntity<SimpleChecksumResponseDto> createTask(@RequestBody String body, @RequestParam(defaultValue = "false") boolean autoSaved, HttpServletRequest servletRequest) throws IOException, NoSuchAlgorithmException {
 
         // Translate JSON to object
-        ObjectMapper mapper = new ObjectMapper();
         boolean byAgent = AccessFilter.callerOf(servletRequest) == Caller.AGENT;
-        TaskCreationDTO taskCreationDTO = mapper.readValue(body, TaskCreationDTO.class);
+        TaskCreationDTO taskCreationDTO = TaskCreationDTO.fromJson(body);
         credentialService.adoptInlineSecrets(taskCreationDTO.getActions(), byAgent);
 
         // Generate compact JSON
-        String compactJSON = mapper.writeValueAsString(taskCreationDTO);
+        String compactJSON = taskCreationDTO.toJson();
 
         // Create checksum
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -536,15 +534,9 @@ public class TaskController {
     public ResponseEntity<ActionListResponseDto> getAllActions() throws NoSuchMethodException, IllegalAccessException, InvocationTargetException, InstantiationException {
 
 
-        Reflections reflections = new Reflections("com.dopplertask.dopplertask.domain.action");
-        Set<Class<? extends Action>> classes = reflections.getSubTypesOf(Action.class);
-
         ActionListResponseDto actionListResponseDto = new ActionListResponseDto();
-        for (Class<? extends Action> currentClass : classes) {
-            if (Modifier.isAbstract(currentClass.getModifiers())) {
-                continue;
-            }
-            Action instance = currentClass.getDeclaredConstructor().newInstance();
+        for (Class<?> currentClass : CredentialService.stepTypes().values()) {
+            Action instance = (Action) currentClass.getDeclaredConstructor().newInstance();
             boolean trigger = instance.getClass().getSuperclass().getSimpleName().equals(Trigger.class.getSimpleName());
             actionListResponseDto.getActions().add(new ActionInfoDto(currentClass.getSimpleName(), instance.getDescription(), instance.getActionInfo(), trigger, instance.getOutputs()));
         }

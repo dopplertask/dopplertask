@@ -9,15 +9,15 @@ import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.Prop
 import com.dopplertask.dopplertask.domain.action.connection.HttpAction;
 import com.dopplertask.dopplertask.domain.action.connection.HttpHeader;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.beans.BeanWrapperImpl;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import javax.persistence.Transient;
+import jakarta.persistence.Transient;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -240,7 +240,7 @@ public class CredentialService {
     private void store(Credential credential, Map<String, String> values) {
         try {
             credential.setEncryptedValues(cipher.encrypt(mapper.writeValueAsString(values)));
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new IllegalStateException("A credential could not be written.", e);
         }
         credential.setUpdated(new Date());
@@ -251,7 +251,7 @@ public class CredentialService {
         try {
             return mapper.readValue(cipher.decrypt(credential.getEncryptedValues()), new TypeReference<>() {
             });
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new IllegalStateException("A credential could not be read.", e);
         }
     }

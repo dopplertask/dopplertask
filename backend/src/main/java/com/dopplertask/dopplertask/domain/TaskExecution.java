@@ -2,7 +2,7 @@ package com.dopplertask.dopplertask.domain;
 
 import com.dopplertask.dopplertask.domain.action.Action;
 
-import javax.persistence.*;
+import jakarta.persistence.*;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;

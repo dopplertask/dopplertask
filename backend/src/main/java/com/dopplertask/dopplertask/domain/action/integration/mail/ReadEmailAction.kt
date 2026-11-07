@@ -14,21 +14,21 @@ import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import java.util.Properties
-import javax.mail.AuthenticationFailedException
-import javax.mail.Flags
-import javax.mail.Folder
-import javax.mail.MessagingException
-import javax.mail.Multipart
-import javax.mail.Part
-import javax.mail.Session
-import javax.mail.search.FlagTerm
+import jakarta.mail.AuthenticationFailedException
+import jakarta.mail.Flags
+import jakarta.mail.Folder
+import jakarta.mail.MessagingException
+import jakarta.mail.Multipart
+import jakarta.mail.Part
+import jakarta.mail.Session
+import jakarta.mail.search.FlagTerm
 import java.io.IOException
-import javax.persistence.Column
-import javax.persistence.DiscriminatorValue
-import javax.persistence.Entity
-import javax.persistence.Lob
-import javax.persistence.Table
-import javax.persistence.Transient
+import jakarta.persistence.Column
+import jakarta.persistence.DiscriminatorValue
+import jakarta.persistence.Entity
+import jakarta.persistence.Lob
+import jakarta.persistence.Table
+import jakarta.persistence.Transient
 
 @Entity
 @Table(name = "ReadEmailAction")

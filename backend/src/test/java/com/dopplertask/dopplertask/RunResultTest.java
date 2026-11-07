@@ -8,7 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
@@ -29,6 +29,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 public class RunResultTest {
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.jms.config.JmsListenerEndpointRegistry listeners;
 
     @Autowired
     private MockMvc mockMvc;
@@ -59,6 +62,32 @@ public class RunResultTest {
                 .andExpect(jsonPath("$.steps[1].output").value("hi"))
                 .andExpect(jsonPath("$.steps[1].status").value("FAILURE"))
                 .andExpect(jsonPath("$.steps[1].error", containsString("boom")));
+    }
+
+    // A slow task must not make every other task wait.
+    @Test
+    public void testRunsDoNotWaitForEachOtherSuccess() {
+        org.springframework.jms.listener.DefaultMessageListenerContainer container = (org.springframework.jms.listener.DefaultMessageListenerContainer) listeners.getListenerContainers().iterator().next();
+        org.junit.Assert.assertEquals(50, container.getConcurrentConsumers());
+    }
+
+    // Through the queue, as a run with parameters goes when it is started from the editor.
+    @Test
+    public void testAScheduledRunWithParametersFinishesSuccess() throws Exception {
+        String name = "run_scheduled_parameters";
+        this.mockMvc.perform(post("/task").contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"" + name + "\",\"active\":false,\"parameters\":[{\"name\":\"who\"}],\"actions\":["
+                + "{\"@type\":\"StartAction\",\"ports\":[{\"externalId\":\"" + name + "_s\",\"portType\":\"OUTPUT\"}]},"
+                + "{\"@type\":\"PrintAction\",\"message\":\"hello $parameters.get('who')\",\"ports\":[{\"externalId\":\"" + name + "_i\",\"portType\":\"INPUT\"},{\"externalId\":\"" + name + "_o\",\"portType\":\"OUTPUT\"}]}],"
+                + "\"connections\":[{\"source\":{\"externalId\":\"" + name + "_s\"},\"target\":{\"externalId\":\"" + name + "_i\"}}]}")).andExpect(status().isOk());
+        String answer = this.mockMvc.perform(post("/schedule/task").contentType(MediaType.APPLICATION_JSON).content("{\"taskName\":\"" + name + "\",\"parameters\":{\"who\":\"Ada\"}}"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        Object executionId = JsonPath.read(answer, "$.id");
+        String status = "";
+        for (int attempt = 0; attempt < 100 && !status.equals("FINISHED") && !status.equals("FAILED"); attempt++) {
+            Thread.sleep(100);
+            status = JsonPath.read(this.mockMvc.perform(get("/execution/" + executionId)).andReturn().getResponse().getContentAsString(), "$.status");
+        }
+        org.junit.Assert.assertEquals("FINISHED", status);
     }
 
     @Test

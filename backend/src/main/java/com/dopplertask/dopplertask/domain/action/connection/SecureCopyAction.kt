@@ -14,11 +14,11 @@ import com.jcraft.jsch.ChannelSftp
 import com.jcraft.jsch.JSchException
 import com.jcraft.jsch.SftpException
 import java.io.IOException
-import javax.persistence.Column
-import javax.persistence.DiscriminatorValue
-import javax.persistence.Entity
-import javax.persistence.Table
-import javax.persistence.Transient
+import jakarta.persistence.Column
+import jakarta.persistence.DiscriminatorValue
+import jakarta.persistence.Entity
+import jakarta.persistence.Table
+import jakarta.persistence.Transient
 
 @Entity
 @Table(name = "SecureCopyAction")

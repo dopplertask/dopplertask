@@ -3,8 +3,8 @@ package com.dopplertask.dopplertask.domain.action.integration
 import com.dopplertask.dopplertask.domain.ActionResult
 import com.dopplertask.dopplertask.domain.StatusCode
 import com.dopplertask.dopplertask.domain.action.connection.HttpAction
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.JsonNode
+import tools.jackson.databind.ObjectMapper
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.time.Duration
@@ -57,7 +57,7 @@ object JsonApi {
         }
         if (answer.path("error").path("message").isTextual) return answer.path("error").path("message").asText()
         // Jira names a wrong field under errors, which is the only reason it gives, and GraphQL lists objects there.
-        val firstError = answer.path("errors").elements().asSequence().firstOrNull()
+        val firstError = answer.path("errors").values().firstOrNull()
         return answer.path("errorMessages").path(0).asText("").ifEmpty { firstError?.path("message")?.asText(firstError.asText("")) ?: "" }
     }
 }

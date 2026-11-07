@@ -17,8 +17,8 @@ import com.dopplertask.dopplertask.domain.action.integration.chat.TelegramAction
 import com.dopplertask.dopplertask.domain.action.integration.incident.PagerDutyAction;
 import com.dopplertask.dopplertask.service.TaskServiceImpl;
 import com.dopplertask.dopplertask.service.VariableExtractorUtil;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.apache.velocity.app.VelocityEngine;
@@ -29,7 +29,7 @@ import com.dopplertask.dopplertask.domain.action.integration.mail.EmailAction;
 import com.dopplertask.dopplertask.domain.action.integration.storage.S3Action;
 import com.icegreen.greenmail.util.GreenMail;
 import com.icegreen.greenmail.util.ServerSetupTest;
-import javax.mail.internet.MimeMessage;
+import jakarta.mail.internet.MimeMessage;
 import com.dopplertask.dopplertask.domain.ExecutionParameter;
 import com.dopplertask.dopplertask.domain.action.integration.anthropic.ClaudeAction;
 import com.dopplertask.dopplertask.domain.action.integration.openai.OpenAIAction;
@@ -50,10 +50,10 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.interfaces.RSAPublicKey;
 import java.util.Base64;
-import javax.mail.Flags;
-import javax.mail.Folder;
-import javax.mail.Session;
-import javax.mail.Store;
+import jakarta.mail.Flags;
+import jakarta.mail.Folder;
+import jakarta.mail.Session;
+import jakarta.mail.Store;
 import org.junit.Test;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -123,7 +123,7 @@ public class IntegrationActionsTest {
     private JsonNode readJsonOrNull(String body) {
         try {
             return body.isEmpty() ? null : mapper.readTree(body);
-        } catch (IOException notJson) {
+        } catch (tools.jackson.core.JacksonException notJson) {
             return null;
         }
     }

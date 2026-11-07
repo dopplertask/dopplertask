@@ -10,7 +10,7 @@ import com.dopplertask.dopplertask.domain.action.integration.JsonApi
 import com.dopplertask.dopplertask.service.BroadcastListener
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
-import com.fasterxml.jackson.databind.JsonNode
+import tools.jackson.databind.JsonNode
 import com.nimbusds.jose.JWSAlgorithm
 import com.nimbusds.jose.JWSHeader
 import com.nimbusds.jose.crypto.RSASSASigner
@@ -24,12 +24,12 @@ import java.time.Instant
 import java.util.Base64
 import java.util.Date
 import java.io.IOException
-import javax.persistence.Column
-import javax.persistence.DiscriminatorValue
-import javax.persistence.Entity
-import javax.persistence.Lob
-import javax.persistence.Table
-import javax.persistence.Transient
+import jakarta.persistence.Column
+import jakarta.persistence.DiscriminatorValue
+import jakarta.persistence.Entity
+import jakarta.persistence.Lob
+import jakarta.persistence.Table
+import jakarta.persistence.Transient
 
 @Entity
 @Table(name = "GoogleSheetsAction")
@@ -126,8 +126,8 @@ class GoogleSheetsAction : Action() {
 
     // The first row names the columns, and a short row leaves the last columns out.
     private fun rowsOf(values: JsonNode): List<Map<String, String>> {
-        val names = values.path(0).map { it.asText() }
-        return values.drop(1).map { row -> names.zip(row.map { it.asText() }).toMap() }
+        val names = values.path(0).values().map { it.asText() }
+        return values.values().drop(1).map { row -> names.zip(row.values().map { it.asText() }).toMap() }
     }
 
     override val outputs: Map<String, String>

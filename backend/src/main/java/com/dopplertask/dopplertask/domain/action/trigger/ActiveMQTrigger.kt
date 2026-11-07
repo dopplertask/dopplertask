@@ -10,14 +10,14 @@ import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import org.apache.activemq.ActiveMQConnectionFactory
 import java.io.IOException
-import javax.jms.Connection
-import javax.jms.Destination
-import javax.jms.Message
-import javax.jms.MessageConsumer
-import javax.jms.Session
-import javax.jms.TextMessage
-import javax.persistence.Column
-import javax.persistence.Entity
+import jakarta.jms.Connection
+import jakarta.jms.Destination
+import jakarta.jms.Message
+import jakarta.jms.MessageConsumer
+import jakarta.jms.Session
+import jakarta.jms.TextMessage
+import jakarta.persistence.Column
+import jakarta.persistence.Entity
 
 @Entity
 class ActiveMQTrigger : Trigger() {
