@@ -69,11 +69,10 @@ public class RunHousekeeping {
     }
 
     /** A run that had to be interrupted says so, since its last step can only say that it was disturbed. */
-    @Transactional
     public void finished(long executionId) {
         GoingRun run = going.remove(new RunOfCustomer(customerScope.current(), executionId));
         if (run != null && run.interrupted) {
-            taskExecutionDao.findById(executionId).ifPresent(execution -> execution.fail(tooLong()));
+            executionService.failRun(executionId, tooLong());
         }
     }
 

@@ -51,7 +51,6 @@ public class StuckRunsTest {
 
     @Test
     public void testARunOverTheLimitIsInterruptedSuccess() throws Exception {
-        TaskExecution execution = going(1);
         RunHousekeeping housekeeping = housekeeping(60);
         Thread step = new Thread(() -> {
             try {
@@ -67,10 +66,9 @@ public class StuckRunsTest {
         step.join(5_000);
 
         Assert.assertFalse(step.isAlive());
-        Assert.assertEquals(TaskExecutionStatus.STARTED, execution.getStatus());
+        Mockito.verify(service, Mockito.never()).failRun(ArgumentMatchers.anyLong(), ArgumentMatchers.anyString());
         housekeeping.finished(1);
-        Assert.assertEquals(TaskExecutionStatus.FAILED, execution.getStatus());
-        Assert.assertTrue(execution.getFailureReason().contains("60 minutes"));
+        Mockito.verify(service).failRun(ArgumentMatchers.eq(1L), ArgumentMatchers.contains("60 minutes"));
     }
 
     @Test

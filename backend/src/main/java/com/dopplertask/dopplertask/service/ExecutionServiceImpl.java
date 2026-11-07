@@ -148,9 +148,7 @@ public class ExecutionServiceImpl implements ExecutionService {
     @Transactional
     public TaskExecution failRun(long id, String reason) {
         TaskExecution execution = taskExecutionDao.findById(id).orElseThrow();
-        if (execution.getStatus() == TaskExecutionStatus.CREATED || execution.getStatus() == TaskExecutionStatus.STARTED) {
-            execution.fail(reason);
-        }
+        execution.fail(reason);
         return execution;
     }
 
