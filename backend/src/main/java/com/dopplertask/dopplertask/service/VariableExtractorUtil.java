@@ -29,7 +29,7 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.io.StringWriter;
-import java.util.Arrays;
+import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
@@ -199,7 +199,7 @@ public class VariableExtractorUtil {
         }
 
         public String decode(String text) {
-            return Arrays.toString(Base64.getDecoder().decode(text));
+            return new String(Base64.getDecoder().decode(text), StandardCharsets.UTF_8);
         }
     }
 }

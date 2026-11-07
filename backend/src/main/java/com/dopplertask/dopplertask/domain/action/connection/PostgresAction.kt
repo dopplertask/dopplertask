@@ -1,7 +1,6 @@
 package com.dopplertask.dopplertask.domain.action.connection
 
 import com.dopplertask.dopplertask.domain.ActionResult
-import com.dopplertask.dopplertask.domain.StatusCode
 import com.dopplertask.dopplertask.domain.TaskExecution
 import com.dopplertask.dopplertask.domain.action.Action
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationCategory

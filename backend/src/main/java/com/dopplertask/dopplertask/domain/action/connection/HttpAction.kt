@@ -11,7 +11,6 @@ import com.dopplertask.dopplertask.service.StepRules
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import java.io.IOException
-import java.lang.Boolean
 import java.net.ConnectException
 import java.net.URI
 import java.net.http.HttpClient

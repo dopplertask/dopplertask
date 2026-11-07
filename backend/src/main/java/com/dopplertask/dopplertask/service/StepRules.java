@@ -9,7 +9,12 @@ import java.net.URI;
  * tasks come from people who must not reach the machine or each other.
  */
 public interface StepRules {
-    /** Why this step may not run, or null when it may. */
+    /** Whether this kind of step is offered at all. */
+    default boolean offers(Class<? extends Action> kind) {
+        return true;
+    }
+
+    /** Why this configured step may not run, or null when it may. */
     default String refusalOf(Action step) {
         return null;
     }

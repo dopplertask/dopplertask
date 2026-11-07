@@ -66,9 +66,6 @@ public class TaskServiceImpl implements TaskService {
     @Autowired
     private TriggerListenerServiceImpl triggerListenerService;
 
-    @Value("${dopplertask.encryptionKey}")
-    private String encryptionKey;
-
 
     @Override
     public TaskExecution delegate(TaskRequest request) {
@@ -144,36 +141,25 @@ public class TaskServiceImpl implements TaskService {
     @Override
     @Transactional
     public List<Task> getAllTasks() {
-        List<Task> tasks = taskDao.findAll();
-        tasks.forEach(task -> {
-
-
-        });
-        return tasks;
+        return taskDao.findAll();
     }
 
     @Override
     @Transactional
     public Long createTask(String name, List<TaskParameter> taskParameters, List<Action> actions, String description, List<Connection> connections, String checksum, boolean active) {
-        return createTask(name, taskParameters, actions, description, connections, checksum, active, true);
+        return createTask(name, taskParameters, actions, description, connections, checksum, active, false);
     }
 
     @Override
     @Transactional
-    public Long createTask(String name, List<TaskParameter> taskParameters, List<Action> actions, String description, List<Connection> connections, String checksum, boolean active, boolean buildTask) {
-        return createTask(name, taskParameters, actions, description, connections, checksum, active, buildTask, false);
-    }
-
-    @Override
-    @Transactional
-    public Long createTask(String name, List<TaskParameter> taskParameters, List<Action> actions, String description, List<Connection> connections, String checksum, boolean active, boolean buildTask, boolean autoSaved) {
-        return saveTask(name, taskParameters, actions, description, connections, checksum, active, buildTask, autoSaved, false);
+    public Long createTask(String name, List<TaskParameter> taskParameters, List<Action> actions, String description, List<Connection> connections, String checksum, boolean active, boolean autoSaved) {
+        return saveTask(name, taskParameters, actions, description, connections, checksum, active, autoSaved, false);
     }
 
     @Override
     @Transactional
     public Long proposeTask(String name, List<TaskParameter> taskParameters, List<Action> actions, String description, List<Connection> connections, String checksum) {
-        return saveTask(name, taskParameters, actions, description, connections, checksum, false, true, false, true);
+        return saveTask(name, taskParameters, actions, description, connections, checksum, false, false, true);
     }
 
     @Override
@@ -193,7 +179,7 @@ public class TaskServiceImpl implements TaskService {
         return true;
     }
 
-    private Long saveTask(String name, List<TaskParameter> taskParameters, List<Action> actions, String description, List<Connection> connections, String checksum, boolean active, boolean buildTask, boolean autoSaved, boolean proposed) {
+    private Long saveTask(String name, List<TaskParameter> taskParameters, List<Action> actions, String description, List<Connection> connections, String checksum, boolean active, boolean autoSaved, boolean proposed) {
 
         // Auto save only adds versions to a task the user has saved, so it cannot create drafts or revive deleted tasks.
         if (autoSaved && taskDao.findAllByName(name).isEmpty()) {
@@ -471,9 +457,5 @@ public class TaskServiceImpl implements TaskService {
         taskExecutionRequest.setStartedByAgent(request.isStartedByAgent());
 
         return this.runRequest(taskExecutionRequest);
-    }
-
-    public String getEncryptionKey() {
-        return encryptionKey;
     }
 }

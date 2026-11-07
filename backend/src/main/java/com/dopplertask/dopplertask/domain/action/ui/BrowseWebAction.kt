@@ -54,14 +54,6 @@ class BrowseWebAction : Action {
     ): ActionResult {
         val urlVariable = variableExtractorUtil.extract(url, execution, scriptLanguage)
         val actionResult = ActionResult()
-        val os = System.getProperty("os.name")
-        if (os.contains("Windows")) {
-            System.setProperty(CHROME_DRIVER, "bin/chromedriver.exe")
-        } else if (os.contains("Mac")) {
-            System.setProperty(CHROME_DRIVER, "bin/chromedriver-mac")
-        } else {
-            System.setProperty(CHROME_DRIVER, "bin/chromedriver")
-        }
         val chromeOptions = ChromeOptions()
 
         // Users of docker image usually uses headless mode so we will include additional arguments to support it.
@@ -224,8 +216,4 @@ class BrowseWebAction : Action {
 
     override val description: String
         get() = "Browse the web and do GUI actions."
-
-    companion object {
-        private const val CHROME_DRIVER = "webdriver.chrome.driver"
-    }
 }

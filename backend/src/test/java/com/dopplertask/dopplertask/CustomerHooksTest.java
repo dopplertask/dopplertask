@@ -97,11 +97,21 @@ public class CustomerHooksTest {
             }
         });
         CredentialService credentials = new CredentialService(Mockito.mock(CredentialDao.class), Mockito.mock(CredentialCipher.class));
-        ActionResult result = credentials.runWith(new PrintAction(), () -> {
+        ActionResult result = credentials.runWith(new PrintAction(), execution, () -> {
             throw new AssertionError("The step ran.");
         });
         Assert.assertEquals(StatusCode.FAILURE, result.getStatusCode());
         Assert.assertEquals("Not here.", result.getErrorMsg());
+    }
+
+    @Test
+    public void testEverythingIsOfferedOnAnInstallSuccess() {
+        Assert.assertTrue(StepRules.active().offers(PrintAction.class));
+    }
+
+    @Test
+    public void testBase64DecodesToTextSuccess() throws IOException {
+        Assert.assertEquals("Ada", extractor.extract("$base64Helper.decode(\"QWRh\")", execution, ScriptLanguage.VELOCITY));
     }
 
     @Test

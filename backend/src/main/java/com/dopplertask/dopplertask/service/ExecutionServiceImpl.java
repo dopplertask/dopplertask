@@ -284,7 +284,7 @@ public class ExecutionServiceImpl implements ExecutionService {
                 // Check current database for existing task with checksum.
                 Optional<Task> existingTask = taskDao.findFirstByChecksumStartingWithAndProposedFalse(sha256);
                 if (!existingTask.isPresent()) {
-                    Long onlineTaskId = taskService.createTask(taskCreationDTO.getName(), taskCreationDTO.getParameters(), taskCreationDTO.getActions(), taskCreationDTO.getDescription(), taskCreationDTO.getConnections(), sha256, taskCreationDTO.isActive(), false);
+                    Long onlineTaskId = taskService.createTask(taskCreationDTO.getName(), taskCreationDTO.getParameters(), taskCreationDTO.getActions(), taskCreationDTO.getDescription(), taskCreationDTO.getConnections(), sha256, taskCreationDTO.isActive());
                     return taskDao.findById(onlineTaskId);
                 } else {
                     return existingTask;

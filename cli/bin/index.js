@@ -81,7 +81,7 @@ function callBackend(path, method, data, callbackResult) {
 }
 
 
-const options = yargs
+yargs
 .command({
     command: "logs [executionid]",
     describe: "See the logs of an execution",

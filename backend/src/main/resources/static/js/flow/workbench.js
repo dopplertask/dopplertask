@@ -29,7 +29,6 @@ export default function boot() {
 
   /* DopplerTask's hexagon with circuit traces, drawn for small sizes. */
   const MARK = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2.5 22 6.6v10.8l-7 4.1-7-4.1V6.6z"/><path d="M2 8.5h8.5M2 12h11.5M2 15.5h8.5"/></svg>';
-  const MAX_TICKS = 16;
 
   let historyOpen = false;
   let testResult = null;
@@ -283,12 +282,6 @@ export default function boot() {
     return failed ? `Failed at ${failed.name}` : run.failure || RUN_STATUS_LABELS[run.status];
   }
   const historyToggle = () => `<button type="button" class="labelled-button history-toggle ${historyOpen ? 'is-on' : ''}" data-wb="history" aria-expanded="${historyOpen}" title="Run history">${icon(historyOpen ? 'chevronDown' : 'chevronUp')}<span>History</span></button>`;
-
-  function ticksHtml() {
-    const runs = completedRuns().slice(0, MAX_TICKS).reverse();
-    const longest = Math.max(...runs.map((run) => run.durationMs), 1);
-    return `<div class="ticks" role="group" aria-label="Recent runs">${runs.map((run) => `<button type="button" class="tick is-${run.status} ${run === runner.run ? 'is-current' : ''}" data-run="${run.id}" aria-label="Run ${run.id}, ${RUN_STATUS_LABELS[run.status]}, ${formatAgo(run.startedAt)}" title="${escapeHtml(runHeadline(run))}, ${formatAgo(run.startedAt)}"><i style="height:${Math.round(35 + (run.durationMs / longest) * 65)}%"></i></button>`).join('')}</div>`;
-  }
 
   let stripRun;
   let stripSteps = 0;

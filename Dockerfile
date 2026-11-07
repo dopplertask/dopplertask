@@ -33,7 +33,6 @@ COPY --from=jlink-package /root/start.sh /opt/spring-boot/
 COPY --from=jlink-package /root/backend/build/libs/doppler-*.jar /opt/spring-boot/
 COPY --from=jlink-package /opt/jdk-25-mini-runtime /opt/jdk-25-mini-runtime
 
-RUN mkdir /opt/spring-boot/bin && cd /opt/spring-boot/bin && ln -s /usr/bin/chromedriver chromedriver
 
 
 EXPOSE 8090
