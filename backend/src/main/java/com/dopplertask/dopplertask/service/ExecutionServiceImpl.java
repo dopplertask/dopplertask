@@ -6,7 +6,6 @@ import com.dopplertask.dopplertask.domain.*;
 import com.dopplertask.dopplertask.domain.action.Action;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jms.core.JmsTemplate;
 import org.springframework.stereotype.Service;
@@ -31,17 +30,20 @@ public class ExecutionServiceImpl implements ExecutionService {
     private TaskDao taskDao;
     private VariableExtractorUtil variableExtractorUtil;
     private TaskExecutionDao taskExecutionDao;
-    private CustomerScope customerScope;
+    private CustomerScope customerScope = CustomerScope.ONE_CUSTOMER;
 
     @Autowired
-    public ExecutionServiceImpl(JmsTemplate jmsTemplate, TaskDao taskDao, VariableExtractorUtil variableExtractorUtil, CredentialService credentialService, TaskExecutionDao taskExecutionDao,
-                                ObjectProvider<CustomerScope> customers) {
+    public ExecutionServiceImpl(JmsTemplate jmsTemplate, TaskDao taskDao, VariableExtractorUtil variableExtractorUtil, CredentialService credentialService, TaskExecutionDao taskExecutionDao) {
         this.jmsTemplate = jmsTemplate;
         this.credentialService = credentialService;
         this.taskDao = taskDao;
         this.variableExtractorUtil = variableExtractorUtil;
         this.taskExecutionDao = taskExecutionDao;
-        this.customerScope = customers.getIfAvailable(() -> CustomerScope.ONE_CUSTOMER);
+    }
+
+    @Autowired(required = false)
+    public void setCustomerScope(CustomerScope customerScope) {
+        this.customerScope = customerScope;
     }
 
     @Transactional
