@@ -7,7 +7,7 @@ import com.dopplertask.dopplertask.domain.action.connection.SecureCopyAction;
 import com.dopplertask.dopplertask.domain.action.connection.MySQLAction;
 import com.dopplertask.dopplertask.domain.action.integration.jenkins.JenkinsAction;
 import com.dopplertask.dopplertask.domain.action.trigger.Webhook;
-import org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy;
+import org.hibernate.boot.model.naming.PhysicalNamingStrategySnakeCaseImpl;
 import org.hibernate.boot.model.naming.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,7 +15,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import javax.persistence.Table;
+import jakarta.persistence.Table;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -134,6 +134,6 @@ public class LegacySecretMigration {
 
     // The same naming that created the tables, as guessing it would leave secrets behind.
     private static String physicalName(String name) {
-        return new CamelCaseToUnderscoresNamingStrategy().toPhysicalTableName(Identifier.toIdentifier(name), null).getText();
+        return new PhysicalNamingStrategySnakeCaseImpl().toPhysicalTableName(Identifier.toIdentifier(name), null).getText();
     }
 }

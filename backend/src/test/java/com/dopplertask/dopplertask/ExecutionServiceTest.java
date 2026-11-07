@@ -22,7 +22,7 @@ import org.junit.runner.RunWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.springframework.jms.core.JmsTemplate;
-import org.springframework.test.context.junit4.SpringRunner;
+import org.mockito.junit.MockitoJUnitRunner;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -34,7 +34,7 @@ import java.util.Optional;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
-@RunWith(SpringRunner.class)
+@RunWith(MockitoJUnitRunner.Silent.class)
 public class ExecutionServiceTest {
 
     @InjectMocks
@@ -42,7 +42,6 @@ public class ExecutionServiceTest {
 
     @org.junit.Before
     public void runStepsWithoutCredentials() throws Exception {
-        org.mockito.MockitoAnnotations.openMocks(this);
         org.mockito.Mockito.lenient().when(credentialService.runWith(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
                 .thenAnswer(call -> ((CredentialService.StepRun) call.getArgument(1)).run());
     }

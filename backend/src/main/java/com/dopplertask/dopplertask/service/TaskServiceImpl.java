@@ -12,7 +12,8 @@ import com.dopplertask.dopplertask.domain.TaskParameter;
 import com.dopplertask.dopplertask.domain.action.Action;
 import com.dopplertask.dopplertask.domain.action.common.LinkedTaskAction;
 import com.dopplertask.dopplertask.dto.TaskCreationDTO;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -338,7 +339,7 @@ public class TaskServiceImpl implements TaskService {
                 return true;
             }
 
-        } catch (IOException | InterruptedException e) {
+        } catch (IOException | JacksonException | InterruptedException e) {
             return false;
         }
 
@@ -382,7 +383,7 @@ public class TaskServiceImpl implements TaskService {
                     throw new TaskAlreadyUploadedException("A workflow name must start with a username followed by a forward slash followed by the task name.");
                 }
 
-            } catch (IOException | InterruptedException e) {
+            } catch (IOException | JacksonException | InterruptedException e) {
                 throw new UploadNotSuccessfulException("Task could not be uploaded. Check that you've logged in, or that you have an internet connection.");
             }
         }

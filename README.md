@@ -37,7 +37,7 @@ Install the CLI via NPM:
 
 ## Prerequisites
 
-Install JDK 17 and gradle.
+Install JDK 25. The Gradle wrapper in `backend` takes care of the rest. To change the editor or the command line tool, use Node 26, which `.nvmrc` names.
 
 (Optional) Install CLI:
 ```npm install -g dopplertask-cli```
@@ -47,7 +47,7 @@ Install JDK 17 and gradle.
 
 ## Run
 To run the backend, go to the backend folder and run:
-```gradle clean build bootRun```
+```cd backend && ./gradlew clean build bootRun```
 
 If CLI is installed as mentioned in the prerequisites, it can be run like so (See CLI help by typing dopplertask --help):
 ```dopplertask run [taskname]```
@@ -735,6 +735,7 @@ The variables listed for a step below that are in a credential, such as `token`,
 Existing tasks, versions and webhook addresses keep working, and the database is updated when the new version starts. A few things behave differently since version 0.14.7:
 
 * **An HTTP step fails on a status of 400 or above.** This also applies to steps built on it, such as OpenAI. A task that should carry on needs Continue on failure on that step.
+* **The database gets a new format.** H2 2 cannot open files from H2 1.4, so at the first start the file is converted, which fetches H2 1.4.199 from Maven Central once, and the old file is kept with the ending `.mv.db.bak`. It holds the old secrets, so delete it when the upgrade has been checked. There is no way back to the earlier version without that file.
 * **Secrets move out of steps.** At the first start they become credentials, named like `slack-1`, and the old columns are removed, so back up the database first. Set `DOPPLERTASK_ENCRYPTION_KEY` to the same value as before if you had one. Tasks no longer return their secrets, and scripts that read them from the API need another way.
 * **A webhook with a sign-in that has no value refuses everyone.** It used to accept an empty one.
 * **The OpenAI step verifies the certificate of the server.** A server of your own with a self-signed certificate needs that certificate added to the trust store of Java.

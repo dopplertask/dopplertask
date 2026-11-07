@@ -1,6 +1,6 @@
 package com.dopplertask.dopplertask.domain;
 
-import javax.persistence.*;
+import jakarta.persistence.*;
 import java.nio.charset.StandardCharsets;
 
 @Entity

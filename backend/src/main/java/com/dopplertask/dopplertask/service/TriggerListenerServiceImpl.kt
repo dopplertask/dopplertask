@@ -9,13 +9,11 @@ import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.context.annotation.Lazy
 import org.springframework.stereotype.Service
 import org.springframework.transaction.PlatformTransactionManager
-import org.springframework.transaction.TransactionStatus
 import org.springframework.transaction.annotation.Transactional
-import org.springframework.transaction.support.TransactionCallbackWithoutResult
 import org.springframework.transaction.support.TransactionTemplate
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-import javax.annotation.PostConstruct
+import jakarta.annotation.PostConstruct
 
 
 private const val RETRY_AFTER_FAILURE_MS = 5000L
@@ -49,11 +47,7 @@ open class TriggerListenerServiceImpl : TriggerListenerService {
     @PostConstruct
     fun init() {
         val tmpl = TransactionTemplate(txManager)
-        tmpl.execute(object : TransactionCallbackWithoutResult() {
-            override fun doInTransactionWithoutResult(status: TransactionStatus?) {
-                startActiveTriggers()
-            }
-        })
+        tmpl.executeWithoutResult { startActiveTriggers() }
 
     }
 

@@ -13,20 +13,20 @@ import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import java.util.Properties
-import javax.mail.AuthenticationFailedException
-import javax.mail.Message
-import javax.mail.MessagingException
-import javax.mail.Session
-import javax.mail.Transport
-import javax.mail.internet.AddressException
-import javax.mail.internet.InternetAddress
-import javax.mail.internet.MimeMessage
-import javax.persistence.Column
-import javax.persistence.DiscriminatorValue
-import javax.persistence.Entity
-import javax.persistence.Lob
-import javax.persistence.Table
-import javax.persistence.Transient
+import jakarta.mail.AuthenticationFailedException
+import jakarta.mail.Message
+import jakarta.mail.MessagingException
+import jakarta.mail.Session
+import jakarta.mail.Transport
+import jakarta.mail.internet.AddressException
+import jakarta.mail.internet.InternetAddress
+import jakarta.mail.internet.MimeMessage
+import jakarta.persistence.Column
+import jakarta.persistence.DiscriminatorValue
+import jakarta.persistence.Entity
+import jakarta.persistence.Lob
+import jakarta.persistence.Table
+import jakarta.persistence.Transient
 
 @Entity
 @Table(name = "EmailAction")

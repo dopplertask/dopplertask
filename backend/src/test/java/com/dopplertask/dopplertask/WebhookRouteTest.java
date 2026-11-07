@@ -9,14 +9,14 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-import org.springframework.boot.autoconfigure.web.servlet.DispatcherServletAutoConfiguration;
-import org.springframework.boot.autoconfigure.web.servlet.ServletWebServerFactoryAutoConfiguration;
-import org.springframework.boot.autoconfigure.web.servlet.WebMvcAutoConfiguration;
+import org.springframework.boot.webmvc.autoconfigure.DispatcherServletAutoConfiguration;
+import org.springframework.boot.jetty.autoconfigure.servlet.JettyServletWebServerAutoConfiguration;
+import org.springframework.boot.webmvc.autoconfigure.WebMvcAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import com.dopplertask.dopplertask.service.CredentialService;
 import com.dopplertask.dopplertask.service.SsoService;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.boot.web.server.LocalServerPort;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.junit4.SpringRunner;
 
 import java.io.IOException;
@@ -27,24 +27,24 @@ import java.net.URL;
  * Goes through the real embedded server, because it decides whether an encoded slash reaches the controller at all.
  */
 @RunWith(SpringRunner.class)
-@SpringBootTest(classes = {ServletWebServerFactoryAutoConfiguration.class, DispatcherServletAutoConfiguration.class,
-        WebMvcAutoConfiguration.class, TaskController.class},
+@SpringBootTest(classes = {JettyServletWebServerAutoConfiguration.class, DispatcherServletAutoConfiguration.class,
+        WebMvcAutoConfiguration.class, TaskController.class, WebConfiguration.class},
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 public class WebhookRouteTest {
 
     @LocalServerPort
     private int port;
 
-    @MockBean
+    @MockitoBean
     private TaskService taskService;
 
-    @MockBean
+    @MockitoBean
     private CredentialService credentialService;
 
-    @MockBean
+    @MockitoBean
     private SsoService ssoService;
 
-    @MockBean
+    @MockitoBean
     private ExecutionService executionService;
 
     @Test

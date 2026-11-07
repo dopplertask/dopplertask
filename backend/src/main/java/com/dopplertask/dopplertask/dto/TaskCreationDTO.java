@@ -1,5 +1,8 @@
 package com.dopplertask.dopplertask.dto;
 
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import com.dopplertask.dopplertask.domain.Connection;
 import com.dopplertask.dopplertask.domain.TaskParameter;
 import com.dopplertask.dopplertask.domain.action.Action;
@@ -9,6 +12,17 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 
 public class TaskCreationDTO {
+    // A saved or downloaded task can leave out a yes or no setting, which then means no.
+    private static final ObjectMapper MAPPER = JsonMapper.builder().disable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES).build();
+
+    public static TaskCreationDTO fromJson(String json) {
+        return MAPPER.readValue(json, TaskCreationDTO.class);
+    }
+
+    public String toJson() {
+        return MAPPER.writeValueAsString(this);
+    }
+
     private String name;
     private boolean active;
     private List<TaskParameter> parameters;

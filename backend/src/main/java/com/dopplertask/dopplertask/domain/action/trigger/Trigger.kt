@@ -2,9 +2,9 @@ package com.dopplertask.dopplertask.domain.action.trigger
 
 import com.dopplertask.dopplertask.domain.action.Action
 import com.fasterxml.jackson.annotation.JsonIgnore
-import javax.persistence.Column
-import javax.persistence.MappedSuperclass
-import javax.persistence.Transient
+import jakarta.persistence.Column
+import jakarta.persistence.MappedSuperclass
+import jakarta.persistence.Transient
 
 @MappedSuperclass
 abstract class Trigger : Action() {

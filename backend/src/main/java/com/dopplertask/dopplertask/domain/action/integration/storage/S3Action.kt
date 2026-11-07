@@ -20,15 +20,16 @@ import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
-import javax.persistence.Column
-import javax.persistence.DiscriminatorValue
-import javax.persistence.Entity
-import javax.persistence.Lob
-import javax.persistence.Table
-import javax.persistence.Transient
+import jakarta.persistence.Column
+import jakarta.persistence.DiscriminatorValue
+import jakarta.persistence.Entity
+import jakarta.persistence.Lob
+import jakarta.persistence.Table
+import jakarta.persistence.Transient
 
 @Entity
-@Table(name = "S3Action")
+// Written out, since the name that newer versions make of S3Action would leave saved steps in the old table.
+@Table(name = "s3action")
 @DiscriminatorValue("s3_action")
 class S3Action : Action() {
     @Column

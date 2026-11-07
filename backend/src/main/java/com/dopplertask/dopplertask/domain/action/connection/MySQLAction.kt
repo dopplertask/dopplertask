@@ -10,19 +10,19 @@ import com.dopplertask.dopplertask.service.BroadcastListener
 import com.dopplertask.dopplertask.service.ColumnEncryptor
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 import com.mysql.cj.jdbc.MysqlDataSource
 import java.io.IOException
 import java.sql.ResultSet
 import java.sql.SQLException
 import java.sql.Statement
-import javax.persistence.Column
-import javax.persistence.Convert
-import javax.persistence.DiscriminatorValue
-import javax.persistence.Entity
-import javax.persistence.Lob
-import javax.persistence.Table
-import javax.persistence.Transient
+import jakarta.persistence.Column
+import jakarta.persistence.Convert
+import jakarta.persistence.DiscriminatorValue
+import jakarta.persistence.Entity
+import jakarta.persistence.Lob
+import jakarta.persistence.Table
+import jakarta.persistence.Transient
 
 @Entity
 @Table(name = "MySQLAction")
