@@ -58,7 +58,7 @@ DopplerTask runs commands on the machine it is installed on, so treat access to 
 
 ## Running for many customers
 
-An install trusts its own tasks and serves one customer, which is all most people need. To host tasks written by other people, an add-on on the classpath can replace a few defaults. Nothing changes without one.
+An install trusts its own tasks and serves one customer, which is all most people need. To host tasks written by other people, an extension on the classpath can replace a few defaults. Nothing changes without one.
 
 * `CustomerScope` says whose work a thread is doing. Schedules keep their customer, and each customer's credentials get a key derived from the install's key.
 * `StepRules` can refuse steps and addresses, and give scripts plain values only. Refused steps also leave the step list.

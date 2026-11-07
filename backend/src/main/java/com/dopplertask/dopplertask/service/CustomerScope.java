@@ -1,7 +1,7 @@
 package com.dopplertask.dopplertask.service;
 
 /**
- * Whose work a thread is doing. An install runs for one customer, so nothing here does anything until an add-on says
+ * Whose work a thread is doing. An install runs for one customer, so nothing here does anything until an extension says
  * otherwise. Work that outlives a request, such as a schedule, has to carry the customer along.
  */
 public interface CustomerScope {

@@ -5,7 +5,7 @@ import com.dopplertask.dopplertask.domain.action.Action;
 import java.net.URI;
 
 /**
- * What steps may do. An install trusts its own tasks, so by default nothing is refused. An add-on can tighten this when
+ * What steps may do. An install trusts its own tasks, so by default nothing is refused. An extension can tighten this when
  * tasks come from people who must not reach the machine or each other.
  */
 public interface StepRules {
