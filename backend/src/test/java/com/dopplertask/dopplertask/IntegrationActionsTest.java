@@ -1860,6 +1860,59 @@ public class IntegrationActionsTest {
     }
 
     @Test
+    public void testElasticsearchSearchesWithSortLimitAndCountsSuccess() throws IOException {
+        ElasticsearchAction elasticsearch = new ElasticsearchAction();
+        elasticsearch.setSiteUrl(baseUrl);
+        elasticsearch.setIndexName("logs-*");
+        elasticsearch.setUsername("elastic");
+        elasticsearch.setPassword("secret");
+        elasticsearch.setSortField("timestamp");
+        elasticsearch.setMaxResults("5");
+        elasticsearch.setGroupByField("service");
+        answerBody = "{\"hits\":{\"total\":{\"value\":4}},\"aggregations\":{\"groups\":{\"buckets\":[{\"key\":\"fastapi\",\"doc_count\":3},{\"key\":\"nestjs\",\"doc_count\":1}]}}}";
+        ActionResult result = run(elasticsearch);
+        assertSucceeded(result);
+        Assert.assertEquals("/logs-*/_search", path);
+        Assert.assertEquals(basicOf("elastic:secret"), authorization);
+        Assert.assertEquals(5, received.path("size").asInt());
+        Assert.assertTrue(received.path("track_total_hits").asBoolean());
+        Assert.assertEquals("desc", received.path("sort").path(0).path("timestamp").path("order").asText());
+        Assert.assertEquals("service", received.path("aggs").path("groups").path("terms").path("field").asText());
+        Assert.assertEquals(4L, result.getOutputVariables().get("hitCount"));
+        Assert.assertEquals("fastapi: 3, nestjs: 1", result.getOutputVariables().get("groups"));
+    }
+
+    @Test
+    public void testElasticsearchPrefersTheApiKeyAndUpdatesOnlyTheFieldsGivenSuccess() throws IOException {
+        ElasticsearchAction elasticsearch = new ElasticsearchAction();
+        elasticsearch.setSiteUrl(baseUrl);
+        elasticsearch.setIndexName("orders");
+        elasticsearch.setApiKey("key");
+        elasticsearch.setUsername("elastic");
+        elasticsearch.setOperation("updateDocument");
+        elasticsearch.setDocument("{\"status\": \"done\"}");
+        assertFailsWith(elasticsearch, "ID of the document");
+        elasticsearch.setDocumentId("a1");
+        assertSucceeded(run(elasticsearch));
+        Assert.assertEquals("ApiKey key", authorization);
+        Assert.assertEquals("/orders/_update/a1", path);
+        Assert.assertEquals("done", received.path("doc").path("status").asText());
+    }
+
+    @Test
+    public void testElasticsearchListsIndexesWithoutNeedingOneSuccess() throws IOException {
+        ElasticsearchAction elasticsearch = new ElasticsearchAction();
+        elasticsearch.setOperation("listIndexes");
+        assertFailsWith(elasticsearch, "address of the cluster");
+        elasticsearch.setSiteUrl(baseUrl);
+        answerBody = "[{\"index\":\"orders\"},{\"index\":\"logs\"}]";
+        ActionResult result = run(elasticsearch);
+        assertSucceeded(result);
+        Assert.assertEquals("/_cat/indices", path);
+        Assert.assertEquals(2, result.getOutputVariables().get("indexCount"));
+    }
+
+    @Test
     public void testElasticsearchSaysWhyAQueryIsRefusedFailure() throws IOException {
         ElasticsearchAction elasticsearch = new ElasticsearchAction();
         elasticsearch.setSiteUrl(baseUrl);
@@ -1871,6 +1924,13 @@ public class IntegrationActionsTest {
         answerStatus = 400;
         answerBody = "{\"error\":{\"reason\":\"unknown query [nothing]\"}}";
         assertFailsWith(elasticsearch, "unknown query [nothing]");
+        answerBody = "{\"error\":{\"reason\":\"all shards failed\",\"root_cause\":[{\"reason\":\"cannot sort on [message]\"}]}}";
+        assertFailsWith(elasticsearch, "cannot sort on [message]");
+        elasticsearch.setOperation("readDocument");
+        elasticsearch.setDocumentId("none");
+        answerStatus = 404;
+        answerBody = "{\"found\":false}";
+        assertFailsWith(elasticsearch, "no document \"none\" in orders");
     }
 
     @Test

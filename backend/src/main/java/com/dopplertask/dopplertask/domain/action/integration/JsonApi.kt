@@ -70,7 +70,9 @@ object JsonApi {
             if (answer.path(field).isTextual) return answer.path(field).asText()
         }
         if (answer.path("error").path("message").isTextual) return answer.path("error").path("message").asText()
-        // Elasticsearch explains under error, in a field of its own.
+        // Elasticsearch explains under error, and the first root cause says more than "all shards failed".
+        val rootCause = answer.path("error").path("root_cause").path(0).path("reason")
+        if (rootCause.isTextual) return rootCause.asText()
         if (answer.path("error").path("reason").isTextual) return answer.path("error").path("reason").asText()
         if (answer.path("errors").isTextual) return answer.path("errors").asText()
         // Salesforce answers with a list of errors.

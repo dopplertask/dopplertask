@@ -80,7 +80,7 @@ const PRESENTATION = {
   KafkaAction: ['kafka', 'Kafka', 'connection', 'send', ['servers', 'topic', 'messageBody', 'consumerGroup']],
   RabbitMQAction: ['rabbitMQ', 'RabbitMQ', 'connection', 'send', ['hostname', 'routingKey', 'messageBody', 'queueName']],
   MqttAction: ['mqtt', 'MQTT', 'connection', 'send', ['brokerUrl', 'topic', 'messageBody']],
-  ElasticsearchAction: ['elasticsearch', 'Elasticsearch', 'connection', 'database', ['siteUrl', 'indexName', 'document']],
+  ElasticsearchAction: ['elasticsearch', 'Elasticsearch', 'connection', 'database', ['siteUrl', 'indexName', 'documentId', 'document']],
   PrometheusAction: ['prometheus', 'Prometheus', 'operations', 'alert', ['siteUrl', 'query']],
   GrafanaAction: ['grafana', 'Grafana', 'operations', 'alert', ['siteUrl', 'token', 'annotationText']],
   DatadogAction: ['datadog', 'Datadog', 'operations', 'alert', ['apiKey', 'title', 'eventText', 'applicationKey', 'monitorId']],
