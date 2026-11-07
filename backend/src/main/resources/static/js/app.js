@@ -4,6 +4,8 @@ import bootCanvas from './flow/canvas';
 import bootWorkbench from './flow/workbench';
 import bootFlow from './flow/flow';
 
+const triedToken = !!sessionStorage.getItem('accessToken');
+
 bootEngine().then(() => {
   /* Tiles are taller and narrower than cards, so they get their own spacing. */
   window.DT.canvasOptions = { nodeWidth: 176, headHeight: 132, rowHeight: 30, wireLead: 12, topInset: 76, bottomInset: 92, leftInset: 92, rightInset: 20 };
@@ -18,7 +20,7 @@ bootEngine().then(() => {
 
 async function askForToken() {
   const status = await fetch('/sso/status').then((response) => response.json());
-  const signInError = new URLSearchParams(window.location.search).get('signInError');
+  const signInError = new URLSearchParams(window.location.search).get('signInError') || (triedToken ? 'That access token was not accepted.' : null);
   const tokenForm = `<label class="ui-label" for="accessToken">Access token</label>
     <input class="ui-input" id="accessToken" type="password" autocomplete="current-password">
     <button type="submit" class="ui-button ${status.sso ? '' : 'is-primary'}">Open with token</button>`;
