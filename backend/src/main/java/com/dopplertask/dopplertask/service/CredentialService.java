@@ -43,6 +43,9 @@ public class CredentialService {
     private static final int SHORTEST_HIDDEN_VALUE = 4;
     private static final Map<String, Class<?>> STEP_TYPES = Arrays.stream(Action.class.getAnnotation(JsonSubTypes.class).value())
             .collect(Collectors.toMap(JsonSubTypes.Type::name, JsonSubTypes.Type::value));
+    private static final Map<String, List<String>> STEPS_OF_TYPE = STEP_TYPES.values().stream()
+            .filter(stepClass -> !fieldsOf(stepClass).isEmpty())
+            .collect(Collectors.groupingBy(CredentialService::credentialTypeOf, Collectors.mapping(Class::getSimpleName, Collectors.toList())));
 
     private final CredentialDao credentialDao;
     private final CredentialCipher cipher;
@@ -53,7 +56,7 @@ public class CredentialService {
         this.cipher = cipher;
     }
 
-    public record CredentialSummary(String name, String stepType, List<String> fieldsSet, List<String> usedBy, Date updated) {
+    public record CredentialSummary(String name, String type, List<String> steps, List<String> fieldsSet, List<String> usedBy, Date updated) {
     }
 
     @FunctionalInterface
@@ -67,12 +70,12 @@ public class CredentialService {
     }
 
     private CredentialSummary summaryOf(Credential credential) {
-        return new CredentialSummary(credential.getName(), credential.getStepType(), new ArrayList<>(valuesOf(credential).keySet()),
+        return new CredentialSummary(credential.getName(), credential.getType(), STEPS_OF_TYPE.getOrDefault(credential.getType(), List.of()), new ArrayList<>(valuesOf(credential).keySet()),
                 credentialDao.findTaskNamesUsing(credential.getName()), credential.getUpdated());
     }
 
     @Transactional
-    public CredentialSummary create(String name, String stepType, Map<String, String> values) {
+    public CredentialSummary create(String name, String type, Map<String, String> values) {
         if (name == null || !VALID_NAME.matcher(name).matches()) {
             throw new CredentialProblemException("A credential needs a name of letters, numbers, dots, dashes and underscores, such as prod-slack.");
         }
@@ -81,8 +84,8 @@ public class CredentialService {
         }
         Credential credential = new Credential();
         credential.setName(name);
-        credential.setStepType(stepType);
-        store(credential, onlyFieldsOf(stepType, values));
+        credential.setType(type);
+        store(credential, onlyFieldsOf(type, values));
         return summaryOf(credential);
     }
 
@@ -93,7 +96,7 @@ public class CredentialService {
     public CredentialSummary update(String name, Map<String, String> changes) {
         Credential credential = credentialDao.findByName(name).orElseThrow(() -> new CredentialProblemException("There is no credential called \"" + name + "\"."));
         Map<String, String> values = new LinkedHashMap<>(valuesOf(credential));
-        values.putAll(onlyFieldsOf(credential.getStepType(), changes));
+        values.putAll(onlyFieldsOf(credential.getType(), changes));
         store(credential, values);
         return summaryOf(credential);
     }
@@ -117,12 +120,11 @@ public class CredentialService {
         String name = action.getCredential();
         if (name != null && !name.isBlank()) {
             Optional<Credential> credential = credentialDao.findByName(name);
-            String stepType = action.getClass().getSimpleName();
             if (credential.isEmpty()) {
                 return ActionResult.Companion.failure("The credential \"" + name + "\" does not exist. Create it under Credentials, or choose another one.");
             }
-            if (!credential.get().getStepType().equals(stepType)) {
-                return ActionResult.Companion.failure("The credential \"" + name + "\" is for " + credential.get().getStepType() + ", and this step is " + stepType + ".");
+            if (!credential.get().getType().equals(action.getCredentialType())) {
+                return ActionResult.Companion.failure("The credential \"" + name + "\" is of the kind " + credential.get().getType() + ", and this step needs " + action.getCredentialType() + ".");
             }
             values = valuesOf(credential.get());
         }
@@ -153,31 +155,31 @@ public class CredentialService {
                 throw new CredentialProblemException("An agent cannot save secrets in a step. Leave " + String.join(", ", inline.keySet())
                         + " out, and set credential to a name from list_credentials, or ask a person to create one.");
             }
-            action.setCredential(findOrCreate(action.getClass().getSimpleName(), inline));
+            action.setCredential(findOrCreate(action.getCredentialType(), inline));
             BeanWrapperImpl step = new BeanWrapperImpl(action);
             inline.keySet().forEach(field -> step.setPropertyValue(field, null));
         }
     }
 
     /**
-     * The credential of this kind with exactly these values, or a new one, so that moving secrets does not make copies.
+     * The credential of this type with exactly these values, or a new one, so that moving secrets does not make copies.
      */
     @Transactional
-    public String findOrCreate(String stepType, Map<String, String> values) {
-        List<Credential> sameType = credentialDao.findByStepType(stepType);
+    public String findOrCreate(String type, Map<String, String> values) {
+        List<Credential> sameType = credentialDao.findByType(type);
         for (Credential credential : sameType) {
             if (valuesOf(credential).equals(values)) {
                 return credential.getName();
             }
         }
-        String base = stepType.replaceAll("Action$", "").toLowerCase();
+        String base = type.replaceAll("Action$", "").toLowerCase().replace(' ', '-');
         int number = sameType.size() + 1;
         while (credentialDao.findByName(base + "-" + number).isPresent()) {
             number++;
         }
         Credential credential = new Credential();
         credential.setName(base + "-" + number);
-        credential.setStepType(stepType);
+        credential.setType(type);
         store(credential, values);
         return credential.getName();
     }
@@ -219,16 +221,16 @@ public class CredentialService {
         return result;
     }
 
-    private Map<String, String> onlyFieldsOf(String stepType, Map<String, String> values) {
-        Class<?> stepClass = STEP_TYPES.get(stepType);
-        if (stepClass == null || fieldsOf(stepClass).isEmpty()) {
-            throw new CredentialProblemException("Steps of the kind \"" + stepType + "\" do not use a credential.");
+    private Map<String, String> onlyFieldsOf(String type, Map<String, String> values) {
+        if (type == null || !STEPS_OF_TYPE.containsKey(type)) {
+            throw new CredentialProblemException("There is no credential type called \"" + type + "\".");
         }
-        Map<String, Boolean> known = fieldsOf(stepClass);
+        // Steps that share a type take the same fields.
+        Map<String, Boolean> known = fieldsOf(STEP_TYPES.get(STEPS_OF_TYPE.get(type).get(0)));
         Map<String, String> kept = new LinkedHashMap<>();
         values.forEach((field, value) -> {
             if (!known.containsKey(field)) {
-                throw new CredentialProblemException(stepType + " has no credential field called \"" + field + "\".");
+                throw new CredentialProblemException(type + " has no credential field called \"" + field + "\".");
             }
             if (value != null && !value.isBlank()) {
                 kept.put(field, value);
@@ -290,6 +292,14 @@ public class CredentialService {
             return stepClass.getDeclaredField(field).isAnnotationPresent(Transient.class);
         } catch (NoSuchFieldException e) {
             return false;
+        }
+    }
+
+    public static String credentialTypeOf(Class<?> stepClass) {
+        try {
+            return ((Action) stepClass.getDeclaredConstructor().newInstance()).getCredentialType();
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("A step could not be looked at: " + stepClass.getSimpleName(), e);
         }
     }
 

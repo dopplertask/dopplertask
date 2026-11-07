@@ -115,7 +115,7 @@ const fieldsOf = (information) => information.flatMap(toField);
 
 /* What a step signs in with lives in a credential, so the step has one field that names it, where its first one was.
    It shows when any of them would, such as for a webhook with one of its ways of signing in. */
-function withCredentialField(fields, backend) {
+function withCredentialField(fields, credentialType) {
   const inCredential = fields.filter((field) => field.credential);
   if (!inCredential.length) return fields;
   const conditions = inCredential.map((field) => field.showWhen);
@@ -123,7 +123,7 @@ function withCredentialField(fields, backend) {
     Object.entries(condition).forEach(([key, choices]) => { all[key] = [...(all[key] || []), ...choices]; });
     return all;
   }, {}) : undefined;
-  const field = { key: 'credential', label: 'Credential', type: 'credential', stepType: backend, fields: inCredential, required: inCredential.some((one) => one.required) || !!showWhen, ...(showWhen ? { showWhen } : {}) };
+  const field = { key: 'credential', label: 'Credential', type: 'credential', credentialType, fields: inCredential, required: inCredential.some((one) => one.required) || !!showWhen, ...(showWhen ? { showWhen } : {}) };
   const first = fields.indexOf(inCredential[0]);
   return [...fields.slice(0, first), field, ...fields.slice(first).filter((one) => !one.credential)];
 }
@@ -135,7 +135,7 @@ function loadCatalogue(actions) {
     const [type, label, category, iconName, required] = PRESENTATION[backend] || [backend, backend.replace(/Action$/, ''), 'integration', 'workflow'];
     const fields = fieldsOf(action.propertyInformationList.filter((information) => information.name !== STEP_ACTION_NAME));
     if (!FAILURE_FIELDS.length) FAILURE_FIELDS.push(...fields.filter((field) => FAILURE_FIELD_NAMES.includes(field.key)));
-    const own = withCredentialField(fields.filter((field) => !FAILURE_FIELD_NAMES.includes(field.key)).map((field) => ({ ...field, required: !!required?.includes(field.key) })), backend);
+    const own = withCredentialField(fields.filter((field) => !FAILURE_FIELD_NAMES.includes(field.key)).map((field) => ({ ...field, required: !!required?.includes(field.key) })), action.credentialType);
     /* The language control stays last, so what the step does comes first. */
     own.sort((first, second) => (first.key === 'scriptLanguage') - (second.key === 'scriptLanguage'));
     if (action.trigger) triggers[backend] = own.filter((field) => !['scriptLanguage', 'triggerSuffix'].includes(field.key));
@@ -726,8 +726,8 @@ function createStore() {
     get tasks() { return tasks; },
     get credentials() { return credentials; },
     loadCredentials,
-    async saveCredential(name, stepType, values, editing) {
-      await request(editing ? `/credentials/${encodeURIComponent(name)}` : '/credentials', { method: editing ? 'PUT' : 'POST', body: JSON.stringify(editing ? values : { name, stepType, values }) });
+    async saveCredential(name, type, values, editing) {
+      await request(editing ? `/credentials/${encodeURIComponent(name)}` : '/credentials', { method: editing ? 'PUT' : 'POST', body: JSON.stringify(editing ? values : { name, type, values }) });
       await loadCredentials();
     },
     async deleteCredential(name) {

@@ -84,6 +84,9 @@ class SecureCopyAction : Action() {
         }
     }
 
+    override val credentialType: String
+        get() = SERVER_LOGIN
+
     override val actionInfo: MutableList<PropertyInformation>
         get() {
             val actionInfo = super.actionInfo

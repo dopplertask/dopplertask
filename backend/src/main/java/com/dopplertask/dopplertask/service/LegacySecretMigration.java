@@ -25,6 +25,7 @@ import java.util.Set;
 
 /**
  * Moves secrets that an earlier version stored inside steps into credentials, and removes the columns they were in.
+ * Credentials saved for one kind of step also move to the type that its service now shares.
  * It finds nothing to do once that has happened, so it can stay until nobody upgrades from before credentials.
  */
 @Service
@@ -48,6 +49,8 @@ public class LegacySecretMigration {
 
     @Transactional
     public void migrate() {
+        CredentialService.stepTypes().values().forEach(stepClass -> database.update("UPDATE credential SET step_type = ? WHERE step_type = ?",
+                CredentialService.credentialTypeOf(stepClass), stepClass.getSimpleName()));
         CredentialService.stepTypes().values().forEach(this::migrateStepsOf);
         for (HttpAction http : actionDao.findHttpActionsWithSecretHeaders()) {
             String before = String.join(",", headerNames(http));
@@ -102,7 +105,7 @@ public class LegacySecretMigration {
                 }
             });
             if (!values.isEmpty()) {
-                database.update("UPDATE action SET credential = ? WHERE id = ?", credentials.findOrCreate(stepClass.getSimpleName(), values), row.get("id"));
+                database.update("UPDATE action SET credential = ? WHERE id = ?", credentials.findOrCreate(CredentialService.credentialTypeOf(stepClass), values), row.get("id"));
                 moved = true;
             }
         }

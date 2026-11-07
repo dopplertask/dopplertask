@@ -159,6 +159,13 @@ abstract class Action {
     open var credential: String? = null
 
     /**
+     * Which credentials fit this step. Steps that sign in to the same service share a type, so one account is entered once.
+     */
+    @get:JsonIgnore
+    open val credentialType: String
+        get() = javaClass.simpleName
+
+    /**
      * All action values are evaluated with VELOCITY as standard, but can be changed to other languages.
      */
     @Enumerated(EnumType.STRING)

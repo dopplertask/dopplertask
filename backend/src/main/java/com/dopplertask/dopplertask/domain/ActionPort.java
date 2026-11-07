@@ -16,6 +16,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
+import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import java.util.List;
 
@@ -24,7 +25,9 @@ import java.util.List;
 public class ActionPort {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
+    // Saved ports already took their ids from this sequence, so a new one would start again at ids that are in use.
+    @SequenceGenerator(name = "hibernate_sequence", sequenceName = "hibernate_sequence", allocationSize = 1)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "hibernate_sequence")
     @Column(name = "id", updatable = false, nullable = false)
     @JsonIgnore
     private Long id;

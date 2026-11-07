@@ -20,7 +20,7 @@ import java.util.Map;
 @RestController
 public class CredentialController {
 
-    public record NewCredential(String name, String stepType, Map<String, String> values) {
+    public record NewCredential(String name, String type, Map<String, String> values) {
     }
 
     private final CredentialService credentials;
@@ -36,7 +36,7 @@ public class CredentialController {
 
     @PostMapping("/credentials")
     public CredentialSummary create(@RequestBody NewCredential credential) {
-        return credentials.create(credential.name(), credential.stepType(), credential.values() == null ? Map.of() : credential.values());
+        return credentials.create(credential.name(), credential.type(), credential.values() == null ? Map.of() : credential.values());
     }
 
     @PutMapping("/credentials/{name}")
