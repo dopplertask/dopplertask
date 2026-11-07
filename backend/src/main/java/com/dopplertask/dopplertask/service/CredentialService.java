@@ -3,6 +3,7 @@ package com.dopplertask.dopplertask.service;
 import com.dopplertask.dopplertask.dao.CredentialDao;
 import com.dopplertask.dopplertask.domain.ActionResult;
 import com.dopplertask.dopplertask.domain.Credential;
+import com.dopplertask.dopplertask.domain.TaskExecution;
 import com.dopplertask.dopplertask.domain.action.Action;
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation;
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationCategory;
@@ -116,6 +117,14 @@ public class CredentialService {
      * a service repeats are hidden from the result, since that is stored with the run.
      */
     public ActionResult runWith(Action action, StepRun run) throws IOException {
+        return runWith(action, null, run);
+    }
+
+    public ActionResult runWith(Action action, TaskExecution execution, StepRun run) throws IOException {
+        String refusal = StepRules.active().refusalOf(action);
+        if (refusal != null) {
+            return ActionResult.Companion.failure(refusal);
+        }
         Map<String, String> values = Map.of();
         String name = action.getCredential();
         if (name != null && !name.isBlank()) {
@@ -127,6 +136,10 @@ public class CredentialService {
                 return ActionResult.Companion.failure("The credential \"" + name + "\" is of the kind " + credential.get().getType() + ", and this step needs " + action.getCredentialType() + ".");
             }
             values = valuesOf(credential.get());
+        }
+        StepRunner elsewhere = StepRunner.active();
+        if (elsewhere != null && execution != null && elsewhere.runsElsewhere(action)) {
+            return withoutSecrets(elsewhere.runStep(action, values, execution), action, values);
         }
         BeanWrapperImpl step = new BeanWrapperImpl(action);
         values.forEach(step::setPropertyValue);

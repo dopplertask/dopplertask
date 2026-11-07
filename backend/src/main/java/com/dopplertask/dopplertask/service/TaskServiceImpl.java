@@ -16,6 +16,7 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
@@ -51,6 +52,9 @@ public class TaskServiceImpl implements TaskService {
     private JmsTemplate jmsTemplate;
 
     @Autowired
+    private ObjectProvider<RunQueue> runQueue;
+
+    @Autowired
     private TaskDao taskDao;
 
     @Autowired
@@ -84,7 +88,12 @@ public class TaskServiceImpl implements TaskService {
         taskExecutionRequest.setResumeFromExecutionId(request.getResumeFromExecutionId());
         taskExecutionRequest.setStartedByAgent(request.isStartedByAgent());
 
-        jmsTemplate.convertAndSend("automation_destination", taskExecutionRequest);
+        RunQueue queue = runQueue.getIfAvailable();
+        if (queue != null) {
+            queue.submit(taskExecutionRequest);
+        } else {
+            jmsTemplate.convertAndSend("automation_destination", taskExecutionRequest);
+        }
 
         return execution;
     }

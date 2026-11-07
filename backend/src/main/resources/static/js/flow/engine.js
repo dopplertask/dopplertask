@@ -193,8 +193,9 @@ function loadCatalogue(actions) {
       { value: 'webhook', label: 'When a webhook is called' },
       { value: 'interval', label: 'On a schedule' },
       { value: 'activemq', label: 'When a queue message arrives' },
-    ] },
-    ...Object.entries(TRIGGER_ACTIONS).flatMap(([kind, backend]) => triggers[backend].map((field) => ({ ...field, showWhen: { ...field.showWhen, trigger: [kind] } }))),
+    // A server can leave out kinds of trigger that it does not offer.
+    ].filter((option) => !TRIGGER_ACTIONS[option.value] || triggers[TRIGGER_ACTIONS[option.value]]) },
+    ...Object.entries(TRIGGER_ACTIONS).flatMap(([kind, backend]) => (triggers[backend] || []).map((field) => ({ ...field, showWhen: { ...field.showWhen, trigger: [kind] } }))),
   ];
 }
 
@@ -395,7 +396,7 @@ function createNode(id, type, name, config) {
 }
 
 function triggerConfigKeys(kind) {
-  return ACTIONS[TYPE_BY_BACKEND[TRIGGER_ACTIONS[kind]]].fields.map((field) => field.key);
+  return (ACTIONS[TYPE_BY_BACKEND[TRIGGER_ACTIONS[kind]]]?.fields || []).map((field) => field.key);
 }
 
 /* Start and its trigger are one tile here, and two actions that lead to the same step in the saved

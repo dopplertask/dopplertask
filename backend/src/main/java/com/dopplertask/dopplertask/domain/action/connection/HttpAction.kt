@@ -7,6 +7,7 @@ import com.dopplertask.dopplertask.domain.action.Action
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationCategory
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
 import com.dopplertask.dopplertask.service.BroadcastListener
+import com.dopplertask.dopplertask.service.StepRules
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import java.io.IOException
@@ -91,6 +92,11 @@ class HttpAction : Action() {
             HttpRequest.newBuilder().uri(URI.create(urlVariable.trim())).timeout(timeout)
         } catch (e: IllegalArgumentException) {
             actionResult.errorMsg = "The address \"$urlVariable\" is not valid. It should start with http:// or https://, such as https://example.com/status."
+            actionResult.statusCode = StatusCode.FAILURE
+            return actionResult
+        }
+        StepRules.active().refusalOfAddress(URI.create(urlVariable.trim()))?.let {
+            actionResult.errorMsg = it
             actionResult.statusCode = StatusCode.FAILURE
             return actionResult
         }
