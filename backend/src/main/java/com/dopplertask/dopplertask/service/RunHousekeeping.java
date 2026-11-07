@@ -2,10 +2,10 @@ package com.dopplertask.dopplertask.service;
 
 import com.dopplertask.dopplertask.dao.TaskExecutionDao;
 import com.dopplertask.dopplertask.domain.TaskExecution;
-import com.dopplertask.dopplertask.domain.TaskExecutionLog;
 import com.dopplertask.dopplertask.domain.TaskExecutionStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -15,6 +15,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * What keeps the history of runs true and its size known on a server that never stops.
@@ -28,10 +30,85 @@ public class RunHousekeeping {
 
     private final TaskExecutionDao taskExecutionDao;
     private final int keepRunsDays;
+    private final long maxRunMinutes;
+    private final ExecutionService executionService;
+    private final CustomerScope customerScope;
+    private final Map<RunOfCustomer, GoingRun> going = new ConcurrentHashMap<>();
 
-    public RunHousekeeping(TaskExecutionDao taskExecutionDao, @Value("${dopplertask.keepRunsDays:0}") int keepRunsDays) {
+    /** Two customers can have a run with the same number. */
+    private record RunOfCustomer(String customer, long executionId) {
+    }
+
+    private static final class GoingRun {
+        final Thread thread;
+        final Runnable markFailed;
+        final Instant started = Instant.now();
+        volatile boolean interrupted;
+
+        GoingRun(Thread thread, Runnable markFailed) {
+            this.thread = thread;
+            this.markFailed = markFailed;
+        }
+    }
+
+    public RunHousekeeping(TaskExecutionDao taskExecutionDao, @Value("${dopplertask.keepRunsDays:0}") int keepRunsDays,
+                           @Value("${dopplertask.maxRunMinutes:1440}") long maxRunMinutes,
+                           ExecutionService executionService, ObjectProvider<CustomerScope> customers) {
         this.taskExecutionDao = taskExecutionDao;
         this.keepRunsDays = keepRunsDays;
+        this.maxRunMinutes = maxRunMinutes;
+        this.executionService = executionService;
+        this.customerScope = customers.getIfAvailable(() -> new CustomerScope() {
+        });
+    }
+
+    /** From here on a run counts against the time limit. */
+    public void watch(long executionId, Thread thread) {
+        Runnable markFailed = customerScope.bound(() -> executionService.failRun(executionId, tooLong()));
+        going.putIfAbsent(new RunOfCustomer(customerScope.current(), executionId), new GoingRun(thread, markFailed));
+    }
+
+    /** A run that had to be interrupted says so, since its last step can only say that it was disturbed. */
+    @Transactional
+    public void finished(long executionId) {
+        GoingRun run = going.remove(new RunOfCustomer(customerScope.current(), executionId));
+        if (run != null && run.interrupted) {
+            taskExecutionDao.findById(executionId).ifPresent(execution -> execution.fail(tooLong()));
+        }
+    }
+
+    private String tooLong() {
+        return "This run was stopped, since it went on for longer than " + maxRunMinutes + " minutes. dopplertask.maxRunMinutes sets the limit.";
+    }
+
+    @Scheduled(fixedDelay = CHECK_MILLISECONDS, initialDelay = CHECK_MILLISECONDS)
+    public void stopRunsOverTheLimit() {
+        stopRunsOverTheLimit(Instant.now());
+    }
+
+    /**
+     * A step that never returns would hold one of the places for runs for good. It is asked to stop first. If it does not
+     * listen, the run is at least ended for whoever waits for it at the next check, even though its thread stays busy.
+     */
+    void stopRunsOverTheLimit(Instant now) {
+        if (maxRunMinutes <= 0) {
+            return;
+        }
+        Instant cutoff = now.minus(Duration.ofMinutes(maxRunMinutes));
+        going.forEach((key, run) -> {
+            if (run.started.isAfter(cutoff)) {
+                return;
+            }
+            if (!run.interrupted) {
+                run.interrupted = true;
+                run.thread.interrupt();
+                return;
+            }
+            LOG.error("Run {} did not stop when asked, so it is marked as failed while its thread stays busy.", key.executionId());
+            going.remove(key);
+            // On a thread of its own, since the run that hangs can hold the row and the other runs must still get checked.
+            Thread.startVirtualThread(run.markFailed);
+        });
     }
 
     /**
@@ -41,16 +118,7 @@ public class RunHousekeeping {
     @Transactional
     public void failInterruptedRuns() {
         List<TaskExecution> interrupted = taskExecutionDao.findByStatusIn(List.of(TaskExecutionStatus.CREATED, TaskExecutionStatus.STARTED));
-        for (TaskExecution execution : interrupted) {
-            TaskExecutionLog log = new TaskExecutionLog();
-            log.setTaskExecution(execution);
-            log.setOutput(INTERRUPTED);
-            log.setDate(new Date());
-            execution.addLog(log);
-            execution.setStatus(TaskExecutionStatus.FAILED);
-            execution.setSuccess(false);
-            execution.setEnddate(new Date());
-        }
+        interrupted.forEach(execution -> execution.fail(INTERRUPTED));
         if (!interrupted.isEmpty()) {
             LOG.warn("Marked {} runs as failed, since the server stopped during them.", interrupted.size());
         }

@@ -34,6 +34,9 @@ public class TaskServiceTest {
     private TaskServiceImpl taskService;
 
     @Mock
+    private com.dopplertask.dopplertask.service.RunHousekeeping runHousekeeping;
+
+    @Mock
     private TaskDao taskDao;
 
     @Mock

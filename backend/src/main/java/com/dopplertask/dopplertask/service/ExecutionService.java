@@ -36,6 +36,9 @@ public interface ExecutionService {
      */
     TaskExecution processActions(Long taskId, Long executionId, TaskService taskService);
 
+    /** Ends a run that has not ended yet as failed, and says why. */
+    TaskExecution failRun(long id, String reason);
+
     Optional<TaskExecution> getExecution(long id);
 
     @Transactional

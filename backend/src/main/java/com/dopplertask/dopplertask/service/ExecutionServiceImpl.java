@@ -123,14 +123,7 @@ public class ExecutionServiceImpl implements ExecutionService {
             LOG.warn("Task could not be found [taskId={}]", taskExecutionRequest.getTaskName());
 
             if (executionReq.isPresent()) {
-                TaskExecution taskExecution = executionReq.get();
-                taskExecution.setId(executionReq.get().getId());
-                taskExecution.setSuccess(false);
-                TaskExecutionLog noTaskLog = new TaskExecutionLog();
-                noTaskLog.setDate(new Date());
-                noTaskLog.setOutput("Task could not be found [taskId=" + taskExecutionRequest.getTaskName() + "]");
-                noTaskLog.setTaskExecution(taskExecution);
-                noTaskLog.setBroadcasted(true);
+                executionReq.get().fail("Task could not be found [taskId=" + taskExecutionRequest.getTaskName() + "]");
             }
             return null;
         }
@@ -149,6 +142,16 @@ public class ExecutionServiceImpl implements ExecutionService {
             taskRequest = taskDao.findFirstByNameAndProposedFalseOrderByCreatedDesc(taskExecutionRequest.getTaskName());
         }
         return taskRequest;
+    }
+
+    @Override
+    @Transactional
+    public TaskExecution failRun(long id, String reason) {
+        TaskExecution execution = taskExecutionDao.findById(id).orElseThrow();
+        if (execution.getStatus() == TaskExecutionStatus.CREATED || execution.getStatus() == TaskExecutionStatus.STARTED) {
+            execution.fail(reason);
+        }
+        return execution;
     }
 
     @Override
@@ -224,7 +227,7 @@ public class ExecutionServiceImpl implements ExecutionService {
 
         boolean running = true;
         if (execution.getCurrentAction() != null) {
-            while (running && execution.getCurrentAction() != null) {
+            while (running && execution.getCurrentAction() != null && !Thread.currentThread().isInterrupted()) {
                 // Start processing task
                 Action currentAction = execution.getCurrentAction();
 
@@ -262,6 +265,11 @@ public class ExecutionServiceImpl implements ExecutionService {
 
 
             }
+        }
+
+        // The time limit asks a run to stop, and a step may have ignored that.
+        if (Thread.interrupted()) {
+            execution.setSuccess(false);
         }
 
         TaskExecutionLog executionCompleted = new TaskExecutionLog();
