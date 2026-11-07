@@ -209,7 +209,7 @@ This task retries a request until the other service stops answering with a serve
 Task paramters are used to indicate what initial variables are needed to run a task.
 They can be either required or not required, and can also have a default value.
 
-All task parameters are put into the $parameters variable (see Important Variables).
+All task parameters are put into the $parameters variable (see [Important variables](actions.md#important-variables)).
 
 To add task parameters manually using JSON:
 ```
