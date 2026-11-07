@@ -116,10 +116,6 @@ public class CredentialService {
      * Runs a step with the values of its credential, and takes them away again whatever happens. Values that the step or
      * a service repeats are hidden from the result, since that is stored with the run.
      */
-    public ActionResult runWith(Action action, StepRun run) throws IOException {
-        return runWith(action, null, run);
-    }
-
     public ActionResult runWith(Action action, TaskExecution execution, StepRun run) throws IOException {
         String refusal = StepRules.active().refusalOf(action);
         if (refusal != null) {
@@ -138,7 +134,7 @@ public class CredentialService {
             values = valuesOf(credential.get());
         }
         StepRunner elsewhere = StepRunner.active();
-        if (elsewhere != null && execution != null && elsewhere.runsElsewhere(action)) {
+        if (elsewhere != null && elsewhere.runsElsewhere(action)) {
             return withoutSecrets(elsewhere.runStep(action, values, execution), action, values);
         }
         BeanWrapperImpl step = new BeanWrapperImpl(action);

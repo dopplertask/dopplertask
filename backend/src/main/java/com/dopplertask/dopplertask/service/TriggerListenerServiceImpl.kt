@@ -21,7 +21,7 @@ private const val RETRY_AFTER_FAILURE_MS = 5000L
 
 @Service
 @Transactional
-open class TriggerListenerServiceImpl : TriggerListenerService {
+open class TriggerListenerServiceImpl {
 
     private val logger = LoggerFactory.getLogger(TriggerListenerServiceImpl::class.java)
     private val threadPoolMap: MutableMap<String, ExecutorService>
@@ -55,7 +55,7 @@ open class TriggerListenerServiceImpl : TriggerListenerService {
 
     }
 
-    override fun startActiveTriggers() {
+    open fun startActiveTriggers() {
         var tasks = taskDao.findAllByActive(true)
         logger.info("Starting triggers for all tasks")
         tasks.removeIf { !it.isActive }
@@ -75,7 +75,7 @@ open class TriggerListenerServiceImpl : TriggerListenerService {
 
     }
 
-    override fun updateTriggers(id: Long) {
+    open fun updateTriggers(id: Long) {
         val task = taskDao.findById(id);
         if (task.isPresent) {
             val currentTask = task.get();
@@ -94,7 +94,7 @@ open class TriggerListenerServiceImpl : TriggerListenerService {
 
     }
 
-    override fun stopTriggers(taskName: String) {
+    open fun stopTriggers(taskName: String) {
         threadPoolMap.remove(poolName(taskName))?.shutdownNow()
     }
 

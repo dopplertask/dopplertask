@@ -1,2 +1,2 @@
 #!/bin/sh -x
-java -XX:+ExitOnOutOfMemoryError -jar /opt/spring-boot/*.jar
+java -XX:+ExitOnOutOfMemoryError -Dwebdriver.chrome.driver=/usr/bin/chromedriver -jar /opt/spring-boot/*.jar

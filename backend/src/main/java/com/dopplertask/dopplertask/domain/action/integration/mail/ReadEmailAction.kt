@@ -1,7 +1,6 @@
 package com.dopplertask.dopplertask.domain.action.integration.mail
 
 import com.dopplertask.dopplertask.domain.ActionResult
-import com.dopplertask.dopplertask.domain.StatusCode
 import com.dopplertask.dopplertask.domain.TaskExecution
 import com.dopplertask.dopplertask.domain.action.Action
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationCategory
@@ -26,7 +25,6 @@ import java.io.IOException
 import jakarta.persistence.Column
 import jakarta.persistence.DiscriminatorValue
 import jakarta.persistence.Entity
-import jakarta.persistence.Lob
 import jakarta.persistence.Table
 import jakarta.persistence.Transient
 

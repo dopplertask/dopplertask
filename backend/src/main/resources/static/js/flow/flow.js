@@ -2,7 +2,7 @@
    tools that give way to the run player while a run is open. */
 export default function boot() {
   const { store, runner, view, wires, fitTarget, applyView, renderWires } = DT.canvas;
-  const { ACTIONS, CATEGORIES, formatAgo, nodeById, rootNode } = DT;
+  const { ACTIONS, formatAgo, nodeById, rootNode } = DT;
   const { icon, escapeHtml, modKey, statusGlyph } = DT.ui;
   const core = DT.workbench;
   const byId = (id) => document.getElementById(id);

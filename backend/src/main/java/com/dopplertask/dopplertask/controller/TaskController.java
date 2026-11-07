@@ -31,7 +31,6 @@ import com.dopplertask.dopplertask.service.TriggerInfo;
 import com.dopplertask.dopplertask.service.StepRules;
 import com.dopplertask.dopplertask.service.VariableExtractorUtil;
 import com.dopplertask.dopplertask.service.WebhookTriggerInfo;
-import tools.jackson.databind.ObjectMapper;
 import org.jetbrains.annotations.NotNull;
 import com.dopplertask.dopplertask.filter.AccessFilter;
 import com.dopplertask.dopplertask.filter.Caller;
@@ -55,7 +54,6 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Modifier;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -66,7 +64,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 @RestController
 public class TaskController {
@@ -287,7 +284,7 @@ public class TaskController {
         }
         Long id = byAgent
                 ? taskService.proposeTask(taskCreationDTO.getName(), taskCreationDTO.getParameters(), taskCreationDTO.getActions(), taskCreationDTO.getDescription(), taskCreationDTO.getConnections(), sha256Hex)
-                : taskService.createTask(taskCreationDTO.getName(), taskCreationDTO.getParameters(), taskCreationDTO.getActions(), taskCreationDTO.getDescription(), taskCreationDTO.getConnections(), sha256Hex, taskCreationDTO.isActive(), true, autoSaved);
+                : taskService.createTask(taskCreationDTO.getName(), taskCreationDTO.getParameters(), taskCreationDTO.getActions(), taskCreationDTO.getDescription(), taskCreationDTO.getConnections(), sha256Hex, taskCreationDTO.isActive(), autoSaved);
 
         if (id != null) {
             SimpleChecksumResponseDto checksumResponseDto = new SimpleChecksumResponseDto();
@@ -413,62 +410,37 @@ public class TaskController {
         return new ResponseEntity<>(taskResponseDTOList, HttpStatus.OK);
     }
 
+    private static ResponseEntity<TaskResponseSingleDTO> singleTask(Task task) {
+        if (task == null) {
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        }
+        TaskResponseSingleDTO taskDto = new TaskResponseSingleDTO();
+        taskDto.setName(task.getName());
+        taskDto.setDescription(task.getDescription());
+        taskDto.setActions(task.getActionList());
+        taskDto.setChecksum(task.getChecksum());
+        taskDto.setParameters(task.getTaskParameterList());
+        taskDto.setConnections(task.getConnections());
+        taskDto.setActive(task.isActive());
+        return new ResponseEntity<>(taskDto, HttpStatus.OK);
+    }
+
     @GetMapping("/task/{id}")
     public ResponseEntity<TaskResponseSingleDTO> getTask(@PathVariable("id") long id) {
         Task task = taskService.getTask(id);
-        if (task != null) {
-            TaskResponseSingleDTO taskDto = new TaskResponseSingleDTO();
-            taskDto.setName(task.getName());
-            taskDto.setDescription(task.getDescription());
-            taskDto.setActions(task.getActionList());
-            taskDto.setChecksum(task.getChecksum());
-            taskDto.setParameters(task.getTaskParameterList());
-            taskDto.setConnections(task.getConnections());
-            taskDto.setActive(task.isActive());
-
-            return new ResponseEntity<>(taskDto, HttpStatus.OK);
-        }
-
-        return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        return singleTask(task);
     }
 
     @GetMapping("/task/{name}/taskname")
     public ResponseEntity<TaskResponseSingleDTO> getTask(@PathVariable("name") String id) {
         Task task = taskService.getTaskByName(id);
-        if (task != null) {
-            TaskResponseSingleDTO taskDto = new TaskResponseSingleDTO();
-            taskDto.setName(task.getName());
-            taskDto.setDescription(task.getDescription());
-            taskDto.setActions(task.getActionList());
-            taskDto.setChecksum(task.getChecksum());
-            taskDto.setParameters(task.getTaskParameterList());
-            taskDto.setConnections(task.getConnections());
-            taskDto.setActive(task.isActive());
-
-            return new ResponseEntity<>(taskDto, HttpStatus.OK);
-        }
-
-        return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        return singleTask(task);
     }
 
     @GetMapping("/task/{checksum}/checksum")
     public ResponseEntity<TaskResponseSingleDTO> getTaskByChecksum(@PathVariable("checksum") String checksum) {
         Task task = taskService.getTaskByChecksum(checksum);
-        if (task != null) {
-            TaskResponseSingleDTO taskDto = new TaskResponseSingleDTO();
-            taskDto.setName(task.getName());
-            taskDto.setDescription(task.getDescription());
-            taskDto.setActions(task.getActionList());
-            taskDto.setChecksum(task.getChecksum());
-            taskDto.setParameters(task.getTaskParameterList());
-            taskDto.setConnections(task.getConnections());
-            taskDto.setActive(task.isActive());
-
-
-            return new ResponseEntity<>(taskDto, HttpStatus.OK);
-        }
-
-        return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        return singleTask(task);
     }
 
     @GetMapping("/task/download")
@@ -539,10 +511,10 @@ public class TaskController {
 
         ActionListResponseDto actionListResponseDto = new ActionListResponseDto();
         for (Class<?> currentClass : CredentialService.stepTypes().values()) {
-            Action instance = (Action) currentClass.getDeclaredConstructor().newInstance();
-            if (StepRules.active().refusalOf(instance) != null) {
+            if (!StepRules.active().offers(currentClass.asSubclass(Action.class))) {
                 continue;
             }
+            Action instance = (Action) currentClass.getDeclaredConstructor().newInstance();
             boolean trigger = instance.getClass().getSuperclass().getSimpleName().equals(Trigger.class.getSimpleName());
             actionListResponseDto.getActions().add(new ActionInfoDto(currentClass.getSimpleName(), instance.getDescription(), instance.getActionInfo(), trigger, instance.getOutputs(), instance.getCredentialType()));
         }

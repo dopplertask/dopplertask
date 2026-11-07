@@ -20,7 +20,6 @@ public interface TaskDao extends JpaRepository<Task, Long> {
 
     List<Task> findAllByName(String name);
 
-    Optional<Task> findByIdAndActive(long id, boolean active);
 
     List<Task> findAllByActive(boolean active);
 }

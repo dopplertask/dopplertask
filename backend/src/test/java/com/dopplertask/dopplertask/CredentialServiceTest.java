@@ -4,6 +4,7 @@ import com.dopplertask.dopplertask.dao.CredentialDao;
 import com.dopplertask.dopplertask.domain.ActionResult;
 import com.dopplertask.dopplertask.domain.Credential;
 import com.dopplertask.dopplertask.domain.StatusCode;
+import com.dopplertask.dopplertask.domain.TaskExecution;
 import com.dopplertask.dopplertask.domain.action.Action;
 import com.dopplertask.dopplertask.domain.action.connection.HttpAction;
 import com.dopplertask.dopplertask.domain.action.connection.HttpHeader;
@@ -88,7 +89,7 @@ public class CredentialServiceTest {
         credentials.create("prod-slack", "SlackAction", Map.of("token", "xoxb-the-real-token"));
         SlackAction slack = slackUsing("prod-slack");
         List<String> whileRunning = new ArrayList<>();
-        ActionResult result = credentials.runWith(slack, () -> {
+        ActionResult result = credentials.runWith(slack, new TaskExecution(), () -> {
             whileRunning.add(slack.getToken());
             return new ActionResult();
         });
@@ -101,7 +102,7 @@ public class CredentialServiceTest {
     public void testTheValuesAreTakenAwayAlsoWhenAStepThrowsFail() {
         credentials.create("prod-slack", "SlackAction", Map.of("token", "xoxb-the-real-token"));
         SlackAction slack = slackUsing("prod-slack");
-        Assert.assertThrows(IOException.class, () -> credentials.runWith(slack, () -> {
+        Assert.assertThrows(IOException.class, () -> credentials.runWith(slack, new TaskExecution(), () -> {
             throw new IOException("broken");
         }));
         Assert.assertNull(slack.getToken());
@@ -112,7 +113,7 @@ public class CredentialServiceTest {
         credentials.create("prod-jira", "Atlassian account", Map.of("email", "ops@example.com", "token", "the-real-token"));
         JiraAction jira = new JiraAction();
         jira.setCredential("prod-jira");
-        ActionResult result = credentials.runWith(jira, () -> {
+        ActionResult result = credentials.runWith(jira, new TaskExecution(), () -> {
             ActionResult answer = new ActionResult(StatusCode.FAILURE, "refused the-real-token for ops@example.com", "Incorrect key: the-real-token.");
             return answer;
         });
@@ -123,11 +124,11 @@ public class CredentialServiceTest {
     @Test
     public void testAMissingOrWrongCredentialFailsTheStepWithoutRunningItFail() throws IOException {
         credentials.create("prod-jira", "Atlassian account", Map.of("token", "t"));
-        ActionResult missing = credentials.runWith(slackUsing("gone"), () -> {
+        ActionResult missing = credentials.runWith(slackUsing("gone"), new TaskExecution(), () -> {
             throw new AssertionError("The step should not run.");
         });
         Assert.assertTrue(missing.getErrorMsg(), missing.getErrorMsg().contains("\"gone\" does not exist"));
-        ActionResult wrongKind = credentials.runWith(slackUsing("prod-jira"), () -> {
+        ActionResult wrongKind = credentials.runWith(slackUsing("prod-jira"), new TaskExecution(), () -> {
             throw new AssertionError("The step should not run.");
         });
         Assert.assertTrue(wrongKind.getErrorMsg(), wrongKind.getErrorMsg().contains("is of the kind Atlassian account"));
@@ -139,7 +140,7 @@ public class CredentialServiceTest {
         credentials.update("prod-jira", Map.of("email", "new@example.com", "token", ""));
         JiraAction jira = new JiraAction();
         jira.setCredential("prod-jira");
-        credentials.runWith(jira, () -> {
+        credentials.runWith(jira, new TaskExecution(), () -> {
             Assert.assertEquals("new@example.com", jira.getEmail());
             Assert.assertEquals("kept", jira.getToken());
             return new ActionResult();
@@ -193,7 +194,7 @@ public class CredentialServiceTest {
         credentials.adoptInlineSecrets(List.of(http), false);
         Assert.assertEquals(1, http.getHeaders().size());
         Assert.assertEquals("Accept", http.getHeaders().get(0).getHeaderName());
-        credentials.runWith(http, () -> {
+        credentials.runWith(http, new TaskExecution(), () -> {
             Assert.assertEquals("Authorization", http.getAuthHeaderName());
             Assert.assertEquals("Bearer inline", http.getAuthHeaderValue());
             return new ActionResult();
@@ -218,7 +219,7 @@ public class CredentialServiceTest {
         Assert.assertEquals(List.of("EmailAction", "ReadEmailAction"), credentials.list().get(0).steps().stream().sorted().toList());
         for (Action step : List.of(new EmailAction(), new ReadEmailAction())) {
             step.setCredential("office");
-            ActionResult result = credentials.runWith(step, () -> {
+            ActionResult result = credentials.runWith(step, new TaskExecution(), () -> {
                 Assert.assertEquals("the-real-password", new BeanWrapperImpl(step).getPropertyValue("password"));
                 return new ActionResult();
             });
@@ -231,7 +232,7 @@ public class CredentialServiceTest {
         credentials.create("office", "Mail account", Map.of("username", "ops@example.com", "password", "the-real-password"));
         SecureCopyAction copy = new SecureCopyAction();
         copy.setCredential("office");
-        ActionResult result = credentials.runWith(copy, () -> {
+        ActionResult result = credentials.runWith(copy, new TaskExecution(), () -> {
             throw new AssertionError("The step should not run");
         });
         Assert.assertEquals(StatusCode.FAILURE, result.getStatusCode());
