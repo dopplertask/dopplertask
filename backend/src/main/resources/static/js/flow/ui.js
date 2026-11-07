@@ -157,7 +157,7 @@ export default function boot() {
         return wrap(`${label.replace('<span class="ui-optional">optional</span>', '')}<div class="ui-select"><select ${common}>${options.map((option) => `<option value="${escapeHtml(option.value)}" ${option.value === current ? 'selected' : ''}>${escapeHtml(option.label)}</option>`).join('')}</select>${icon('chevronDown')}</div>`);
       }
       case 'credential': {
-        const choices = DT.canvas.store.credentials.filter((credential) => credential.stepType === field.stepType);
+        const choices = DT.canvas.store.credentials.filter((credential) => credential.type === field.credentialType);
         const missing = fieldValue && !choices.some((credential) => credential.name === fieldValue);
         const options = [{ name: '', text: choices.length ? 'Choose a credential' : 'No credential yet' }, ...choices.map(({ name }) => ({ name, text: name })), ...(missing ? [{ name: fieldValue, text: `${fieldValue} (does not exist)` }] : [])];
         return wrap(`${label}<div class="ui-credential-row"><div class="ui-select"><select ${common}>${options.map(({ name, text }) => `<option value="${escapeHtml(name)}" ${name === (fieldValue || '') ? 'selected' : ''}>${escapeHtml(text)}</option>`).join('')}</select>${icon('chevronDown')}</div>${fieldValue && !missing ? '<button type="button" class="ui-button" data-credential-edit>Edit</button>' : ''}<button type="button" class="ui-button" data-credential-new>New</button></div>`);
@@ -522,7 +522,7 @@ export default function boot() {
       const missing = field.fields.find((one) => one.required && !editing && !values[one.key]);
       if (missing) { toast(`${missing.label} is required`, { tone: 'danger' }); return; }
       try {
-        await store.saveCredential(name, field.stepType, values, !!editing);
+        await store.saveCredential(name, field.credentialType, values, !!editing);
         dialog.close();
         toast(editing ? `Saved ${name}` : `Created ${name}`);
         onSaved?.(name);
@@ -530,25 +530,25 @@ export default function boot() {
     });
   }
 
-  const credentialFieldOf = (stepType) => Object.values(ACTIONS).flatMap((action) => action.fields).find((field) => field.type === 'credential' && field.stepType === stepType);
-  const stepLabel = (stepType) => Object.values(ACTIONS).find((action) => action.backend === stepType)?.label || stepType;
+  const credentialFieldOf = (type) => Object.values(ACTIONS).flatMap((action) => action.fields).find((field) => field.type === 'credential' && field.credentialType === type);
+  const typeLabel = (type) => Object.values(ACTIONS).find((action) => action.backend === type)?.label || type;
 
   function openCredentialsDialog(store) {
     const usedBy = ({ usedBy: names }) => (names.length ? `Used by ${names.join(', ')}` : 'Not used by a task');
-    const stepTypes = [...new Set(Object.values(ACTIONS).flatMap((action) => action.fields).filter((field) => field.type === 'credential').map((field) => field.stepType))]
-      .sort((first, second) => stepLabel(first).localeCompare(stepLabel(second)));
+    const types = [...new Set(Object.values(ACTIONS).flatMap((action) => action.fields).filter((field) => field.type === 'credential').map((field) => field.credentialType))]
+      .sort((first, second) => typeLabel(first).localeCompare(typeLabel(second)));
     const dialog = openDialog(`${dialogHeader('Credentials', 'What steps sign in with. Tasks only hold the name, so they can be shared and exported safely.')}
-      <div class="ui-task-list">${store.credentials.length ? store.credentials.map((credential) => `<div class="ui-task-row" data-credential="${escapeHtml(credential.name)}"><span><b>${escapeHtml(credential.name)}</b><small>${escapeHtml(stepLabel(credential.stepType))}. ${escapeHtml(usedBy(credential))}</small></span><button type="button" class="ui-button" data-edit>Edit</button><button type="button" class="ui-button" data-delete>Delete</button></div>`).join('') : '<p class="ui-hint">No credentials yet. Create one here, or from a step that needs it.</p>'}</div>
-      <footer class="ui-dialog-foot"><div class="ui-select"><select id="credential-kind" aria-label="Kind of step">${stepTypes.map((stepType) => `<option value="${escapeHtml(stepType)}">${escapeHtml(stepLabel(stepType))}</option>`).join('')}</select>${icon('chevronDown')}</div><button type="button" class="ui-button is-primary" data-new>New credential</button><button type="button" class="ui-button" data-dialog-close>Close</button></footer>`);
+      <div class="ui-task-list">${store.credentials.length ? store.credentials.map((credential) => `<div class="ui-task-row" data-credential="${escapeHtml(credential.name)}"><span><b>${escapeHtml(credential.name)}</b><small>${escapeHtml(typeLabel(credential.type))}. ${escapeHtml(usedBy(credential))}</small></span><button type="button" class="ui-button" data-edit>Edit</button><button type="button" class="ui-button" data-delete>Delete</button></div>`).join('') : '<p class="ui-hint">No credentials yet. Create one here, or from a step that needs it.</p>'}</div>
+      <footer class="ui-dialog-foot"><div class="ui-select"><select id="credential-kind" aria-label="Kind of credential">${types.map((type) => `<option value="${escapeHtml(type)}">${escapeHtml(typeLabel(type))}</option>`).join('')}</select>${icon('chevronDown')}</div><button type="button" class="ui-button is-primary" data-new>New credential</button><button type="button" class="ui-button" data-dialog-close>Close</button></footer>`);
     dialog.addEventListener('click', (event) => {
       const name = event.target.closest('[data-credential]')?.dataset.credential;
       const credential = store.credentials.find((candidate) => candidate.name === name);
       if (event.target.closest('[data-new]')) {
-        const stepType = dialog.querySelector('#credential-kind').value;
+        const type = dialog.querySelector('#credential-kind').value;
         dialog.close();
-        openCredentialDialog(store, credentialFieldOf(stepType), null);
+        openCredentialDialog(store, credentialFieldOf(type), null);
       }
-      if (event.target.closest('[data-edit]')) { dialog.close(); openCredentialDialog(store, credentialFieldOf(credential.stepType), credential); }
+      if (event.target.closest('[data-edit]')) { dialog.close(); openCredentialDialog(store, credentialFieldOf(credential.type), credential); }
       if (event.target.closest('[data-delete]') && confirm(`Delete ${name}? This cannot be undone.`)) {
         dialog.close();
         store.deleteCredential(name).then(() => toast(`Deleted ${name}`), (error) => toast(error.message, { tone: 'danger' }));

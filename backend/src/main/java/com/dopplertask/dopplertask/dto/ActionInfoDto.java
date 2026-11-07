@@ -11,13 +11,19 @@ public class ActionInfoDto {
     private List<Action.PropertyInformation> propertyInformationList;
     private boolean trigger;
     private Map<String, String> outputs;
+    private String credentialType;
 
-    public ActionInfoDto(String name, String description, List<Action.PropertyInformation> propertyInformationList, boolean trigger, Map<String, String> outputs) {
+    public ActionInfoDto(String name, String description, List<Action.PropertyInformation> propertyInformationList, boolean trigger, Map<String, String> outputs, String credentialType) {
         this.name = name;
         this.description = description;
         this.propertyInformationList = propertyInformationList;
         this.trigger = trigger;
         this.outputs = outputs;
+        this.credentialType = credentialType;
+    }
+
+    public String getCredentialType() {
+        return credentialType;
     }
 
     public Map<String, String> getOutputs() {

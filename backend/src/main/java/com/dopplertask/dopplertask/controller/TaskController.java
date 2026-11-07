@@ -538,7 +538,7 @@ public class TaskController {
         for (Class<?> currentClass : CredentialService.stepTypes().values()) {
             Action instance = (Action) currentClass.getDeclaredConstructor().newInstance();
             boolean trigger = instance.getClass().getSuperclass().getSimpleName().equals(Trigger.class.getSimpleName());
-            actionListResponseDto.getActions().add(new ActionInfoDto(currentClass.getSimpleName(), instance.getDescription(), instance.getActionInfo(), trigger, instance.getOutputs()));
+            actionListResponseDto.getActions().add(new ActionInfoDto(currentClass.getSimpleName(), instance.getDescription(), instance.getActionInfo(), trigger, instance.getOutputs(), instance.getCredentialType()));
         }
 
         Collections.sort(actionListResponseDto.getActions(), (Comparator.comparing(ActionInfoDto::getName)));

@@ -9,7 +9,7 @@ import jakarta.persistence.Lob;
 import java.util.Date;
 
 /**
- * What a kind of step needs to sign in, kept apart from tasks. Steps name a credential and never hold its values.
+ * What steps need to sign in to a service, kept apart from tasks. Steps name a credential and never hold its values.
  */
 @Entity
 public class Credential {
@@ -21,8 +21,9 @@ public class Credential {
     @Column(unique = true, nullable = false)
     private String name;
 
-    @Column(nullable = false)
-    private String stepType;
+    // The column keeps its first name, so that credentials that are already saved stay where they are.
+    @Column(name = "step_type", nullable = false)
+    private String type;
 
     @Lob
     @Column(nullable = false)
@@ -38,12 +39,12 @@ public class Credential {
         this.name = name;
     }
 
-    public String getStepType() {
-        return stepType;
+    public String getType() {
+        return type;
     }
 
-    public void setStepType(String stepType) {
-        this.stepType = stepType;
+    public void setType(String type) {
+        this.type = type;
     }
 
     public String getEncryptedValues() {

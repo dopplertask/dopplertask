@@ -28,6 +28,8 @@ import jakarta.persistence.Lob
 import jakarta.persistence.Table
 import jakarta.persistence.Transient
 
+const val MAIL_ACCOUNT = "Mail account"
+
 @Entity
 @Table(name = "EmailAction")
 @DiscriminatorValue("email_action")
@@ -132,6 +134,9 @@ class EmailAction : Action() {
 
     override val description: String
         get() = "Sends an email through a mail server"
+
+    override val credentialType: String
+        get() = MAIL_ACCOUNT
 
     override val actionInfo: MutableList<PropertyInformation>
         get() {

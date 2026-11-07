@@ -8,8 +8,11 @@ import com.dopplertask.dopplertask.domain.action.Action;
 import com.dopplertask.dopplertask.domain.action.connection.HttpAction;
 import com.dopplertask.dopplertask.domain.action.connection.HttpHeader;
 import com.dopplertask.dopplertask.domain.action.connection.SSHAction;
+import com.dopplertask.dopplertask.domain.action.connection.SecureCopyAction;
 import com.dopplertask.dopplertask.domain.action.integration.chat.SlackAction;
 import com.dopplertask.dopplertask.domain.action.integration.code.JiraAction;
+import com.dopplertask.dopplertask.domain.action.integration.mail.EmailAction;
+import com.dopplertask.dopplertask.domain.action.integration.mail.ReadEmailAction;
 import com.dopplertask.dopplertask.domain.action.trigger.Webhook;
 import com.dopplertask.dopplertask.service.CredentialCipher;
 import com.dopplertask.dopplertask.service.CredentialProblemException;
@@ -127,7 +130,7 @@ public class CredentialServiceTest {
         ActionResult wrongKind = credentials.runWith(slackUsing("prod-jira"), () -> {
             throw new AssertionError("The step should not run.");
         });
-        Assert.assertTrue(wrongKind.getErrorMsg(), wrongKind.getErrorMsg().contains("is for JiraAction"));
+        Assert.assertTrue(wrongKind.getErrorMsg(), wrongKind.getErrorMsg().contains("is of the kind JiraAction"));
     }
 
     @Test
@@ -207,5 +210,50 @@ public class CredentialServiceTest {
             Assert.assertTrue(stepClass.getSimpleName() + " " + field + " cannot be filled in", new BeanWrapperImpl(stepClass).isWritableProperty(field));
             Assert.assertTrue(stepClass.getSimpleName() + " " + field + " is still stored in the step", CredentialService.isOnlyInCredentials(stepClass, field));
         }));
+    }
+
+    @Test
+    public void testStepsOfOneServiceShareACredentialSuccess() throws IOException {
+        credentials.create("office", "Mail account", Map.of("username", "ops@example.com", "password", "the-real-password"));
+        Assert.assertEquals(List.of("EmailAction", "ReadEmailAction"), credentials.list().get(0).steps().stream().sorted().toList());
+        for (Action step : List.of(new EmailAction(), new ReadEmailAction())) {
+            step.setCredential("office");
+            ActionResult result = credentials.runWith(step, () -> {
+                Assert.assertEquals("the-real-password", new BeanWrapperImpl(step).getPropertyValue("password"));
+                return new ActionResult();
+            });
+            Assert.assertEquals(StatusCode.SUCCESS, result.getStatusCode());
+        }
+    }
+
+    @Test
+    public void testACredentialOfAnotherServiceIsRefusedFailure() throws IOException {
+        credentials.create("office", "Mail account", Map.of("username", "ops@example.com", "password", "the-real-password"));
+        SecureCopyAction copy = new SecureCopyAction();
+        copy.setCredential("office");
+        ActionResult result = credentials.runWith(copy, () -> {
+            throw new AssertionError("The step should not run");
+        });
+        Assert.assertEquals(StatusCode.FAILURE, result.getStatusCode());
+        Assert.assertTrue(result.getErrorMsg(), result.getErrorMsg().contains("Mail account") && result.getErrorMsg().contains("Server login"));
+    }
+
+    @Test
+    public void testStepsThatShareACredentialTakeTheSameFieldsSuccess() {
+        Assert.assertEquals(CredentialService.fieldsOf(EmailAction.class), CredentialService.fieldsOf(ReadEmailAction.class));
+        Assert.assertEquals(CredentialService.fieldsOf(SSHAction.class), CredentialService.fieldsOf(SecureCopyAction.class));
+        Map<String, Map<String, Boolean>> fieldsOfType = new java.util.HashMap<>();
+        CredentialService.stepTypes().values().stream().filter(stepClass -> !CredentialService.fieldsOf(stepClass).isEmpty()).forEach(stepClass -> {
+            Map<String, Boolean> earlier = fieldsOfType.putIfAbsent(CredentialService.credentialTypeOf(stepClass), CredentialService.fieldsOf(stepClass));
+            if (earlier != null) {
+                Assert.assertEquals(stepClass.getSimpleName(), earlier, CredentialService.fieldsOf(stepClass));
+            }
+        });
+    }
+
+    @Test
+    public void testASecretFoundInAStepGetsANameThatCanBeUsedSuccess() {
+        String name = credentials.findOrCreate("Server login", Map.of("username", "deploy", "password", "the-real-password"));
+        Assert.assertEquals("server-login-1", name);
     }
 }

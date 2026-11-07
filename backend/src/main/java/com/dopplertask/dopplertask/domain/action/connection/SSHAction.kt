@@ -19,6 +19,8 @@ import jakarta.persistence.Lob
 import jakarta.persistence.Table
 import jakarta.persistence.Transient
 
+const val SERVER_LOGIN = "Server login"
+
 @Entity
 @Table(name = "SSHAction")
 @DiscriminatorValue("ssh_action")
@@ -67,6 +69,9 @@ class SSHAction : Action() {
         actionResult.statusCode = StatusCode.SUCCESS
         return actionResult
     }
+
+    override val credentialType: String
+        get() = SERVER_LOGIN
 
     override val actionInfo: MutableList<PropertyInformation>
         get() {

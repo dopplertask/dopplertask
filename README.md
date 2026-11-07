@@ -719,13 +719,13 @@ What an agent saves appears in the editor as a proposal. Nothing runs until you 
 * **A step has no time limit of its own.** Up to about 40 to 50 runs go at once, so steps that hang forever can use up the room for new runs. Use commands that have their own timeout.
 
 ## Credentials
-What a step signs in with is kept apart from tasks, under **Credentials** in the editor or through the API. A step only has `credential`, the name of one for the same kind of step, so a task can be shared, exported and read by an agent without exposing anything.
+What a step signs in with is kept apart from tasks, under **Credentials** in the editor or through the API. A step only has `credential`, the name of one of the type it needs, so a task can be shared, exported and read by an agent without exposing anything. Steps that sign in to the same service share a type: Send and Read email use a `Mail account`, and SSH and SCP use a `Server login`. Other steps have a type of their own, named after the step.
 
 Create one under Credentials, or with New on a step:
 ```
-curl -X POST localhost:8090/credentials -H 'Content-Type: application/json' -d '{"name":"prod-slack","stepType":"SlackAction","values":{"token":"xoxb-..."}}'
+curl -X POST localhost:8090/credentials -H 'Content-Type: application/json' -d '{"name":"prod-slack","type":"SlackAction","values":{"token":"xoxb-..."}}'
 ```
-* `GET /credentials`: names, kinds and which tasks use them. Never the values.
+* `GET /credentials`: names, types, the steps each one fits and which tasks use them. Never the values.
 * `PUT /credentials/{name}`: change values. A field left out or empty keeps its value.
 * `DELETE /credentials/{name}`: refused while the newest version of a task uses it.
 

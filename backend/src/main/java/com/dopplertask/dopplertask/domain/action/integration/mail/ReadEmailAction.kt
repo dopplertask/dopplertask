@@ -148,6 +148,9 @@ class ReadEmailAction : Action() {
     override val description: String
         get() = "Reads messages from a mailbox over IMAP"
 
+    override val credentialType: String
+        get() = MAIL_ACCOUNT
+
     override val actionInfo: MutableList<PropertyInformation>
         get() {
             val actionInfo = super.actionInfo
