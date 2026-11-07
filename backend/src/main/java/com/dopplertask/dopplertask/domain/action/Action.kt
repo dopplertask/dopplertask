@@ -1,5 +1,25 @@
 package com.dopplertask.dopplertask.domain.action
 
+import com.dopplertask.dopplertask.domain.action.integration.sales.HubSpotAction
+import com.dopplertask.dopplertask.domain.action.integration.sales.SalesforceAction
+import com.dopplertask.dopplertask.domain.action.integration.sales.PipedriveAction
+import com.dopplertask.dopplertask.domain.action.integration.sales.MailchimpAction
+import com.dopplertask.dopplertask.domain.action.integration.commerce.StripeAction
+import com.dopplertask.dopplertask.domain.action.integration.commerce.ShopifyAction
+import com.dopplertask.dopplertask.domain.action.integration.commerce.WooCommerceAction
+import com.dopplertask.dopplertask.domain.action.integration.code.IntercomAction
+import com.dopplertask.dopplertask.domain.action.integration.code.FreshdeskAction
+import com.dopplertask.dopplertask.domain.action.integration.code.AsanaAction
+import com.dopplertask.dopplertask.domain.action.integration.code.TrelloAction
+import com.dopplertask.dopplertask.domain.action.integration.code.ClickUpAction
+import com.dopplertask.dopplertask.domain.action.integration.code.MondayAction
+import com.dopplertask.dopplertask.domain.action.integration.chat.WhatsAppAction
+import com.dopplertask.dopplertask.domain.action.integration.storage.AirtableAction
+import com.dopplertask.dopplertask.domain.action.integration.storage.SupabaseAction
+import com.dopplertask.dopplertask.domain.action.integration.storage.GoogleDriveAction
+import com.dopplertask.dopplertask.domain.action.integration.storage.GoogleCalendarAction
+import com.dopplertask.dopplertask.domain.action.integration.storage.ConfluenceAction
+import com.dopplertask.dopplertask.domain.action.integration.connection.MongoDBAction
 import com.dopplertask.dopplertask.domain.ActionPort
 import com.dopplertask.dopplertask.domain.ActionPortType
 import com.dopplertask.dopplertask.domain.ActionResult
@@ -119,7 +139,27 @@ import jakarta.persistence.OneToMany
     JsonSubTypes.Type(value = GoogleSheetsAction::class, name = "GoogleSheetsAction"),
     JsonSubTypes.Type(value = ClaudeAction::class, name = "ClaudeAction"),
     JsonSubTypes.Type(value = ReadEmailAction::class, name = "ReadEmailAction"),
-    JsonSubTypes.Type(value = SlackAction::class, name = "SlackAction")
+    JsonSubTypes.Type(value = SlackAction::class, name = "SlackAction"),
+    JsonSubTypes.Type(value = HubSpotAction::class, name = "HubSpotAction"),
+    JsonSubTypes.Type(value = SalesforceAction::class, name = "SalesforceAction"),
+    JsonSubTypes.Type(value = PipedriveAction::class, name = "PipedriveAction"),
+    JsonSubTypes.Type(value = MailchimpAction::class, name = "MailchimpAction"),
+    JsonSubTypes.Type(value = StripeAction::class, name = "StripeAction"),
+    JsonSubTypes.Type(value = ShopifyAction::class, name = "ShopifyAction"),
+    JsonSubTypes.Type(value = WooCommerceAction::class, name = "WooCommerceAction"),
+    JsonSubTypes.Type(value = IntercomAction::class, name = "IntercomAction"),
+    JsonSubTypes.Type(value = FreshdeskAction::class, name = "FreshdeskAction"),
+    JsonSubTypes.Type(value = AsanaAction::class, name = "AsanaAction"),
+    JsonSubTypes.Type(value = TrelloAction::class, name = "TrelloAction"),
+    JsonSubTypes.Type(value = ClickUpAction::class, name = "ClickUpAction"),
+    JsonSubTypes.Type(value = MondayAction::class, name = "MondayAction"),
+    JsonSubTypes.Type(value = WhatsAppAction::class, name = "WhatsAppAction"),
+    JsonSubTypes.Type(value = AirtableAction::class, name = "AirtableAction"),
+    JsonSubTypes.Type(value = SupabaseAction::class, name = "SupabaseAction"),
+    JsonSubTypes.Type(value = GoogleDriveAction::class, name = "GoogleDriveAction"),
+    JsonSubTypes.Type(value = GoogleCalendarAction::class, name = "GoogleCalendarAction"),
+    JsonSubTypes.Type(value = ConfluenceAction::class, name = "ConfluenceAction"),
+    JsonSubTypes.Type(value = MongoDBAction::class, name = "MongoDBAction")
 )
 @JsonIgnoreProperties(ignoreUnknown = true)
 abstract class Action {

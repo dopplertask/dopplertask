@@ -1,5 +1,25 @@
 package com.dopplertask.dopplertask;
 
+import com.dopplertask.dopplertask.domain.action.integration.sales.HubSpotAction;
+import com.dopplertask.dopplertask.domain.action.integration.sales.SalesforceAction;
+import com.dopplertask.dopplertask.domain.action.integration.sales.PipedriveAction;
+import com.dopplertask.dopplertask.domain.action.integration.sales.MailchimpAction;
+import com.dopplertask.dopplertask.domain.action.integration.commerce.StripeAction;
+import com.dopplertask.dopplertask.domain.action.integration.commerce.ShopifyAction;
+import com.dopplertask.dopplertask.domain.action.integration.commerce.WooCommerceAction;
+import com.dopplertask.dopplertask.domain.action.integration.code.IntercomAction;
+import com.dopplertask.dopplertask.domain.action.integration.code.FreshdeskAction;
+import com.dopplertask.dopplertask.domain.action.integration.code.AsanaAction;
+import com.dopplertask.dopplertask.domain.action.integration.code.TrelloAction;
+import com.dopplertask.dopplertask.domain.action.integration.code.ClickUpAction;
+import com.dopplertask.dopplertask.domain.action.integration.code.MondayAction;
+import com.dopplertask.dopplertask.domain.action.integration.chat.WhatsAppAction;
+import com.dopplertask.dopplertask.domain.action.integration.storage.AirtableAction;
+import com.dopplertask.dopplertask.domain.action.integration.storage.SupabaseAction;
+import com.dopplertask.dopplertask.domain.action.integration.storage.GoogleDriveAction;
+import com.dopplertask.dopplertask.domain.action.integration.storage.GoogleCalendarAction;
+import com.dopplertask.dopplertask.domain.action.integration.storage.ConfluenceAction;
+import com.dopplertask.dopplertask.domain.action.integration.connection.MongoDBAction;
 import com.dopplertask.dopplertask.domain.ActionResult;
 import com.dopplertask.dopplertask.domain.StatusCode;
 import com.dopplertask.dopplertask.domain.TaskExecution;
@@ -1065,4 +1085,484 @@ public class IntegrationActionsTest {
         Assert.assertEquals("OpenAI answered with status 401: Incorrect API key provided.", run(openAI()).getErrorMsg());
     }
 
+
+    private void assertSucceeded(ActionResult result) {
+        Assert.assertEquals(result.getErrorMsg(), StatusCode.SUCCESS, result.getStatusCode());
+    }
+
+    private void assertFailsWith(Action action, String reason) throws IOException {
+        ActionResult result = run(action);
+        Assert.assertEquals(StatusCode.FAILURE, result.getStatusCode());
+        Assert.assertTrue(result.getErrorMsg(), result.getErrorMsg().contains(reason));
+    }
+
+    private String basicOf(String login) {
+        return "Basic " + Base64.getEncoder().encodeToString(login.getBytes(StandardCharsets.UTF_8));
+    }
+
+    @Test
+    public void testHubSpotSavesAContactByEmailAndFindsItSuccess() throws IOException {
+        HubSpotAction hubspot = new HubSpotAction();
+        hubspot.setBaseUrl(baseUrl);
+        hubspot.setToken("tok");
+        hubspot.setEmail("ada@example.com");
+        hubspot.setFirstName("Ada");
+        answerBody = "{\"results\":[{\"id\":\"51\"}]}";
+        ActionResult saved = run(hubspot);
+        assertSucceeded(saved);
+        Assert.assertEquals("/crm/objects/2026-09/contacts/batch/upsert", path);
+        Assert.assertEquals("Bearer tok", authorization);
+        Assert.assertEquals("email", received.path("inputs").path(0).path("idProperty").asText());
+        Assert.assertEquals("Ada", received.path("inputs").path(0).path("properties").path("firstname").asText());
+        Assert.assertTrue(received.path("inputs").path(0).path("properties").path("lastname").isMissingNode());
+        Assert.assertEquals("51", saved.getOutputVariables().get("contactId"));
+        hubspot.setOperation("findContact");
+        answerBody = "{\"results\":[]}";
+        ActionResult missing = run(hubspot);
+        assertSucceeded(missing);
+        Assert.assertEquals(false, missing.getOutputVariables().get("found"));
+    }
+
+    @Test
+    public void testHubSpotCreatesADealAndNeedsAToken() throws IOException {
+        HubSpotAction hubspot = new HubSpotAction();
+        hubspot.setBaseUrl(baseUrl);
+        hubspot.setOperation("createDeal");
+        hubspot.setDealName("Big one");
+        assertFailsWith(hubspot, "access token");
+        hubspot.setToken("tok");
+        answerBody = "{\"id\":\"7\"}";
+        ActionResult created = run(hubspot);
+        Assert.assertEquals("Big one", received.path("properties").path("dealname").asText());
+        Assert.assertEquals("7", created.getOutputVariables().get("dealId"));
+    }
+
+    private SalesforceAction salesforce() {
+        SalesforceAction salesforce = new SalesforceAction();
+        salesforce.setSiteUrl(baseUrl);
+        salesforce.setClientId("key");
+        salesforce.setClientSecret("secret");
+        answersByRequest.put("/services/oauth2/token", "{\"access_token\":\"sf\"}");
+        return salesforce;
+    }
+
+    @Test
+    public void testSalesforceSignsInAndCreatesARecordSuccess() throws IOException {
+        SalesforceAction salesforce = salesforce();
+        salesforce.setRecordFields("{\"LastName\": \"Lovelace\"}");
+        answerBody = "{\"id\":\"003\"}";
+        ActionResult created = run(salesforce);
+        assertSucceeded(created);
+        Assert.assertEquals(List.of("/services/oauth2/token", "/services/data/v68.0/sobjects/Contact"), requests);
+        Assert.assertEquals("Bearer sf", authorization);
+        Assert.assertEquals("Lovelace", received.path("LastName").asText());
+        Assert.assertEquals("003", created.getOutputVariables().get("recordId"));
+        Assert.assertEquals(baseUrl + "/003", created.getOutputVariables().get("url"));
+    }
+
+    @Test
+    public void testSalesforceRunsAQueryAndGivesItsReasonWhenRefusedSuccess() throws IOException {
+        SalesforceAction salesforce = salesforce();
+        salesforce.setOperation("runQuery");
+        salesforce.setQuery("SELECT Id FROM Contact");
+        answerBody = "{\"totalSize\":2,\"records\":[]}";
+        ActionResult found = run(salesforce);
+        Assert.assertEquals("q=SELECT Id FROM Contact", query);
+        Assert.assertEquals(2, found.getOutputVariables().get("recordCount"));
+        answerStatus = 400;
+        answerBody = "[{\"message\":\"unexpected token\",\"errorCode\":\"MALFORMED_QUERY\"}]";
+        answersByRequest.clear();
+        assertFailsWith(salesforce, "unexpected token");
+    }
+
+    @Test
+    public void testSalesforceRefusesFieldsThatAreNotJsonFailure() throws IOException {
+        SalesforceAction salesforce = salesforce();
+        salesforce.setRecordFields("LastName: Lovelace");
+        assertFailsWith(salesforce, "JSON object");
+        Assert.assertTrue(requests.isEmpty());
+    }
+
+    @Test
+    public void testPipedriveCreatesAPersonADealAndANoteSuccess() throws IOException {
+        PipedriveAction pipedrive = new PipedriveAction();
+        pipedrive.setSiteUrl(baseUrl);
+        pipedrive.setToken("tok");
+        pipedrive.setPersonName("Ada");
+        pipedrive.setEmail("ada@example.com");
+        answerBody = "{\"data\":{\"id\":9}}";
+        ActionResult person = run(pipedrive);
+        Assert.assertEquals("/api/v2/persons", path);
+        Assert.assertEquals("tok", requestHeaders.get("x-api-token"));
+        Assert.assertEquals("ada@example.com", received.path("emails").path(0).path("value").asText());
+        Assert.assertEquals("9", person.getOutputVariables().get("personId"));
+        pipedrive.setOperation("createDeal");
+        pipedrive.setDealTitle("Big one");
+        pipedrive.setDealValue("12.5");
+        pipedrive.setPersonId("9");
+        run(pipedrive);
+        Assert.assertEquals(12.5, received.path("value").asDouble(), 0);
+        Assert.assertEquals(9, received.path("person_id").asInt());
+        pipedrive.setOperation("addNote");
+        pipedrive.setDealId("3");
+        pipedrive.setNote("Called");
+        assertSucceeded(run(pipedrive));
+        Assert.assertEquals("/api/v1/notes", path);
+        Assert.assertEquals(3, received.path("deal_id").asInt());
+    }
+
+    @Test
+    public void testMailchimpFindsTheContactByTheHashOfItsLowercaseEmailSuccess() throws IOException {
+        MailchimpAction mailchimp = new MailchimpAction();
+        mailchimp.setBaseUrl(baseUrl);
+        mailchimp.setApiKey("abc-us21");
+        mailchimp.setAudienceId("list1");
+        mailchimp.setEmail("Urist.McVankab@freddiesjokes.com");
+        assertSucceeded(run(mailchimp));
+        // This hash is the example in the documentation of Mailchimp.
+        Assert.assertEquals("/3.0/lists/list1/members/62eeb292278cc15f5817cb78f7790b08", path);
+        Assert.assertEquals("PUT", method);
+        Assert.assertEquals("subscribed", received.path("status_if_new").asText());
+        Assert.assertTrue("Someone who has left must not be subscribed again", received.path("status").isMissingNode());
+        mailchimp.setOperation("unsubscribeContact");
+        assertSucceeded(run(mailchimp));
+        Assert.assertEquals("PATCH", method);
+        Assert.assertEquals("unsubscribed", received.path("status").asText());
+    }
+
+    @Test
+    public void testStripeSendsAFormAndRefundsAllUnlessToldAnAmountSuccess() throws IOException {
+        StripeAction stripe = new StripeAction();
+        stripe.setBaseUrl(baseUrl);
+        stripe.setSecretKey("sk_test");
+        stripe.setOperation("createPaymentLink");
+        stripe.setPriceId("price_1");
+        answerBody = "{\"url\":\"https://buy.stripe.com/x\"}";
+        ActionResult link = run(stripe);
+        Assert.assertEquals("line_items%5B0%5D%5Bprice%5D=price_1&line_items%5B0%5D%5Bquantity%5D=1", receivedText);
+        Assert.assertEquals("https://buy.stripe.com/x", link.getOutputVariables().get("url"));
+        stripe.setOperation("refundPayment");
+        stripe.setPaymentId("pi_1");
+        answerBody = "{\"id\":\"re_1\",\"status\":\"succeeded\"}";
+        ActionResult refund = run(stripe);
+        Assert.assertEquals("/v1/refunds", path);
+        Assert.assertEquals("payment_intent=pi_1", receivedText);
+        Assert.assertEquals("re_1", refund.getOutputVariables().get("refundId"));
+        stripe.setAmount("ten");
+        assertFailsWith(stripe, "smallest unit");
+    }
+
+    @Test
+    public void testShopifyFindsAnOrderByItsNumberBeforeCancellingItSuccess() throws IOException {
+        ShopifyAction shopify = new ShopifyAction();
+        shopify.setSiteUrl(baseUrl);
+        shopify.setToken("shpat");
+        shopify.setOperation("cancelOrder");
+        shopify.setOrderNumber("#1001");
+        answerBody = "{\"orders\":[{\"id\":450789}]}";
+        ActionResult cancelled = run(shopify);
+        assertSucceeded(cancelled);
+        Assert.assertEquals(List.of("/admin/api/2026-10/orders.json", "/admin/api/2026-10/orders/450789/cancel.json"), requests);
+        Assert.assertEquals("shpat", requestHeaders.get("x-shopify-access-token"));
+        Assert.assertEquals("450789", cancelled.getOutputVariables().get("orderId"));
+    }
+
+    @Test
+    public void testShopifyAsksForATokenWithAClientIdAndSaysWhenAnOrderIsMissingFailure() throws IOException {
+        ShopifyAction shopify = new ShopifyAction();
+        shopify.setSiteUrl(baseUrl);
+        shopify.setOrderNumber("1001");
+        assertFailsWith(shopify, "client ID");
+        shopify.setClientId("id");
+        shopify.setClientSecret("secret");
+        answersByRequest.put("/admin/oauth/access_token", "{\"access_token\":\"short\"}");
+        answerBody = "{\"orders\":[]}";
+        assertFailsWith(shopify, "no order with the number");
+        Assert.assertEquals("short", requestHeaders.get("x-shopify-access-token"));
+    }
+
+    @Test
+    public void testWooCommerceNoteIsOnlyForTheShopUnlessAskedForSuccess() throws IOException {
+        WooCommerceAction shop = new WooCommerceAction();
+        shop.setSiteUrl(baseUrl);
+        shop.setConsumerKey("ck");
+        shop.setConsumerSecret("cs");
+        shop.setOperation("addOrderNote");
+        shop.setOrderNumber("123");
+        shop.setNote("Packed");
+        assertSucceeded(run(shop));
+        Assert.assertEquals("/wp-json/wc/v3/orders/123/notes", path);
+        Assert.assertEquals(basicOf("ck:cs"), authorization);
+        Assert.assertFalse(received.path("customer_note").asBoolean());
+        shop.setOperation("setStock");
+        shop.setProductId("8");
+        shop.setStockQuantity("40");
+        assertSucceeded(run(shop));
+        Assert.assertEquals("/wp-json/wc/v3/products/8", path);
+        Assert.assertEquals(40, received.path("stock_quantity").asInt());
+        Assert.assertTrue(received.path("manage_stock").asBoolean());
+    }
+
+    @Test
+    public void testIntercomReplyIsANoteUnlessAskedForSuccess() throws IOException {
+        IntercomAction intercom = new IntercomAction();
+        intercom.setBaseUrl(baseUrl);
+        intercom.setToken("tok");
+        intercom.setOperation("replyToConversation");
+        intercom.setConversationId("77");
+        intercom.setTeammateId("5");
+        intercom.setComment("Looking at it");
+        assertSucceeded(run(intercom));
+        Assert.assertEquals("/conversations/77/reply", path);
+        Assert.assertEquals("note", received.path("message_type").asText());
+        Assert.assertEquals("2.17", requestHeaders.get("intercom-version"));
+        intercom.setVisibleToCustomer("true");
+        assertSucceeded(run(intercom));
+        Assert.assertEquals("comment", received.path("message_type").asText());
+    }
+
+    @Test
+    public void testFreshdeskCreatesATicketAndKeepsANotePrivateSuccess() throws IOException {
+        FreshdeskAction freshdesk = new FreshdeskAction();
+        freshdesk.setSiteUrl(baseUrl);
+        freshdesk.setApiKey("key");
+        freshdesk.setEmail("ada@example.com");
+        freshdesk.setSubject("Printer");
+        freshdesk.setTicketDescription("It is broken");
+        answerBody = "{\"id\":35}";
+        ActionResult ticket = run(freshdesk);
+        Assert.assertEquals(basicOf("key:X"), authorization);
+        Assert.assertEquals(2, received.path("status").asInt());
+        Assert.assertEquals("35", ticket.getOutputVariables().get("ticketNumber"));
+        freshdesk.setOperation("addNote");
+        freshdesk.setTicketNumber("35");
+        freshdesk.setComment("Ordered a part");
+        assertSucceeded(run(freshdesk));
+        Assert.assertEquals("/api/v2/tickets/35/notes", path);
+        Assert.assertTrue(received.path("private").asBoolean());
+        freshdesk.setOperation("solveTicket");
+        assertSucceeded(run(freshdesk));
+        Assert.assertEquals(4, received.path("status").asInt());
+    }
+
+    @Test
+    public void testWhatsAppSendsAMessageAndATemplateSuccess() throws IOException {
+        WhatsAppAction whatsApp = new WhatsAppAction();
+        whatsApp.setBaseUrl(baseUrl);
+        whatsApp.setToken("tok");
+        whatsApp.setPhoneNumberId("106");
+        whatsApp.setTo("+46 70 123 45 67");
+        whatsApp.setMessage("Hello");
+        answerBody = "{\"messages\":[{\"id\":\"wamid.1\"}]}";
+        ActionResult sent = run(whatsApp);
+        Assert.assertEquals("/v26.0/106/messages", path);
+        Assert.assertEquals("46701234567", received.path("to").asText());
+        Assert.assertEquals("whatsapp", received.path("messaging_product").asText());
+        Assert.assertEquals("wamid.1", sent.getOutputVariables().get("messageId"));
+        whatsApp.setOperation("sendTemplate");
+        whatsApp.setTemplateName("hello_world");
+        run(whatsApp);
+        Assert.assertEquals("en_US", received.path("template").path("language").path("code").asText());
+        whatsApp.setTo("not a number");
+        assertFailsWith(whatsApp, "country code");
+    }
+
+    @Test
+    public void testAsanaAsksForTheAddressOfTheTaskItCreatesSuccess() throws IOException {
+        AsanaAction asana = new AsanaAction();
+        asana.setBaseUrl(baseUrl);
+        asana.setToken("tok");
+        asana.setProjectId("12");
+        asana.setTitle("Call Ada");
+        answerBody = "{\"data\":{\"gid\":\"99\",\"permalink_url\":\"https://app.asana.com/99\"}}";
+        ActionResult created = run(asana);
+        Assert.assertEquals("/api/1.0/tasks", path);
+        Assert.assertEquals("opt_fields=gid,permalink_url", query);
+        Assert.assertEquals("12", received.path("data").path("projects").path(0).asText());
+        Assert.assertEquals("99", created.getOutputVariables().get("taskId"));
+        Assert.assertEquals("https://app.asana.com/99", created.getOutputVariables().get("url"));
+    }
+
+    @Test
+    public void testTrelloKeepsItsKeysOutOfTheAddressSuccess() throws IOException {
+        TrelloAction trello = new TrelloAction();
+        trello.setBaseUrl(baseUrl);
+        trello.setApiKey("key");
+        trello.setToken("tok");
+        trello.setOperation("addComment");
+        trello.setCardId("abc");
+        trello.setComment("Done & dusted");
+        assertSucceeded(run(trello));
+        Assert.assertEquals("/1/cards/abc/actions/comments", path);
+        Assert.assertEquals("text=Done & dusted", query);
+        Assert.assertEquals("OAuth oauth_consumer_key=\"key\", oauth_token=\"tok\"", authorization);
+        trello.setOperation("moveCard");
+        trello.setListId("list2");
+        assertSucceeded(run(trello));
+        Assert.assertEquals("PUT", method);
+        Assert.assertEquals("idList=list2", query);
+    }
+
+    @Test
+    public void testClickUpSaysWhetherToNotifyEveryoneOfACommentSuccess() throws IOException {
+        ClickUpAction clickUp = new ClickUpAction();
+        clickUp.setBaseUrl(baseUrl);
+        clickUp.setToken("pk_1");
+        clickUp.setOperation("addComment");
+        clickUp.setTaskId("86a");
+        clickUp.setComment("Looking at it");
+        assertSucceeded(run(clickUp));
+        Assert.assertEquals("/api/v2/task/86a/comment", path);
+        Assert.assertEquals("pk_1", authorization);
+        Assert.assertFalse(received.path("notify_all").asBoolean(true));
+    }
+
+    @Test
+    public void testMondayGivesTheReasonEvenWhenItAnswersWithSuccess() throws IOException {
+        MondayAction monday = new MondayAction();
+        monday.setBaseUrl(baseUrl);
+        monday.setToken("tok");
+        monday.setBoardId("1");
+        monday.setItemName("Call Ada");
+        answerBody = "{\"data\":{\"create_item\":{\"id\":\"44\"}}}";
+        ActionResult created = run(monday);
+        assertSucceeded(created);
+        Assert.assertEquals("/v2", path);
+        Assert.assertEquals("2026-10", requestHeaders.get("api-version"));
+        Assert.assertEquals("{}", received.path("variables").path("columns").asText());
+        Assert.assertEquals("44", created.getOutputVariables().get("itemId"));
+        answerBody = "{\"errors\":[{\"message\":\"Board not found\"}]}";
+        assertFailsWith(monday, "Board not found");
+    }
+
+    @Test
+    public void testAirtableTakesTheAddressOfABaseAndFiltersSuccess() throws IOException {
+        AirtableAction airtable = new AirtableAction();
+        airtable.setBaseUrl(baseUrl);
+        airtable.setToken("pat");
+        airtable.setBase("https://airtable.com/appAbC123/tblX/viwY");
+        airtable.setTableName("My customers");
+        airtable.setFilterFormula("{Status} = \"Open\"");
+        answerBody = "{\"records\":[{\"id\":\"rec1\"}]}";
+        ActionResult read = run(airtable);
+        Assert.assertEquals("/v0/appAbC123/My%20customers", rawPath);
+        Assert.assertEquals("maxRecords=100&filterByFormula={Status} = \"Open\"", query);
+        Assert.assertEquals(1, read.getOutputVariables().get("recordCount"));
+        airtable.setOperation("addRecord");
+        airtable.setRecordFields("{\"Name\": \"Ada\"}");
+        answerBody = "{\"id\":\"rec2\"}";
+        ActionResult added = run(airtable);
+        Assert.assertEquals("Ada", received.path("fields").path("Name").asText());
+        Assert.assertEquals("rec2", added.getOutputVariables().get("recordId"));
+    }
+
+    @Test
+    public void testSupabaseNeedsAFilterToUpdateAndSendsTheKeyTheRightWaySuccess() throws IOException {
+        SupabaseAction supabase = new SupabaseAction();
+        supabase.setSiteUrl(baseUrl);
+        supabase.setSecretKey("sb_secret_1");
+        supabase.setTableName("orders");
+        supabase.setOperation("updateRows");
+        supabase.setRowValues("{\"status\": \"done\"}");
+        assertFailsWith(supabase, "filter");
+        supabase.setFilter("id=eq.5");
+        answerBody = "[{\"id\":5}]";
+        ActionResult updated = run(supabase);
+        assertSucceeded(updated);
+        Assert.assertEquals("/rest/v1/orders", path);
+        Assert.assertEquals("id=eq.5", query);
+        Assert.assertEquals("sb_secret_1", requestHeaders.get("apikey"));
+        Assert.assertNull(authorization);
+        Assert.assertEquals(1, updated.getOutputVariables().get("rowCount"));
+        supabase.setSecretKey("eyJservice");
+        run(supabase);
+        Assert.assertEquals("Bearer eyJservice", authorization);
+    }
+
+    private String googleKeyFile() throws Exception {
+        return sheets().getServiceAccountKey();
+    }
+
+    @Test
+    public void testGoogleDriveEscapesTheNameAndCreatesAFileInAFolderSuccess() throws Exception {
+        GoogleDriveAction drive = new GoogleDriveAction();
+        drive.setBaseUrl(baseUrl);
+        drive.setServiceAccountKey(googleKeyFile());
+        drive.setFileName("Ada's plan");
+        answerBody = "{\"files\":[{\"id\":\"f1\"}]}";
+        ActionResult found = run(drive);
+        assertSucceeded(found);
+        Assert.assertTrue(query, query.contains("name contains 'Ada\\'s plan'"));
+        Assert.assertTrue(query, query.contains("supportsAllDrives=true"));
+        Assert.assertEquals("Bearer goog", authorization);
+        Assert.assertEquals(1, found.getOutputVariables().get("fileCount"));
+        drive.setOperation("createTextFile");
+        assertFailsWith(drive, "folder");
+        drive.setFolderId("folder1");
+        drive.setFileContent("Hello");
+        answerBody = "{\"id\":\"f2\",\"webViewLink\":\"https://drive/f2\"}";
+        ActionResult created = run(drive);
+        assertSucceeded(created);
+        Assert.assertEquals("/upload/drive/v3/files", path);
+        Assert.assertTrue(requestHeaders.get("content-type"), requestHeaders.get("content-type").startsWith("multipart/related; boundary="));
+        Assert.assertTrue(receivedText, receivedText.contains("\"parents\":[\"folder1\"]") && receivedText.contains("\r\n\r\nHello\r\n"));
+        Assert.assertEquals("f2", created.getOutputVariables().get("fileId"));
+    }
+
+    @Test
+    public void testGoogleCalendarCreatesAnEventAndRefusesATimeWithoutAZoneSuccess() throws Exception {
+        GoogleCalendarAction calendar = new GoogleCalendarAction();
+        calendar.setBaseUrl(baseUrl);
+        calendar.setServiceAccountKey(googleKeyFile());
+        calendar.setCalendar("team@example.com");
+        calendar.setTitle("Standup");
+        calendar.setStartTime("2026-12-01T09:00:00");
+        calendar.setEndTime("2026-12-01T10:00:00+01:00");
+        assertFailsWith(calendar, "time zone");
+        calendar.setStartTime("2026-12-01T09:00:00+01:00");
+        answerBody = "{\"id\":\"ev1\",\"htmlLink\":\"https://calendar/ev1\"}";
+        ActionResult created = run(calendar);
+        assertSucceeded(created);
+        Assert.assertEquals("/calendar/v3/calendars/team%40example.com/events", rawPath);
+        Assert.assertEquals("2026-12-01T09:00:00+01:00", received.path("start").path("dateTime").asText());
+        Assert.assertEquals("ev1", created.getOutputVariables().get("eventId"));
+    }
+
+    @Test
+    public void testConfluenceFindsTheSpaceAndUpdatesToTheNextVersionSuccess() throws IOException {
+        ConfluenceAction confluence = new ConfluenceAction();
+        confluence.setSiteUrl(baseUrl);
+        confluence.setEmail("a@b.se");
+        confluence.setToken("tok");
+        confluence.setSpaceKey("ENG");
+        confluence.setTitle("Plan");
+        confluence.setPageContent("<p>Hello</p>");
+        answersByRequest.put("/wiki/api/v2/spaces", "{\"results\":[{\"id\":\"42\"}]}");
+        answerBody = "{\"id\":\"900\",\"title\":\"Old\",\"version\":{\"number\":3},\"_links\":{\"webui\":\"/spaces/ENG/pages/900\"}}";
+        ActionResult created = run(confluence);
+        assertSucceeded(created);
+        Assert.assertEquals("42", received.path("spaceId").asText());
+        Assert.assertEquals("storage", received.path("body").path("representation").asText());
+        Assert.assertEquals(basicOf("a@b.se:tok"), authorization);
+        Assert.assertEquals(baseUrl + "/wiki/spaces/ENG/pages/900", created.getOutputVariables().get("url"));
+        confluence.setOperation("updatePage");
+        confluence.setPageId("900");
+        confluence.setTitle("");
+        assertSucceeded(run(confluence));
+        Assert.assertEquals("PUT", method);
+        Assert.assertEquals(4, received.path("version").path("number").asInt());
+        Assert.assertEquals("Old", received.path("title").asText());
+    }
+
+    @Test
+    public void testMongoDBRefusesToChangeEverythingWithoutBeingToldFailure() throws IOException {
+        MongoDBAction mongo = new MongoDBAction();
+        mongo.setConnectionString("mongodb://localhost:1");
+        mongo.setDatabase("shop");
+        mongo.setCollection("orders");
+        mongo.setOperation("deleteDocuments");
+        assertFailsWith(mongo, "filter");
+        mongo.setOperation("addDocument");
+        assertFailsWith(mongo, "document");
+    }
 }

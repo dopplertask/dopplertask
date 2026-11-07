@@ -26,6 +26,20 @@ object JsonApi {
         return send(service, "POST", url, headers + mapOf("Content-Type" to "application/x-www-form-urlencoded"), form, Duration.ofMinutes(1))
     }
 
+    fun callText(service: String, method: String, url: String, headers: Map<String, String>, text: String, contentType: String): ActionResult =
+        send(service, method, url, headers + mapOf("Content-Type" to contentType), text, Duration.ofMinutes(1))
+
+    /** A value that a person typed, made safe to put in the address of a request. */
+    fun encoded(text: String): String = URLEncoder.encode(text, StandardCharsets.UTF_8).replace("+", "%20")
+
+    /** What a person typed as a JSON object, or null when it is not one. */
+    @Suppress("UNCHECKED_CAST")
+    fun objectFrom(text: String): Map<String, Any?>? = try {
+        mapper.readValue(text, Map::class.java) as Map<String, Any?>?
+    } catch (e: Exception) {
+        null
+    }
+
     private fun send(service: String, method: String, url: String, headers: Map<String, String>, body: String, timeout: Duration): ActionResult {
         val request = HttpAction()
         request.method = method
@@ -52,12 +66,15 @@ object JsonApi {
             val sentence = body.orEmpty().trim()
             return if (sentence.length <= LONGEST_SENTENCE && !sentence.startsWith("<")) sentence else ""
         }
-        listOf("message", "description", "error_description", "error").forEach { field ->
+        listOf("message", "description", "error_description", "error", "detail", "err").forEach { field ->
             if (answer.path(field).isTextual) return answer.path(field).asText()
         }
         if (answer.path("error").path("message").isTextual) return answer.path("error").path("message").asText()
+        if (answer.path("errors").isTextual) return answer.path("errors").asText()
+        // Salesforce answers with a list of errors.
+        if (answer.path(0).path("message").isTextual) return answer.path(0).path("message").asText()
         // Jira names a wrong field under errors, which is the only reason it gives, and GraphQL lists objects there.
         val firstError = answer.path("errors").values().firstOrNull()
-        return answer.path("errorMessages").path(0).asText("").ifEmpty { firstError?.path("message")?.asText(firstError.asText("")) ?: "" }
+        return answer.path("errorMessages").path(0).asText("").ifEmpty { firstError?.path("message")?.asText(firstError.path("title").asText(firstError.asText(""))) ?: "" }
     }
 }
