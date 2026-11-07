@@ -186,3 +186,5 @@ A new step is one file and one line where steps are registered, which makes it a
 ## License
 
 [MIT](LICENSE). Made by [Feras Wilson](https://github.com/feraswilson) and contributors.
+
+Logos of other services belong to their owners, and only show which service a step connects to. See [where they come from](docs/development.md#logos).
