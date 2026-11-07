@@ -8,9 +8,10 @@
 
 - Advanced
 
-  - [Actions](actions.md)
+  - [Steps](actions.md)
   - [Start Tasks via CLI](start-tasks-via-cli.md)
-  - [Task](task.md)
+  - [Build a task through the API](task.md)
+  - [Running DopplerTask](operations.md)
 
 - Development
 
