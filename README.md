@@ -111,7 +111,7 @@ The agent looks up the steps, builds the task and proposes it. It appears in you
 
 A task can start from a webhook, on a schedule, from a message queue, by hand or from your agent.
 
-## 81 steps, ready to use
+## 80 steps, ready to use
 
 | Group | Steps |
 | --- | --- |
@@ -124,7 +124,7 @@ A task can start from a webhook, on a schedule, from a message queue, by hand or
 | **AI** | Claude, OpenAI |
 | **This machine and browser** | Run command, Read file, Write file, Browse the web, Use the mouse |
 | **Logic** | Convert XML, Extract with regex, If, Print message, Run another task, Script, Set variable, Switch, Wait |
-| **Also** | Jenkins, Rockmelon |
+| **Also** | Jenkins |
 
 Anything with an API is one **HTTP request** step away. Tried a step with your own account and found something to improve? [Tell us](https://github.com/dopplertask/dopplertask/issues), it helps everyone. Every step and its fields are in the [step reference](docs/actions.md).
 

@@ -58,7 +58,6 @@ import com.dopplertask.dopplertask.domain.action.integration.mail.OutlookAction
 import com.dopplertask.dopplertask.domain.action.integration.mail.ReadEmailAction
 import com.dopplertask.dopplertask.domain.action.integration.mail.SendGridAction
 import com.dopplertask.dopplertask.domain.action.integration.openai.OpenAIAction
-import com.dopplertask.dopplertask.domain.action.integration.rockmelon.RockmelonAction
 import com.dopplertask.dopplertask.domain.action.integration.sales.HubSpotAction
 import com.dopplertask.dopplertask.domain.action.integration.sales.MailchimpAction
 import com.dopplertask.dopplertask.domain.action.integration.sales.PipedriveAction
@@ -140,7 +139,6 @@ import org.hibernate.annotations.FetchMode
     JsonSubTypes.Type(value = ActiveMQTrigger::class, name = "ActiveMQTrigger"),
     JsonSubTypes.Type(value = IntervalTrigger::class, name = "IntervalTrigger"),
     JsonSubTypes.Type(value = JenkinsAction::class, name = "JenkinsAction"),
-    JsonSubTypes.Type(value = RockmelonAction::class, name = "RockmelonAction"),
     JsonSubTypes.Type(value = RegexAction::class, name = "RegexAction"),
     JsonSubTypes.Type(value = OpenAIAction::class, name = "OpenAIAction"),
     JsonSubTypes.Type(value = TelegramAction::class, name = "TelegramAction"),

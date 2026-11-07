@@ -12,7 +12,6 @@ import com.dopplertask.dopplertask.domain.action.trigger.Trigger;
 import com.dopplertask.dopplertask.dto.ActionInfoDto;
 import com.dopplertask.dopplertask.dto.ActionTestRequestDTO;
 import com.dopplertask.dopplertask.dto.ActionListResponseDto;
-import com.dopplertask.dopplertask.dto.LoginParameters;
 import com.dopplertask.dopplertask.dto.SimpleChecksumResponseDto;
 import com.dopplertask.dopplertask.dto.SimpleIdResponseDto;
 import com.dopplertask.dopplertask.dto.SimpleMessageResponseDTO;
@@ -20,7 +19,6 @@ import com.dopplertask.dopplertask.dto.TaskCreationDTO;
 import com.dopplertask.dopplertask.dto.TaskExecutionDTO;
 import com.dopplertask.dopplertask.dto.TaskExecutionListDTO;
 import com.dopplertask.dopplertask.dto.TaskExecutionLogResponseDTO;
-import com.dopplertask.dopplertask.dto.TaskNameDTO;
 import com.dopplertask.dopplertask.dto.TaskRequestDTO;
 import com.dopplertask.dopplertask.dto.TaskResponseSingleDTO;
 import com.dopplertask.dopplertask.service.ExecutionService;
@@ -63,7 +61,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 @RestController
 public class TaskController {
@@ -246,23 +243,6 @@ public class TaskController {
 
     }
 
-    @PostMapping(path = "/task/push")
-    public ResponseEntity<TaskNameDTO> pushTask(@RequestBody TaskNameDTO taskNameDTO) {
-        try {
-            boolean pushed = taskService.pushTask(taskNameDTO.getTaskName());
-
-            if (pushed) {
-                return new ResponseEntity<>(taskNameDTO, HttpStatus.OK);
-            }
-        } catch (RuntimeException e) {
-            TaskNameDTO errorMsg = new TaskNameDTO();
-            errorMsg.setTaskName(e.getMessage());
-            return new ResponseEntity<>(errorMsg, HttpStatus.BAD_REQUEST);
-        }
-
-        return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
-    }
-
     @PostMapping(path = "/task")
     public ResponseEntity<SimpleChecksumResponseDto> createTask(@RequestBody String body, @RequestParam(defaultValue = "false") boolean autoSaved, HttpServletRequest servletRequest) throws IOException, NoSuchAlgorithmException {
 
@@ -389,27 +369,6 @@ public class TaskController {
         return new ResponseEntity<>(groupedTasks, HttpStatus.OK);
     }
 
-    @GetMapping("/task/detail")
-    public ResponseEntity<List<TaskResponseSingleDTO>> getDetailedTasks() {
-        List<Task> tasks = taskService.getAllTasks();
-        List<TaskResponseSingleDTO> taskResponseDTOList = new ArrayList<>();
-
-        for (Task task : tasks) {
-            TaskResponseSingleDTO taskDto = new TaskResponseSingleDTO();
-            taskDto.setChecksum(task.getChecksum());
-            taskDto.setName(task.getName());
-            taskDto.setCreated(task.getCreated());
-            taskDto.setActions(task.getActionList());
-            taskDto.setParameters(task.getTaskParameterList());
-            taskDto.setConnections(task.getConnections());
-            taskDto.setActive(task.isActive());
-
-            taskResponseDTOList.add(taskDto);
-        }
-
-        return new ResponseEntity<>(taskResponseDTOList, HttpStatus.OK);
-    }
-
     private static ResponseEntity<TaskResponseSingleDTO> singleTask(Task task) {
         if (task == null) {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
@@ -425,12 +384,6 @@ public class TaskController {
         return new ResponseEntity<>(taskDto, HttpStatus.OK);
     }
 
-    @GetMapping("/task/{id}")
-    public ResponseEntity<TaskResponseSingleDTO> getTask(@PathVariable("id") long id) {
-        Task task = taskService.getTask(id);
-        return singleTask(task);
-    }
-
     @GetMapping("/task/{name}/taskname")
     public ResponseEntity<TaskResponseSingleDTO> getTask(@PathVariable("name") String id) {
         Task task = taskService.getTaskByName(id);
@@ -441,20 +394,6 @@ public class TaskController {
     public ResponseEntity<TaskResponseSingleDTO> getTaskByChecksum(@PathVariable("checksum") String checksum) {
         Task task = taskService.getTaskByChecksum(checksum);
         return singleTask(task);
-    }
-
-    @GetMapping("/task/download")
-    public ResponseEntity<SimpleChecksumResponseDto> pullTask(@RequestParam("taskName") String taskName) {
-        Optional<Task> task = executionService.pullTask(taskName, taskService);
-        if (task.isPresent()) {
-            SimpleChecksumResponseDto checksumDto = new SimpleChecksumResponseDto();
-            checksumDto.setChecksum(task.get().getChecksum());
-
-            return new ResponseEntity<>(checksumDto, HttpStatus.OK);
-        }
-        SimpleChecksumResponseDto checksumResponseDto = new SimpleChecksumResponseDto();
-        checksumResponseDto.setChecksum("Did not find task.");
-        return new ResponseEntity<>(checksumResponseDto, HttpStatus.NOT_FOUND);
     }
 
     @GetMapping("/executions")
@@ -476,18 +415,6 @@ public class TaskController {
         executionListDTO.setExecutions(executionDTOList);
 
         return new ResponseEntity<>(executionListDTO, HttpStatus.OK);
-    }
-
-    @PostMapping("/login")
-    public ResponseEntity<SimpleMessageResponseDTO> login(@RequestBody LoginParameters loginParameters) {
-
-        boolean loggedIn = taskService.loginUser(loginParameters.getUsername(), loginParameters.getPassword());
-
-        if (!loggedIn) {
-            return new ResponseEntity<>(new SimpleMessageResponseDTO("Could not login. Check your credentials."), HttpStatus.BAD_REQUEST);
-        }
-
-        return new ResponseEntity<>(new SimpleMessageResponseDTO("Successfully logged in"), HttpStatus.OK);
     }
 
     @DeleteMapping("/task/**")

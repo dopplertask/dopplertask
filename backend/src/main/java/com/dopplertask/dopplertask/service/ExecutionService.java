@@ -1,6 +1,5 @@
 package com.dopplertask.dopplertask.service;
 
-import com.dopplertask.dopplertask.domain.Task;
 import com.dopplertask.dopplertask.domain.TaskExecution;
 import com.dopplertask.dopplertask.domain.TaskExecutionStep;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,15 +26,6 @@ public interface ExecutionService {
     TaskExecution startExecution(TaskExecutionRequest taskExecutionRequest, TaskService taskService, boolean startedByTrigger);
 
     /**
-     * Pulls task from online repository, compares it to local tasks to determine if there is a need to save it.
-     *
-     * @param taskName    of the task.
-     * @param taskService to allow for task creation.
-     * @return a Task if one is found online or locally, otherwise nothing.
-     */
-    Optional<Task> pullTask(String taskName, TaskService taskService);
-
-    /**
      * Runs all actions in an execution.
      *
      * @param taskId         of the requested task.
@@ -46,11 +36,7 @@ public interface ExecutionService {
      */
     TaskExecution processActions(Long taskId, Long executionId, TaskService taskService);
 
-    Optional<Task> findOrDownloadByName(String taskName, TaskService taskService);
-
     Optional<TaskExecution> getExecution(long id);
-
-    void deleteExecution(long id);
 
     @Transactional
     TaskExecution processActions(Long taskId, Long executionId, TaskService taskService, TriggerInfo triggerInfo);

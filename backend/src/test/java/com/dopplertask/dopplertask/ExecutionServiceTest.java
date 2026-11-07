@@ -295,27 +295,6 @@ public class ExecutionServiceTest {
         Assert.assertEquals(exampleTask, resultExecution.getTask());
     }
 
-    @Test
-    public void testPullNonExistentTaskShouldReturnEmptyOptional() {
-        Optional<Task> task = executionService.pullTask("Test", taskService);
-
-        Assert.assertEquals(true, task.isEmpty());
-    }
-
-    @Test
-    public void testPullNonExistentOnlineTaskShouldReturnLocalExistingTask() {
-        Task exampleTask = new Task();
-        exampleTask.setName("ExampleTask");
-        exampleTask.setChecksum("123123");
-        Optional<Task> exampleTaskOptional = Optional.of(exampleTask);
-        when(taskDao.findFirstByNameAndProposedFalseOrderByCreatedDesc(eq("ExampleTask"))).thenReturn(exampleTaskOptional);
-
-        Optional<Task> task = executionService.pullTask("ExampleTask", taskService);
-
-        Assert.assertEquals(true, task.isPresent());
-        Assert.assertEquals("123123", task.get().getChecksum());
-    }
-
     private TaskExecutionRequest createTaskRequest(String taskName, String checksum, long executionId) {
         TaskExecutionRequest request = new TaskExecutionRequest();
         request.setTaskName(taskName);
