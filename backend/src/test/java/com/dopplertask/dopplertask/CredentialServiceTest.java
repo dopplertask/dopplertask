@@ -109,7 +109,7 @@ public class CredentialServiceTest {
 
     @Test
     public void testASecretThatAStepRepeatsIsHiddenButNotWhatIsNotSecretSuccess() throws IOException {
-        credentials.create("prod-jira", "JiraAction", Map.of("email", "ops@example.com", "token", "the-real-token"));
+        credentials.create("prod-jira", "Atlassian account", Map.of("email", "ops@example.com", "token", "the-real-token"));
         JiraAction jira = new JiraAction();
         jira.setCredential("prod-jira");
         ActionResult result = credentials.runWith(jira, () -> {
@@ -122,7 +122,7 @@ public class CredentialServiceTest {
 
     @Test
     public void testAMissingOrWrongCredentialFailsTheStepWithoutRunningItFail() throws IOException {
-        credentials.create("prod-jira", "JiraAction", Map.of("token", "t"));
+        credentials.create("prod-jira", "Atlassian account", Map.of("token", "t"));
         ActionResult missing = credentials.runWith(slackUsing("gone"), () -> {
             throw new AssertionError("The step should not run.");
         });
@@ -130,12 +130,12 @@ public class CredentialServiceTest {
         ActionResult wrongKind = credentials.runWith(slackUsing("prod-jira"), () -> {
             throw new AssertionError("The step should not run.");
         });
-        Assert.assertTrue(wrongKind.getErrorMsg(), wrongKind.getErrorMsg().contains("is of the kind JiraAction"));
+        Assert.assertTrue(wrongKind.getErrorMsg(), wrongKind.getErrorMsg().contains("is of the kind Atlassian account"));
     }
 
     @Test
     public void testAnEmptyFieldKeepsItsValueWhenUpdatingSuccess() throws IOException {
-        credentials.create("prod-jira", "JiraAction", Map.of("email", "old@example.com", "token", "kept"));
+        credentials.create("prod-jira", "Atlassian account", Map.of("email", "old@example.com", "token", "kept"));
         credentials.update("prod-jira", Map.of("email", "new@example.com", "token", ""));
         JiraAction jira = new JiraAction();
         jira.setCredential("prod-jira");
@@ -249,6 +249,13 @@ public class CredentialServiceTest {
                 Assert.assertEquals(stepClass.getSimpleName(), earlier, CredentialService.fieldsOf(stepClass));
             }
         });
+    }
+
+    @Test
+    public void testGoogleAndAtlassianStepsShareTheirAccountsSuccess() {
+        Assert.assertEquals(CredentialService.credentialTypeOf(com.dopplertask.dopplertask.domain.action.integration.storage.GoogleSheetsAction.class), CredentialService.credentialTypeOf(com.dopplertask.dopplertask.domain.action.integration.storage.GoogleDriveAction.class));
+        Assert.assertEquals(CredentialService.credentialTypeOf(com.dopplertask.dopplertask.domain.action.integration.storage.GoogleSheetsAction.class), CredentialService.credentialTypeOf(com.dopplertask.dopplertask.domain.action.integration.storage.GoogleCalendarAction.class));
+        Assert.assertEquals(CredentialService.credentialTypeOf(JiraAction.class), CredentialService.credentialTypeOf(com.dopplertask.dopplertask.domain.action.integration.storage.ConfluenceAction.class));
     }
 
     @Test

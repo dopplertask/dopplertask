@@ -19,6 +19,8 @@ import jakarta.persistence.Lob
 import jakarta.persistence.Table
 import jakarta.persistence.Transient
 
+const val ATLASSIAN_ACCOUNT = "Atlassian account"
+
 @Entity
 @Table(name = "JiraAction")
 @DiscriminatorValue("jira_action")
@@ -100,6 +102,9 @@ class JiraAction : Action() {
         }
         return result
     }
+
+    override val credentialType: String
+        get() = ATLASSIAN_ACCOUNT
 
     override val outputs: Map<String, String>
         get() = mapOf("issueKey" to "Issue key", "url" to "Address")

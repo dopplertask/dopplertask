@@ -11,18 +11,6 @@ import com.dopplertask.dopplertask.service.BroadcastListener
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import tools.jackson.databind.JsonNode
-import com.nimbusds.jose.JWSAlgorithm
-import com.nimbusds.jose.JWSHeader
-import com.nimbusds.jose.crypto.RSASSASigner
-import com.nimbusds.jwt.JWTClaimsSet
-import com.nimbusds.jwt.SignedJWT
-import java.net.URLEncoder
-import java.nio.charset.StandardCharsets
-import java.security.KeyFactory
-import java.security.spec.PKCS8EncodedKeySpec
-import java.time.Instant
-import java.util.Base64
-import java.util.Date
 import java.io.IOException
 import jakarta.persistence.Column
 import jakarta.persistence.DiscriminatorValue
@@ -71,17 +59,12 @@ class GoogleSheetsAction : Action() {
         if (spreadsheetId.isBlank()) return ActionResult.failure("Google Sheets needs the address or the id of a spreadsheet.")
         if (operationValue == ADD_ROW && rowValues.isNullOrBlank()) return ActionResult.failure("Google Sheets needs the values of the row, one per line.")
 
-        val account = try {
-            JsonApi.mapper.readTree(keyText)
-        } catch (e: Exception) {
-            return ActionResult.failure("Google Sheets could not read the key file, which should be the JSON file of the service account.")
-        }
-        val tokens = accessToken(account) ?: return ActionResult.failure("Google Sheets could not read the private key in the key file.")
-        if (tokens.statusCode == StatusCode.FAILURE) return tokens
-        val headers = mapOf("Authorization" to "Bearer " + JsonApi.parsed(tokens).path("access_token").asText())
+        val signIn = GoogleAccount.signIn("Google Sheets", keyText, SCOPE)
+        if (signIn.failure != null) return signIn.failure
+        val headers = signIn.headers
 
         val base = read(baseUrl).trimEnd('/')
-        val range = URLEncoder.encode(sheetValue, StandardCharsets.UTF_8).replace("+", "%20")
+        val range = JsonApi.encoded(sheetValue)
         val values = "$base/v4/spreadsheets/$spreadsheetId/values/$range"
         return when (operationValue) {
             READ_ROWS -> {
@@ -104,31 +87,14 @@ class GoogleSheetsAction : Action() {
         }
     }
 
-    private fun accessToken(account: JsonNode): ActionResult? {
-        val tokenUrl = account.path("token_uri").asText("https://oauth2.googleapis.com/token")
-        val now = Instant.now()
-        val claims = JWTClaimsSet.Builder()
-            .issuer(account.path("client_email").asText())
-            .audience(tokenUrl)
-            .claim("scope", "https://www.googleapis.com/auth/spreadsheets")
-            .issueTime(Date.from(now))
-            .expirationTime(Date.from(now.plusSeconds(TOKEN_SECONDS)))
-            .build()
-        val assertion = SignedJWT(JWSHeader(JWSAlgorithm.RS256), claims)
-        try {
-            val keyBytes = Base64.getMimeDecoder().decode(account.path("private_key").asText().replace(Regex("-----[A-Z ]+-----"), ""))
-            assertion.sign(RSASSASigner(KeyFactory.getInstance("RSA").generatePrivate(PKCS8EncodedKeySpec(keyBytes))))
-        } catch (e: Exception) {
-            return null
-        }
-        return JsonApi.callForm("Google Sheets", tokenUrl, mapOf(), mapOf("grant_type" to "urn:ietf:params:oauth:grant-type:jwt-bearer", "assertion" to assertion.serialize()))
-    }
-
     // The first row names the columns, and a short row leaves the last columns out.
     private fun rowsOf(values: JsonNode): List<Map<String, String>> {
         val names = values.path(0).values().map { it.asText() }
         return values.values().drop(1).map { row -> names.zip(row.values().map { it.asText() }).toMap() }
     }
+
+    override val credentialType: String
+        get() = GOOGLE_SERVICE_ACCOUNT
 
     override val outputs: Map<String, String>
         get() = mapOf("rowCount" to "Number of rows")
@@ -154,7 +120,7 @@ class GoogleSheetsAction : Action() {
     private companion object {
         const val READ_ROWS = "readRows"
         const val ADD_ROW = "addRow"
-        const val TOKEN_SECONDS = 3600L
+        const val SCOPE = "https://www.googleapis.com/auth/spreadsheets"
         val SPREADSHEET_ID = Regex("/spreadsheets/d/([\\w-]+)")
     }
 }

@@ -634,6 +634,265 @@ Run Javascript or Velocity script
 * type: JAVASCRIPT or VELOCITY
 * script: Code to execute
 
+#### HubSpotAction
+Saves or finds a HubSpot contact, or creates a deal. The next step can read `$lastLog.outputVariables.contactId`, `$lastLog.outputVariables.found`, `$lastLog.outputVariables.dealId`.
+
+##### Variables
+* operation: `saveContact`, `findContact`, `createDeal`.
+* token: Access token. From a private app in HubSpot.
+* email: Email. A contact with this email is updated, and otherwise created.
+* firstName: First name.
+* lastName: Last name.
+* dealName: Deal name.
+* amount: Amount.
+* dealStage: Deal stage. The internal name of the stage, such as appointmentscheduled.
+
+#### SalesforceAction
+Creates or updates a Salesforce record, or runs a query. The next step can read `$lastLog.outputVariables.recordId`, `$lastLog.outputVariables.url`, `$lastLog.outputVariables.recordCount`.
+
+##### Variables
+* operation: `createRecord`, `updateRecord`, `runQuery`.
+* siteUrl: My Domain address. Such as https://acme.my.salesforce.com.
+* clientId: Consumer key. From a connected app with the client credentials flow.
+* clientSecret: Consumer secret.
+* objectName: Object. Such as Contact, Lead or Case.
+* recordId: Record id. A step that creates a record gives it as $lastLog.outputVariables.recordId.
+* recordFields: Fields. As JSON, such as {"LastName": "Lovelace"}.
+* query: Query. Such as SELECT Id, Name FROM Contact LIMIT 10.
+
+#### PipedriveAction
+Creates a Pipedrive person or deal, or adds a note to a deal. The next step can read `$lastLog.outputVariables.personId`, `$lastLog.outputVariables.dealId`.
+
+##### Variables
+* operation: `createPerson`, `createDeal`, `addNote`.
+* siteUrl: Company address. Such as https://acme.pipedrive.com.
+* token: API token. Under Personal preferences, API.
+* personName: Name.
+* email: Email.
+* dealTitle: Title.
+* dealValue: Value.
+* personId: Person id. A step that creates a person gives it as $lastLog.outputVariables.personId.
+* dealId: Deal id. A step that creates a deal gives it as $lastLog.outputVariables.dealId.
+* note: Note.
+
+#### MailchimpAction
+Adds, tags or unsubscribes a Mailchimp contact. The next step can read `$lastLog.outputVariables.contactId`.
+
+##### Variables
+* operation: `saveContact`, `tagContact`, `unsubscribeContact`.
+* apiKey: API key. Under Account, Extras, API keys. It ends with where your account is, such as -us21.
+* audienceId: Audience ID. Under Audience, Settings.
+* email: Email.
+* firstName: First name.
+* lastName: Last name.
+* tagName: Tag.
+* baseUrl: Base URL. Only change this to go through a proxy. It is otherwise worked out from the API key.
+
+#### StripeAction
+Creates a Stripe customer or payment link, reads a payment or refunds it. The next step can read `$lastLog.outputVariables.customerId`, `$lastLog.outputVariables.url`, `$lastLog.outputVariables.paymentStatus`, `$lastLog.outputVariables.refundId`.
+
+##### Variables
+* operation: `createCustomer`, `createPaymentLink`, `readPayment`, `refundPayment`.
+* secretKey: Secret key. Under Developers, API keys. A restricted key limits what this step can do.
+* email: Email.
+* customerName: Name.
+* priceId: Price ID. Such as price_1Mo. It is shown on the product.
+* quantity: Quantity.
+* paymentId: Payment ID. Such as pi_3Mt.
+* amount: Amount. In the smallest unit, such as cents. Leave it empty to refund all of it.
+
+#### ShopifyAction
+Reads, lists or cancels Shopify orders, or finds a customer. The next step can read `$lastLog.outputVariables.orderId`, `$lastLog.outputVariables.url`, `$lastLog.outputVariables.orderCount`, `$lastLog.outputVariables.customerId`, `$lastLog.outputVariables.found`.
+
+##### Variables
+* operation: `readOrder`, `listOpenOrders`, `cancelOrder`, `findCustomer`.
+* siteUrl: Store. Such as https://acme.myshopify.com.
+* clientId: Client ID. From an app in the Dev Dashboard, under Settings.
+* clientSecret: Client secret.
+* token: Admin API access token. Instead of the client ID and secret, for a custom app that was made in the admin.
+* orderNumber: Order number. The number shown on the order, such as 1001.
+* email: Email.
+
+#### WooCommerceAction
+Reads or updates a WooCommerce order, or sets the stock of a product. The next step can read `$lastLog.outputVariables.orderStatus`, `$lastLog.outputVariables.url`.
+
+##### Variables
+* operation: `readOrder`, `setOrderStatus`, `addOrderNote`, `setStock`.
+* siteUrl: Site. Such as https://shop.example.com.
+* consumerKey: Consumer key. Under WooCommerce, Settings, Advanced, REST API.
+* consumerSecret: Consumer secret.
+* orderNumber: Order number.
+* orderStatus: Status. Such as processing, completed or cancelled.
+* note: Note.
+* visibleToCustomer: Visible to the customer. Otherwise the note is only for the shop.
+* productId: Product ID. Shown in the list of products.
+* stockQuantity: Stock.
+
+#### IntercomAction
+Creates an Intercom contact, or replies to or closes a conversation. The next step can read `$lastLog.outputVariables.contactId`.
+
+##### Variables
+* operation: `createContact`, `replyToConversation`, `closeConversation`.
+* token: Access token. From an app in the Developer Hub.
+* email: Email.
+* contactName: Name.
+* conversationId: Conversation ID. The last number in the address of the conversation.
+* teammateId: Teammate ID. The last number in the address of your teammate profile. The reply is sent in this name.
+* comment: Reply.
+* visibleToCustomer: Visible to the customer. Otherwise the reply is an internal note.
+
+#### FreshdeskAction
+Creates, notes on, replies to or solves a Freshdesk ticket. The next step can read `$lastLog.outputVariables.ticketNumber`, `$lastLog.outputVariables.url`.
+
+##### Variables
+* operation: `createTicket`, `addNote`, `replyToCustomer`, `solveTicket`.
+* siteUrl: Site. Such as https://acme.freshdesk.com.
+* apiKey: API key. Under Profile settings.
+* ticketNumber: Ticket number. A step that creates a ticket gives it as $lastLog.outputVariables.ticketNumber.
+* email: Email of the customer.
+* subject: Subject.
+* ticketDescription: Description.
+* comment: Text.
+
+#### WhatsAppAction
+Sends a WhatsApp message or template. The next step can read `$lastLog.outputVariables.messageId`.
+
+##### Variables
+* operation: `sendMessage`, `sendTemplate`.
+* token: Access token. From a system user in Meta Business settings.
+* phoneNumberId: Phone number ID. Under WhatsApp, API Setup. It is not the phone number.
+* to: To. The number with its country code, such as 46701234567.
+* message: Message. WhatsApp only delivers this within 24 hours of the last message from this person. Use a template otherwise.
+* templateName: Template. An approved template, under WhatsApp Manager, Message templates.
+* templateLanguage: Language of the template.
+
+#### AsanaAction
+Creates, comments on or completes an Asana task. The next step can read `$lastLog.outputVariables.taskId`, `$lastLog.outputVariables.url`.
+
+##### Variables
+* operation: `createTask`, `addComment`, `completeTask`.
+* token: Personal access token. Made in the Asana developer console.
+* projectId: Project. The number in the address of the project.
+* taskId: Task. A step that creates a task gives it as $lastLog.outputVariables.taskId.
+* title: Title.
+* taskDescription: Description.
+* comment: Comment.
+
+#### TrelloAction
+Creates, moves or comments on a Trello card. The next step can read `$lastLog.outputVariables.cardId`, `$lastLog.outputVariables.url`.
+
+##### Variables
+* operation: `createCard`, `moveCard`, `addComment`.
+* apiKey: API key. Under Power-Ups and integrations, in your own Power-Up.
+* token: Token. Made from the same page, with the link next to the API key.
+* listId: List ID. Add .json to the address of a board to see the id of each list.
+* cardId: Card. The short code in the address of the card.
+* title: Title.
+* cardDescription: Description.
+* comment: Comment.
+
+#### ClickUpAction
+Creates, comments on or changes the status of a ClickUp task. The next step can read `$lastLog.outputVariables.taskId`, `$lastLog.outputVariables.url`.
+
+##### Variables
+* operation: `createTask`, `addComment`, `setStatus`.
+* token: API token. Under Settings, Apps. It starts with pk_.
+* listId: List. The last number in the address of the list.
+* taskId: Task. The code at the end of the address of the task.
+* title: Title.
+* taskDescription: Description.
+* comment: Comment.
+* taskStatus: Status. As it is written in the list, such as in progress.
+
+#### MondayAction
+Creates or comments on a monday.com item, or sets one of its columns. The next step can read `$lastLog.outputVariables.itemId`.
+
+##### Variables
+* operation: `createItem`, `addComment`, `setColumn`.
+* token: API token. Under your profile, Developers, My access tokens.
+* boardId: Board. The number in the address of the board.
+* itemId: Item. A step that creates an item gives it as $lastLog.outputVariables.itemId.
+* itemName: Name.
+* columnValues: Column values. As JSON, such as {"status": "Done"}.
+* comment: Update.
+* columnId: Column ID. Shown in the settings of the column, such as status.
+* columnValue: Value.
+
+#### AirtableAction
+Reads, adds or updates Airtable records. The next step can read `$lastLog.outputVariables.recordCount`, `$lastLog.outputVariables.recordId`.
+
+##### Variables
+* operation: `readRecords`, `addRecord`, `updateRecord`.
+* token: Personal access token. Made in the builder hub, with the scopes for records.
+* base: Base. The address of the base, or its id that starts with app.
+* tableName: Table. As it is named in the base.
+* filterFormula: Filter. A formula, such as {Status} = "Open". Leave it empty for all records.
+* recordId: Record id. Starts with rec.
+* recordFields: Fields. As JSON, such as {"Name": "Ada"}.
+
+#### SupabaseAction
+Reads, adds or updates rows in a Supabase table. The next step can read `$lastLog.outputVariables.rowCount`.
+
+##### Variables
+* operation: `readRows`, `addRows`, `updateRows`.
+* siteUrl: Project URL. Such as https://abc.supabase.co. Under Project settings, API.
+* secretKey: Secret key. Under Project settings, API keys. It can read and change all data, so only store it here.
+* tableName: Table.
+* filter: Filter. Which rows, such as status=eq.open. Combine with &.
+* rowValues: Values. As JSON, such as {"status": "done"}, or a list of these to add several.
+
+#### GoogleDriveAction
+Finds, reads, creates or shares a Google Drive file. The next step can read `$lastLog.outputVariables.fileCount`, `$lastLog.outputVariables.fileId`, `$lastLog.outputVariables.url`.
+
+##### Variables
+* operation: `findFiles`, `readTextFile`, `createTextFile`, `shareFile`.
+* serviceAccountKey: Key file of the service account. The JSON file. Share a folder or a shared drive with the email of the account.
+* fileName: File name. For finding, a part of the name is enough.
+* fileId: File. The long code in the address of the file. Reading is for text files, and not Google Docs.
+* folderId: Folder. The long code in the address of a folder in a shared drive, as a service account has no storage of its own.
+* fileContent: Content.
+* email: Share with. An email address.
+* role: Access. reader, commenter or writer.
+
+#### GoogleCalendarAction
+Creates, lists or deletes Google Calendar events. The next step can read `$lastLog.outputVariables.eventId`, `$lastLog.outputVariables.url`, `$lastLog.outputVariables.eventCount`.
+
+##### Variables
+* operation: `createEvent`, `listEvents`, `deleteEvent`.
+* serviceAccountKey: Key file of the service account. The JSON file. Share the calendar with the email of the account.
+* calendar: Calendar ID. Under the settings of the calendar, such as team@example.com.
+* title: Title.
+* eventDescription: Description.
+* startTime: Start. With its time zone, such as 2026-12-01T09:00:00+01:00.
+* endTime: End. With its time zone, such as 2026-12-01T10:00:00+01:00.
+* eventId: Event ID. A step that creates an event gives it as $lastLog.outputVariables.eventId.
+
+#### ConfluenceAction
+Creates, reads or updates a Confluence page. The next step can read `$lastLog.outputVariables.pageId`, `$lastLog.outputVariables.url`.
+
+##### Variables
+* operation: `createPage`, `readPage`, `updatePage`.
+* siteUrl: Site. Such as https://acme.atlassian.net.
+* email: Email. The email of the Atlassian account.
+* token: API token. Made under the security settings of the Atlassian account.
+* spaceKey: Space. The short key in the address of the space, such as ENG.
+* pageId: Page. The number in the address of the page.
+* parentPageId: Under the page. The number in the address of a page. Otherwise it goes directly in the space.
+* title: Title. When updating, leave it empty to keep it.
+* pageContent: Content. In the storage format of Confluence, such as <p>Hello</p>.
+
+#### MongoDBAction
+Finds, adds, updates or deletes MongoDB documents. The next step can read `$lastLog.outputVariables.documentCount`, `$lastLog.outputVariables.documentId`.
+
+##### Variables
+* operation: `findDocuments`, `addDocument`, `updateDocuments`, `deleteDocuments`.
+* connectionString: Connection string. Such as mongodb+srv://user:password@cluster.example.net.
+* database: Database.
+* collection: Collection.
+* filter: Filter. Which documents, as JSON, such as {"status": "open"}.
+* document: Document. As JSON.
+* changes: Changes. As JSON, such as {"$set": {"status": "done"}}.
+
 ### Retry
 All actions have retry mechanisms to allow you to retry an action.
 #### Variables
@@ -719,7 +978,7 @@ What an agent saves appears in the editor as a proposal. Nothing runs until you 
 * **A step has no time limit of its own.** Up to about 40 to 50 runs go at once, so steps that hang forever can use up the room for new runs. Use commands that have their own timeout.
 
 ## Credentials
-What a step signs in with is kept apart from tasks, under **Credentials** in the editor or through the API. A step only has `credential`, the name of one of the type it needs, so a task can be shared, exported and read by an agent without exposing anything. Steps that sign in to the same service share a type: Send and Read email use a `Mail account`, and SSH and SCP use a `Server login`. Other steps have a type of their own, named after the step.
+What a step signs in with is kept apart from tasks, under **Credentials** in the editor or through the API. A step only has `credential`, the name of one of the type it needs, so a task can be shared, exported and read by an agent without exposing anything. Steps that sign in to the same service share a type: Email and Read email use a `Mail account`, SSH and SCP a `Server login`, Google Sheets, Drive and Calendar a `Google service account`, and Jira and Confluence an `Atlassian account`. Other steps have a type of their own, named after the step.
 
 Create one under Credentials, or with New on a step:
 ```
