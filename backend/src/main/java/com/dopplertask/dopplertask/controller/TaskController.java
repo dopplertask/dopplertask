@@ -28,10 +28,10 @@ import com.dopplertask.dopplertask.service.HttpMethod;
 import com.dopplertask.dopplertask.service.TaskRequest;
 import com.dopplertask.dopplertask.service.TaskService;
 import com.dopplertask.dopplertask.service.TriggerInfo;
+import com.dopplertask.dopplertask.service.StepRules;
 import com.dopplertask.dopplertask.service.VariableExtractorUtil;
 import com.dopplertask.dopplertask.service.WebhookTriggerInfo;
 import tools.jackson.databind.ObjectMapper;
-import org.apache.velocity.app.VelocityEngine;
 import org.jetbrains.annotations.NotNull;
 import com.dopplertask.dopplertask.filter.AccessFilter;
 import com.dopplertask.dopplertask.filter.Caller;
@@ -100,6 +100,9 @@ public class TaskController {
             throw new ApprovalRequiredException("Task " + request.getTaskName() + " has no approved version yet. A person has to approve it before it can run.");
         }
     }
+
+    @Autowired
+    private VariableExtractorUtil variableExtractorUtil;
 
     @PostMapping(path = "/schedule/task")
     public ResponseEntity<SimpleIdResponseDto> scheduleTask(@RequestBody TaskRequestDTO taskRequestDTO, HttpServletRequest servletRequest) {
@@ -327,7 +330,7 @@ public class TaskController {
 
     private ResponseEntity<ActionResult> runAction(Action action, TaskExecution execution) throws IOException {
         try {
-            ActionResult actionResult = credentialService.runWith(action, () -> action.run(taskService, execution, new VariableExtractorUtil(new VelocityEngine()), (output, outputType) -> {
+            ActionResult actionResult = credentialService.runWith(action, execution, () -> action.run(taskService, execution, variableExtractorUtil, (output, outputType) -> {
             }));
             if (actionResult != null) {
                 return new ResponseEntity<>(actionResult, HttpStatus.OK);
@@ -537,6 +540,9 @@ public class TaskController {
         ActionListResponseDto actionListResponseDto = new ActionListResponseDto();
         for (Class<?> currentClass : CredentialService.stepTypes().values()) {
             Action instance = (Action) currentClass.getDeclaredConstructor().newInstance();
+            if (StepRules.active().refusalOf(instance) != null) {
+                continue;
+            }
             boolean trigger = instance.getClass().getSuperclass().getSimpleName().equals(Trigger.class.getSimpleName());
             actionListResponseDto.getActions().add(new ActionInfoDto(currentClass.getSimpleName(), instance.getDescription(), instance.getActionInfo(), trigger, instance.getOutputs(), instance.getCredentialType()));
         }

@@ -1,9 +1,12 @@
 package com.dopplertask.dopplertask.service;
 
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.Cipher;
+import javax.crypto.Mac;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.IOException;
@@ -33,11 +36,17 @@ public class CredentialCipher {
     private final String givenKey;
     private final Path keyFile;
     private SecretKeySpec key;
+    private ObjectProvider<CustomerScope> customers;
 
     public CredentialCipher(@Value("${dopplertask.encryptionKey:}") String givenKey,
                             @Value("${dopplertask.keyFile:${user.home}/.dopplertask/encryption.key}") String keyFile) {
         this.givenKey = givenKey;
         this.keyFile = Path.of(keyFile);
+    }
+
+    @Autowired(required = false)
+    public void setCustomers(ObjectProvider<CustomerScope> customers) {
+        this.customers = customers;
     }
 
     public String encrypt(String text) {
@@ -64,7 +73,20 @@ public class CredentialCipher {
         }
     }
 
-    private synchronized SecretKeySpec key() throws IOException, GeneralSecurityException {
+    /** Each customer's credentials have a key of their own. An install has one customer, and uses the key itself. */
+    private SecretKeySpec key() throws IOException, GeneralSecurityException {
+        SecretKeySpec installKey = installKey();
+        CustomerScope scope = customers == null ? null : customers.getIfAvailable();
+        String customer = scope == null ? "" : scope.current();
+        if (customer.isEmpty()) {
+            return installKey;
+        }
+        Mac derivation = Mac.getInstance("HmacSHA256");
+        derivation.init(installKey);
+        return new SecretKeySpec(derivation.doFinal(customer.getBytes(StandardCharsets.UTF_8)), "AES");
+    }
+
+    private synchronized SecretKeySpec installKey() throws IOException, GeneralSecurityException {
         if (key == null) {
             byte[] bytes = givenKey.isEmpty()
                     ? keyFromFile()

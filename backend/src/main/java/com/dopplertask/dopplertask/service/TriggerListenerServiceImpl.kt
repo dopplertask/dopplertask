@@ -4,6 +4,7 @@ import com.dopplertask.dopplertask.dao.TaskDao
 import com.dopplertask.dopplertask.domain.Task
 import com.dopplertask.dopplertask.domain.action.trigger.Trigger
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.context.annotation.Lazy
@@ -36,6 +37,9 @@ open class TriggerListenerServiceImpl : TriggerListenerService {
     protected lateinit var txManager: PlatformTransactionManager
 
     @Autowired
+    protected lateinit var customerScope: ObjectProvider<CustomerScope>
+
+    @Autowired
     @Lazy
     constructor(taskDao: TaskDao, taskService: TaskService) {
         this.taskDao = taskDao
@@ -47,7 +51,7 @@ open class TriggerListenerServiceImpl : TriggerListenerService {
     @PostConstruct
     fun init() {
         val tmpl = TransactionTemplate(txManager)
-        tmpl.executeWithoutResult { startActiveTriggers() }
+        customers().forEachCustomer { tmpl.executeWithoutResult { startActiveTriggers() } }
 
     }
 
@@ -64,8 +68,7 @@ open class TriggerListenerServiceImpl : TriggerListenerService {
         triggerTasks.addAll(tasks)
 
         triggerTasks.forEach { task ->
-            // By default, maximum of 40 active triggers allowed for each Task
-            threadPoolMap[task.name] = Executors.newFixedThreadPool(40)
+            threadPoolMap[poolName(task.name)] = Executors.newVirtualThreadPerTaskExecutor()
 
             startTriggers(task)
         }
@@ -78,13 +81,12 @@ open class TriggerListenerServiceImpl : TriggerListenerService {
             val currentTask = task.get();
 
             // Initiate map if not existant
-            if (threadPoolMap[currentTask.name] != null) {
-                // By default, maximum of 40 active triggers allowed for each Task
-                threadPoolMap[currentTask.name]!!.shutdownNow()
+            if (threadPoolMap[poolName(currentTask.name)] != null) {
+                    threadPoolMap[poolName(currentTask.name)]!!.shutdownNow()
             }
 
             if (currentTask.isActive) {
-                threadPoolMap[currentTask.name] = Executors.newFixedThreadPool(40)
+                threadPoolMap[poolName(currentTask.name)] = Executors.newVirtualThreadPerTaskExecutor()
 
                 startTriggers(currentTask)
             }
@@ -93,8 +95,12 @@ open class TriggerListenerServiceImpl : TriggerListenerService {
     }
 
     override fun stopTriggers(taskName: String) {
-        threadPoolMap.remove(taskName)?.shutdownNow()
+        threadPoolMap.remove(poolName(taskName))?.shutdownNow()
     }
+
+    private fun customers(): CustomerScope = if (::customerScope.isInitialized) customerScope.getIfAvailable { LOCAL_CUSTOMER } else LOCAL_CUSTOMER
+
+    private fun poolName(taskName: String?) = customers().current() + "/" + taskName
 
     private fun fire(trigger: Trigger) {
         logger.info("Running trigger")
@@ -109,9 +115,14 @@ open class TriggerListenerServiceImpl : TriggerListenerService {
     }
 
     private fun startTriggers(currentTask: Task) {
-        val threadPool = threadPoolMap[currentTask.name]!!
+        val threadPool = threadPoolMap[poolName(currentTask.name)]!!
         currentTask.triggerActions.forEach { trigger ->
-            threadPool.submit {
+            val refusal = StepRules.active().refusalOf(trigger)
+            if (refusal != null) {
+                logger.warn("Trigger of task ${currentTask.name} did not start. $refusal")
+                return@forEach
+            }
+            threadPool.submit(customers().bound {
                 try {
                     // Shutdown decides, since code running inside a task can swallow the interrupt.
                     while (!threadPool.isShutdown) {
@@ -127,8 +138,10 @@ open class TriggerListenerServiceImpl : TriggerListenerService {
                 } catch (e: InterruptedException) {
                     logger.info("Trigger of task ${currentTask.name} stopped.")
                 }
-            }
+            })
         }
     }
 
 }
+
+private val LOCAL_CUSTOMER = object : CustomerScope {}

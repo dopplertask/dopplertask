@@ -7,6 +7,9 @@ import org.apache.activemq.broker.BrokerService;
 import org.apache.activemq.broker.region.policy.PolicyEntry;
 import org.apache.activemq.broker.region.policy.PolicyMap;
 import org.apache.velocity.app.VelocityEngine;
+import org.apache.velocity.runtime.RuntimeConstants;
+import org.apache.velocity.runtime.resource.loader.StringResourceLoader;
+import org.apache.velocity.util.introspection.SecureUberspector;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.boot.SpringApplication;
@@ -52,14 +55,18 @@ public class Application {
     }
 
     @Bean
-    public BrokerService broker(@Value("${dopplertask.personToken:}") String personToken, @Value("${dopplertask.sso.issuer:}") String ssoIssuer) throws Exception {
+    public BrokerService broker(@Value("${dopplertask.brokerPort:61616}") int brokerPort, @Value("${dopplertask.stompPort:61613}") int stompPort, @Value("${dopplertask.socketPort:61614}") int socketPort, @Value("${dopplertask.personToken:}") String personToken, @Value("${dopplertask.sso.issuer:}") String ssoIssuer) throws Exception {
         final BrokerService broker = new BrokerService();
-        broker.addConnector("tcp://localhost:61616");
+        if (brokerPort > 0) {
+            broker.addConnector("tcp://localhost:" + brokerPort);
+        }
         broker.addConnector("vm://localhost");
-        broker.addConnector("stomp://localhost:61613");
+        if (stompPort > 0) {
+            broker.addConnector("stomp://localhost:" + stompPort);
+        }
         // Any web page can reach this socket and it has no real login, so it stays off once access is protected.
-        if (personToken.isEmpty() && ssoIssuer.isEmpty()) {
-            broker.addConnector("ws://0.0.0.0:61614");
+        if (personToken.isEmpty() && ssoIssuer.isEmpty() && socketPort > 0) {
+            broker.addConnector("ws://0.0.0.0:" + socketPort);
         }
         broker.setPersistent(false);
         broker.setDestinationPolicy(broadcastPolicy());
@@ -116,8 +123,17 @@ public class Application {
     }
 
     @Bean
-    public VelocityEngine velocityEngine() {
+    public VelocityEngine velocityEngine(@Value("${dopplertask.templateLoopLimit:-1}") int templateLoopLimit) {
+        return lockedTemplateEngine(templateLoopLimit);
+    }
+
+    /** A template fills in values. It has no reason to reach Java classes or files on the machine. */
+    public static VelocityEngine lockedTemplateEngine(int loopLimit) {
         VelocityEngine velocityEngine = new VelocityEngine();
+        velocityEngine.setProperty(RuntimeConstants.UBERSPECT_CLASSNAME, SecureUberspector.class.getName());
+        velocityEngine.setProperty(RuntimeConstants.RESOURCE_LOADERS, "string");
+        velocityEngine.setProperty("resource.loader.string.class", StringResourceLoader.class.getName());
+        velocityEngine.setProperty(RuntimeConstants.MAX_NUMBER_LOOPS, loopLimit);
         velocityEngine.init();
         return velocityEngine;
     }

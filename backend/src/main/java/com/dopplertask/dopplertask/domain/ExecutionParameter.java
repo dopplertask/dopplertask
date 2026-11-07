@@ -15,7 +15,7 @@ public class ExecutionParameter {
     private String paramName;
 
     @Lob
-    @Column(name = "paramValue", columnDefinition = "LONGBLOB NOT NULL")
+    @Column(name = "paramValue", nullable = false, length = Integer.MAX_VALUE)
     private byte[] paramValue;
 
     // When adding parameters, the default value type is String (non-binary)

@@ -36,6 +36,9 @@ public class WebhookRouteTest {
     private int port;
 
     @MockitoBean
+    private com.dopplertask.dopplertask.service.VariableExtractorUtil variableExtractorUtil;
+
+    @MockitoBean
     private TaskService taskService;
 
     @MockitoBean

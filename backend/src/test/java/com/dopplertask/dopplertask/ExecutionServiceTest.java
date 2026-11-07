@@ -42,8 +42,8 @@ public class ExecutionServiceTest {
 
     @org.junit.Before
     public void runStepsWithoutCredentials() throws Exception {
-        org.mockito.Mockito.lenient().when(credentialService.runWith(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
-                .thenAnswer(call -> ((CredentialService.StepRun) call.getArgument(1)).run());
+        org.mockito.Mockito.lenient().when(credentialService.runWith(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(call -> ((CredentialService.StepRun) call.getArgument(2)).run());
     }
 
     @Mock

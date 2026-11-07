@@ -525,7 +525,7 @@ public class ExecutionServiceImpl implements ExecutionService {
                         Thread.sleep(Long.parseLong(retryWaitAmount));
                     }
                 }
-                actionResult = credentialService.runWith(currentAction, () -> currentAction.run(taskService, execution, variableExtractorUtil, (output, outputType) -> addLog(execution, output, outputType, Map.of(), true)));
+                actionResult = credentialService.runWith(currentAction, execution, () -> currentAction.run(taskService, execution, variableExtractorUtil, (output, outputType) -> addLog(execution, output, outputType, Map.of(), true)));
 
                 if (!actionResult.getOutput().isEmpty()) {
                     addLog(execution, actionResult.getOutput(), actionResult.getOutputType(), actionResult.getOutputVariables(), actionResult.isBroadcastMessage());
