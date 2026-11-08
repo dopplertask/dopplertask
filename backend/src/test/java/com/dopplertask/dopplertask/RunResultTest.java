@@ -232,10 +232,12 @@ public class RunResultTest {
                 .andReturn().getResponse().getContentAsString();
         long id = Long.parseLong(JsonPath.read(started, "$.id").toString());
         String state = "";
-        for (int attempt = 0; attempt < 100 && !state.contains("TimedWait"); attempt++) {
+        for (int attempt = 0; attempt < 100 && !state.contains("\"STARTED\""); attempt++) {
             Thread.sleep(100);
-            state = this.mockMvc.perform(get("/execution/" + id)).andReturn().getResponse().getContentAsString() + executionService.getLiveSteps(id);
+            state = this.mockMvc.perform(get("/execution/" + id)).andReturn().getResponse().getContentAsString();
         }
+        // The wait step is then going.
+        Thread.sleep(300);
 
         this.mockMvc.perform(post("/execution/" + id + "/stop")).andExpect(status().isAccepted());
 

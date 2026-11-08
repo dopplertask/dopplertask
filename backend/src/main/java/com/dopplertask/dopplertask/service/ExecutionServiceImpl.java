@@ -54,10 +54,13 @@ public class ExecutionServiceImpl implements ExecutionService {
         this.runHousekeeping = runHousekeeping;
     }
 
-    /** A step can swallow the interrupt that a stop sends, so the run asks whoever was told. */
-    private boolean askedToStop(TaskExecution execution) {
+    /**
+     * A step can swallow the interrupt that a stop sends, so the run also asks whoever was told. Any other interrupt, such
+     * as a schedule being turned off, still ends the run as before.
+     */
+    private boolean toldToStop() {
         RunHousekeeping housekeeping = runHousekeeping == null ? null : runHousekeeping.getIfAvailable();
-        return housekeeping != null && execution.getId() != null && housekeeping.askedToStop(execution.getId());
+        return Thread.currentThread().isInterrupted() || housekeeping != null && housekeeping.stopAskedHere();
     }
 
     @Transactional
@@ -65,9 +68,12 @@ public class ExecutionServiceImpl implements ExecutionService {
         // Look up by checksum first
         Optional<Task> taskRequest = lookupTask(taskExecutionRequest, taskService);
 
-        Optional<TaskExecution> executionReq = taskExecutionDao.findForUpdate(taskExecutionRequest.getExecutionId());
-        // Stopped while it waited, even if its task is gone since.
-        if (executionReq.isPresent() && executionReq.get().getStatus() == TaskExecutionStatus.ABORTED) {
+        // A run that waits is locked while it starts, so that a stop at the same moment waits for it. A linked run never
+        // waits, and runs inside its parent's transaction, which a lock would hold until the parent ends.
+        Optional<TaskExecution> executionReq = taskExecutionRequest.getDepth() > 0 ? taskExecutionDao.findById(taskExecutionRequest.getExecutionId())
+                : taskExecutionDao.findForUpdate(taskExecutionRequest.getExecutionId());
+        // Only a run that waits starts. One that was stopped meanwhile, or failed, stays as it is, even if its task is gone.
+        if (executionReq.isPresent() && executionReq.get().getStatus() != TaskExecutionStatus.CREATED) {
             return executionReq.get();
         }
         if (taskRequest.isPresent() && executionReq.isPresent()) {
@@ -259,7 +265,7 @@ public class ExecutionServiceImpl implements ExecutionService {
         }
 
         execution.restoreRunningLoops();
-        while (execution.getCurrentAction() != null && !askedToStop(execution)) {
+        while (execution.getCurrentAction() != null && !toldToStop()) {
             Action currentAction = execution.getCurrentAction();
 
             execution.addActionAccessCountByOne(currentAction.getId());
@@ -290,12 +296,11 @@ public class ExecutionServiceImpl implements ExecutionService {
 
         execution.keepRunningLoops();
 
-        // A person or the time limit asked the run to stop. The interrupt that woke its step goes, so that it disturbs
-        // nothing else on this thread.
-        Thread.interrupted();
-        if (askedToStop(execution)) {
+        // The run was told to stop. The interrupt that woke its step goes, so that it disturbs nothing else on this thread.
+        if (toldToStop()) {
             execution.setSuccess(false);
         }
+        Thread.interrupted();
 
         TaskExecutionLog executionCompleted = new TaskExecutionLog();
         executionCompleted.setTaskExecution(execution);
@@ -411,7 +416,7 @@ public class ExecutionServiceImpl implements ExecutionService {
             }
 
             tries++;
-        } while (actionResult.getStatusCode() == StatusCode.FAILURE && currentAction.getRetries() >= tries && !currentAction.isContinueOnFailure() && !askedToStop(execution));
+        } while (actionResult.getStatusCode() == StatusCode.FAILURE && currentAction.getRetries() >= tries && !currentAction.isContinueOnFailure() && !toldToStop());
         return actionResult;
     }
 

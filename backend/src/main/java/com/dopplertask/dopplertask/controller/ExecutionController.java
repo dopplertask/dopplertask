@@ -36,7 +36,7 @@ public class ExecutionController {
     /** Only a person may stop a run, and the run keeps who did. */
     @PostMapping("/execution/{id}/stop")
     @ResponseStatus(HttpStatus.ACCEPTED)
-    public void stop(@PathVariable("id") long id, HttpServletRequest request) {
+    public void stop(@PathVariable("id") long id, HttpServletRequest request) throws InterruptedException {
         runHousekeeping.stop(id, AccessFilter.personOf(request).map(person -> "This run was stopped by " + person + ".").orElse("This run was stopped."));
     }
 

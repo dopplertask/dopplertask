@@ -28,6 +28,8 @@ public class RunHousekeeping {
     private static final Logger LOG = LoggerFactory.getLogger(RunHousekeeping.class);
     private static final String INTERRUPTED = "This run failed, since the server stopped before it finished. Run it again.";
     private static final long CHECK_MILLISECONDS = 60_000;
+    private static final int STARTING_CHECKS = 20;
+    private static final long STARTING_CHECK_MILLISECONDS = 50;
 
     private final TaskExecutionDao taskExecutionDao;
     private final int keepRunsDays;
@@ -97,10 +99,13 @@ public class RunHousekeeping {
         going.putIfAbsent(new RunOfCustomer(customerScope.current(), executionId), new GoingRun(executionId, thread));
     }
 
-    /** Whether a person or the time limit asked this run to stop, which the run checks before each step and retry. */
-    public boolean askedToStop(long executionId) {
-        GoingRun run = going.get(new RunOfCustomer(customerScope.current(), executionId));
-        return run != null && run.stop != null;
+    /**
+     * Whether a person or the time limit asked a run going on this thread to stop, which a run checks before each step
+     * and retry. A linked run goes on its parent's thread, so stopping the parent stops it too.
+     */
+    public boolean stopAskedHere() {
+        Thread here = Thread.currentThread();
+        return going.values().stream().anyMatch(run -> run.thread == here && run.stop != null);
     }
 
     /**
@@ -110,36 +115,48 @@ public class RunHousekeeping {
      */
     public void finished(long executionId) {
         GoingRun run = going.remove(new RunOfCustomer(customerScope.current(), executionId));
-        if (run != null) {
-            run.finish();
-            if (run.stop != null) {
-                run.endAsAsked.run();
+        try {
+            if (run != null) {
+                run.finish();
+                if (run.stop != null) {
+                    run.endAsAsked.run();
+                }
             }
+        } finally {
+            Thread.interrupted();
         }
-        Thread.interrupted();
     }
 
     /**
      * A person stops a run. One that is going stops before its next step, or during a step that listens, and one that
      * still waits ends before it starts.
      */
-    public void stop(long executionId, String reason) {
-        GoingRun run = going.get(new RunOfCustomer(customerScope.current(), executionId));
-        if (run != null) {
-            run.askToStop(new Stop(reason, true, Instant.now()));
-            return;
+    public void stop(long executionId, String reason) throws InterruptedException {
+        RunOfCustomer key = new RunOfCustomer(customerScope.current(), executionId);
+        GoingRun run = going.get(key);
+        if (run == null) {
+            // Locked, so that a run starting at the same moment either sees the stop or is seen as started.
+            TaskExecutionStatus status = transactions.execute(transaction -> taskExecutionDao.findForUpdate(executionId)
+                    .map(execution -> {
+                        if (execution.getStatus() == TaskExecutionStatus.CREATED) {
+                            execution.abort(reason);
+                        }
+                        return execution.getStatus();
+                    })
+                    .orElse(null));
+            if (status == TaskExecutionStatus.ABORTED) {
+                return;
+            }
+            // One that has just started is watched a moment later.
+            for (int attempt = 0; status == TaskExecutionStatus.STARTED && run == null && attempt < STARTING_CHECKS; attempt++) {
+                Thread.sleep(STARTING_CHECK_MILLISECONDS);
+                run = going.get(key);
+            }
+            if (run == null) {
+                throw new RunAlreadyEndedException();
+            }
         }
-        // Locked, so that a run starting at the same moment either sees the stop or is seen as started.
-        boolean waiting = Boolean.TRUE.equals(transactions.execute(status -> taskExecutionDao.findForUpdate(executionId)
-                .filter(execution -> execution.getStatus() == TaskExecutionStatus.CREATED)
-                .map(execution -> {
-                    execution.abort(reason);
-                    return true;
-                })
-                .orElse(false)));
-        if (!waiting) {
-            throw new RunAlreadyEndedException();
-        }
+        run.askToStop(new Stop(reason, true, Instant.now()));
     }
 
     private String tooLong() {

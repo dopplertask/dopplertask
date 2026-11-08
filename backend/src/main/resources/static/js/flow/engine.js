@@ -795,8 +795,9 @@ function createStore() {
         }
       } catch (error) {
         /* A run the server no longer has is not followed for ever. Anything else, such as a lost connection, is tried again. */
-        if (error.status >= 400 && error.status < 500) {
+        if (error.status === 400 || error.status === 404) {
           Object.assign(run, { live: false, following: false, status: 'failed', failure: 'This run is no longer on the server.' });
+          if (runner.run === run) { runner.cursorMs = run.durationMs; runner.playing = false; }
           emit('run');
           return;
         }

@@ -2,6 +2,7 @@ package com.dopplertask.dopplertask.service
 
 import com.dopplertask.dopplertask.dao.TaskDao
 import com.dopplertask.dopplertask.domain.Task
+import com.dopplertask.dopplertask.domain.TaskExecutionStatus
 import com.dopplertask.dopplertask.domain.action.trigger.Trigger
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.ObjectProvider
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.support.TransactionTemplate
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import jakarta.annotation.PostConstruct
@@ -41,6 +43,11 @@ open class TriggerListenerServiceImpl {
 
     @Autowired
     protected lateinit var runQueue: ObjectProvider<RunQueue>
+
+    @Autowired
+    protected lateinit var executionService: ExecutionService
+
+    private val lastQueuedRun: MutableMap<Trigger, Long> = ConcurrentHashMap()
 
     @Autowired
     @Lazy
@@ -107,6 +114,11 @@ open class TriggerListenerServiceImpl {
         threadPoolMap.keys.filter { it.startsWith(prefix) }.forEach { threadPoolMap.remove(it)?.shutdownNow() }
     }
 
+    /** Every active trigger of the current scope, such as when the scope comes back. */
+    open fun startAllTriggers() {
+        TransactionTemplate(txManager).executeWithoutResult { startActiveTriggers() }
+    }
+
     private fun customers(): CustomerScope = if (::customerScope.isInitialized) customerScope.getIfAvailable { LOCAL_CUSTOMER } else LOCAL_CUSTOMER
 
     private fun poolName(taskName: String?) = customers().current() + "/" + taskName
@@ -120,9 +132,19 @@ open class TriggerListenerServiceImpl {
         taskRequest.taskName = trigger.task?.name
         taskRequest.parameters = mutableMapOf()
 
-        // A queue that an add-on supplies decides when runs go and how many each customer has, so a schedule waits there
-        // too. Without one, the run goes here, and the next one waits for it.
-        if (::runQueue.isInitialized && runQueue.getIfAvailable() != null) taskService.delegate(taskRequest) else taskService.runRequest(taskRequest)
+        // Without a queue the run goes here, so the next one waits for it. A queue that an add-on supplies decides when
+        // runs go and how many each customer has, so a schedule goes there too, and skips its turn while its last run
+        // still waits or goes, as it would here.
+        if (!::runQueue.isInitialized || runQueue.getIfAvailable() == null) {
+            taskService.runRequest(taskRequest)
+            return
+        }
+        val last = lastQueuedRun[trigger]
+        if (last != null && executionService.getExecution(last).map { it.status == TaskExecutionStatus.CREATED || it.status == TaskExecutionStatus.STARTED }.orElse(false)) {
+            logger.info("Trigger of task ${trigger.task?.name} skipped its turn, since its last run has not ended.")
+            return
+        }
+        lastQueuedRun[trigger] = taskService.delegate(taskRequest).id
     }
 
     private fun startTriggers(currentTask: Task) {

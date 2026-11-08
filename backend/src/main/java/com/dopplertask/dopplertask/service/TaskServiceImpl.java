@@ -121,11 +121,10 @@ public class TaskServiceImpl implements TaskService {
 
         boolean isTrigger = taskExecutionRequest.getTriggerInfo() != null && taskExecutionRequest.getTriggerInfo().getTriggerName() != null && !taskExecutionRequest.getTriggerInfo().getTriggerName().isEmpty();
 
-        // Watched from before it starts, so that a stop meanwhile reaches it rather than being told it has ended.
-        runHousekeeping.watch(taskExecutionRequest.getExecutionId(), Thread.currentThread());
         TaskExecution execution = executionService.startExecution(taskExecutionRequest, this, isTrigger);
 
         if (execution != null) {
+            runHousekeeping.watch(execution.getId(), Thread.currentThread());
             if (execution.getStatus() != TaskExecutionStatus.STARTED) {
 
                 // If set to true, then remove the task after finish executing. This is used for mainly for unsaved workflows.

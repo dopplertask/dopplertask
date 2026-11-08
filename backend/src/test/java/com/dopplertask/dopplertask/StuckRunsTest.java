@@ -110,7 +110,7 @@ public class StuckRunsTest {
     }
 
     @Test
-    public void testAStoppedRunWhoseStepDoesNotListenEndsAWholeCheckLaterSuccess() {
+    public void testAStoppedRunWhoseStepDoesNotListenEndsAWholeCheckLaterSuccess() throws Exception {
         RunHousekeeping housekeeping = housekeeping(0);
         housekeeping.watch(9, new Thread());
         housekeeping.stop(9, "This run was stopped.");
@@ -123,7 +123,7 @@ public class StuckRunsTest {
     }
 
     @Test
-    public void testAStopThatComesAsTheRunEndsLeavesTheThreadCleanSuccess() {
+    public void testAStopThatComesAsTheRunEndsLeavesTheThreadCleanSuccess() throws Exception {
         RunHousekeeping housekeeping = housekeeping(60);
         housekeeping.watch(10, Thread.currentThread());
         housekeeping.stop(10, "This run was stopped.");
@@ -132,6 +132,22 @@ public class StuckRunsTest {
         Assert.assertFalse("The next run on this thread must not inherit the stop", Thread.currentThread().isInterrupted());
         Mockito.verify(service).abortRun(10L, "This run was stopped.");
         Assert.assertThrows(RunAlreadyEndedException.class, () -> housekeeping.stop(10, "Too late."));
+        Assert.assertFalse(Thread.currentThread().isInterrupted());
+    }
+
+    @Test
+    public void testStoppingARunStopsTheLinkedRunOnItsThreadSuccess() throws Exception {
+        RunHousekeeping housekeeping = housekeeping(60);
+        housekeeping.watch(30, Thread.currentThread());
+        housekeeping.watch(31, Thread.currentThread());
+
+        housekeeping.stop(30, "This run was stopped.");
+
+        Assert.assertTrue("The linked run checks on the same thread", housekeeping.stopAskedHere());
+        housekeeping.finished(31);
+        Assert.assertTrue("Its parent is still stopping", housekeeping.stopAskedHere());
+        housekeeping.finished(30);
+        Assert.assertFalse(housekeeping.stopAskedHere());
         Assert.assertFalse(Thread.currentThread().isInterrupted());
     }
 

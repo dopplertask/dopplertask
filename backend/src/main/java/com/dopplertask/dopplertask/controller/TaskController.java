@@ -112,12 +112,14 @@ public class TaskController {
     @Autowired
     private ObjectProvider<CustomerScope> customerScope;
 
-    // Webhook runs on a thread beside the request, for every Reply but the run log. Kept below the 60 database
-    // connections, so that the editor and other runs keep some. Each customer scope has places of its own, so that one
-    // cannot take all of them.
-    @Value("${dopplertask.maxReplyingRuns:40}")
-    private int maxReplyingRuns;
-    private final Map<String, Semaphore> replyingRuns = new ConcurrentHashMap<>();
+    // Webhook runs on a thread beside the request, for every Reply but the run log. All together kept below the 60
+    // database connections, so that the editor and other runs keep some, and each customer scope to its own share, so
+    // that one cannot take all of them.
+    private static final int MAX_REPLYING_RUNS = 40;
+    private final Semaphore replyingRuns = new Semaphore(MAX_REPLYING_RUNS);
+    @Value("${dopplertask.maxReplyingRunsPerScope:40}")
+    private int maxReplyingRunsPerScope;
+    private final Map<String, Semaphore> replyingRunsOfScope = new ConcurrentHashMap<>();
 
     @PostMapping(path = "/schedule/task")
     public ResponseEntity<SimpleIdResponseDto> scheduleTask(@RequestBody TaskRequestDTO taskRequestDTO, HttpServletRequest servletRequest) {
@@ -225,8 +227,12 @@ public class TaskController {
     private ResponseEntity<?> runAndReply(TaskRequest request, WebhookTriggerInfo triggerInfo, String mode, String taskName) {
         // A full server answers at once rather than holding a request thread, so that the editor stays reachable.
         CustomerScope scope = customerScope.getIfAvailable(() -> CustomerScope.ONE_CUSTOMER);
-        Semaphore places = replyingRuns.computeIfAbsent(scope.current(), name -> new Semaphore(maxReplyingRuns));
-        if (!places.tryAcquire()) {
+        Semaphore ownPlaces = replyingRunsOfScope.computeIfAbsent(scope.current(), name -> new Semaphore(maxReplyingRunsPerScope));
+        if (!ownPlaces.tryAcquire()) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).header(HttpHeaders.RETRY_AFTER, "10").body("Too many webhook calls are running for this task's owner. Try again in a moment.");
+        }
+        if (!replyingRuns.tryAcquire()) {
+            ownPlaces.release();
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).header(HttpHeaders.RETRY_AFTER, "10").body("The server is busy with other webhook calls. Try again in a moment.");
         }
         WebhookReply reply = new WebhookReply(mode);
@@ -240,11 +246,13 @@ public class TaskController {
                     LOG.error("A webhook run of {} stopped on an unexpected problem", taskName, e);
                     ended.completeExceptionally(e);
                 } finally {
-                    places.release();
+                    replyingRuns.release();
+                    ownPlaces.release();
                 }
             }));
         } catch (RuntimeException | Error e) {
-            places.release();
+            replyingRuns.release();
+            ownPlaces.release();
             throw e;
         }
         try {
