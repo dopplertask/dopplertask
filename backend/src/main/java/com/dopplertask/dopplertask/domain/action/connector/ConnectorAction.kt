@@ -175,7 +175,7 @@ class ConnectorAction : Action() {
             val keepFile = { name: String, base64: String ->
                 RunFiles.freeName(name) { it in execution.parameters }.also { RunFiles.keep(execution, it, Base64.getDecoder().decode(base64)) }
             }
-            answer = ConnectorScripts.run(script, values, request.unsigned, answer, sender::answerFor, ConnectorSender.receivedOf(result), keepFile = keepFile)
+            answer = ConnectorScripts.run(script, values, request.unsigned, answer, request.calling(sender::answerFor), ConnectorSender.receivedOf(result), keepFile = keepFile)
             result.output = textOf(answer)
         }
         return withOutputs(result, chosen, answer)

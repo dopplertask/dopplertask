@@ -158,6 +158,48 @@ public class ConnectorFormatTest {
     }
 
     @Test
+    public void testAScriptNeverSeesACredentialInTheAddressSuccess() {
+        Connector connector = connector("""
+                {"name": "bots", "label": "Bots", "hosts": ["api.bots.com"], "baseUrl": "https://api.bots.com/bot{{credential.token}}",
+                 "credential": {"fields": {"token": {"label": "Token", "secret": true}}},
+                 "actions": {"send": {"label": "Send", "inputs": {"chat": {"label": "Chat"}}, "request": {"method": "POST", "url": "/send/{{chat}}"},
+                   "beforeRequest": "request.headers['X-Seen'] = request.url; call({url: request.url + '?page=2'}); call({url: 'https://api.bots.com/x/' + inputs.chat}); return request;"}}}
+                """);
+        java.util.List<String> called = new java.util.ArrayList<>();
+        ConnectorRequests.Built request = ConnectorRequests.INSTANCE.build(connector, connector.getActions().get("send"), Map.of("chat", "{{credential.token}}"), Map.of("token", "s3cret/1"),
+                spec -> { called.add(spec.path("url").asText()); return JsonApi.INSTANCE.getMapper().createObjectNode(); });
+        // A call to the address the script was shown gets the value back, and one the script builds from an input does not.
+        Assert.assertEquals(java.util.List.of("https://api.bots.com/bots3cret%2F1/send/%7B%7Bcredential.token%7D%7D?page=2", "https://api.bots.com/x/{{credential.token}}"), called);
+        Assert.assertEquals("https://api.bots.com/bot{{credential.token}}/send/%7B%7Bcredential.token%7D%7D", request.getHeaders().get("X-Seen"));
+        Assert.assertEquals("https://api.bots.com/bots3cret%2F1/send/%7B%7Bcredential.token%7D%7D", request.getUrl());
+        Assert.assertFalse(request.getUnsigned().toString().contains("s3cret"));
+        // A path the person writes is only a path, also when it names the credential.
+        Assert.assertEquals("https://api.bots.com/bots3cret%2F1/{{credential.token}}",
+                ConnectorRequests.INSTANCE.customCall(connector, Map.of("path", "{{credential.token}}"), Map.of("token", "s3cret/1")).getUrl());
+        String problems = String.join(" ", Connectors.INSTANCE.problemsOf(connector("""
+                {"name": "paths", "label": "Paths", "hosts": ["api.paths.com"], "credential": {"fields": {"token": {"label": "Token", "secret": true}}},
+                 "actions": {"leak": {"label": "Leak", "request": {"url": "https://api.paths.com/{{credential.token}}/x"}}}}
+                """)));
+        Assert.assertTrue(problems, problems.contains("The action leak puts a secret credential value in its path."));
+    }
+
+    @Test
+    public void testAMessageAboutARequestNeverHoldsASecretFail() {
+        Connector connector = connector("""
+                {"name": "bots", "label": "Bots", "hosts": ["api.bots.com"], "baseUrl": "https://api.bots.com/bot{{credential.token}}",
+                 "credential": {"fields": {"token": {"label": "Token", "secret": true}}}, "actions": {}}
+                """);
+        var sender = new com.dopplertask.dopplertask.domain.action.connector.ConnectorSender(com.dopplertask.dopplertask.domain.action.connector.ConnectorAction.of("bots"), connector, Map.of("token", "s3cret"));
+        try {
+            // A script can make an address that is not valid on purpose, to read the error.
+            sender.answerFor(JsonApi.INSTANCE.getMapper().readTree("{\"url\": \"/a b\"}"));
+            Assert.fail();
+        } catch (IllegalArgumentException e) {
+            Assert.assertFalse(e.getMessage(), e.getMessage().contains("s3cret"));
+        }
+    }
+
+    @Test
     public void testOnlyAnActionThatWaitsHasAResumeAddressFail() {
         String waiting = """
                 {"name": "waiting", "label": "Waiting", "hosts": ["api.waiting.com"],

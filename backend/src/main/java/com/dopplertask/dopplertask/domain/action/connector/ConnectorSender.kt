@@ -34,9 +34,26 @@ class ConnectorSender(private val step: Action, private val connector: Connector
             ?: throw IllegalArgumentException("${connector.label} signed in, but gave no token at ${opening.token}.")
     }
 
-    /** Sends a request. A download gets the answer's bytes through [answer]. */
-    fun send(request: ConnectorRequests.Built, answer: (ByteArray) -> Unit = {}): ActionResult {
-        require(Connectors.allows(connector, URI.create(request.url).host, credential)) { "${connector.label} may only send its credential to ${connector.hosts.joinToString(", ")}." }
+    /**
+     * Sends a request. A download gets the answer's bytes through [answer]. A message about the request, such as an
+     * address that is not valid, never holds a secret credential value, since scripts and the run's log read it.
+     */
+    fun send(request: ConnectorRequests.Built, answer: (ByteArray) -> Unit = {}): ActionResult = try {
+        sendSigned(request, answer).also { result -> result.errorMsg = withoutSecrets(result.errorMsg) }
+    } catch (e: RuntimeException) {
+        // Any problem while sending, such as an address that is not valid or a connection that failed.
+        throw IllegalArgumentException(withoutSecrets(e.message ?: "The request to ${connector.label} could not be made."))
+    }
+
+    private fun withoutSecrets(text: String): String = Connectors.secretFieldsOf(connector)
+        .mapNotNull { credential[it]?.takeIf(String::isNotEmpty) }.plus(listOfNotNull(session?.takeIf(String::isNotEmpty)))
+        // Each as it is, as it is in a path and as it is in a query, the longest first so that no part of one stays.
+        .flatMap { listOf(it, ConnectorRequests.pathPart(it), JsonApi.encoded(it)) }.sortedByDescending { it.length }
+        .fold(text) { hidden, secret -> hidden.replace(secret, "****") }
+
+    private fun sendSigned(request: ConnectorRequests.Built, answer: (ByteArray) -> Unit): ActionResult {
+        val host = runCatching { URI.create(request.url).host }.getOrElse { throw IllegalArgumentException("The address of the request to ${connector.label} is not valid.") }
+        require(Connectors.allows(connector, host, credential)) { "${connector.label} may only send its credential to ${connector.hosts.joinToString(", ")}." }
         var headers = request.headers
         if (connector.credential?.oauth2 != null && !request.bySession) {
             val signIn = OAuthSignIn.headersFor(step, connector.label)
@@ -52,9 +69,9 @@ class ConnectorSender(private val step: Action, private val connector: Connector
         val (contentType, body) = when {
             whole != null -> (given ?: whole.mimeType) to whole.bytes
             named.startsWith(MULTIPART) -> "${named.substringBefore(';')}; boundary=$boundary" to multipartOf(request, boundary, named.startsWith(FORM_DATA))
-            named.startsWith(FORM) -> named to request.body?.let(::formOf).orEmpty().toByteArray()
-            // A body in another type, such as CSV, is sent as the text it is.
+            // A body that is text, such as CSV or a form a script wrote, is sent as the text it is in any type but JSON.
             "json" !in named && request.body?.isTextual == true -> named to request.body.asText().toByteArray()
+            named.startsWith(FORM) -> named to request.body?.let(::formOf).orEmpty().toByteArray()
             else -> named to request.body?.toString().orEmpty().toByteArray()
         }
         val typed = headers.filterKeys { !it.equals(CONTENT_TYPE, ignoreCase = true) } + (CONTENT_TYPE to contentType)

@@ -19,7 +19,10 @@ object ConnectorRequests {
      * carries its token and nothing else of the credential. A body that is only a file is that file's bytes.
      */
     class Built(val method: String, val url: String, val headers: Map<String, String>, val body: JsonNode?, val files: Map<String, RunFile>, val unsigned: JsonNode,
-                val bySession: Boolean = false, val bodyFile: RunFile? = null)
+                val bySession: Boolean = false, val bodyFile: RunFile? = null, private val shownAddress: String = "", private val address: String = "") {
+        /** How a script's call() sends, so that a call to the address the script was shown gets its credential back. */
+        fun calling(send: (JsonNode) -> JsonNode): (JsonNode) -> JsonNode = { spec -> send(withAddress(spec, shownAddress, address)) }
+    }
 
     private val NODES = JsonNodeFactory.instance
 
@@ -39,17 +42,29 @@ object ConnectorRequests {
         val request = operation.request
         val draft = NODES.objectNode()
         draft.put("method", request.method)
-        draft.put("url", address(Connectors.urlOf(connector, request.url), values, credential))
+        // Scripts see a secret credential value in the address by its name. Only the part of the address they were given
+        // gets the value back, so that nothing a script adds, such as an input or a value from an answer, gets one.
+        val template = Connectors.urlOf(connector, request.url)
+        val shown = address(template, values, credential, Connectors.secretFieldsOf(connector))
+        draft.put("url", shown)
         draft.set("query", JsonApi.mapper.valueToTree(request.query.mapValues { Connectors.fill(it.value) { name -> values[name].orEmpty() } }.filterValues { it.isNotEmpty() }))
         draft.set("headers", JsonApi.mapper.valueToTree(request.headers.mapValues { Connectors.fill(it.value) { name -> values[name].orEmpty() } }))
         draft.set("body", request.body?.let { bodyOf(it, operation, values, files) } ?: NODES.nullNode())
-        val ready = operation.beforeRequest?.let { ConnectorScripts.run(it, values, draft, null, send, memory = memory) } ?: draft
+        val real = address(template, values, credential)
+        val ready = operation.beforeRequest?.let { ConnectorScripts.run(it, values, draft, null, { spec -> send(withAddress(spec, shown, real)) }, memory = memory) } ?: draft
         // In a multipart body a file goes in its own part, so the part is named by the body's field. A body that is
         // only a file is the file's bytes.
         val fileIn = { template: JsonNode -> template.takeIf { it.isTextual }?.let { Connectors.placeholdersIn(it.asText()).singleOrNull() }?.let { files[it] } }
         val bodyFile = request.body?.let(fileIn)
         val parts = if (bodyFile != null) emptyMap() else request.body?.properties()?.mapNotNull { (part, template) -> fileIn(template)?.let { part to it } }?.toMap().orEmpty()
-        return sign(connector, ready, credential, parts, session, bodyFile)
+        val signed = sign(connector, withAddress(ready, shown, real), credential, parts, session, bodyFile)
+        return Built(signed.method, signed.url, signed.headers, signed.body, signed.files, ready.deepCopy(), signed.bySession, signed.bodyFile, shown, real)
+    }
+
+    /** A request whose address starts with the one a script was shown, with the credential value in place of its name. */
+    private fun withAddress(spec: JsonNode, shown: String, real: String): JsonNode {
+        val written = spec.path("url").asText()
+        return if (shown.isEmpty() || shown == real || !written.startsWith(shown)) spec else spec.deepCopy().also { (it as ObjectNode).put("url", real + written.removePrefix(shown)) }
     }
 
     /**
@@ -62,7 +77,7 @@ object ConnectorRequests {
         require(!path.contains("://") && !path.startsWith("//")) { "The path should start after the address of ${connector.label}, such as /contacts." }
         val draft = NODES.objectNode()
         draft.put("method", values["method"].orEmpty().ifBlank { "GET" })
-        draft.put("url", address(connector.baseUrl, values, credential).trimEnd('/') + "/" + path.trimStart('/'))
+        draft.put("url", "/" + path.trimStart('/'))
         draft.set("query", json(values["query"]) ?: NODES.objectNode())
         draft.set("headers", json(values["headers"]) ?: NODES.objectNode())
         draft.set("body", json(values["body"]) ?: NODES.nullNode())
@@ -73,15 +88,16 @@ object ConnectorRequests {
     @JvmOverloads
     fun sign(connector: Connector, draft: JsonNode, credential: Map<String, String>, files: Map<String, RunFile> = emptyMap(), session: String? = null,
              bodyFile: RunFile? = null): Built {
+        // A path after the base, as customCall makes and a script may call, gets the base with its credential here.
         val target = draft.path("url").asText()
-        if (target.startsWith("/")) (draft as ObjectNode).put("url", address(connector.baseUrl, emptyMap(), credential).trimEnd('/') + target)
+        val address = if (target.startsWith("/")) address(connector.baseUrl, emptyMap(), credential).trimEnd('/') + target else target
         // A session's token stands in for the rest of the credential.
         val signIn = if (session == null) connector.credential else connector.credential?.session?.let { opened ->
             ConnectorCredential().also { it.headers = opened.headers; it.query = opened.query }
         }
         val credentialValue = { name: String -> if (name == SESSION) session.orEmpty() else credential[name.removePrefix(CREDENTIAL)].orEmpty() }
         val query = textsOf(draft.path("query")) + signIn?.query.orEmpty().mapValues { Connectors.fill(it.value, credentialValue) }
-        val url = draft.path("url").asText() + query.entries.joinToString("&", prefix = if (query.isEmpty()) "" else if ('?' in draft.path("url").asText()) "&" else "?") {
+        val url = address + query.entries.joinToString("&", prefix = if (query.isEmpty()) "" else if ('?' in address) "&" else "?") {
             "${JsonApi.encoded(it.key)}=${JsonApi.encoded(it.value)}"
         }
         val headers = textsOf(draft.path("headers")) + signIn?.headers.orEmpty().mapValues { Connectors.fill(it.value, credentialValue) } +
@@ -99,17 +115,25 @@ object ConnectorRequests {
         return Built(method, url, headers, body, files, draft.deepCopy(), bySession = session != null, bodyFile = bodyFile)
     }
 
-    /** The address with its host from the credential, checked as a host name, and every other value percent-encoded. */
-    private fun address(template: String, values: Map<String, String>, credential: Map<String, String>): String {
+    /**
+     * The address with its host from the credential, checked as a host name, and every other value percent-encoded. A
+     * secret credential value named in hidden keeps its name, for the address scripts see.
+     */
+    private fun address(template: String, values: Map<String, String>, credential: Map<String, String>, hidden: Set<String> = emptySet()): String {
         val hostEnd = template.indexOf('/', template.indexOf("://") + 3).let { if (it < 0) template.length else it }
         val path = Connectors.fill(template.substring(hostEnd)) { name ->
-            pathPart(if (name.startsWith(CREDENTIAL)) credential[name.removePrefix(CREDENTIAL)].orEmpty() else values[name].orEmpty())
+            val field = name.removePrefix(CREDENTIAL)
+            when {
+                !name.startsWith(CREDENTIAL) -> pathPart(values[name].orEmpty())
+                field in hidden -> "{{$name}}"
+                else -> pathPart(credential[field].orEmpty())
+            }
         }
         return Connectors.fill(template.substring(0, hostEnd)) { hostPart(credential, it) } + path
     }
 
     /** A value made safe for an address the way browsers and the originals do it, with encodeURIComponent. */
-    private fun pathPart(value: String) = JsonApi.encoded(value)
+    fun pathPart(value: String) = JsonApi.encoded(value)
         .replace("%21", "!").replace("%27", "'").replace("%28", "(").replace("%29", ")").replace("%7E", "~")
 
     private fun hostPart(credential: Map<String, String>, name: String): String {

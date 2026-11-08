@@ -896,12 +896,10 @@
         "headers": {
           "x-airtable-application-id": "{{base}}",
           "x-api-version": "0.1.0"
-        },
-        "query": {
-          "view": "{{view}}"
         }
       },
-      "afterResponse": "let records = response.records;\nlet offset = response.offset;\nwhile (offset) {\n  const query = inputs.view ? {view: inputs.view, offset} : {offset};\n  const page = call({method: 'GET', url: '/' + encodeURIComponent(inputs.base) + '/' + encodeURIComponent(inputs.tableId), query, headers: {'x-airtable-application-id': inputs.base, 'x-api-version': '0.1.0'}});\n  records = records.concat(page.records);\n  offset = page.offset;\n}\nreturn records;",
+      "beforeRequest": "// Encoded as the original's library does, with + for a space, and ' as %27 as its URL parser sends it. Every page asks with the same search.\nmemory.search = (inputs.view ? '?view=' + encodeURIComponent(inputs.view) : '').replace(/%20/g, '+').replace(/'/g, '%27');\nrequest.url += memory.search;\nreturn request;",
+      "afterResponse": "const search = memory.search;\ndelete memory.search;\nlet records = response.records;\nlet offset = response.offset;\nwhile (offset) {\n  const page = call({method: 'GET', url: '/' + encodeURIComponent(inputs.base) + '/' + encodeURIComponent(inputs.tableId) + search + (search ? '&' : '?') + 'offset=' + encodeURIComponent(offset), headers: {'x-airtable-application-id': inputs.base, 'x-api-version': '0.1.0'}});\n  records = records.concat(page.records);\n  offset = page.offset;\n}\nreturn records;",
       "items": "$",
       "newBy": "time",
       "key": "$.createdTime"
@@ -937,7 +935,7 @@
           "x-api-version": "0.1.0"
         }
       },
-      "beforeRequest": "// Encoded as the original's library does, with + for a space. Every page asks with the same search.\nconst since = new Date(inputs.lastPollTime ? Number(inputs.lastPollTime) : Date.now() - 86400000).toISOString();\nconst formula = 'IS_AFTER({' + inputs.sortFields + '},DATETIME_PARSE(\"' + since + '\",\"YYYY-MM-DD HH:mm:ss.SSS\"))';\nmemory.search = '?filterByFormula=' + encodeURIComponent(formula).replace(/%20/g, '+') + (inputs.view ? '&view=' + encodeURIComponent(inputs.view) : '');\nrequest.url += memory.search;\nreturn request;",
+      "beforeRequest": "// Encoded as the original's library does, with + for a space, and ' as %27 as its URL parser sends it. Every page asks with the same search.\nconst since = new Date(inputs.lastPollTime ? Number(inputs.lastPollTime) : Date.now() - 86400000).toISOString();\nconst formula = 'IS_AFTER({' + inputs.sortFields + '},DATETIME_PARSE(\"' + since + '\",\"YYYY-MM-DD HH:mm:ss.SSS\"))';\nmemory.search = ('?filterByFormula=' + encodeURIComponent(formula) + (inputs.view ? '&view=' + encodeURIComponent(inputs.view) : '')).replace(/%20/g, '+').replace(/'/g, '%27');\nrequest.url += memory.search;\nreturn request;",
       "afterResponse": "const search = memory.search;\ndelete memory.search;\nlet records = response.records;\nlet offset = response.offset;\nwhile (offset) {\n  const page = call({method: 'GET', url: '/' + encodeURIComponent(inputs.base) + '/' + encodeURIComponent(inputs.tableId) + search + '&offset=' + encodeURIComponent(offset), headers: {'x-airtable-application-id': inputs.base, 'x-api-version': '0.1.0'}});\n  records = records.concat(page.records);\n  offset = page.offset;\n}\nreturn records.map(record => ({time: record.fields[inputs.sortFields], data: record}));",
       "items": "$",
       "newBy": "time",

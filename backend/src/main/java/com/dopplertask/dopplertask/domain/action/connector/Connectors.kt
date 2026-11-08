@@ -50,6 +50,9 @@ object Connectors {
     /** The credential fields a request needs, such as user and password for {{credential.user}} and {{credential.password}}. */
     fun credentialFieldsOf(request: ConnectorRequest) = templatesOf(request).flatMap(::placeholdersIn).filter { it.startsWith(CREDENTIAL) }.map { it.removePrefix(CREDENTIAL) }
 
+    /** The credential's fields that hold a secret, such as a key or a token, which scripts and messages never show. */
+    fun secretFieldsOf(connector: Connector): Set<String> = connector.credential?.fields.orEmpty().filterValues { it.secret }.keys
+
     fun templatesOf(request: ConnectorRequest) = listOf(request.url) + request.headers.values + request.query.values + listOfNotNull(request.body?.toString())
 
     fun fill(template: String, value: (String) -> String): String = PLACEHOLDER.replace(template) { value(it.groupValues[1]) }
@@ -145,6 +148,13 @@ object Connectors {
         val host = template.substringAfter("://").substringBefore('/')
         // An input may never decide the host, since the credential goes wherever the request goes.
         if (placeholdersIn(host).any { !it.startsWith(CREDENTIAL) }) return listOf("$where has an input in its host.")
+        val secrets = secretFieldsOf(connector).map { CREDENTIAL + it }
+        if (placeholdersIn(host).any { it in secrets }) return listOf("$where puts a secret credential value in its host.")
+        // A secret in a path ends up in the logs of every server on the way. Only an API that is made so, such as a bot
+        // token in the address of every call, has it in the connector's baseUrl.
+        val ownPath = (if (connector.baseUrl.isNotEmpty() && written.startsWith(connector.baseUrl)) written.removePrefix(connector.baseUrl)
+            else if (written.startsWith("/")) written else written.substringAfter("://").substringAfter('/', "")).substringBefore('?')
+        if (placeholdersIn(ownPath).any { it in secrets }) return listOf("$where puts a secret credential value in its path. Only the connector's baseUrl may, such as for a bot token.")
         val address = try {
             URI.create(fill(template) { if (it.startsWith(CREDENTIAL)) sample[it.removePrefix(CREDENTIAL)].orEmpty() else "x" })
         } catch (e: IllegalArgumentException) {
