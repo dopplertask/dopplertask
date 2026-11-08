@@ -1,4 +1,4 @@
-// Runs one Activepieces action with the answers in a fixture, and writes into the fixture what the action sent.
+// Runs one Activepieces action or trigger with the answers in a fixture, and writes into the fixture what the action sent.
 // DopplerTask's ConnectorFixturesTest then runs the same inputs through the connector and compares the requests.
 // Nothing leaves the machine: every request is answered here, and a request that has no answer fails the run.
 //
@@ -34,20 +34,23 @@ interceptor.on('request', async ({ request, controller }) => {
 });
 
 const piece = await loadPiece(fixture.package, fixture.version);
-const action = piece.getAction(fixture.action);
-if (!action) throw new Error(`${fixture.package} has no action ${fixture.action}. It has ${Object.keys(piece.actions()).join(', ')}.`);
+// A trigger runs one check from the place its fixture gives, such as {"lastPoll": 1700000000000} or {"lastItem": "c2"}.
+const step = fixture.trigger ? piece.getTrigger(fixture.trigger) : piece.getAction(fixture.action);
+if (!step) throw new Error(`${fixture.package} has no ${fixture.trigger ? `trigger ${fixture.trigger}` : `action ${fixture.action}`}.`);
 const context = createMockActionContext({ propsValue: fixture.inputs || {} });
 context.auth = fixture.auth;
+const memory = new Map(Object.entries(fixture.store || {}));
+context.store = { put: async (key, value) => (memory.set(key, value), value), get: async (key) => memory.get(key) ?? null, delete: async (key) => { memory.delete(key); } };
 let output;
 try {
-  output = await action.run(context);
+  output = await step.run(context);
 } catch (error) {
   output = { error: String(error?.message || error) };
 } finally {
   interceptor.dispose();
 }
 writeFileSync(fixturePath, `${JSON.stringify({ ...fixture, exchanges, output }, null, 2)}\n`);
-console.log(`${fixture.package} ${fixture.action}: ${exchanges.length} request(s) recorded.`);
+console.log(`${fixture.package} ${fixture.trigger || fixture.action}: ${exchanges.length} request(s) recorded.`);
 
 /** Each piece gets its own folder, so that several pieces can be recorded at the same time. */
 async function loadPiece(name, version) {

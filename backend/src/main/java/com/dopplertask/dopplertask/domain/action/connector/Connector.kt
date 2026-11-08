@@ -97,6 +97,10 @@ class ConnectorPoll {
      */
     var newBy: String = "time"
     var key: String = "$.id"
+
+    /** Scripts as on an action, such as afterResponse asking for every page with call(...) and returning the items. */
+    var beforeRequest: String? = null
+    var afterResponse: String? = null
 }
 
 class ConnectorInput {

@@ -152,11 +152,13 @@ class ConnectorTrigger : Trigger() {
         val connector = spec ?: throw IllegalStateException("There is no connector called ${this.connector}.")
         val poll = connector.triggers[operation] ?: throw IllegalStateException(problem())
         val asked = Instant.now()
-        val lookup = ConnectorOperation().also { it.inputs = poll.inputs; it.request = poll.request }
+        val lookup = ConnectorOperation().also { it.inputs = poll.inputs; it.request = poll.request; it.beforeRequest = poll.beforeRequest }
         val sender = ConnectorSender(this, connector, credentialValues)
-        val answer = sender.send(ConnectorRequests.build(connector, lookup, settingValues(), credentialValues, sender::answerFor))
+        val values = settingValues()
+        val answer = sender.send(ConnectorRequests.build(connector, lookup, values, credentialValues, sender::answerFor))
         check(answer.statusCode == StatusCode.SUCCESS) { answer.errorMsg }
-        val items = JsonPaths.read(JsonApi.parsed(answer), poll.items)?.toList().orEmpty()
+        val reply = poll.afterResponse?.let { ConnectorScripts.run(it, values, null, JsonApi.parsed(answer), sender::answerFor) } ?: JsonApi.parsed(answer)
+        val items = JsonPaths.read(reply, poll.items)?.toList().orEmpty()
         val fresh = when (poll.newBy) {
             "lastItem" -> {
                 val seen = pollState

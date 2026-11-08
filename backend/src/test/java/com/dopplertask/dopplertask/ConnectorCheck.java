@@ -4,6 +4,7 @@ import com.dopplertask.dopplertask.domain.ActionResult;
 
 import com.dopplertask.dopplertask.domain.TaskExecution;
 import com.dopplertask.dopplertask.domain.action.connector.ConnectorAction;
+import com.dopplertask.dopplertask.domain.action.connector.ConnectorTrigger;
 import com.dopplertask.dopplertask.domain.action.connector.Connectors;
 import com.dopplertask.dopplertask.service.VariableExtractorUtil;
 import com.sun.net.httpserver.HttpExchange;
@@ -47,7 +48,7 @@ public class ConnectorCheck {
 
     public static void main(String[] arguments) throws IOException {
         List<String> differences = new ConnectorCheck().differences(arguments.length > 0 ? arguments[0] : "");
-        System.out.println(differences.isEmpty() ? "Every action sends what the original sent." : String.join("\n", differences));
+        System.out.println(differences.isEmpty() ? "Every action and trigger sends what the original sent." : String.join("\n", differences));
         System.exit(differences.isEmpty() ? 0 : 1);
     }
 
@@ -77,7 +78,7 @@ public class ConnectorCheck {
         for (Resource file : new PathMatchingResourcePatternResolver().getResources("classpath*:connector-fixtures/" + (only.isEmpty() ? "*" : only) + "/*.json")) {
             JsonNode fixture = MAPPER.readTree(file.getInputStream());
             String connector = URI.create(file.getURI().toString()).getPath().replaceAll(".*/connector-fixtures/([^/]+)/.*", "$1");
-            String name = connector + " " + fixture.path("action").asText();
+            String name = connector + " " + (fixture.has("trigger") ? "trigger " + fixture.path("trigger").asText() : fixture.path("action").asText());
             try {
                 differences.addAll(compare(name, fixture, run(connector, fixture)));
             } catch (Exception e) {
@@ -91,24 +92,57 @@ public class ConnectorCheck {
         return differences;
     }
 
-    private ActionResult run(String connector, JsonNode fixture) throws IOException {
+    /** What our connector gave, and why it failed if it did. */
+    private record Outcome(JsonNode output, String error) {
+    }
+
+    private Outcome run(String connector, JsonNode fixture) throws IOException {
         sent.clear();
         List<JsonNode> replies = new ArrayList<>();
         fixture.path("answers").forEach(replies::add);
         answers = replies.iterator();
+        Map<String, String> credential = MAPPER.convertValue(fixture.path("credential"), Map.class);
+        JsonNode settings = fixture.has("settings") ? fixture.path("settings") : fixture.path("inputs");
+        if (fixture.has("trigger")) {
+            return check(connector, fixture, settings, credential);
+        }
         ConnectorAction step = ConnectorAction.of(connector);
         step.setOperation(fixture.path("action").asText());
-        JsonNode settings = fixture.has("settings") ? fixture.path("settings") : fixture.path("inputs");
         settings.properties().forEach(setting -> step.setSetting(setting.getKey(), setting.getValue().isString() ? setting.getValue().asString() : setting.getValue()));
-        step.useCredentialValues(MAPPER.convertValue(fixture.path("credential"), Map.class));
-        return step.perform(new TaskExecution(), variables);
+        step.useCredentialValues(credential);
+        ActionResult result = step.perform(new TaskExecution(), variables);
+        return new Outcome(parsed(result.getOutput()), result.getErrorMsg());
     }
 
-    private List<String> compare(String name, JsonNode fixture, ActionResult result) {
+    /** One check of a trigger from the place the fixture gives, with the new items it found. */
+    private Outcome check(String connector, JsonNode fixture, JsonNode settings, Map<String, String> credential) {
+        ConnectorTrigger trigger = ConnectorTrigger.of(connector);
+        trigger.setOperation(fixture.path("trigger").asText());
+        settings.properties().forEach(setting -> trigger.setSetting(setting.getKey(), setting.getValue().isString() ? setting.getValue().asString() : setting.getValue()));
+        trigger.useCredentialValues(credential);
+        JsonNode place = fixture.path("store");
+        trigger.setPollState(place.has("lastPoll") ? place.path("lastPoll").asText() : place.path("lastItem").asText(null));
+        trigger.lookForNewItems();
+        List<JsonNode> items = new ArrayList<>();
+        for (String item = trigger.nextWaiting(); item != null; item = trigger.nextWaiting()) {
+            items.add(parsed(item));
+        }
+        return new Outcome(sorted(items), "");
+    }
+
+    /** New items in one order, since the original lists them newest first and ours start the task oldest first. */
+    private static JsonNode sorted(Iterable<JsonNode> items) {
+        List<JsonNode> list = new ArrayList<>();
+        items.forEach(list::add);
+        list.sort(java.util.Comparator.comparing(JsonNode::toString));
+        return MAPPER.valueToTree(list);
+    }
+
+    private List<String> compare(String name, JsonNode fixture, Outcome result) {
         List<String> differences = new ArrayList<>();
         JsonNode expected = fixture.path("exchanges");
         if (expected.size() != sent.size()) {
-            differences.add(name + ": sent " + sent.size() + " request(s), the original sent " + expected.size() + ". " + result.getErrorMsg());
+            differences.add(name + ": sent " + sent.size() + " request(s), the original sent " + expected.size() + ". " + result.error());
             return differences;
         }
         for (int index = 0; index < expected.size(); index++) {
@@ -124,7 +158,7 @@ public class ConnectorCheck {
             check(differences, where + "body", original.path("body"), ours.path("body"));
         }
         if (fixture.has("output") && !fixture.path("output").has("error")) {
-            check(differences, name + ": output", fixture.path("output"), parsed(result.getOutput()));
+            check(differences, name + ": output", fixture.has("trigger") ? sorted(fixture.path("output")) : fixture.path("output"), result.output());
         }
         return differences;
     }
