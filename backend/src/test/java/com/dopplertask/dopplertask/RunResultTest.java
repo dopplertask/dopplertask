@@ -147,7 +147,7 @@ public class RunResultTest {
                 + "{\"@type\":\"ScheduleTrigger\",\"actionName\":\"Mornings\",\"rule\":\"CRON\",\"cronExpression\":\"every morning\",\"ports\":[{\"externalId\":\"bad_t\",\"portType\":\"OUTPUT\"}]}],"
                 + "\"connections\":[]}";
         this.mockMvc.perform(post("/task").content(createJson)).andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message", containsString("Mornings cannot start the task. The cron line \"every morning\" is not valid")));
+                .andExpect(jsonPath("$.message", containsString("Mornings cannot start the task. The cron line \"every morning\" needs 5 fields")));
         this.mockMvc.perform(post("/task").content(createJson.replace("\"active\":true", "\"active\":false"))).andExpect(status().isOk());
         // Turning the saved version on is refused too.
         this.mockMvc.perform(post("/task").content(createJson)).andExpect(status().isBadRequest());

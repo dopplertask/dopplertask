@@ -214,6 +214,9 @@ class ScheduleTrigger : Trigger() {
             private fun cronLines(text: String?): Array<String> {
                 val lines = (text ?: "").lines().map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("#") }
                 if (lines.isEmpty()) throw IllegalArgumentException("Add a cron line, such as 0 9 * * MON-FRI for nine on weekdays.")
+                lines.firstOrNull { !it.startsWith("@") && it.split(Regex("\\s+")).size !in 5..6 }?.let { line ->
+                    throw IllegalArgumentException("The cron line \"$line\" needs 5 fields (minute hour day month weekday), or 6 with seconds first.")
+                }
                 return lines.map(::withSeconds).toTypedArray()
             }
 

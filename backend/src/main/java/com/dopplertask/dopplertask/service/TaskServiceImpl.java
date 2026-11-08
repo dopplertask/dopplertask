@@ -197,7 +197,9 @@ public class TaskServiceImpl implements TaskService {
         for (Action action : actions) {
             String problem = action instanceof Trigger trigger ? trigger.problem() : null;
             if (problem != null) {
-                String step = action.getActionName() == null || action.getActionName().isBlank() ? "The trigger" : action.getActionName();
+                String name = action.getActionName();
+                boolean named = name != null && !name.isBlank() && !name.equals(action.getClass().getSimpleName());
+                String step = named ? name : "The trigger";
                 throw new BrokenTriggerException(step + " cannot start the task. " + problem);
             }
         }

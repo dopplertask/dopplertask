@@ -138,7 +138,7 @@ public class ScheduleTriggerTest {
             next(trigger);
             Assert.fail();
         } catch (IllegalArgumentException e) {
-            Assert.assertTrue(e.getMessage().contains("\"every morning\" is not valid"));
+            Assert.assertTrue(e.getMessage(), e.getMessage().contains("\"every morning\" needs 5 fields"));
         }
     }
 
