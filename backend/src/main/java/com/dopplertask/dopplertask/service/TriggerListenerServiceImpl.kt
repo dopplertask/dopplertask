@@ -47,7 +47,7 @@ open class TriggerListenerServiceImpl {
     @Autowired
     protected lateinit var executionService: ExecutionService
 
-    private val lastQueuedRun: MutableMap<Trigger, Long> = ConcurrentHashMap()
+    private val lastQueuedRun: MutableMap<String, Long> = ConcurrentHashMap()
 
     @Autowired
     @Lazy
@@ -78,7 +78,8 @@ open class TriggerListenerServiceImpl {
         triggerTasks.addAll(tasks)
 
         triggerTasks.forEach { task ->
-            threadPoolMap[poolName(task.name)] = Executors.newVirtualThreadPerTaskExecutor()
+            // One left from before, such as when stopping it failed, ends rather than running on unseen.
+            threadPoolMap.put(poolName(task.name), Executors.newVirtualThreadPerTaskExecutor())?.shutdownNow()
 
             startTriggers(task)
         }
@@ -139,12 +140,15 @@ open class TriggerListenerServiceImpl {
             taskService.runRequest(taskRequest)
             return
         }
-        val last = lastQueuedRun[trigger]
-        if (last != null && executionService.getExecution(last).map { it.status == TaskExecutionStatus.CREATED || it.status == TaskExecutionStatus.STARTED }.orElse(false)) {
+        val queue = runQueue.getObject()
+        val key = poolName(trigger.task?.name) + "/" + trigger.javaClass.simpleName + "/" + trigger.triggerSuffix
+        val last = lastQueuedRun[key]
+        // Only what the queue still holds counts as waiting, so that a run left behind cannot hold the schedule for good.
+        if (last != null && executionService.getExecution(last).map { it.status == TaskExecutionStatus.STARTED || it.status == TaskExecutionStatus.CREATED && queue.waiting().contains(last) }.orElse(false)) {
             logger.info("Trigger of task ${trigger.task?.name} skipped its turn, since its last run has not ended.")
             return
         }
-        lastQueuedRun[trigger] = taskService.delegate(taskRequest).id
+        lastQueuedRun[key] = taskService.delegate(taskRequest).id
     }
 
     private fun startTriggers(currentTask: Task) {
