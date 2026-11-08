@@ -3,11 +3,16 @@ package com.dopplertask.dopplertask;
 import com.dopplertask.dopplertask.filter.AccessFilter;
 import com.dopplertask.dopplertask.filter.Caller;
 import com.dopplertask.dopplertask.service.SsoService;
+import jakarta.servlet.http.Cookie;
 import org.junit.Assert;
 import org.junit.Test;
+import org.mockito.ArgumentMatchers;
+import org.mockito.Mockito;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+
+import java.util.Optional;
 
 public class AccessFilterTest {
 
@@ -76,6 +81,7 @@ public class AccessFilterTest {
         Assert.assertEquals(403, statusOf(WITH_TOKENS, "DELETE", "/execution/12", "agent-token"));
         Assert.assertEquals(403, statusOf(WITH_TOKENS, "POST", "/task/action", "agent-token"));
         Assert.assertEquals(403, statusOf(WITH_TOKENS, "POST", "/task/action/test", "agent-token"));
+        Assert.assertEquals(403, statusOf(WITH_TOKENS, "POST", "/execution/12/stop", "agent-token"));
     }
 
     @Test
@@ -84,6 +90,27 @@ public class AccessFilterTest {
         request.addHeader("Authorization", "Bearer agent-token");
         WITH_TOKENS.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
         Assert.assertEquals(Caller.AGENT, AccessFilter.callerOf(request));
+    }
+
+    @Test
+    public void testAnAgentNamedByAnEarlierFilterHasTheSameLimitsFail() throws Exception {
+        AccessFilter open = new AccessFilter("", "", NO_SSO);
+        for (String[] attempt : new String[][]{{"DELETE", "/task/x", "403"}, {"POST", "/task/action/test", "403"}, {"POST", "/task", "200"}}) {
+            MockHttpServletRequest request = new MockHttpServletRequest(attempt[0], attempt[1]);
+            AccessFilter.signIn(request, Caller.AGENT, null);
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            open.doFilter(request, response, new MockFilterChain());
+            Assert.assertEquals(attempt[0] + " " + attempt[1], Integer.parseInt(attempt[2]), response.getStatus());
+        }
+    }
+
+    @Test
+    public void testAPersonNamedByAnEarlierFilterIsKnownSuccess() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/task/abc/approve");
+        AccessFilter.signIn(request, Caller.PERSON, "alice@example.com");
+        new AccessFilter("", "", NO_SSO).doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
+        Assert.assertEquals(Caller.PERSON, AccessFilter.callerOf(request));
+        Assert.assertEquals("alice@example.com", AccessFilter.personOf(request).orElse(null));
     }
 
     @Test(expected = IllegalStateException.class)
@@ -101,6 +128,20 @@ public class AccessFilterTest {
     public void testWithoutTokensTheAgentEndpointCountsAsAnAgentSuccess() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/mcp");
         new AccessFilter("", "", NO_SSO).doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
+        Assert.assertEquals(Caller.AGENT, AccessFilter.callerOf(request));
+    }
+
+    @Test
+    public void testACallerSignedInByAFilterInFrontKeepsItsRoleSuccess() throws Exception {
+        SsoService sso = Mockito.mock(SsoService.class);
+        Mockito.when(sso.isEnabled()).thenReturn(true);
+        Mockito.when(sso.personOf(ArgumentMatchers.any())).thenReturn(Optional.of(new SsoService.Person("ann@example.com", "Ann")));
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/task");
+        AccessFilter.signIn(request, Caller.AGENT, null);
+        request.setCookies(new Cookie(AccessFilter.SESSION_COOKIE, "a-person's-session"));
+
+        new AccessFilter("", "", sso).doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
+
         Assert.assertEquals(Caller.AGENT, AccessFilter.callerOf(request));
     }
 }

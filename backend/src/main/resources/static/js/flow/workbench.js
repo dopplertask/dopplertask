@@ -5,7 +5,7 @@ export default function boot() {
   const { ACTIONS, formatDuration, formatAgo, nodeById, rootNode } = DT;
   const { icon, escapeHtml, modKey, statusGlyph, RUN_STATUS_LABELS, runParameterSummary, renderStepResult } = DT.ui;
   const isLive = () => !!runner.run && !runner.finished;
-  const completedRuns = () => store.runs.filter((run) => run !== runner.run || runner.finished);
+  const completedRuns = () => store.runs.filter((run) => run.status !== 'running' && (run !== runner.run || runner.finished));
   const reachedSteps = () => (runner.run ? runner.run.steps.filter((step) => runner.cursorMs >= step.startMs) : []);
   const stepIsDone = (step) => runner.cursorMs >= step.startMs + step.durationMs;
   const seconds = (ms) => DT.formatDuration(ms);
@@ -163,17 +163,18 @@ export default function boot() {
   }
 
   function resultParts(step, { tested = false } = {}) {
-    const label = step.status === 'success' ? 'Succeeded' : step.status === 'warning' ? 'Failed, task continued' : 'Failed';
+    const label = step.status === 'success' ? 'Succeeded' : step.status === 'warning' ? 'Failed, task continued' : step.status === 'stopped' ? 'Stopped' : 'Failed';
     return `<h3>${statusGlyph(step.status)}${tested ? `Test: ${label.toLowerCase()}` : label}<small>${formatDuration(step.durationMs)}</small></h3>${renderStepResult(step)}`;
   }
 
   const changeParametersButton = () => (store.task.parameters.length ? `<button type="button" class="ui-button" data-action="run" title="Run from the start with different values">Change parameters</button>` : '');
+  const failedStepOf = (run) => run.steps.find((step) => step.status === 'failed' || step.status === 'stopped');
   /* A run can continue at its failed step while that step is still in the task. */
   const canResume = (run, failed) => failed && failed === run.steps.at(-1) && run.steps.length > 1 && nodeById(store.task, failed.nodeId);
   const runAgainButton = '<button type="button" class="ui-button" data-wb="again" title="Run from the start with the same parameters">Run again</button>';
   const rerunButton = () => {
     const run = runner.run;
-    const resumable = canResume(run, run.steps.find((step) => step.status === 'failed'));
+    const resumable = canResume(run, failedStepOf(run));
     return `<div class="result-actions">${resumable ? `<button type="button" class="ui-button is-primary" data-wb="resume" title="Keep the results before this step and continue from here">${icon('replay')}Rerun from this step</button>` : ''}${runAgainButton}${changeParametersButton()}<button type="button" class="ui-link-button" data-wb="continue-on-failure">Let the task continue when this step fails</button></div>`;
   };
 
@@ -280,10 +281,11 @@ export default function boot() {
 
   /* ---------- Run player ---------- */
 
-  const failedStepOf = (run) => run.steps.find((step) => step.status === 'failed');
+  /* The step a run ended at, whether it failed there or a person stopped it there. */
   function runHeadline(run) {
     const failed = failedStepOf(run);
-    return failed ? `Failed at ${failed.name}` : run.failure || RUN_STATUS_LABELS[run.status];
+    if (failed) return `${failed.status === 'stopped' ? 'Stopped' : 'Failed'} at ${failed.name}`;
+    return run.failure || RUN_STATUS_LABELS[run.status];
   }
   const historyToggle = () => `<button type="button" class="labelled-button history-toggle ${historyOpen ? 'is-on' : ''}" data-wb="history" aria-expanded="${historyOpen}" title="Run history">${icon(historyOpen ? 'chevronDown' : 'chevronUp')}<span>History</span></button>`;
 
@@ -313,7 +315,7 @@ export default function boot() {
   function restartActionsHtml(failed) {
     /* While the panel shows the failed step, these actions are already there. */
     if (failed?.nodeId === store.selectedId) return '';
-    const resume = canResume(runner.run, failed) ? `<button type="button" class="ui-button is-primary" data-wb="resume" title="Keep the results before the failed step and continue from it">${icon('replay')}Rerun from failed step</button>` : '';
+    const resume = canResume(runner.run, failed) ? `<button type="button" class="ui-button is-primary" data-wb="resume" title="Keep the results before this step and continue from it">${icon('replay')}Rerun from ${failed.status} step</button>` : '';
     return `${resume}${runAgainButton}`;
   }
 
@@ -344,6 +346,7 @@ export default function boot() {
     toggle.title = runner.playing ? 'Pause this run' : runner.finished ? 'Watch this run again' : 'Continue this run';
     const failed = failedStepOf(run);
     byId('stripActions').innerHTML = `${runner.finished ? restartActionsHtml(failed) : ''}
+      ${run.live ? `<button type="button" class="labelled-button" data-wb="stop" title="Stop this run. The step that is going is asked to stop, and no further step starts.">${icon('stop')}<span>Stop</span></button>` : ''}
       ${historyToggle()}
       <button type="button" class="labelled-button" data-run-action="close" title="Close this run and go back to editing (esc)">${icon('x')}<span>Close</span></button>`;
   }
@@ -367,8 +370,8 @@ export default function boot() {
     const traceScroll = host.querySelector('.trace')?.scrollTop || 0;
     host.innerHTML = `<div class="history-runs">
         <h3 class="history-heading">Recent runs</h3>
-        <p class="history-stat">${finished.length ? `${successes} of ${finished.length} succeeded, ${formatDuration(average)} on average` : 'No runs yet. Press Run to start the first one.'}</p>
-        ${store.runs.map((run) => { const live = run === runner.run && isLive(); return `<button type="button" class="history-run ${run === shown ? 'is-current' : ''}" data-run="${run.id}">${statusGlyph(live ? 'running' : run.status)}<b>Run #${run.id}</b><em>${live ? 'now' : `${formatDuration(run.durationMs)}, ${formatAgo(run.startedAt)}`}</em><small>${run.startedByAgent ? 'Started by an agent. ' : ''}${escapeHtml(runParameterSummary(run)) || 'No parameters'}</small></button>`; }).join('')}
+        <p class="history-stat">${finished.length ? `${successes} of ${finished.length} succeeded, ${formatDuration(average)} on average` : store.runs.length ? '' : 'No runs yet. Press Run to start the first one.'}</p>
+        ${store.runs.map((run) => { const live = run.status === 'running' || (run === runner.run && isLive()); return `<button type="button" class="history-run ${run === shown ? 'is-current' : ''}" data-run="${run.id}">${statusGlyph(live ? 'running' : run.status)}<b>Run #${run.id}</b><em>${live ? 'now' : `${formatDuration(run.durationMs)}, ${formatAgo(run.startedAt)}`}</em><small>${run.startedByAgent ? 'Started by an agent. ' : ''}${escapeHtml(runParameterSummary(run)) || 'No parameters'}</small></button>`; }).join('')}
       </div>
       <div class="trace"><div class="trace-head"><span></span><span>Step</span><span>Output</span><span>Time</span></div>${steps.map((step) => { const done = !runner.run || stepIsDone(step); const shownStatus = done ? step.status : 'running'; return `<button type="button" class="trace-row ${shownStatus === 'failed' ? 'is-failed' : ''} ${store.selectedId === step.nodeId ? 'is-selected' : ''}" data-step="${step.nodeId}">${statusGlyph(shownStatus)}<b>${escapeHtml(step.name)}</b><code>${done ? escapeHtml(step.error || String(step.output || '').split('\n')[0]) : ''}</code><em>${done ? formatDuration(step.durationMs) : ''}</em></button>`; }).join('')}${!steps.length && shown?.logLines?.length ? `<p class="ui-empty">This run is from before each step was recorded, so here is its log.</p><pre class="ui-log trace-log">${escapeHtml(shown.logLines.join('\n'))}</pre>` : ''}</div>`;
     host.querySelector('.history-runs').scrollTop = runsScroll;
@@ -455,6 +458,7 @@ export default function boot() {
     if (action === 'resume') { store.select(null); store.startRun(runner.run.parameters, { resumeFrom: runner.run }).catch((error) => DT.ui.toast(error.message, { tone: 'danger' })); }
     if (action === 'again') { store.select(null); store.startRun(runner.run.parameters).catch((error) => DT.ui.toast(error.message, { tone: 'danger' })); }
     if (action === 'toggle-play') { if (runner.playing) runner.pause(); else runner.play(); }
+    if (action === 'stop') store.stopRun(runner.run).then(() => DT.ui.toast('Stopping the run'), (error) => DT.ui.toast(error.message, { tone: 'danger' }));
     const insert = target.closest('[data-insert]');
     if (insert) insertData(insert.dataset.insert);
     const runButton = target.closest('[data-run]');

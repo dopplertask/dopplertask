@@ -1,11 +1,14 @@
 package com.dopplertask.dopplertask;
 
+import org.springframework.transaction.support.TransactionOperations;
 import com.dopplertask.dopplertask.dao.TaskExecutionDao;
 import com.dopplertask.dopplertask.domain.TaskExecution;
 import com.dopplertask.dopplertask.domain.TaskExecutionStatus;
 import com.dopplertask.dopplertask.service.CustomerScope;
 import com.dopplertask.dopplertask.service.ExecutionService;
+import com.dopplertask.dopplertask.service.RunAlreadyEndedException;
 import com.dopplertask.dopplertask.service.RunHousekeeping;
+import com.dopplertask.dopplertask.service.RunQueue;
 import com.dopplertask.dopplertask.service.TaskExecutionRequest;
 import com.dopplertask.dopplertask.service.TaskServiceImpl;
 import org.junit.Assert;
@@ -24,7 +27,8 @@ public class StuckRunsTest {
     private final ExecutionService service = Mockito.mock(ExecutionService.class);
 
     private RunHousekeeping housekeeping(long maxRunMinutes) {
-        return new RunHousekeeping(executions, 0, maxRunMinutes, service, new StaticListableBeanFactory().getBeanProvider(CustomerScope.class));
+        StaticListableBeanFactory beans = new StaticListableBeanFactory();
+        return new RunHousekeeping(executions, 0, maxRunMinutes, service, beans.getBeanProvider(CustomerScope.class), beans.getBeanProvider(RunQueue.class), TransactionOperations.withoutTransaction());
     }
 
     private TaskExecution going(long id) {
@@ -78,9 +82,73 @@ public class StuckRunsTest {
         Instant later = Instant.now().plus(Duration.ofMinutes(61));
 
         ReflectionTestUtils.invokeMethod(housekeeping, "stopRunsOverTheLimit", later);
-        ReflectionTestUtils.invokeMethod(housekeeping, "stopRunsOverTheLimit", later);
+        ReflectionTestUtils.invokeMethod(housekeeping, "stopRunsOverTheLimit", later.plus(Duration.ofMinutes(1)));
 
         Mockito.verify(service, Mockito.timeout(5_000)).failRun(ArgumentMatchers.eq(2L), ArgumentMatchers.contains("60 minutes"));
+    }
+
+    @Test
+    public void testAPersonStopsAGoingRunAndItKeepsWhoSuccess() throws Exception {
+        RunHousekeeping housekeeping = housekeeping(60);
+        Thread step = new Thread(() -> {
+            try {
+                Thread.sleep(60_000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        step.start();
+        housekeeping.watch(8, step);
+
+        housekeeping.stop(8, "This run was stopped by ann@example.com.");
+        step.join(5_000);
+        housekeeping.finished(8);
+
+        Assert.assertFalse(step.isAlive());
+        Mockito.verify(service).abortRun(8L, "This run was stopped by ann@example.com.");
+        Mockito.verify(service, Mockito.never()).failRun(ArgumentMatchers.anyLong(), ArgumentMatchers.anyString());
+    }
+
+    @Test
+    public void testAStoppedRunWhoseStepDoesNotListenEndsAWholeCheckLaterSuccess() throws Exception {
+        RunHousekeeping housekeeping = housekeeping(0);
+        housekeeping.watch(9, new Thread());
+        housekeeping.stop(9, "This run was stopped.");
+
+        ReflectionTestUtils.invokeMethod(housekeeping, "stopRunsOverTheLimit", Instant.now());
+        Mockito.verify(service, Mockito.never()).abortRun(ArgumentMatchers.anyLong(), ArgumentMatchers.anyString());
+        ReflectionTestUtils.invokeMethod(housekeeping, "stopRunsOverTheLimit", Instant.now().plus(Duration.ofMinutes(2)));
+
+        Mockito.verify(service, Mockito.timeout(5_000)).abortRun(9L, "This run was stopped.");
+    }
+
+    @Test
+    public void testAStopThatComesAsTheRunEndsLeavesTheThreadCleanSuccess() throws Exception {
+        RunHousekeeping housekeeping = housekeeping(60);
+        housekeeping.watch(10, Thread.currentThread());
+        housekeeping.stop(10, "This run was stopped.");
+        housekeeping.finished(10);
+
+        Assert.assertFalse("The next run on this thread must not inherit the stop", Thread.currentThread().isInterrupted());
+        Mockito.verify(service).abortRun(10L, "This run was stopped.");
+        Assert.assertThrows(RunAlreadyEndedException.class, () -> housekeeping.stop(10, "Too late."));
+        Assert.assertFalse(Thread.currentThread().isInterrupted());
+    }
+
+    @Test
+    public void testStoppingARunStopsTheLinkedRunOnItsThreadSuccess() throws Exception {
+        RunHousekeeping housekeeping = housekeeping(60);
+        housekeeping.watch(30, Thread.currentThread());
+        housekeeping.watch(31, Thread.currentThread());
+
+        housekeeping.stop(30, "This run was stopped.");
+
+        Assert.assertTrue("The linked run checks on the same thread", housekeeping.stopAskedHere());
+        housekeeping.finished(31);
+        Assert.assertTrue("Its parent is still stopping", housekeeping.stopAskedHere());
+        housekeeping.finished(30);
+        Assert.assertFalse(housekeeping.stopAskedHere());
+        Assert.assertFalse(Thread.currentThread().isInterrupted());
     }
 
     @Test
@@ -93,7 +161,7 @@ public class StuckRunsTest {
                 return customer[0];
             }
         });
-        RunHousekeeping housekeeping = new RunHousekeeping(executions, 0, 60, service, beans.getBeanProvider(CustomerScope.class));
+        RunHousekeeping housekeeping = new RunHousekeeping(executions, 0, 60, service, beans.getBeanProvider(CustomerScope.class), beans.getBeanProvider(RunQueue.class), TransactionOperations.withoutTransaction());
         Thread firstStep = new Thread(() -> {
         });
         Thread secondStep = Mockito.spy(new Thread(() -> {

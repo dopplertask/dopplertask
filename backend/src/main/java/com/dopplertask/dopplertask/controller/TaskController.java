@@ -36,6 +36,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import com.dopplertask.dopplertask.domain.action.common.WebhookReplyAction;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,8 +46,8 @@ import com.dopplertask.dopplertask.filter.AccessFilter;
 import com.dopplertask.dopplertask.filter.Caller;
 import com.dopplertask.dopplertask.service.ApprovalRequiredException;
 import com.dopplertask.dopplertask.service.CredentialService;
-import com.dopplertask.dopplertask.service.SsoService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -81,11 +82,9 @@ public class TaskController {
     private final TaskService taskService;
     private final ExecutionService executionService;
     private final CredentialService credentialService;
-    private final SsoService ssoService;
 
-    public TaskController(@Autowired TaskService taskService, @Autowired ExecutionService executionService, @Autowired CredentialService credentialService, @Autowired SsoService ssoService) {
+    public TaskController(@Autowired TaskService taskService, @Autowired ExecutionService executionService, @Autowired CredentialService credentialService) {
         this.credentialService = credentialService;
-        this.ssoService = ssoService;
         this.taskService = taskService;
         this.executionService = executionService;
     }
@@ -114,10 +113,14 @@ public class TaskController {
     @Autowired
     private ObjectProvider<CustomerScope> customerScope;
 
-    // Webhook runs on a thread beside the request, for every Reply but the run log. Kept below the 60 database
-    // connections, so that the editor and other runs keep some.
+    // Webhook runs on a thread beside the request, for every Reply but the run log. All together kept below the 60
+    // database connections, so that the editor and other runs keep some, and each customer scope to its own share, so
+    // that one cannot take all of them.
     private static final int MAX_REPLYING_RUNS = 40;
     private final Semaphore replyingRuns = new Semaphore(MAX_REPLYING_RUNS);
+    @Value("${dopplertask.maxReplyingRunsPerScope:40}")
+    private int maxReplyingRunsPerScope;
+    private final Map<String, Semaphore> replyingRunsOfScope = new ConcurrentHashMap<>();
 
     @PostMapping(path = "/schedule/task")
     public ResponseEntity<SimpleIdResponseDto> scheduleTask(@RequestBody TaskRequestDTO taskRequestDTO, HttpServletRequest servletRequest) {
@@ -224,14 +227,19 @@ public class TaskController {
      */
     private ResponseEntity<?> runAndReply(TaskRequest request, WebhookTriggerInfo triggerInfo, String mode, String taskName) {
         // A full server answers at once rather than holding a request thread, so that the editor stays reachable.
+        CustomerScope scope = customerScope.getIfAvailable(() -> CustomerScope.ONE_CUSTOMER);
+        Semaphore ownPlaces = replyingRunsOfScope.computeIfAbsent(scope.current(), name -> new Semaphore(maxReplyingRunsPerScope));
+        if (!ownPlaces.tryAcquire()) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).header(HttpHeaders.RETRY_AFTER, "10").body("Too many webhook calls are running for this task's owner. Try again in a moment.");
+        }
         if (!replyingRuns.tryAcquire()) {
+            ownPlaces.release();
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).header(HttpHeaders.RETRY_AFTER, "10").body("The server is busy with other webhook calls. Try again in a moment.");
         }
         WebhookReply reply = new WebhookReply(mode);
         triggerInfo.setReply(reply);
         CompletableFuture<TaskExecution> ended = new CompletableFuture<>();
         try {
-            CustomerScope scope = customerScope.getIfAvailable(() -> CustomerScope.ONE_CUSTOMER);
             Thread.ofVirtual().name("webhook-" + taskName).start(scope.bound(() -> {
                 try {
                     ended.complete(taskService.runRequest(request));
@@ -240,10 +248,12 @@ public class TaskController {
                     ended.completeExceptionally(e);
                 } finally {
                     replyingRuns.release();
+                    ownPlaces.release();
                 }
             }));
         } catch (RuntimeException | Error e) {
             replyingRuns.release();
+            ownPlaces.release();
             throw e;
         }
         try {
@@ -375,7 +385,7 @@ public class TaskController {
 
     @PostMapping(path = "/task/{checksum}/approve")
     public ResponseEntity<SimpleChecksumResponseDto> approveTask(@PathVariable("checksum") String checksum, HttpServletRequest request) {
-        String approvedBy = ssoService.personOf(AccessFilter.sessionIdOf(request)).map(SsoService.Person::email).orElse(null);
+        String approvedBy = AccessFilter.personOf(request).orElse(null);
         if (!taskService.approveTask(checksum, approvedBy)) {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }

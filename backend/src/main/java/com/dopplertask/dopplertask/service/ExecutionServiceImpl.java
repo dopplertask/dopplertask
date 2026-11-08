@@ -6,6 +6,7 @@ import com.dopplertask.dopplertask.domain.*;
 import com.dopplertask.dopplertask.domain.action.Action;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jms.core.JmsTemplate;
 import org.springframework.stereotype.Service;
@@ -31,6 +32,7 @@ public class ExecutionServiceImpl implements ExecutionService {
     private VariableExtractorUtil variableExtractorUtil;
     private TaskExecutionDao taskExecutionDao;
     private CustomerScope customerScope = CustomerScope.ONE_CUSTOMER;
+    private ObjectProvider<RunHousekeeping> runHousekeeping;
 
     @Autowired
     public ExecutionServiceImpl(JmsTemplate jmsTemplate, TaskDao taskDao, VariableExtractorUtil variableExtractorUtil, CredentialService credentialService, TaskExecutionDao taskExecutionDao) {
@@ -46,12 +48,34 @@ public class ExecutionServiceImpl implements ExecutionService {
         this.customerScope = customerScope;
     }
 
+    /** Through a provider, since housekeeping in turn ends runs through this service. */
+    @Autowired
+    public void setRunHousekeeping(ObjectProvider<RunHousekeeping> runHousekeeping) {
+        this.runHousekeeping = runHousekeeping;
+    }
+
+    /**
+     * A step can swallow the interrupt that a stop sends, so the run also asks whoever was told. Any other interrupt, such
+     * as a schedule being turned off, still ends the run as before.
+     */
+    private boolean toldToStop() {
+        RunHousekeeping housekeeping = runHousekeeping == null ? null : runHousekeeping.getIfAvailable();
+        return Thread.currentThread().isInterrupted() || housekeeping != null && housekeeping.stopAskedHere();
+    }
+
     @Transactional
     public TaskExecution startExecution(TaskExecutionRequest taskExecutionRequest, TaskService taskService, boolean startedByTrigger) {
         // Look up by checksum first
         Optional<Task> taskRequest = lookupTask(taskExecutionRequest, taskService);
 
-        Optional<TaskExecution> executionReq = taskExecutionDao.findById(taskExecutionRequest.getExecutionId());
+        // A run that waits is locked while it starts, so that a stop at the same moment waits for it. A linked run never
+        // waits, and runs inside its parent's transaction, which a lock would hold until the parent ends.
+        Optional<TaskExecution> executionReq = taskExecutionRequest.getDepth() > 0 ? taskExecutionDao.findById(taskExecutionRequest.getExecutionId())
+                : taskExecutionDao.findForUpdate(taskExecutionRequest.getExecutionId());
+        // Only a run that waits starts. One that was stopped meanwhile, or failed, stays as it is, even if its task is gone.
+        if (executionReq.isPresent() && executionReq.get().getStatus() != TaskExecutionStatus.CREATED) {
+            return executionReq.get();
+        }
         if (taskRequest.isPresent() && executionReq.isPresent()) {
             Task task = taskRequest.get();
             TaskExecution execution = executionReq.get();
@@ -159,6 +183,16 @@ public class ExecutionServiceImpl implements ExecutionService {
     }
 
     @Override
+    @Transactional
+    public TaskExecution abortRun(long id, String reason) {
+        TaskExecution execution = taskExecutionDao.findById(id).orElseThrow();
+        if (execution.getStatus() != TaskExecutionStatus.FINISHED) {
+            execution.abort(reason);
+        }
+        return execution;
+    }
+
+    @Override
     public Optional<TaskExecution> getExecution(long id) {
         return taskExecutionDao.findById(id);
     }
@@ -237,7 +271,7 @@ public class ExecutionServiceImpl implements ExecutionService {
         }
 
         execution.restoreRunningLoops();
-        while (execution.getCurrentAction() != null && !Thread.currentThread().isInterrupted()) {
+        while (execution.getCurrentAction() != null && !toldToStop()) {
             Action currentAction = execution.getCurrentAction();
 
             execution.addActionAccessCountByOne(currentAction.getId());
@@ -281,10 +315,11 @@ public class ExecutionServiceImpl implements ExecutionService {
 
         execution.keepRunningLoops();
 
-        // The time limit asks a run to stop, and a step may have ignored that.
-        if (Thread.interrupted()) {
+        // The run was told to stop. The interrupt that woke its step goes, so that it disturbs nothing else on this thread.
+        if (toldToStop()) {
             execution.setSuccess(false);
         }
+        Thread.interrupted();
 
         TaskExecutionLog executionCompleted = new TaskExecutionLog();
         executionCompleted.setTaskExecution(execution);
@@ -315,8 +350,10 @@ public class ExecutionServiceImpl implements ExecutionService {
         // A waiting run continues only with what arrived at its address, which took its key.
         boolean answered = earlierRun.getStatus() == TaskExecutionStatus.WAITING && earlierRun.getWaitKey() == null && request.getResumeWith() != null;
         List<TaskExecutionStep> steps = earlierRun.getSteps();
-        if (!answered && (steps.isEmpty() || steps.get(steps.size() - 1).getStatus() != StatusCode.FAILURE || earlierRun.getStatus() != TaskExecutionStatus.FAILED)) {
-            return "Could not resume. Execution " + resumeFromExecutionId + (earlierRun.getStatus() == TaskExecutionStatus.WAITING ? " waits for its answer." : " did not fail at a step.");
+        // A run that a person stopped ends at the step that was going, in the same way as one that failed there.
+        boolean endedAtAStep = earlierRun.getStatus() == TaskExecutionStatus.FAILED || earlierRun.getStatus() == TaskExecutionStatus.ABORTED;
+        if (!answered && (steps.isEmpty() || steps.get(steps.size() - 1).getStatus() != StatusCode.FAILURE || !endedAtAStep)) {
+            return "Could not resume. Execution " + resumeFromExecutionId + (earlierRun.getStatus() == TaskExecutionStatus.WAITING ? " waits for its answer." : " did not fail or stop at a step.");
         }
         String resumePort = steps.get(steps.size() - 1).getPortId();
         if (resumePort == null || task.getActionByPort(resumePort) == null) {
@@ -411,7 +448,7 @@ public class ExecutionServiceImpl implements ExecutionService {
             }
 
             tries++;
-        } while (actionResult.getStatusCode() == StatusCode.FAILURE && currentAction.getRetries() >= tries && !currentAction.isContinueOnFailure());
+        } while (actionResult.getStatusCode() == StatusCode.FAILURE && currentAction.getRetries() >= tries && !currentAction.isContinueOnFailure() && !toldToStop());
         return actionResult;
     }
 

@@ -4,9 +4,12 @@ import com.dopplertask.dopplertask.domain.Task;
 import com.dopplertask.dopplertask.domain.TaskExecution;
 import com.dopplertask.dopplertask.domain.TaskExecutionStatus;
 import org.springframework.data.domain.Pageable;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,4 +36,8 @@ public interface TaskExecutionDao extends JpaRepository<TaskExecution, Long> {
     @Transactional
     @Query("update TaskExecution run set run.waitKey = null where run.id = ?1 and run.waitKey = ?2")
     int takeWaitKey(Long id, String waitKey);
+    /** Starting a run and stopping it while it waits both read its state through this, so that one waits for the other. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select execution from TaskExecution execution where execution.id = :id")
+    Optional<TaskExecution> findForUpdate(@Param("id") long id);
 }
