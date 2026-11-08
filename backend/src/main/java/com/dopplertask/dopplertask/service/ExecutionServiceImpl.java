@@ -317,7 +317,7 @@ public class ExecutionServiceImpl implements ExecutionService {
 
     private void recordStep(TaskExecution execution, Action action, ActionResult result, long durationMs) {
         String portId = action.getPorts() == null || action.getPorts().isEmpty() ? null : action.getPorts().get(0).getExternalId();
-        TaskExecutionStep step = new TaskExecutionStep(execution, portId, action.getClass().getSimpleName(), result, durationMs);
+        TaskExecutionStep step = new TaskExecutionStep(execution, portId, action.getStepTypeName(), result, durationMs);
         step.keepOutputs(action.getOutputs().keySet(), result.getOutputVariables());
         if (execution.getWebhookReply() != null) {
             execution.getWebhookReply().setLastOutput(result.getOutput());

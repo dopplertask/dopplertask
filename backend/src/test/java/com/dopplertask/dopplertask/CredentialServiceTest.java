@@ -19,6 +19,7 @@ import com.dopplertask.dopplertask.service.CredentialCipher;
 import com.dopplertask.dopplertask.service.CredentialProblemException;
 import com.dopplertask.dopplertask.service.CredentialService;
 import tools.jackson.databind.ObjectMapper;
+import com.dopplertask.dopplertask.domain.action.StepTypes;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -203,11 +204,11 @@ public class CredentialServiceTest {
 
     @Test
     public void testEveryKindOfStepThatSignsInDeclaresItsSecretsSuccess() {
-        Assert.assertEquals(Boolean.TRUE, CredentialService.fieldsOf(SSHAction.class).get("password"));
-        Assert.assertEquals(Boolean.FALSE, CredentialService.fieldsOf(SSHAction.class).get("username"));
-        Assert.assertEquals(Boolean.TRUE, CredentialService.fieldsOf(Webhook.class).get("token"));
-        Assert.assertEquals(Boolean.TRUE, CredentialService.fieldsOf(HttpAction.class).get("authHeaderValue"));
-        CredentialService.stepTypes().values().forEach(stepClass -> CredentialService.fieldsOf(stepClass).keySet().forEach(field -> {
+        Assert.assertEquals(Boolean.TRUE, CredentialService.fieldsOf(new SSHAction()).get("password"));
+        Assert.assertEquals(Boolean.FALSE, CredentialService.fieldsOf(new SSHAction()).get("username"));
+        Assert.assertEquals(Boolean.TRUE, CredentialService.fieldsOf(new Webhook()).get("token"));
+        Assert.assertEquals(Boolean.TRUE, CredentialService.fieldsOf(new HttpAction()).get("authHeaderValue"));
+        StepTypes.INSTANCE.getClasses().values().forEach(stepClass -> CredentialService.fieldsOf(StepTypes.INSTANCE.newStep(stepClass.getSimpleName())).keySet().forEach(field -> {
             Assert.assertTrue(stepClass.getSimpleName() + " " + field + " cannot be filled in", new BeanWrapperImpl(stepClass).isWritableProperty(field));
             Assert.assertTrue(stepClass.getSimpleName() + " " + field + " is still stored in the step", CredentialService.isOnlyInCredentials(stepClass, field));
         }));
@@ -241,22 +242,22 @@ public class CredentialServiceTest {
 
     @Test
     public void testStepsThatShareACredentialTakeTheSameFieldsSuccess() {
-        Assert.assertEquals(CredentialService.fieldsOf(EmailAction.class), CredentialService.fieldsOf(ReadEmailAction.class));
-        Assert.assertEquals(CredentialService.fieldsOf(SSHAction.class), CredentialService.fieldsOf(SecureCopyAction.class));
+        Assert.assertEquals(CredentialService.fieldsOf(new EmailAction()), CredentialService.fieldsOf(new ReadEmailAction()));
+        Assert.assertEquals(CredentialService.fieldsOf(new SSHAction()), CredentialService.fieldsOf(new SecureCopyAction()));
         Map<String, Map<String, Boolean>> fieldsOfType = new java.util.HashMap<>();
-        CredentialService.stepTypes().values().stream().filter(stepClass -> !CredentialService.fieldsOf(stepClass).isEmpty()).forEach(stepClass -> {
-            Map<String, Boolean> earlier = fieldsOfType.putIfAbsent(CredentialService.credentialTypeOf(stepClass), CredentialService.fieldsOf(stepClass));
+        StepTypes.INSTANCE.all().stream().filter(step -> !CredentialService.fieldsOf(step).isEmpty()).forEach(step -> {
+            Map<String, Boolean> earlier = fieldsOfType.putIfAbsent(step.getCredentialType(), CredentialService.fieldsOf(step));
             if (earlier != null) {
-                Assert.assertEquals(stepClass.getSimpleName(), earlier, CredentialService.fieldsOf(stepClass));
+                Assert.assertEquals(step.getStepTypeName(), earlier, CredentialService.fieldsOf(step));
             }
         });
     }
 
     @Test
     public void testGoogleAndAtlassianStepsShareTheirAccountsSuccess() {
-        Assert.assertEquals(CredentialService.credentialTypeOf(com.dopplertask.dopplertask.domain.action.integration.storage.GoogleSheetsAction.class), CredentialService.credentialTypeOf(com.dopplertask.dopplertask.domain.action.integration.storage.GoogleDriveAction.class));
-        Assert.assertEquals(CredentialService.credentialTypeOf(com.dopplertask.dopplertask.domain.action.integration.storage.GoogleSheetsAction.class), CredentialService.credentialTypeOf(com.dopplertask.dopplertask.domain.action.integration.storage.GoogleCalendarAction.class));
-        Assert.assertEquals(CredentialService.credentialTypeOf(JiraAction.class), CredentialService.credentialTypeOf(com.dopplertask.dopplertask.domain.action.integration.storage.ConfluenceAction.class));
+        Assert.assertEquals(new com.dopplertask.dopplertask.domain.action.integration.storage.GoogleSheetsAction().getCredentialType(), new com.dopplertask.dopplertask.domain.action.integration.storage.GoogleDriveAction().getCredentialType());
+        Assert.assertEquals(new com.dopplertask.dopplertask.domain.action.integration.storage.GoogleSheetsAction().getCredentialType(), new com.dopplertask.dopplertask.domain.action.integration.storage.GoogleCalendarAction().getCredentialType());
+        Assert.assertEquals(new JiraAction().getCredentialType(), new com.dopplertask.dopplertask.domain.action.integration.storage.ConfluenceAction().getCredentialType());
     }
 
     @Test

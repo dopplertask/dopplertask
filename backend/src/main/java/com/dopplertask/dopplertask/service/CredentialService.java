@@ -5,15 +5,14 @@ import com.dopplertask.dopplertask.domain.ActionResult;
 import com.dopplertask.dopplertask.domain.Credential;
 import com.dopplertask.dopplertask.domain.TaskExecution;
 import com.dopplertask.dopplertask.domain.action.Action;
+import com.dopplertask.dopplertask.domain.action.StepTypes;
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation;
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationCategory;
 import com.dopplertask.dopplertask.domain.action.connection.HttpAction;
 import com.dopplertask.dopplertask.domain.action.connection.HttpHeader;
-import com.fasterxml.jackson.annotation.JsonSubTypes;
 import tools.jackson.core.JacksonException;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
-import org.springframework.beans.BeanWrapperImpl;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -22,7 +21,6 @@ import org.springframework.transaction.annotation.Transactional;
 import jakarta.persistence.Transient;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -43,11 +41,9 @@ public class CredentialService {
     private static final String HIDDEN = "(hidden)";
     // Anything shorter would also hide ordinary text in the output.
     private static final int SHORTEST_HIDDEN_VALUE = 4;
-    private static final Map<String, Class<?>> STEP_TYPES = Arrays.stream(Action.class.getAnnotation(JsonSubTypes.class).value())
-            .collect(Collectors.toMap(JsonSubTypes.Type::name, JsonSubTypes.Type::value));
-    private static final Map<String, List<String>> STEPS_OF_TYPE = STEP_TYPES.values().stream()
-            .filter(stepClass -> !fieldsOf(stepClass).isEmpty())
-            .collect(Collectors.groupingBy(CredentialService::credentialTypeOf, Collectors.mapping(Class::getSimpleName, Collectors.toList())));
+    private static final Map<String, List<String>> STEPS_OF_TYPE = StepTypes.INSTANCE.all().stream()
+            .filter(step -> !fieldsOf(step).isEmpty())
+            .collect(Collectors.groupingBy(Action::getCredentialType, Collectors.mapping(Action::getStepTypeName, Collectors.toList())));
 
     private final CredentialDao credentialDao;
     private final CredentialCipher cipher;
@@ -156,12 +152,11 @@ public class CredentialService {
         if (elsewhere != null && elsewhere.runsElsewhere(action)) {
             return withoutSecrets(elsewhere.runStep(action, values, execution), action, values);
         }
-        BeanWrapperImpl step = new BeanWrapperImpl(action);
-        values.forEach(step::setPropertyValue);
+        action.useCredentialValues(values);
         try {
             return withoutSecrets(run.run(), action, values);
         } finally {
-            values.keySet().forEach(field -> step.setPropertyValue(field, null));
+            action.forgetCredentialValues(values.keySet());
         }
     }
 
@@ -184,8 +179,7 @@ public class CredentialService {
                         + " out, and set credential to a name from list_credentials, or ask a person to create one.");
             }
             action.setCredential(findOrCreate(action.getCredentialType(), inline));
-            BeanWrapperImpl step = new BeanWrapperImpl(action);
-            inline.keySet().forEach(field -> step.setPropertyValue(field, null));
+            action.forgetCredentialValues(inline.keySet());
         }
     }
 
@@ -227,19 +221,11 @@ public class CredentialService {
     }
 
     private Map<String, String> inlineValuesOf(Action action) {
-        BeanWrapperImpl step = new BeanWrapperImpl(action);
-        Map<String, String> values = new LinkedHashMap<>();
-        fieldsOf(action.getClass()).keySet().forEach(field -> {
-            Object value = step.getPropertyValue(field);
-            if (value != null && !value.toString().isBlank()) {
-                values.put(field, value.toString());
-            }
-        });
-        return values;
+        return action.inlineCredentialValues(fieldsOf(action).keySet());
     }
 
     private ActionResult withoutSecrets(ActionResult result, Action action, Map<String, String> values) {
-        Map<String, Boolean> fields = fieldsOf(action.getClass());
+        Map<String, Boolean> fields = fieldsOf(action);
         values.forEach((field, value) -> {
             if (Boolean.TRUE.equals(fields.get(field)) && value.length() >= SHORTEST_HIDDEN_VALUE) {
                 result.setOutput(result.getOutput().replace(value, HIDDEN));
@@ -254,7 +240,7 @@ public class CredentialService {
             throw new CredentialProblemException("There is no credential type called \"" + type + "\".");
         }
         // Steps that share a type take the same fields.
-        Map<String, Boolean> known = fieldsOf(STEP_TYPES.get(STEPS_OF_TYPE.get(type).get(0)));
+        Map<String, Boolean> known = fieldsOf(StepTypes.INSTANCE.newStep(STEPS_OF_TYPE.get(type).get(0)));
         Map<String, String> kept = new LinkedHashMap<>();
         values.forEach((field, value) -> {
             if (!known.containsKey(field)) {
@@ -290,14 +276,9 @@ public class CredentialService {
      * The fields a kind of step takes from a credential, by name, with whether each one is secret. What the step declares
      * is the only list of them.
      */
-    public static Map<String, Boolean> fieldsOf(Class<?> stepClass) {
+    public static Map<String, Boolean> fieldsOf(Action step) {
         Map<String, Boolean> fields = new HashMap<>();
-        try {
-            Action step = (Action) stepClass.getDeclaredConstructor().newInstance();
-            collect(step.getActionInfo(), fields);
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("A step could not be looked at: " + stepClass.getSimpleName(), e);
-        }
+        collect(step.getActionInfo(), fields);
         return fields;
     }
 
@@ -327,15 +308,4 @@ public class CredentialService {
         return false;
     }
 
-    public static String credentialTypeOf(Class<?> stepClass) {
-        try {
-            return ((Action) stepClass.getDeclaredConstructor().newInstance()).getCredentialType();
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("A step could not be looked at: " + stepClass.getSimpleName(), e);
-        }
-    }
-
-    public static Map<String, Class<?>> stepTypes() {
-        return STEP_TYPES;
-    }
 }

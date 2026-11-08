@@ -9,6 +9,7 @@ import com.dopplertask.dopplertask.domain.TaskExecutionLog;
 import com.dopplertask.dopplertask.domain.TaskExecutionStatus;
 import com.dopplertask.dopplertask.domain.action.Action;
 import com.dopplertask.dopplertask.domain.action.trigger.Trigger;
+import com.dopplertask.dopplertask.domain.action.StepTypes;
 import com.dopplertask.dopplertask.dto.ActionInfoDto;
 import com.dopplertask.dopplertask.dto.ActionTestRequestDTO;
 import com.dopplertask.dopplertask.dto.ActionListResponseDto;
@@ -526,20 +527,16 @@ public class TaskController {
     }
 
     @GetMapping("/task/actions")
-    public ResponseEntity<ActionListResponseDto> getAllActions() throws NoSuchMethodException, IllegalAccessException, InvocationTargetException, InstantiationException {
-
-
+    public ResponseEntity<ActionListResponseDto> getAllActions() {
         ActionListResponseDto actionListResponseDto = new ActionListResponseDto();
-        for (Class<?> currentClass : CredentialService.stepTypes().values()) {
-            if (!StepRules.active().offers(currentClass.asSubclass(Action.class))) {
-                continue;
+        for (Action step : StepTypes.INSTANCE.all()) {
+            if (StepRules.active().offers(step.getClass())) {
+                actionListResponseDto.getActions().add(new ActionInfoDto(step.getStepTypeName(), step.getStepLabel(), step.getStepIcon(), step.getDescription(),
+                        step.getActionInfo(), step instanceof Trigger, step.getOutputs(), step.getCredentialType()));
             }
-            Action instance = (Action) currentClass.getDeclaredConstructor().newInstance();
-            boolean trigger = instance.getClass().getSuperclass().getSimpleName().equals(Trigger.class.getSimpleName());
-            actionListResponseDto.getActions().add(new ActionInfoDto(currentClass.getSimpleName(), instance.getDescription(), instance.getActionInfo(), trigger, instance.getOutputs(), instance.getCredentialType()));
         }
 
-        Collections.sort(actionListResponseDto.getActions(), (Comparator.comparing(ActionInfoDto::getName)));
+        Collections.sort(actionListResponseDto.getActions(), (Comparator.comparing(ActionInfoDto::name)));
 
         return new ResponseEntity<>(actionListResponseDto, HttpStatus.OK);
     }

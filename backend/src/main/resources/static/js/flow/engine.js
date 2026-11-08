@@ -177,7 +177,8 @@ function loadCatalogue(actions) {
   const triggers = {};
   actions.forEach((action) => {
     const backend = action.name;
-    const [type, label, category, iconName, required] = PRESENTATION[backend] || [backend, backend.replace(/Action$/, ''), 'integration', 'workflow'];
+    /* A connector names its own label and icon, since it is described in a file and not here. */
+    const [type, label, category, iconName, required] = PRESENTATION[backend] || [backend, action.label || backend.replace(/Action$/, ''), 'integration', action.icon || 'workflow'];
     const fields = fieldsOf(action.propertyInformationList.filter((information) => information.name !== STEP_ACTION_NAME));
     if (!FAILURE_FIELDS.length) FAILURE_FIELDS.push(...fields.filter((field) => FAILURE_FIELD_NAMES.includes(field.key)));
     const own = withCredentialField(fields.filter((field) => !FAILURE_FIELD_NAMES.includes(field.key)).map((field) => ({ ...field, required: !!required?.includes(field.key) })), action.credentialType);

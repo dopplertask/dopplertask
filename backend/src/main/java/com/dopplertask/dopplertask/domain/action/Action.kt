@@ -90,6 +90,8 @@ import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonSubTypes
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import com.fasterxml.jackson.annotation.JsonTypeInfo.As
+import org.springframework.beans.BeanWrapperImpl
+import tools.jackson.databind.annotation.JsonTypeIdResolver
 import jakarta.persistence.CascadeType
 import jakarta.persistence.Column
 import jakarta.persistence.DiscriminatorColumn
@@ -118,7 +120,8 @@ import org.hibernate.annotations.FetchMode
 // Otherwise the table only accepts the steps that existed when it was created, and refuses every step added later.
 @DiscriminatorOptions(force = true)
 @DiscriminatorValue("noop")
-@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = As.PROPERTY)
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = As.PROPERTY, visible = true)
+@JsonTypeIdResolver(StepTypeIdResolver::class)
 @JsonSubTypes(
     JsonSubTypes.Type(value = BrowseWebAction::class, name = "BrowseWebAction"),
     JsonSubTypes.Type(value = HttpAction::class, name = "HttpAction"),
@@ -267,6 +270,36 @@ abstract class Action {
     @get:JsonIgnore
     open val credentialType: String
         get() = javaClass.simpleName
+
+    /** How the editor shows a kind that it does not know by name, such as a connector. */
+    @get:JsonIgnore
+    open val stepLabel: String?
+        get() = null
+
+    @get:JsonIgnore
+    open val stepIcon: String?
+        get() = null
+
+    /** The kind of step, by the name that tasks, the editor and agents use. */
+    @get:JsonIgnore
+    open val stepTypeName: String
+        get() = javaClass.simpleName
+
+    /** Takes what the step's credential holds, only while it runs. A step reads them as its own fields. */
+    open fun useCredentialValues(values: Map<String, String>) {
+        BeanWrapperImpl(this).setPropertyValues(values)
+    }
+
+    /** Credential values that were written into the step itself, which saving moves into a credential. */
+    open fun inlineCredentialValues(fields: Set<String>): Map<String, String> {
+        val step = BeanWrapperImpl(this)
+        return fields.mapNotNull { field -> step.getPropertyValue(field)?.toString()?.takeIf { it.isNotBlank() }?.let { field to it } }.toMap()
+    }
+
+    open fun forgetCredentialValues(fields: Set<String>) {
+        val step = BeanWrapperImpl(this)
+        fields.forEach { step.setPropertyValue(it, null) }
+    }
 
     /**
      * All action values are evaluated with VELOCITY as standard, but can be changed to other languages.
