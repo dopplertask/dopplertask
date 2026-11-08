@@ -1,0 +1,713 @@
+{
+  "name": "plausible",
+  "label": "Plausible Analytics",
+  "description": "Privacy-friendly website analytics",
+  "icon": "",
+  "hosts": [
+    "plausible.io"
+  ],
+  "baseUrl": "https://plausible.io/api/v1",
+  "upstream": {
+    "package": "@activepieces/piece-plausible",
+    "version": "0.2.2"
+  },
+  "credential": {
+    "fields": {
+      "apiKey": {
+        "label": "API Key",
+        "description": "In Plausible, open **Settings** from your account menu, go to **API Keys**, click **New API Key**, choose **Stats API** or **Sites API**, and save the key.",
+        "secret": true,
+        "required": true
+      }
+    },
+    "headers": {
+      "Authorization": "Bearer {{credential.apiKey}}"
+    }
+  },
+  "actions": {
+    "get_realtime_visitors": {
+      "label": "Get Realtime Visitors",
+      "description": "Get the number of current visitors on your site",
+      "inputs": {
+        "site_id": {
+          "label": "Site",
+          "description": "Select a site",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://plausible.io/api/v1/sites"
+            },
+            "list": "$.sites",
+            "label": "$.domain",
+            "value": "$.domain"
+          }
+        }
+      },
+      "request": {
+        "url": "https://plausible.io/api/v1/stats/realtime/visitors",
+        "query": {
+          "site_id": "{{site_id}}"
+        }
+      },
+      "afterResponse": "return {visitors: response};",
+      "outputs": {
+        "visitors": "$.visitors"
+      }
+    },
+    "get_aggregate_stats": {
+      "label": "Get Aggregate Stats",
+      "description": "Get aggregated analytics metrics for a time period",
+      "inputs": {
+        "site_id": {
+          "label": "Site",
+          "description": "Select a site",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://plausible.io/api/v1/sites"
+            },
+            "list": "$.sites",
+            "label": "$.domain",
+            "value": "$.domain"
+          }
+        },
+        "period": {
+          "label": "Period",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "day",
+              "label": "Today"
+            },
+            {
+              "value": "7d",
+              "label": "Last 7 days"
+            },
+            {
+              "value": "30d",
+              "label": "Last 30 days"
+            },
+            {
+              "value": "month",
+              "label": "This month"
+            },
+            {
+              "value": "6mo",
+              "label": "Last 6 months"
+            },
+            {
+              "value": "12mo",
+              "label": "Last 12 months"
+            }
+          ]
+        },
+        "metrics": {
+          "label": "Metrics",
+          "description": "A list of metrics: visitors, pageviews, bounce_rate, visit_duration, views_per_visit.",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://plausible.io/api/v1/stats/aggregate",
+        "query": {
+          "site_id": "{{site_id}}",
+          "period": "{{period}}",
+          "metrics": "{{metrics}}"
+        }
+      },
+      "beforeRequest": "request.query.metrics = [].concat(JSON.parse(inputs.metrics)).join(','); return request;",
+      "afterResponse": "return Object.fromEntries(Object.entries(response.results).map(([key, metric]) => [key, metric.value]));"
+    },
+    "get_breakdown": {
+      "label": "Get Traffic Breakdown",
+      "description": "Break down traffic by page, source, country, or other dimensions",
+      "inputs": {
+        "site_id": {
+          "label": "Site",
+          "description": "Select a site",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://plausible.io/api/v1/sites"
+            },
+            "list": "$.sites",
+            "label": "$.domain",
+            "value": "$.domain"
+          }
+        },
+        "period": {
+          "label": "Period",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "day",
+              "label": "Today"
+            },
+            {
+              "value": "7d",
+              "label": "Last 7 days"
+            },
+            {
+              "value": "30d",
+              "label": "Last 30 days"
+            },
+            {
+              "value": "month",
+              "label": "This month"
+            },
+            {
+              "value": "6mo",
+              "label": "Last 6 months"
+            },
+            {
+              "value": "12mo",
+              "label": "Last 12 months"
+            }
+          ]
+        },
+        "property": {
+          "label": "Breakdown By",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "event:page",
+              "label": "Page"
+            },
+            {
+              "value": "visit:source",
+              "label": "Source"
+            },
+            {
+              "value": "visit:country",
+              "label": "Country"
+            },
+            {
+              "value": "visit:browser",
+              "label": "Browser"
+            },
+            {
+              "value": "visit:os",
+              "label": "OS"
+            },
+            {
+              "value": "visit:device",
+              "label": "Device"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "type": "number",
+          "defaultValue": "10"
+        }
+      },
+      "request": {
+        "url": "https://plausible.io/api/v1/stats/breakdown",
+        "query": {
+          "site_id": "{{site_id}}",
+          "period": "{{period}}",
+          "property": "{{property}}",
+          "limit": "{{limit}}"
+        }
+      },
+      "beforeRequest": "request.query.limit = inputs.limit || '10'; return request;",
+      "result": "$.results"
+    },
+    "list_sites": {
+      "label": "List Sites",
+      "description": "Get a list of sites your Plausible account can access",
+      "request": {
+        "url": "https://plausible.io/api/v1/sites"
+      },
+      "afterResponse": "return {sites: response.sites};",
+      "outputs": {
+        "sites": "$.sites"
+      }
+    },
+    "get_site": {
+      "label": "Get Site",
+      "description": "Get details of a site including tracker script configuration",
+      "inputs": {
+        "site_id": {
+          "label": "Site",
+          "description": "Select a site",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://plausible.io/api/v1/sites"
+            },
+            "list": "$.sites",
+            "label": "$.domain",
+            "value": "$.domain"
+          }
+        }
+      },
+      "request": {
+        "url": "https://plausible.io/api/v1/sites/{{site_id}}"
+      },
+      "outputs": {
+        "domain": "$.domain",
+        "timezone": "$.timezone"
+      }
+    },
+    "create_site": {
+      "label": "Create Site",
+      "description": "Create a new site in your Plausible account",
+      "inputs": {
+        "domain": {
+          "label": "Domain",
+          "description": "Domain of the site (must be globally unique)",
+          "required": true
+        },
+        "timezone": {
+          "label": "Timezone",
+          "description": "Timezone name according to IANA database (e.g., Europe/London). Defaults to Etc/UTC"
+        },
+        "team_id": {
+          "label": "Team",
+          "description": "Select a team",
+          "optionsFrom": {
+            "request": {
+              "url": "https://plausible.io/api/v1/sites/teams"
+            },
+            "list": "$.teams"
+          }
+        },
+        "track_404_pages": {
+          "label": "Track 404 Pages",
+          "description": "Enable tracking of 404 error pages",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "hash_based_routing": {
+          "label": "Hash-Based Routing",
+          "description": "Enable hash-based routing for single-page applications",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "outbound_links": {
+          "label": "Outbound Links",
+          "description": "Track clicks on outbound links",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "file_downloads": {
+          "label": "File Downloads",
+          "description": "Track file downloads",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "form_submissions": {
+          "label": "Form Submissions",
+          "description": "Track form submissions",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://plausible.io/api/v1/sites",
+        "body": {
+          "domain": "{{domain}}",
+          "timezone": "{{timezone}}",
+          "team_id": "{{team_id}}",
+          "tracker_script_configuration": {
+            "track_404_pages": "{{track_404_pages}}",
+            "hash_based_routing": "{{hash_based_routing}}",
+            "outbound_links": "{{outbound_links}}",
+            "file_downloads": "{{file_downloads}}",
+            "form_submissions": "{{form_submissions}}"
+          }
+        }
+      },
+      "beforeRequest": "const config = request.body.tracker_script_configuration; for (const key of Object.keys(config)) if (config[key] !== true) delete config[key]; if (!Object.keys(config).length) delete request.body.tracker_script_configuration; return request;",
+      "outputs": {
+        "domain": "$.domain",
+        "timezone": "$.timezone"
+      }
+    },
+    "update_site": {
+      "label": "Update Site",
+      "description": "Update an existing site in your Plausible account",
+      "inputs": {
+        "site_id": {
+          "label": "Site",
+          "description": "Select a site",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://plausible.io/api/v1/sites"
+            },
+            "list": "$.sites",
+            "label": "$.domain",
+            "value": "$.domain"
+          }
+        },
+        "new_domain": {
+          "label": "New Domain",
+          "description": "New domain name for the site (leave empty to keep current)"
+        },
+        "track_404_pages": {
+          "label": "Track 404 Pages",
+          "description": "Enable tracking of 404 error pages",
+          "type": "boolean"
+        },
+        "hash_based_routing": {
+          "label": "Hash-Based Routing",
+          "description": "Enable hash-based routing for single-page applications",
+          "type": "boolean"
+        },
+        "outbound_links": {
+          "label": "Outbound Links",
+          "description": "Track clicks on outbound links",
+          "type": "boolean"
+        },
+        "file_downloads": {
+          "label": "File Downloads",
+          "description": "Track file downloads",
+          "type": "boolean"
+        },
+        "form_submissions": {
+          "label": "Form Submissions",
+          "description": "Track form submissions",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://plausible.io/api/v1/sites/{{site_id}}",
+        "body": {
+          "domain": "{{new_domain}}",
+          "tracker_script_configuration": {
+            "track_404_pages": "{{track_404_pages}}",
+            "hash_based_routing": "{{hash_based_routing}}",
+            "outbound_links": "{{outbound_links}}",
+            "file_downloads": "{{file_downloads}}",
+            "form_submissions": "{{form_submissions}}"
+          }
+        }
+      },
+      "beforeRequest": "if (!Object.keys(request.body.tracker_script_configuration).length) delete request.body.tracker_script_configuration; return request;",
+      "outputs": {
+        "domain": "$.domain",
+        "timezone": "$.timezone"
+      }
+    },
+    "delete_site": {
+      "label": "Delete Site",
+      "description": "Delete a site and all its data from your Plausible account. This action is permanent and may take up to 48 hours to complete.",
+      "inputs": {
+        "site_id": {
+          "label": "Site",
+          "description": "Select a site",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://plausible.io/api/v1/sites"
+            },
+            "list": "$.sites",
+            "label": "$.domain",
+            "value": "$.domain"
+          }
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://plausible.io/api/v1/sites/{{site_id}}"
+      },
+      "outputs": {
+        "deleted": "$.deleted"
+      }
+    },
+    "create_shared_link": {
+      "label": "Create Shared Link",
+      "description": "Find or create a shared link for a site",
+      "inputs": {
+        "site_id": {
+          "label": "Site",
+          "description": "Select a site",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://plausible.io/api/v1/sites"
+            },
+            "list": "$.sites",
+            "label": "$.domain",
+            "value": "$.domain"
+          }
+        },
+        "name": {
+          "label": "Link Name",
+          "description": "Name of the shared link (e.g., Wordpress)",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://plausible.io/api/v1/sites/shared-links",
+        "body": {
+          "site_id": "{{site_id}}",
+          "name": "{{name}}"
+        }
+      },
+      "outputs": {
+        "name": "$.name",
+        "url": "$.url"
+      }
+    },
+    "list_goals": {
+      "label": "List Goals",
+      "description": "Get a list of goals for a site",
+      "inputs": {
+        "site_id": {
+          "label": "Site",
+          "description": "Select a site",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://plausible.io/api/v1/sites"
+            },
+            "list": "$.sites",
+            "label": "$.domain",
+            "value": "$.domain"
+          }
+        }
+      },
+      "request": {
+        "url": "https://plausible.io/api/v1/sites/goals",
+        "query": {
+          "site_id": "{{site_id}}"
+        }
+      },
+      "afterResponse": "return {goals: response.goals};",
+      "outputs": {
+        "goals": "$.goals"
+      }
+    },
+    "create_goal": {
+      "label": "Create Goal",
+      "description": "Find or create a goal for a site",
+      "inputs": {
+        "site_id": {
+          "label": "Site",
+          "description": "Select a site",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://plausible.io/api/v1/sites"
+            },
+            "list": "$.sites",
+            "label": "$.domain",
+            "value": "$.domain"
+          }
+        },
+        "goal_type": {
+          "label": "Goal Type",
+          "description": "Type of goal to create",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "event",
+              "label": "Event"
+            },
+            {
+              "value": "page",
+              "label": "Page"
+            }
+          ]
+        },
+        "event_name": {
+          "label": "Event Name",
+          "description": "Name of the event (required if goal type is Event)"
+        },
+        "page_path": {
+          "label": "Page Path",
+          "description": "Page path to track (required if goal type is Page). Supports wildcards."
+        },
+        "display_name": {
+          "label": "Display Name",
+          "description": "Custom display name for the goal in the dashboard"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://plausible.io/api/v1/sites/goals",
+        "body": {
+          "site_id": "{{site_id}}",
+          "goal_type": "{{goal_type}}",
+          "event_name": "{{event_name}}",
+          "page_path": "{{page_path}}",
+          "display_name": "{{display_name}}"
+        }
+      },
+      "beforeRequest": "if (inputs.goal_type !== 'event') delete request.body.event_name; if (inputs.goal_type !== 'page') delete request.body.page_path; return request;",
+      "outputs": {
+        "id": "$.id",
+        "display_name": "$.display_name"
+      }
+    },
+    "list_custom_properties": {
+      "label": "List Custom Properties",
+      "description": "Get a list of custom properties for a site",
+      "inputs": {
+        "site_id": {
+          "label": "Site",
+          "description": "Select a site",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://plausible.io/api/v1/sites"
+            },
+            "list": "$.sites",
+            "label": "$.domain",
+            "value": "$.domain"
+          }
+        }
+      },
+      "request": {
+        "url": "https://plausible.io/api/v1/sites/custom-props",
+        "query": {
+          "site_id": "{{site_id}}"
+        }
+      },
+      "afterResponse": "return {custom_properties: response.custom_properties};",
+      "outputs": {
+        "custom_properties": "$.custom_properties"
+      }
+    },
+    "create_custom_property": {
+      "label": "Create Custom Property",
+      "description": "Create a custom property for a site",
+      "inputs": {
+        "site_id": {
+          "label": "Site",
+          "description": "Select a site",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://plausible.io/api/v1/sites"
+            },
+            "list": "$.sites",
+            "label": "$.domain",
+            "value": "$.domain"
+          }
+        },
+        "property": {
+          "label": "Property Name",
+          "description": "Name of the custom property",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://plausible.io/api/v1/sites/custom-props",
+        "body": {
+          "site_id": "{{site_id}}",
+          "property": "{{property}}"
+        }
+      },
+      "outputs": {
+        "created": "$.created"
+      }
+    },
+    "list_guests": {
+      "label": "List Guests",
+      "description": "Get a list of guests for a site",
+      "inputs": {
+        "site_id": {
+          "label": "Site",
+          "description": "Select a site",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://plausible.io/api/v1/sites"
+            },
+            "list": "$.sites",
+            "label": "$.domain",
+            "value": "$.domain"
+          }
+        }
+      },
+      "request": {
+        "url": "https://plausible.io/api/v1/sites/guests",
+        "query": {
+          "site_id": "{{site_id}}"
+        }
+      },
+      "afterResponse": "return {guests: response.guests};",
+      "outputs": {
+        "guests": "$.guests"
+      }
+    },
+    "invite_guest": {
+      "label": "Invite Guest",
+      "description": "Invite a guest to access a site or find an existing invitation",
+      "inputs": {
+        "site_id": {
+          "label": "Site",
+          "description": "Select a site",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://plausible.io/api/v1/sites"
+            },
+            "list": "$.sites",
+            "label": "$.domain",
+            "value": "$.domain"
+          }
+        },
+        "email": {
+          "label": "Email",
+          "description": "Guest's email address",
+          "required": true
+        },
+        "role": {
+          "label": "Role",
+          "description": "Role to assign to the guest",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "viewer",
+              "label": "Viewer"
+            },
+            {
+              "value": "editor",
+              "label": "Editor"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://plausible.io/api/v1/sites/guests",
+        "body": {
+          "site_id": "{{site_id}}",
+          "email": "{{email}}",
+          "role": "{{role}}"
+        }
+      },
+      "outputs": {
+        "email": "$.email",
+        "role": "$.role",
+        "status": "$.status"
+      }
+    },
+    "list_teams": {
+      "label": "List Teams",
+      "description": "Get a list of teams your Plausible account can access",
+      "request": {
+        "url": "https://plausible.io/api/v1/sites/teams"
+      },
+      "afterResponse": "return {teams: response.teams};",
+      "outputs": {
+        "teams": "$.teams"
+      }
+    }
+  }
+}

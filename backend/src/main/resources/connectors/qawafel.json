@@ -1,0 +1,423 @@
+{
+  "name": "qawafel",
+  "label": "Qawafel",
+  "description": "B2B marketplace and ZATCA-compliant document platform — sync products, orders, merchants and invoices with Saudi Arabia's leading wholesale network.",
+  "icon": "",
+  "hosts": [
+    "{{credential.host}}"
+  ],
+  "baseUrl": "https://{{credential.host}}/api/v1",
+  "upstream": {
+    "package": "@activepieces/piece-qawafel",
+    "version": "0.1.1"
+  },
+  "credential": {
+    "fields": {
+      "host": {
+        "label": "Environment",
+        "description": "Pick the Qawafel environment your API key belongs to.",
+        "type": "select",
+        "required": true,
+        "defaultValue": "core.qawafel.sa",
+        "options": [
+          { "value": "core.qawafel.sa", "label": "Production" },
+          { "value": "core.development.qawafel.dev", "label": "Development" }
+        ]
+      },
+      "apiKey": {
+        "label": "API Key",
+        "description": "Your Qawafel API key, from Settings → Developers → API Keys in the Qawafel dashboard.",
+        "secret": true,
+        "required": true
+      }
+    },
+    "headers": {
+      "x-qawafel-api-key": "{{credential.apiKey}}"
+    }
+  },
+  "actions": {
+    "create_product": {
+      "label": "Create Product",
+      "description": "Add a new product to your Qawafel catalog. The workhorse for catalog sync from your ERP or storefront into Qawafel.",
+      "inputs": {
+        "type": {
+          "label": "Product Type",
+          "description": "Pick Sale if this is a product you sell. Pick Purchase if it is a product you buy from a supplier (you must also pick the supplier below).",
+          "type": "select",
+          "required": true,
+          "defaultValue": "sale",
+          "options": [
+            { "value": "sale", "label": "Sale (something you sell)" },
+            { "value": "purchase", "label": "Purchase (something you buy from a supplier)" }
+          ]
+        },
+        "sku": { "label": "SKU", "description": "Stock Keeping Unit — your unique product code. Must be unique within your Qawafel tenant.", "required": true },
+        "name_en": { "label": "Name (English)", "description": "Product name in English. Shown on invoices and quotations.", "required": true },
+        "name_ar": { "label": "Name (Arabic)", "description": "Product name in Arabic. Required by Qawafel for ZATCA-compliant invoices.", "required": true },
+        "unit_price": { "label": "Unit Price (SAR)", "description": "Default price per unit in Saudi Riyals as a decimal string with two places, e.g. 99.00.", "required": true },
+        "supplier_id": {
+          "label": "Supplier",
+          "description": "Required when Product Type is Purchase. Pick the supplier merchant this product is bought from. Leave blank for Sale products.",
+          "optionsFrom": {
+            "request": { "url": "https://{{credential.host}}/api/v1/merchants", "query": { "limit": "100", "type": "supplier" } },
+            "list": "$.data",
+            "label": "$.name_en",
+            "value": "$.id"
+          }
+        },
+        "is_taxable": { "label": "VAT Applies", "description": "Tick this if 15% VAT applies to this product. Untick for VAT-exempt items.", "type": "boolean", "defaultValue": "true" },
+        "description_en": { "label": "Description (English)", "description": "Optional. Longer description shown on documents.", "type": "multiline" },
+        "description_ar": { "label": "Description (Arabic)", "description": "Optional. Longer description in Arabic.", "type": "multiline" },
+        "barcode": { "label": "Barcode", "description": "Optional. UPC, EAN or GTIN barcode." },
+        "is_active": { "label": "Active", "description": "Active products show up in lookups and can be sold. Untick to soft-disable.", "type": "boolean", "defaultValue": "true" },
+        "external_ref": { "label": "Your Reference ID", "description": "Optional. Store an ID from another system here (e.g. your ERP record ID) to link records across systems." },
+        "idempotency_key": { "label": "Duplicate Protection Key", "description": "Advanced. A UUID v4 — if the flow retries this step, sending the same key prevents creating a duplicate." }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.host}}/api/v1/products",
+        "headers": { "Idempotency-Key": "{{idempotency_key}}" },
+        "body": {
+          "type": "{{type}}",
+          "sku": "{{sku}}",
+          "name_en": "{{name_en}}",
+          "name_ar": "{{name_ar}}",
+          "unit_price": "{{unit_price}}",
+          "supplier_id": "{{supplier_id}}",
+          "is_taxable": "{{is_taxable}}",
+          "description_en": "{{description_en}}",
+          "description_ar": "{{description_ar}}",
+          "barcode": "{{barcode}}",
+          "is_active": "{{is_active}}"
+        }
+      },
+      "beforeRequest": "const body = request.body; if (body.type === 'purchase' && !body.supplier_id) throw new Error('Supplier is required when Product Type is Purchase'); if (body.type !== 'purchase') delete body.supplier_id; if (body.is_taxable !== false) delete body.is_taxable; if (body.is_active !== false) delete body.is_active; if (!request.headers['Idempotency-Key']) delete request.headers['Idempotency-Key']; return request;",
+      "outputs": { "id": "$.id", "sku": "$.sku" }
+    },
+    "update_product": {
+      "label": "Update Product",
+      "description": "Edit a product's price, description, or active state. Only the fields you fill in are updated — leave the rest blank to keep them unchanged.",
+      "inputs": {
+        "product_id": {
+          "label": "Product to update",
+          "description": "Pick the product you want to change. Only the 100 most recent products are listed.",
+          "required": true,
+          "optionsFrom": {
+            "request": { "url": "https://{{credential.host}}/api/v1/products", "query": { "limit": "100" } },
+            "list": "$.data",
+            "label": "$.name_en",
+            "value": "$.id"
+          }
+        },
+        "unit_price": { "label": "New Unit Price (SAR)", "description": "Optional. New price per unit as a decimal string, e.g. 129.00. Leave blank to keep the current price." },
+        "description_en": { "label": "New Description (English)", "description": "Optional. New English description. Leave blank to keep the current one.", "type": "multiline" },
+        "description_ar": { "label": "New Description (Arabic)", "description": "Optional. New Arabic description. Leave blank to keep the current one.", "type": "multiline" },
+        "is_active": { "label": "Active", "description": "Optional. Tick to keep the product active, untick to soft-disable. Leave blank to keep the current value.", "type": "boolean" },
+        "idempotency_key": { "label": "Duplicate Protection Key", "description": "Advanced. A UUID v4 — if the flow retries this step, sending the same key prevents creating a duplicate." }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://{{credential.host}}/api/v1/products/{{product_id}}",
+        "headers": { "Idempotency-Key": "{{idempotency_key}}" },
+        "body": {
+          "unit_price": "{{unit_price}}",
+          "description_en": "{{description_en}}",
+          "description_ar": "{{description_ar}}",
+          "is_active": "{{is_active}}"
+        }
+      },
+      "beforeRequest": "if (!request.headers['Idempotency-Key']) delete request.headers['Idempotency-Key']; return request;",
+      "outputs": { "id": "$.id" }
+    },
+    "get_product": {
+      "label": "Get Product",
+      "description": "Fetch a single product by its Qawafel ID. Returns the full product including price, descriptions, and active status.",
+      "inputs": {
+        "product_id": { "label": "Product ID", "description": "The Qawafel product ID (starts with prod_).", "required": true }
+      },
+      "request": { "method": "GET", "url": "https://{{credential.host}}/api/v1/products/{{product_id}}" },
+      "outputs": { "id": "$.id", "sku": "$.sku" }
+    },
+    "create_order": {
+      "label": "Create Completed Order",
+      "description": "Sync a completed (fulfilled) order into Qawafel. The order is created directly in Fulfilled state and skips the normal fulfilment workflow.",
+      "inputs": {
+        "merchant_id": {
+          "label": "Customer",
+          "description": "The customer placing the order. Use Create Merchant first if they are new.",
+          "required": true,
+          "optionsFrom": {
+            "request": { "url": "https://{{credential.host}}/api/v1/merchants", "query": { "limit": "100", "type": "customer" } },
+            "list": "$.data",
+            "label": "$.name_en",
+            "value": "$.id"
+          }
+        },
+        "line_items": { "label": "Line Items", "description": "One row per product: product_id, quantity, unit_price, and optional discount_percentage and external_ref.", "type": "json", "required": true },
+        "address_line": { "label": "Delivery Address — Street", "description": "Street address line for delivery.", "required": true },
+        "city": { "label": "Delivery Address — City", "required": true },
+        "postal_code": { "label": "Delivery Address — Postal Code", "description": "Postal code (5 digits in Saudi Arabia).", "required": true },
+        "country": { "label": "Delivery Address — Country", "description": "ISO 3166-1 alpha-2 country code, e.g. SA for Saudi Arabia.", "required": true, "defaultValue": "SA" },
+        "district": { "label": "Delivery Address — District", "description": "Optional. Neighborhood or district name." },
+        "region": { "label": "Delivery Address — Region", "description": "Optional. Province or region name." },
+        "short_address": { "label": "Saudi Short Address", "description": "Optional. The Saudi National Address short code, e.g. RHRA1234." },
+        "delivery_option": {
+          "label": "Delivery Method",
+          "description": "Pick Vendor if you deliver yourself, or Courier to use a delivery service.",
+          "type": "select",
+          "options": [
+            { "value": "vendor", "label": "Vendor (you deliver)" },
+            { "value": "courier", "label": "Courier (third-party)" }
+          ]
+        },
+        "delivery_fees": { "label": "Delivery Fees (SAR)", "description": "Optional. Delivery fees as a decimal string, e.g. 15.00." },
+        "delivery_fees_payer": {
+          "label": "Who Pays Delivery",
+          "description": "Required if you set a delivery method.",
+          "type": "select",
+          "options": [
+            { "value": "customer", "label": "Customer pays" },
+            { "value": "vendor", "label": "Vendor pays" }
+          ]
+        },
+        "notes": { "label": "Notes", "description": "Optional. Internal notes attached to the order.", "type": "multiline" },
+        "external_ref": { "label": "Your Reference ID", "description": "Optional. Store an ID from another system here to link records across systems." },
+        "idempotency_key": { "label": "Duplicate Protection Key", "description": "Advanced. A UUID v4 — if the flow retries this step, sending the same key prevents creating a duplicate." }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.host}}/api/v1/orders",
+        "headers": { "Idempotency-Key": "{{idempotency_key}}" },
+        "body": {
+          "merchant_id": "{{merchant_id}}",
+          "line_items": "{{line_items}}",
+          "address": {
+            "address_line": "{{address_line}}",
+            "city": "{{city}}",
+            "postal_code": "{{postal_code}}",
+            "country": "{{country}}",
+            "district": "{{district}}",
+            "region": "{{region}}",
+            "short_address": "{{short_address}}"
+          },
+          "delivery": {
+            "delivery_option": "{{delivery_option}}",
+            "delivery_fees": "{{delivery_fees}}",
+            "delivery_fees_payer": "{{delivery_fees_payer}}"
+          },
+          "notes": "{{notes}}",
+          "external_ref": "{{external_ref}}"
+        }
+      },
+      "beforeRequest": "const body = request.body; if (!body.line_items) body.line_items = []; if (!Object.keys(body.delivery).length) delete body.delivery; if (!request.headers['Idempotency-Key']) delete request.headers['Idempotency-Key']; return request;",
+      "outputs": { "id": "$.id", "state": "$.state" }
+    },
+    "update_order_status": {
+      "label": "Update Order Status",
+      "description": "Move an order forward in the Qawafel fulfilment workflow. Qawafel enforces a strict state machine. To cancel an order, use the Cancel Order action instead.",
+      "inputs": {
+        "order_id": { "label": "Order ID", "description": "The Qawafel order ID (starts with ord_).", "required": true },
+        "transition": {
+          "label": "New Status",
+          "description": "Pick the next status. Workflow: Pending → Confirmed → Ready for Pickup → Out for Delivery → Delivered → Fulfilled. Qawafel rejects moves that are not valid from the order's current state.",
+          "type": "select",
+          "required": true,
+          "options": [
+            { "value": "confirm", "label": "Confirm — only valid from Pending Vendor Confirmation" },
+            { "value": "ready-for-pickup", "label": "Mark Ready for Pickup — only valid from Confirmed" },
+            { "value": "out-for-delivery", "label": "Mark Out for Delivery — only valid from Ready for Pickup" },
+            { "value": "deliver", "label": "Mark Delivered — only valid from Out for Delivery" },
+            { "value": "not-delivered", "label": "Mark Not Delivered — only valid from Out for Delivery" },
+            { "value": "fulfill", "label": "Mark Fulfilled — only valid from Delivered" }
+          ]
+        },
+        "reason": { "label": "Reason (only used when marking Not Delivered)", "description": "Required when New Status is Mark Not Delivered — explains why delivery failed (max 500 characters).", "type": "multiline" },
+        "idempotency_key": { "label": "Duplicate Protection Key", "description": "Advanced. A UUID v4 — if the flow retries this step, sending the same key prevents creating a duplicate." }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.host}}/api/v1/orders/{{order_id}}/{{transition}}",
+        "headers": { "Idempotency-Key": "{{idempotency_key}}" }
+      },
+      "beforeRequest": "if (inputs.transition === 'not-delivered' && inputs.reason) request.body = { reason: inputs.reason }; if (!request.headers['Idempotency-Key']) delete request.headers['Idempotency-Key']; return request;",
+      "outputs": { "id": "$.id", "state": "$.state" }
+    },
+    "cancel_order": {
+      "label": "Cancel Order",
+      "description": "Cancel an open order. Once cancelled, the order cannot be reopened — the only path forward is to create a new order.",
+      "inputs": {
+        "order_id": { "label": "Order ID", "description": "The Qawafel order ID (starts with ord_) you want to cancel.", "required": true },
+        "reason": { "label": "Cancellation Reason", "description": "Optional but recommended. A short note explaining why the order is being cancelled (max 500 characters).", "type": "multiline" },
+        "idempotency_key": { "label": "Duplicate Protection Key", "description": "Advanced. A UUID v4 — if the flow retries this step, sending the same key prevents creating a duplicate." }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.host}}/api/v1/orders/{{order_id}}/cancel",
+        "headers": { "Idempotency-Key": "{{idempotency_key}}" },
+        "body": { "reason": "{{reason}}" }
+      },
+      "beforeRequest": "if (!request.headers['Idempotency-Key']) delete request.headers['Idempotency-Key']; return request;",
+      "outputs": { "id": "$.id", "state": "$.state" }
+    },
+    "get_order": {
+      "label": "Get Order",
+      "description": "Fetch a single order by its Qawafel ID. Returns the full order including line items, totals, delivery details, and current state.",
+      "inputs": {
+        "order_id": { "label": "Order ID", "description": "The Qawafel order ID (starts with ord_).", "required": true }
+      },
+      "request": { "method": "GET", "url": "https://{{credential.host}}/api/v1/orders/{{order_id}}" },
+      "outputs": { "id": "$.id", "state": "$.state" }
+    },
+    "create_merchant": {
+      "label": "Create Merchant (Customer or Supplier)",
+      "description": "Add a new customer or supplier to your Qawafel tenant. Use this when onboarding a new B2B partner from your CRM, signup form, or another system.",
+      "inputs": {
+        "type": {
+          "label": "Merchant Type",
+          "description": "Pick Customer if this party buys from you, or Supplier if you buy from them.",
+          "type": "select",
+          "required": true,
+          "defaultValue": "customer",
+          "options": [
+            { "value": "customer", "label": "Customer (buys from you)" },
+            { "value": "supplier", "label": "Supplier (you buy from them)" }
+          ]
+        },
+        "legal_name": { "label": "Legal Name", "description": "The official registered company name as it appears on the commercial registration.", "required": true },
+        "name_en": { "label": "Trade Name (English)", "description": "The trade or store name in English. Shown on documents and dashboards.", "required": true },
+        "name_ar": { "label": "Trade Name (Arabic)", "description": "The trade or store name in Arabic. Required by Qawafel for ZATCA-compliant invoices.", "required": true },
+        "email": { "label": "Email", "description": "Primary contact email for this merchant.", "required": true },
+        "phone": { "label": "Phone", "description": "Primary phone number, including country code (e.g. +966500000000).", "required": true },
+        "cr_number": { "label": "Commercial Registration (CR) Number", "description": "10-digit Saudi Commercial Registration number.", "required": true },
+        "vat_number": { "label": "VAT Number", "description": "15-digit VAT registration number, starts with 3.", "required": true },
+        "unified_national_number": { "label": "Unified National Number", "description": "Optional. Saudi Unified National Number, 10 digits starting with 7." },
+        "is_taxable": { "label": "VAT Registered", "description": "Tick if this merchant is registered for VAT.", "type": "boolean", "defaultValue": "true" },
+        "address_line": { "label": "Address — Street", "required": true },
+        "city": { "label": "Address — City", "required": true },
+        "postal_code": { "label": "Address — Postal Code", "description": "Postal code (5 digits in Saudi Arabia).", "required": true },
+        "country": { "label": "Address — Country", "description": "ISO 3166-1 alpha-2 country code, e.g. SA for Saudi Arabia.", "required": true, "defaultValue": "SA" },
+        "district": { "label": "Address — District", "description": "Optional." },
+        "region": { "label": "Address — Region", "description": "Optional." },
+        "short_address": { "label": "Saudi Short Address", "description": "Optional. National Address short code, e.g. RHRA1234." },
+        "external_ref": { "label": "Your Reference ID", "description": "Optional. Store an ID from another system here to link records across systems." },
+        "idempotency_key": { "label": "Duplicate Protection Key", "description": "Advanced. A UUID v4 — if the flow retries this step, sending the same key prevents creating a duplicate." }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.host}}/api/v1/merchants",
+        "headers": { "Idempotency-Key": "{{idempotency_key}}" },
+        "body": {
+          "type": "{{type}}",
+          "legal_name": "{{legal_name}}",
+          "name_en": "{{name_en}}",
+          "name_ar": "{{name_ar}}",
+          "email": "{{email}}",
+          "phone": "{{phone}}",
+          "cr_number": "{{cr_number}}",
+          "vat_number": "{{vat_number}}",
+          "address": {
+            "address_line": "{{address_line}}",
+            "city": "{{city}}",
+            "postal_code": "{{postal_code}}",
+            "country": "{{country}}",
+            "district": "{{district}}",
+            "region": "{{region}}",
+            "short_address": "{{short_address}}"
+          },
+          "unified_national_number": "{{unified_national_number}}",
+          "is_taxable": "{{is_taxable}}"
+        }
+      },
+      "beforeRequest": "if (request.body.is_taxable !== false) delete request.body.is_taxable; if (!request.headers['Idempotency-Key']) delete request.headers['Idempotency-Key']; return request;",
+      "outputs": { "id": "$.id" }
+    },
+    "update_merchant": {
+      "label": "Update Merchant",
+      "description": "Edit a merchant's trade name or active state. Only the fields you fill in are updated. (Legal name, CR, VAT and other identity fields cannot be changed via the API.)",
+      "inputs": {
+        "merchant_id": {
+          "label": "Merchant to update",
+          "description": "Pick the merchant to update. Use Create Merchant first if they are not yet in Qawafel.",
+          "required": true,
+          "optionsFrom": {
+            "request": { "url": "https://{{credential.host}}/api/v1/merchants", "query": { "limit": "100" } },
+            "list": "$.data",
+            "label": "$.name_en",
+            "value": "$.id"
+          }
+        },
+        "name_en": { "label": "New Trade Name (English)", "description": "Optional. Leave blank to keep the current name." },
+        "name_ar": { "label": "New Trade Name (Arabic)", "description": "Optional. Leave blank to keep the current name." },
+        "is_active": { "label": "Active", "description": "Optional. Tick to keep the merchant active, untick to disable. Leave blank to keep the current value.", "type": "boolean" },
+        "idempotency_key": { "label": "Duplicate Protection Key", "description": "Advanced. A UUID v4 — if the flow retries this step, sending the same key prevents creating a duplicate." }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://{{credential.host}}/api/v1/merchants/{{merchant_id}}",
+        "headers": { "Idempotency-Key": "{{idempotency_key}}" },
+        "body": {
+          "name_en": "{{name_en}}",
+          "name_ar": "{{name_ar}}",
+          "is_active": "{{is_active}}"
+        }
+      },
+      "beforeRequest": "if (!request.headers['Idempotency-Key']) delete request.headers['Idempotency-Key']; return request;",
+      "outputs": { "id": "$.id" }
+    },
+    "create_invoice": {
+      "label": "Create Invoice",
+      "description": "Create an invoice in Qawafel for a customer. The invoice starts in draft state — generate it afterwards to finalize and issue a ZATCA-compliant copy.",
+      "inputs": {
+        "merchant_id": {
+          "label": "Customer",
+          "description": "The customer being invoiced.",
+          "required": true,
+          "optionsFrom": {
+            "request": { "url": "https://{{credential.host}}/api/v1/merchants", "query": { "limit": "100", "type": "customer" } },
+            "list": "$.data",
+            "label": "$.name_en",
+            "value": "$.id"
+          }
+        },
+        "issue_date": { "label": "Issue Date", "description": "The date the invoice is issued. Use today for most cases. (YYYY-MM-DD format)", "required": true },
+        "due_date": { "label": "Due Date", "description": "When payment is due. (YYYY-MM-DD format)", "required": true },
+        "line_items": { "label": "Line Items", "description": "One row per product: product_id, quantity, unit_price, vat_percentage, and optional discount_percentage and external_ref.", "type": "json", "required": true },
+        "order_id": { "label": "Linked Order ID", "description": "Optional. The Qawafel order ID (ord_…) this invoice is for." },
+        "shipping_fees": { "label": "Shipping Fees (SAR)", "description": "Optional. Delivery / shipping fees as a decimal string excluding VAT, e.g. 25.00. Defaults to 0.00." },
+        "payment_start_date": { "label": "Payment Window Start", "description": "Optional. When the payment terms begin. (YYYY-MM-DD format)" },
+        "payment_due_date": { "label": "Final Payment Due Date", "description": "Optional. The absolute final date payment is due. (YYYY-MM-DD format)" },
+        "notes": { "label": "Notes", "description": "Optional. Notes printed on the invoice or kept internal.", "type": "multiline" },
+        "external_ref": { "label": "Your Reference ID", "description": "Optional. Store an ID from another system here to link records across systems." },
+        "idempotency_key": { "label": "Duplicate Protection Key", "description": "Advanced. A UUID v4 — if the flow retries this step, sending the same key prevents creating a duplicate." }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.host}}/api/v1/invoices",
+        "headers": { "Idempotency-Key": "{{idempotency_key}}" },
+        "body": {
+          "merchant_id": "{{merchant_id}}",
+          "issue_date": "{{issue_date}}",
+          "due_date": "{{due_date}}",
+          "line_items": "{{line_items}}",
+          "order_id": "{{order_id}}",
+          "shipping_fees": "{{shipping_fees}}",
+          "payment_start_date": "{{payment_start_date}}",
+          "payment_due_date": "{{payment_due_date}}",
+          "notes": "{{notes}}",
+          "external_ref": "{{external_ref}}"
+        }
+      },
+      "beforeRequest": "const body = request.body; if (!body.line_items) body.line_items = []; ['issue_date', 'due_date', 'payment_start_date', 'payment_due_date'].forEach((key) => { if (body[key]) body[key] = body[key].slice(0, 10); }); if (!request.headers['Idempotency-Key']) delete request.headers['Idempotency-Key']; return request;",
+      "outputs": { "id": "$.id", "state": "$.state" }
+    },
+    "get_invoice": {
+      "label": "Get Invoice",
+      "description": "Fetch a single invoice by its Qawafel ID. Returns the full invoice including line items, totals, ZATCA PDF URL, and current state.",
+      "inputs": {
+        "invoice_id": { "label": "Invoice ID", "description": "The Qawafel invoice ID (starts with inv_).", "required": true }
+      },
+      "request": { "method": "GET", "url": "https://{{credential.host}}/api/v1/invoices/{{invoice_id}}" },
+      "outputs": { "id": "$.id", "state": "$.state" }
+    }
+  }
+}

@@ -1,0 +1,318 @@
+{
+  "name": "famulor",
+  "label": "Famulor AI - Voice Agent",
+  "description": "AI-powered calling and SMS platform. Automate outbound campaigns, manage leads, and get real-time call analytics.",
+  "icon": "",
+  "hosts": ["app.famulor.de"],
+  "baseUrl": "https://app.famulor.de/api",
+  "upstream": { "package": "@activepieces/piece-famulor", "version": "0.2.6" },
+  "credential": {
+    "fields": { "apiKey": { "label": "API Key", "secret": true, "required": true, "description": "Create an API key in your Famulor account and paste the value here. Get API key here -> https://app.famulor.de." } },
+    "headers": { "Authorization": "Bearer {{credential.apiKey}}" }
+  },
+  "actions": {
+    "add_lead": {
+      "label": "Add Lead to Campaign",
+      "description": "Add a lead to an outbound campaign to be called by an AI assistant.",
+      "inputs": {
+        "campaign": { "label": "Campaign", "description": "Select the campaign", "type": "number", "required": true,
+          "optionsFrom": { "request": { "url": "https://app.famulor.de/api/user/campaigns", "headers": { "Content-Type": "application/json" } }, "list": "$.campaigns", "label": "$.name", "value": "$.id" } },
+        "phone_number": { "label": "Customer Phone Number", "description": "Enter the phone number of the customer (E.164 format: +1234567890)", "required": true },
+        "variables": { "label": "Variables", "description": "Variables to pass to the assistant", "type": "json", "defaultValue": "{\"customer_name\":\"John Doe\"}" },
+        "allow_dupplicate": { "label": "Allow Duplicates", "description": "Allow the same phone number to be added to the campaign more than once", "type": "boolean", "defaultValue": "false" },
+        "num_secondary_contacts": { "label": "Number of Secondary Contacts", "description": "How many secondary contacts do you want to add? (Max: 10)", "type": "number", "defaultValue": "0" },
+        "secondary_contacts": { "label": "Secondary Contacts", "description": "Add secondary contacts for this lead, as an object with contact_1_phone, contact_1_variables, contact_2_phone and so on.", "type": "json" }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://app.famulor.de/api/user/lead",
+        "headers": { "Content-Type": "application/json" },
+        "body": { "campaign_id": "{{campaign}}", "phone_number": "{{phone_number}}", "variables": "{{variables}}", "allow_dupplicate": "{{allow_dupplicate}}" }
+      },
+      "beforeRequest": "var c = inputs.secondary_contacts ? JSON.parse(inputs.secondary_contacts) : null, n = Math.min(Number(inputs.num_secondary_contacts) || 0, 10), list = [];\nif (c && n) for (var i = 1; i <= n; i++) { var p = c['contact_' + i + '_phone']; if (p && p.trim() !== '') list.push({ phone_number: p.trim(), variables: c['contact_' + i + '_variables'] || { customer_name: '' } }); }\nif (list.length) request.body.secondary_contacts = list;\nreturn request;"
+    },
+    "list_leads": {
+      "label": "List Leads",
+      "description": "List all leads in your account.",
+      "request": { "url": "https://app.famulor.de/api/user/leads", "headers": { "Content-Type": "application/json" } },
+      "afterResponse": "return { leads: Array.isArray(response) ? response : response && Array.isArray(response.leads) ? response.leads : [] };"
+    },
+    "list_phone_numbers": {
+      "label": "List Phone Numbers",
+      "description": "List all phone numbers linked to your account.",
+      "request": { "url": "https://app.famulor.de/api/user/phone-numbers/all", "headers": { "Content-Type": "application/json" } }
+    },
+    "search_available_phone_numbers": {
+      "label": "Search Available Phone Numbers",
+      "description": "Search for phone numbers available to purchase.",
+      "inputs": {
+        "country_code": { "label": "Country code", "description": "ISO 3166-1 alpha-2 country code to search in (supported regions per Famulor docs).", "type": "select", "required": true, "defaultValue": "DE",
+          "options": [ { "label": "Germany (DE)", "value": "DE" }, { "label": "United States (US)", "value": "US" }, { "label": "Canada (CA)", "value": "CA" }, { "label": "United Kingdom (GB)", "value": "GB" }, { "label": "Australia (AU)", "value": "AU" }, { "label": "Israel (IL)", "value": "IL" }, { "label": "Poland (PL)", "value": "PL" }, { "label": "Finland (FI)", "value": "FI" }, { "label": "Netherlands (NL)", "value": "NL" }, { "label": "Denmark (DK)", "value": "DK" }, { "label": "Italy (IT)", "value": "IT" } ] },
+        "contains": { "label": "Contains (digits)", "description": "Optional. Only return numbers that contain these digits (numeric only, max 10 digits)." }
+      },
+      "request": { "url": "https://app.famulor.de/api/user/phone-numbers/search", "headers": { "Content-Type": "application/json" }, "query": { "country_code": "{{country_code}}" } },
+      "beforeRequest": "var c = (inputs.contains || '').trim();\nif (/^\\d{1,10}$/.test(c)) request.query.contains = c;\nreturn request;"
+    },
+    "purchase_phone_number": {
+      "label": "Purchase Phone Number",
+      "description": "Purchase a phone number from the available search results.",
+      "inputs": {
+        "phone_number": { "label": "Phone number", "description": "Exact E.164 value from Search Available Phone Numbers. Requires a payment method on file; creates a monthly subscription. (E.164 format: +1234567890)", "required": true }
+      },
+      "request": { "method": "POST", "url": "https://app.famulor.de/api/user/phone-numbers/purchase", "headers": { "Content-Type": "application/json" }, "body": { "phone_number": "{{phone_number}}" } },
+      "beforeRequest": "request.body.phone_number = inputs.phone_number.trim();\nreturn request;"
+    },
+    "send_sms": {
+      "label": "Send SMS",
+      "description": "Send an SMS message using one of your purchased phone numbers.",
+      "inputs": {
+        "from": { "label": "From Phone Number", "description": "Select an SMS-capable phone number to send from", "type": "number", "required": true,
+          "optionsFrom": { "request": { "url": "https://app.famulor.de/api/user/assistants/phone-numbers", "headers": { "Content-Type": "application/json" } }, "list": "$", "label": "$.phone_number", "value": "$.id" } },
+        "to": { "label": "Recipient Phone Number", "description": "Enter the recipient's phone number (E.164 format: +1234567890)", "required": true },
+        "bodysuit": { "label": "Message", "description": "SMS message content (max 300 characters). Long messages may be split into multiple segments.", "type": "multiline", "required": true }
+      },
+      "request": { "method": "POST", "url": "https://app.famulor.de/api/user/sms", "headers": { "Content-Type": "application/json" }, "body": { "from": "{{from}}", "to": "{{to}}", "bodysuit": "{{bodysuit}}" } }
+    },
+    "create_campaign": {
+      "label": "Create Campaign",
+      "description": "Create a new outbound calling campaign.",
+      "inputs": {
+        "name": { "label": "Campaign name", "description": "Name of the outbound campaign (max 255 characters)", "required": true },
+        "assistant_id": { "label": "Assistant", "description": "Select the AI assistant to use for the call", "type": "number", "required": true,
+          "optionsFrom": { "request": { "url": "https://app.famulor.de/api/user/assistants/outbound", "headers": { "Content-Type": "application/json" } }, "list": "$", "label": "$.name", "value": "$.id" } },
+        "timezone": { "label": "Timezone", "description": "IANA timezone (e.g. Europe/Berlin, America/New_York). Leave empty for account default." },
+        "max_calls_in_parallel": { "label": "Max calls in parallel", "description": "1–10 simultaneous calls (your plan may limit further)", "type": "number", "defaultValue": "3" },
+        "allowed_hours_start_time": { "label": "Allowed hours start", "description": "Calling window start (H:i, e.g. 09:00)", "defaultValue": "09:00" },
+        "allowed_hours_end_time": { "label": "Allowed hours end", "description": "Calling window end (H:i, e.g. 17:00)", "defaultValue": "17:00" },
+        "allowed_days": { "label": "Allowed weekdays", "description": "Leave empty to use API default (all days). Otherwise restrict to selected days, as a list such as [\"monday\", \"friday\"].", "type": "json" },
+        "max_retries": { "label": "Max retries", "description": "1–5 retry attempts for failed calls", "type": "number", "defaultValue": "3" },
+        "retry_interval": { "label": "Retry interval (minutes)", "description": "10–4320 minutes between retries", "type": "number", "defaultValue": "60" },
+        "retry_on_voicemail": { "label": "Retry on voicemail", "description": "Retry when the call reaches voicemail", "type": "boolean", "defaultValue": "false" },
+        "retry_on_goal_incomplete": { "label": "Retry on goal incomplete", "description": "Retry when the call goal was not completed", "type": "boolean", "defaultValue": "false" },
+        "goal_completion_variable": { "label": "Goal completion variable", "description": "Name of a boolean variable from the assistant post-call schema (max 255 characters)" },
+        "mark_complete_when_no_leads": { "label": "Mark complete when no leads", "description": "Mark the campaign complete when there are no leads left to call", "type": "boolean", "defaultValue": "true" },
+        "phone_number_ids": { "label": "Outbound phone numbers", "description": "Optional. Caller IDs for this campaign (distinct phone number IDs), as a list such as [12, 13].", "type": "json" }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://app.famulor.de/api/user/campaigns",
+        "headers": { "Content-Type": "application/json" },
+        "body": { "name": "{{name}}", "assistant_id": "{{assistant_id}}", "max_calls_in_parallel": "{{max_calls_in_parallel}}", "allowed_hours_start_time": "{{allowed_hours_start_time}}",
+          "allowed_hours_end_time": "{{allowed_hours_end_time}}", "allowed_days": "{{allowed_days}}", "max_retries": "{{max_retries}}", "retry_interval": "{{retry_interval}}",
+          "retry_on_voicemail": "{{retry_on_voicemail}}", "retry_on_goal_incomplete": "{{retry_on_goal_incomplete}}", "mark_complete_when_no_leads": "{{mark_complete_when_no_leads}}", "phone_number_ids": "{{phone_number_ids}}" }
+      },
+      "beforeRequest": "['timezone', 'goal_completion_variable'].forEach(function (k) { var v = (inputs[k] || '').trim(); if (v) request.body[k] = v; });\n['allowed_days', 'phone_number_ids'].forEach(function (k) { if (Array.isArray(request.body[k]) && !request.body[k].length) delete request.body[k]; });\nreturn request;"
+    },
+    "campaign_control": {
+      "label": "Start/Stop Campaign",
+      "description": "Start or stop an outbound calling campaign.",
+      "inputs": {
+        "campaign": { "label": "Campaign", "description": "Select the campaign", "type": "number", "required": true,
+          "optionsFrom": { "request": { "url": "https://app.famulor.de/api/user/campaigns", "headers": { "Content-Type": "application/json" } }, "list": "$.campaigns", "label": "$.name", "value": "$.id" } },
+        "action": { "label": "Action", "description": "Select the action to perform on the campaign", "type": "select", "required": true,
+          "options": [ { "label": "Start Campaign", "value": "start" }, { "label": "Stop Campaign", "value": "stop" } ] }
+      },
+      "request": { "method": "POST", "url": "https://app.famulor.de/api/user/campaigns/update-status", "headers": { "Content-Type": "application/json" }, "body": { "campaign_id": "{{campaign}}", "action": "{{action}}" } }
+    },
+    "make_phone_call": {
+      "label": "Make Phone Call",
+      "description": "Initiate an AI-powered phone call to a customer.",
+      "inputs": {
+        "assistant_id": { "label": "Assistant", "description": "Select the AI assistant to use for the call", "type": "number", "required": true,
+          "optionsFrom": { "request": { "url": "https://app.famulor.de/api/user/assistants/outbound", "headers": { "Content-Type": "application/json" } }, "list": "$", "label": "$.name", "value": "$.id" } },
+        "phone_number": { "label": "Customer Phone Number", "description": "Enter the phone number to call (E.164 format: +1234567890)", "required": true },
+        "variable": { "label": "Variables", "description": "Variables to pass to the assistant during the call", "type": "json", "defaultValue": "{\"customer_name\":\"John Doe\",\"email\":\"john@example.com\"}" }
+      },
+      "request": { "method": "POST", "url": "https://app.famulor.de/api/user/make_call", "headers": { "Content-Type": "application/json" }, "body": { "assistant_id": "{{assistant_id}}", "phone_number": "{{phone_number}}", "variable": "{{variable}}" } }
+    },
+    "update_lead": {
+      "label": "Update Lead",
+      "description": "Update an existing lead's details.",
+      "inputs": {
+        "lead_id": { "label": "Lead", "description": "Select the lead to delete", "type": "number", "required": true,
+          "optionsFrom": { "request": { "url": "https://app.famulor.de/api/user/leads", "headers": { "Content-Type": "application/json" } }, "list": "$.leads", "label": "$.phone_number", "value": "$.id" } },
+        "campaign": { "label": "Campaign", "description": "Optionally assign the lead to a different campaign", "type": "number",
+          "optionsFrom": { "request": { "url": "https://app.famulor.de/api/user/campaigns", "headers": { "Content-Type": "application/json" } }, "list": "$.campaigns", "label": "$.name", "value": "$.id" } },
+        "phone_number": { "label": "Phone Number", "description": "New phone number in E.164 format (leave empty to keep unchanged) (E.164 format: +1234567890)" },
+        "status": { "label": "Status", "description": "Lead status: created, completed, or reached-max-retries (leave unselected to keep unchanged)", "type": "select",
+          "options": [ { "label": "Created", "value": "created" }, { "label": "Completed", "value": "completed" }, { "label": "Reached max retries", "value": "reached-max-retries" } ] },
+        "variables": { "label": "Variables", "description": "Custom fields merged with existing lead variables (leave empty to skip)", "type": "json", "defaultValue": "{}" }
+      },
+      "request": { "method": "PUT", "url": "https://app.famulor.de/api/user/leads/{{lead_id}}", "headers": { "Content-Type": "application/json" }, "body": { "campaign_id": "{{campaign}}", "status": "{{status}}", "variables": "{{variables}}" } },
+      "beforeRequest": "var b = request.body, p = (inputs.phone_number || '').trim(), v = b.variables, hasVariables = v != null && typeof v === 'object' && Object.keys(v).length > 0;\nif (!hasVariables) delete b.variables;\nif (p) b.phone_number = p;\nif (!('campaign_id' in b) && !p && !b.status && !hasVariables) throw new Error('Provide at least one field to update: campaign, phone number, status, or variables.');\nreturn request;"
+    },
+    "delete_lead": {
+      "label": "Delete Lead",
+      "description": "Permanently delete a lead and abort any ongoing calls.",
+      "inputs": {
+        "lead_id": { "label": "Lead", "description": "Select the lead to delete", "type": "number", "required": true,
+          "optionsFrom": { "request": { "url": "https://app.famulor.de/api/user/leads", "headers": { "Content-Type": "application/json" } }, "list": "$.leads", "label": "$.phone_number", "value": "$.id" } }
+      },
+      "request": { "method": "DELETE", "url": "https://app.famulor.de/api/user/leads/{{lead_id}}", "headers": { "Content-Type": "application/json" } }
+    },
+    "get_current_user": {
+      "label": "Get User Information",
+      "description": "Retrieve the authenticated user's profile and account balance.",
+      "request": { "url": "https://app.famulor.de/api/user/me", "headers": { "Content-Type": "application/json" } }
+    },
+    "generate_ai_reply": {
+      "label": "Generate AI Reply",
+      "description": "Generate an AI reply from an assistant for a given customer.",
+      "inputs": {
+        "assistant_id": { "label": "Assistant", "description": "Select the assistant to generate a response with", "type": "number", "required": true,
+          "optionsFrom": { "request": { "url": "https://app.famulor.de/api/user/assistants/get", "headers": { "Content-Type": "application/json" }, "query": { "per_page": "100", "page": "1" } }, "list": "$.data", "label": "$.name", "value": "$.id" } },
+        "customer_identifier": { "label": "Customer Identifier", "description": "A unique identifier for the customer (e.g., phone number, email, CRM contact ID). Maximum length: 255 characters.", "required": true, "defaultValue": "+1234567890" },
+        "message": { "label": "Message", "description": "The customer's message to respond to", "type": "multiline", "required": true },
+        "variables": { "label": "Variables", "description": "Optional context variables to pass to the assistant", "type": "json", "defaultValue": "{}" }
+      },
+      "request": { "method": "POST", "url": "https://app.famulor.de/api/ai/generate-reply", "headers": { "Content-Type": "application/json" },
+        "body": { "assistant_id": "{{assistant_id}}", "customer_identifier": "{{customer_identifier}}", "message": "{{message}}", "variables": "{{variables}}" } },
+      "beforeRequest": "var v = request.body.variables, kept = {};\nif (v && typeof v === 'object') Object.keys(v).forEach(function (k) { if (v[k] !== '' && v[k] != null) kept[k] = v[k]; });\nif (Object.keys(kept).length) request.body.variables = kept; else delete request.body.variables;\nreturn request;",
+      "afterResponse": "if (!response || response.success !== true) throw new Error('Failed to generate AI reply: ' + ((response && (response.error || response.error_code)) || 'Unknown error'));\nreturn response;"
+    },
+    "create_conversation": {
+      "label": "Create Conversation",
+      "description": "Start a new chat conversation with an AI assistant.",
+      "inputs": {
+        "assistant_id": { "label": "Assistant UUID", "description": "The UUID of the assistant to start the conversation with", "required": true },
+        "type": { "label": "Type", "description": "The type of conversation", "type": "select", "defaultValue": "widget",
+          "options": [ { "label": "Widget (charged)", "value": "widget" }, { "label": "Test (free)", "value": "test" } ] },
+        "variables": { "label": "Variables", "description": "Custom variables to pass to the assistant", "type": "json", "defaultValue": "{}" }
+      },
+      "request": { "method": "POST", "url": "https://app.famulor.de/api/conversations", "headers": { "Content-Type": "application/json" },
+        "body": { "assistant_id": "{{assistant_id}}", "type": "{{type}}", "variables": "{{variables}}" } },
+      "beforeRequest": "var v = request.body.variables, kept = {};\nif (v && typeof v === 'object') Object.keys(v).forEach(function (k) { if (v[k] !== '' && v[k] != null) kept[k] = v[k]; });\nif (Object.keys(kept).length) request.body.variables = kept; else delete request.body.variables;\nreturn request;",
+      "afterResponse": "if (!response || response.status !== true) throw new Error('Failed to create conversation: ' + ((response && (response.error || response.error_code)) || 'Unknown error'));\nreturn response;"
+    },
+    "get_conversation": {
+      "label": "Get Conversation",
+      "description": "Retrieve the full message history for a conversation.",
+      "inputs": {
+        "uuid": { "label": "Conversation UUID", "description": "The unique UUID identifier of the conversation to retrieve", "required": true }
+      },
+      "request": { "url": "https://app.famulor.de/api/conversations/{{uuid}}", "headers": { "Content-Type": "application/json" } },
+      "afterResponse": "if (!response || response.status !== true) throw new Error('Failed to get conversation: ' + ((response && (response.error || response.error_code)) || 'Unknown error'));\nreturn response;"
+    },
+    "send_message": {
+      "label": "Send Message",
+      "description": "Send a message to an existing conversation and receive the assistant's reply.",
+      "inputs": {
+        "uuid": { "label": "Conversation UUID", "description": "The unique UUID identifier of the conversation", "required": true },
+        "message": { "label": "Message", "description": "User message to send (max 2000 characters). The assistant's reply is returned in the action output field `message`.", "type": "multiline", "required": true }
+      },
+      "request": { "method": "POST", "url": "https://app.famulor.de/api/conversations/{{uuid}}/messages", "headers": { "Content-Type": "application/json" }, "body": { "message": "{{message}}" } },
+      "afterResponse": "if (!response || response.status !== true) throw new Error('Failed to send message: ' + ((response && (response.error || response.error_code)) || 'Unknown error'));\nreturn response;"
+    },
+    "get_whats_app_senders": {
+      "label": "Get WhatsApp Senders",
+      "description": "List WhatsApp Business senders linked to your account.",
+      "inputs": {
+        "status": { "label": "Status filter", "description": "Online only (default API behavior) or all senders including offline. Use sender `id` as sender_id when sending WhatsApp messages.", "type": "select", "defaultValue": "online",
+          "options": [ { "label": "Online only", "value": "online" }, { "label": "All senders", "value": "all" } ] }
+      },
+      "request": { "url": "https://app.famulor.de/api/user/whatsapp/senders", "headers": { "Content-Type": "application/json" }, "query": { "status": "{{status}}" } }
+    },
+    "get_whats_app_templates": {
+      "label": "Get WhatsApp Templates",
+      "description": "List approved WhatsApp message templates for a sender.",
+      "inputs": {
+        "sender_id": { "label": "Sender ID", "description": "WhatsApp sender numeric ID from Get WhatsApp Senders (the sender `id` field)", "type": "number", "required": true },
+        "status": { "label": "Template approval status", "description": "Approved templates only (default API behavior) or all templates including pending/rejected", "type": "select", "defaultValue": "approved",
+          "options": [ { "label": "Approved only", "value": "approved" }, { "label": "All statuses", "value": "all" } ] }
+      },
+      "request": { "url": "https://app.famulor.de/api/user/whatsapp/senders/{{sender_id}}/templates", "headers": { "Content-Type": "application/json" }, "query": { "status": "{{status}}" } }
+    },
+    "send_whats_app_template": {
+      "label": "Send WhatsApp Template Message",
+      "description": "Send an approved WhatsApp template message via a Famulor sender.",
+      "inputs": {
+        "sender_id": { "label": "Sender ID", "description": "WhatsApp sender ID from Get WhatsApp Senders", "type": "number", "required": true },
+        "template_id": { "label": "Template ID", "description": "Template ID from Get WhatsApp Templates (must be approved)", "type": "number", "required": true },
+        "recipient_phone": { "label": "Recipient phone", "description": "Recipient phone number (E.164 format: +1234567890)", "required": true },
+        "recipient_name": { "label": "Recipient name", "description": "Optional. Used for conversation tracking and CRM (max 255 characters)" },
+        "variables": { "label": "Template variables", "description": "Key-value pairs: use \"1\", \"2\", … or names from the template `variables` array. Leave empty if the template has no placeholders.", "type": "json", "defaultValue": "{}" }
+      },
+      "request": { "method": "POST", "url": "https://app.famulor.de/api/user/whatsapp/send", "headers": { "Content-Type": "application/json" },
+        "body": { "sender_id": "{{sender_id}}", "template_id": "{{template_id}}", "variables": "{{variables}}" } },
+      "beforeRequest": "var b = request.body, n = (inputs.recipient_name || '').trim();\nb.recipient_phone = inputs.recipient_phone.trim();\nif (n) b.recipient_name = n;\nif (!b.variables || !Object.keys(b.variables).length) delete b.variables;\nreturn request;",
+      "afterResponse": "if (!response || response.success !== true) throw new Error('Failed to send WhatsApp template message: ' + ((response && (response.error || response.error_code)) || 'Unknown error'));\nreturn response;"
+    },
+    "send_whats_app_freeform": {
+      "label": "Send WhatsApp Freeform Message",
+      "description": "Send a free-text WhatsApp message within an active 24-hour session.",
+      "inputs": {
+        "sender_id": { "label": "Sender ID", "description": "WhatsApp sender ID from Get WhatsApp Senders (sender must be online)", "type": "number", "required": true },
+        "recipient_phone": { "label": "Recipient phone", "description": "Recipient phone number (E.164 format: +1234567890)", "required": true },
+        "message": { "label": "Message", "description": "Free-text content (max 4096 characters). Only works within an active 24-hour messaging window; otherwise send a template first.", "type": "multiline", "required": true }
+      },
+      "request": { "method": "POST", "url": "https://app.famulor.de/api/user/whatsapp/send-freeform", "headers": { "Content-Type": "application/json" }, "body": { "sender_id": "{{sender_id}}" } },
+      "beforeRequest": "request.body.recipient_phone = inputs.recipient_phone.trim();\nrequest.body.message = inputs.message.trim();\nreturn request;",
+      "afterResponse": "if (!response || response.success !== true) throw new Error('Failed to send WhatsApp freeform message: ' + ((response && (response.error || response.error_code)) || 'Unknown error'));\nreturn response;"
+    },
+    "get_whats_app_session_status": {
+      "label": "Get WhatsApp Session Status",
+      "description": "Check if a 24-hour WhatsApp messaging session is active for a sender and recipient.",
+      "inputs": {
+        "sender_id": { "label": "Sender ID", "description": "WhatsApp sender ID from Get WhatsApp Senders", "type": "number", "required": true },
+        "recipient_phone": { "label": "Recipient phone", "description": "Recipient to check the 24-hour window for (E.164 format: +1234567890)", "required": true }
+      },
+      "request": { "url": "https://app.famulor.de/api/user/whatsapp/session-status", "headers": { "Content-Type": "application/json" }, "query": { "sender_id": "{{sender_id}}" } },
+      "beforeRequest": "request.query.recipient_phone = inputs.recipient_phone.trim();\nreturn request;",
+      "afterResponse": "if (!response || response.success !== true) throw new Error('Failed to get WhatsApp session status: ' + ((response && (response.error || response.error_code)) || 'Unknown error'));\nreturn response;"
+    },
+    "list_conversations": {
+      "label": "List Conversations",
+      "description": "List conversations with optional filters.",
+      "inputs": {
+        "type": { "label": "Conversation type", "description": "Filter by channel (optional)", "type": "select",
+          "options": [ { "label": "Test", "value": "test" }, { "label": "Widget", "value": "widget" }, { "label": "WhatsApp", "value": "whatsapp" }, { "label": "API", "value": "api" } ] },
+        "assistant_id": { "label": "Assistant ID", "description": "Filter by assistant numeric ID (must belong to your account)", "type": "number" },
+        "customer_phone": { "label": "Customer phone", "description": "Exact match (E.164, e.g. +49123456789)" },
+        "whatsapp_sender_phone": { "label": "WhatsApp sender phone", "description": "Filter by WhatsApp Business sender number (exact match)" },
+        "external_identifier": { "label": "External identifier", "description": "Filter by CRM / external reference" },
+        "per_page": { "label": "Per page", "description": "Page size (1–100). Default on the API is 15 if omitted.", "type": "number", "defaultValue": "15" },
+        "cursor": { "label": "Cursor", "description": "Pagination cursor (paste next_cursor from a previous list response)" }
+      },
+      "request": { "url": "https://app.famulor.de/api/user/conversations", "headers": { "Content-Type": "application/json" },
+        "query": { "type": "{{type}}", "assistant_id": "{{assistant_id}}", "customer_phone": "{{customer_phone}}", "whatsapp_sender_phone": "{{whatsapp_sender_phone}}", "external_identifier": "{{external_identifier}}", "per_page": "{{per_page}}", "cursor": "{{cursor}}" } },
+      "beforeRequest": "Object.keys(request.query).forEach(function (k) { var v = String(request.query[k]).trim(); if (v) request.query[k] = v; else delete request.query[k]; });\nreturn request;"
+    },
+    "list_calls": {
+      "label": "List Calls",
+      "description": "List calls with optional filters.",
+      "inputs": {
+        "status": { "label": "Status", "description": "Filter by call status (optional)", "type": "select",
+          "options": [ { "label": "Initiated", "value": "initiated" }, { "label": "Ringing", "value": "ringing" }, { "label": "Busy", "value": "busy" }, { "label": "In progress", "value": "in-progress" }, { "label": "Ended", "value": "ended" }, { "label": "Completed", "value": "completed" }, { "label": "Ended by customer", "value": "ended_by_customer" }, { "label": "Ended by assistant", "value": "ended_by_assistant" }, { "label": "No answer", "value": "no-answer" }, { "label": "Failed", "value": "failed" } ] },
+        "type": { "label": "Call type", "description": "Inbound, outbound, or web (optional)", "type": "select",
+          "options": [ { "label": "Inbound", "value": "inbound" }, { "label": "Outbound", "value": "outbound" }, { "label": "Web", "value": "web" } ] },
+        "phone_number": { "label": "Client phone number", "description": "Filter by client phone number" },
+        "assistant_id": { "label": "Assistant ID", "description": "Filter by assistant ID", "type": "number" },
+        "campaign_id": { "label": "Campaign ID", "description": "Filter by campaign ID", "type": "number" },
+        "date_from": { "label": "Date from", "description": "Start date (YYYY-MM-DD)" },
+        "date_to": { "label": "Date to", "description": "End date (YYYY-MM-DD)" },
+        "per_page": { "label": "Per page", "description": "Results per page (1–100). API default is 15.", "type": "number", "defaultValue": "15" },
+        "page": { "label": "Page", "description": "Page number (default 1)", "type": "number", "defaultValue": "1" }
+      },
+      "request": { "url": "https://app.famulor.de/api/user/calls", "headers": { "Content-Type": "application/json" },
+        "query": { "status": "{{status}}", "type": "{{type}}", "phone_number": "{{phone_number}}", "assistant_id": "{{assistant_id}}", "campaign_id": "{{campaign_id}}", "date_from": "{{date_from}}", "date_to": "{{date_to}}", "per_page": "{{per_page}}", "page": "{{page}}" } },
+      "beforeRequest": "Object.keys(request.query).forEach(function (k) { var v = String(request.query[k]).trim(); if (v) request.query[k] = v; else delete request.query[k]; });\nreturn request;"
+    },
+    "get_call": {
+      "label": "Get Call",
+      "description": "Retrieve details for a call by ID, including transcript and recording.",
+      "inputs": {
+        "call_id": { "label": "Call ID", "description": "Numeric ID of the call (from list calls or Famulor UI)", "type": "number", "required": true }
+      },
+      "request": { "url": "https://app.famulor.de/api/user/calls/{{call_id}}", "headers": { "Content-Type": "application/json" } }
+    },
+    "delete_call": {
+      "label": "Delete Call",
+      "description": "Permanently delete a call record including its transcript and recording.",
+      "inputs": {
+        "call_id": { "label": "Call ID", "description": "Numeric ID of the call to delete permanently (transcript, recording, and metadata are removed)", "type": "number", "required": true }
+      },
+      "request": { "method": "DELETE", "url": "https://app.famulor.de/api/user/calls/{{call_id}}", "headers": { "Content-Type": "application/json" } },
+      "afterResponse": "return response == null || response === '' ? { message: 'Call deleted' } : response;"
+    }
+  }
+}

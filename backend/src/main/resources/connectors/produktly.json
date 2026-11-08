@@ -1,0 +1,602 @@
+{
+  "name": "produktly",
+  "label": "Produktly",
+  "description": "Onboarding, in-app announcements, feedback collection and NPS for SaaS products.",
+  "icon": "",
+  "hosts": [
+    "api.produktly.com"
+  ],
+  "baseUrl": "https://api.produktly.com/api/v1",
+  "upstream": {
+    "package": "@activepieces/piece-produktly",
+    "version": "0.1.2"
+  },
+  "credential": {
+    "fields": {
+      "apiKey": {
+        "label": "API Key",
+        "description": "In Produktly, open Settings → API keys, click Generate API Key and copy it.",
+        "secret": true,
+        "required": true
+      }
+    },
+    "headers": {
+      "Authorization": "Bearer {{credential.apiKey}}"
+    }
+  },
+  "actions": {
+    "list_changelogs": {
+      "label": "List Changelogs",
+      "description": "List all changelogs in your Produktly account.",
+      "inputs": {
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of changelogs to return (1-100, default 50).",
+          "type": "number",
+          "defaultValue": "50"
+        },
+        "offset": {
+          "label": "Offset",
+          "description": "Number of changelogs to skip for pagination (default 0).",
+          "type": "number",
+          "defaultValue": "0"
+        }
+      },
+      "request": {
+        "url": "https://api.produktly.com/api/v1/changelogs",
+        "query": {
+          "limit": "{{limit}}",
+          "offset": "{{offset}}"
+        }
+      },
+      "beforeRequest": "request.query = { limit: request.query.limit ?? '50', offset: request.query.offset ?? '0', ...request.query };\nreturn request;",
+      "afterResponse": "return response.data.map((changelog) => ({ changelog_id: changelog.id, changelog_name: changelog.name, changelog_active: changelog.active, changelog_created_at: changelog.createdAt }));"
+    },
+    "list_changelog_posts": {
+      "label": "List Changelog Posts",
+      "description": "List all posts within a specific changelog.",
+      "inputs": {
+        "changelog": {
+          "label": "Changelog",
+          "description": "The changelog the post belongs to.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.produktly.com/api/v1/changelogs"
+            },
+            "list": "$.data",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of posts to return (1-100, default 50).",
+          "type": "number",
+          "defaultValue": "50"
+        },
+        "offset": {
+          "label": "Offset",
+          "description": "Number of posts to skip for pagination (default 0).",
+          "type": "number",
+          "defaultValue": "0"
+        },
+        "start_date": {
+          "label": "Start Date",
+          "description": "Optional ISO 8601 date (e.g. 2024-01-01) to filter posts from."
+        },
+        "end_date": {
+          "label": "End Date",
+          "description": "Optional ISO 8601 date (e.g. 2024-12-31) to filter posts up to."
+        }
+      },
+      "request": {
+        "url": "https://api.produktly.com/api/v1/changelogs/{{changelog}}/posts",
+        "query": {
+          "limit": "{{limit}}",
+          "offset": "{{offset}}",
+          "startDate": "{{start_date}}",
+          "endDate": "{{end_date}}"
+        }
+      },
+      "beforeRequest": "request.query = { limit: request.query.limit ?? '50', offset: request.query.offset ?? '0', ...request.query };\nreturn request;",
+      "afterResponse": "return response.data.map((post) => ({ post_id: post.id, changelog_id: inputs.changelog, post_title: post.title, post_description: post.description, post_date: post.date, post_active: post.active, post_tags: post.tags.map((t) => t.name).join(', ') }));"
+    },
+    "create_changelog_post": {
+      "label": "Create Changelog Post",
+      "description": "Publish a new post inside a changelog. Visible to your users once active.",
+      "inputs": {
+        "changelog": {
+          "label": "Changelog",
+          "description": "The changelog the post belongs to.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.produktly.com/api/v1/changelogs"
+            },
+            "list": "$.data",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "title": {
+          "label": "Title",
+          "description": "The headline shown to users (e.g. \"New: Dark mode is here\").",
+          "required": true
+        },
+        "description": {
+          "label": "Description",
+          "description": "The body of the post. Supports plain text or HTML.",
+          "type": "multiline"
+        },
+        "date": {
+          "label": "Date",
+          "description": "Optional release date in ISO 8601 format (e.g. 2024-12-15). Defaults to today."
+        },
+        "active": {
+          "label": "Active",
+          "description": "If enabled, the post is visible to your users immediately.",
+          "type": "boolean",
+          "defaultValue": "true"
+        },
+        "tag_names": {
+          "label": "Tag Names",
+          "description": "Optional list of tag names to attach. Must match existing tags (use \"List Tags\" to find them).",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.produktly.com/api/v1/changelogs/{{changelog}}/posts",
+        "body": {
+          "title": "{{title}}",
+          "active": "{{active}}",
+          "description": "{{description}}",
+          "date": "{{date}}",
+          "tagNames": "{{tag_names}}"
+        }
+      },
+      "beforeRequest": "const { title, active, ...rest } = request.body;\nrequest.body = { title, active: active ?? true, ...rest };\nif (!Array.isArray(rest.tagNames) || rest.tagNames.length === 0) delete request.body.tagNames;\nreturn request;",
+      "afterResponse": "return { post_id: response.id, post_title: response.title, post_description: response.description, post_date: response.date, post_active: response.active, post_tags: response.tags.map((t) => t.name).join(', ') };",
+      "outputs": {
+        "post_id": "$.post_id",
+        "post_title": "$.post_title"
+      }
+    },
+    "update_changelog_post": {
+      "label": "Update Changelog Post",
+      "description": "Edit an existing changelog post — change its title, body, tags or visibility.",
+      "inputs": {
+        "changelog": {
+          "label": "Changelog",
+          "description": "The changelog the post belongs to.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.produktly.com/api/v1/changelogs"
+            },
+            "list": "$.data",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "post_id": {
+          "label": "Post ID",
+          "description": "The ID of the post to update. Use \"List Changelog Posts\" to find it.",
+          "required": true
+        },
+        "title": {
+          "label": "Title",
+          "description": "New title for the post. Leave empty to keep the current one."
+        },
+        "description": {
+          "label": "Description",
+          "description": "New body for the post. Leave empty to keep the current one.",
+          "type": "multiline"
+        },
+        "date": {
+          "label": "Date",
+          "description": "New release date in ISO 8601 format. Leave empty to keep the current one."
+        },
+        "active": {
+          "label": "Active",
+          "description": "Toggle whether the post is visible to users.",
+          "type": "boolean"
+        },
+        "tag_names": {
+          "label": "Tag Names",
+          "description": "Replace the list of tags on the post. Must match existing tags (use \"List Tags\" to find them).",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://api.produktly.com/api/v1/changelogs/{{changelog}}/posts/{{post_id}}",
+        "body": {
+          "title": "{{title}}",
+          "active": "{{active}}",
+          "description": "{{description}}",
+          "date": "{{date}}",
+          "tagNames": "{{tag_names}}"
+        }
+      },
+      "beforeRequest": "if (!Array.isArray(request.body.tagNames)) delete request.body.tagNames;\nreturn request;",
+      "afterResponse": "return { post_id: response.id, post_title: response.title, post_description: response.description, post_date: response.date, post_active: response.active, post_tags: response.tags.map((t) => t.name).join(', ') };",
+      "outputs": {
+        "post_id": "$.post_id",
+        "post_title": "$.post_title"
+      }
+    },
+    "list_feedback_widgets": {
+      "label": "List Feedback Widgets",
+      "description": "List all feedback widgets configured in your Produktly account.",
+      "inputs": {
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of widgets to return (1-100, default 50).",
+          "type": "number",
+          "defaultValue": "50"
+        },
+        "offset": {
+          "label": "Offset",
+          "description": "Number of widgets to skip for pagination (default 0).",
+          "type": "number",
+          "defaultValue": "0"
+        }
+      },
+      "request": {
+        "url": "https://api.produktly.com/api/v1/feedback-widgets",
+        "query": {
+          "limit": "{{limit}}",
+          "offset": "{{offset}}"
+        }
+      },
+      "beforeRequest": "request.query = { limit: request.query.limit ?? '50', offset: request.query.offset ?? '0', ...request.query };\nreturn request;",
+      "afterResponse": "return response.data.map((widget) => ({ widget_id: widget.id, widget_name: widget.name, widget_active: widget.active, widget_created_at: widget.createdAt }));"
+    },
+    "list_feedback_responses": {
+      "label": "List Feedback Responses",
+      "description": "List the user responses submitted through a feedback widget.",
+      "inputs": {
+        "widget": {
+          "label": "Feedback Widget",
+          "description": "The feedback widget to read responses from.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.produktly.com/api/v1/feedback-widgets"
+            },
+            "list": "$.data",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of responses to return (1-100, default 50).",
+          "type": "number",
+          "defaultValue": "50"
+        },
+        "offset": {
+          "label": "Offset",
+          "description": "Number of responses to skip for pagination (default 0).",
+          "type": "number",
+          "defaultValue": "0"
+        },
+        "start_date": {
+          "label": "Start Date",
+          "description": "Optional ISO 8601 date to filter responses from (e.g. 2024-01-01)."
+        },
+        "end_date": {
+          "label": "End Date",
+          "description": "Optional ISO 8601 date to filter responses up to (e.g. 2024-12-31)."
+        }
+      },
+      "request": {
+        "url": "https://api.produktly.com/api/v1/feedback-widgets/{{widget}}/responses",
+        "query": {
+          "limit": "{{limit}}",
+          "offset": "{{offset}}",
+          "startDate": "{{start_date}}",
+          "endDate": "{{end_date}}"
+        }
+      },
+      "beforeRequest": "request.query = { limit: request.query.limit ?? '50', offset: request.query.offset ?? '0', ...request.query };\nreturn request;",
+      "afterResponse": "return response.data.map((resp) => ({ response_id: resp.id, response_type: resp.type, response_option: resp.optionName, response_emoji: resp.emoji, response_message: resp.message, response_email: resp.email, response_user_name: resp.name, response_from_url: resp.fromUrl, response_created_at: resp.createdAt }));"
+    },
+    "list_roadmaps": {
+      "label": "List Roadmaps",
+      "description": "List all public roadmaps in your Produktly account.",
+      "inputs": {
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of roadmaps to return (1-100, default 50).",
+          "type": "number",
+          "defaultValue": "50"
+        },
+        "offset": {
+          "label": "Offset",
+          "description": "Number of roadmaps to skip for pagination (default 0).",
+          "type": "number",
+          "defaultValue": "0"
+        }
+      },
+      "request": {
+        "url": "https://api.produktly.com/api/v1/roadmaps",
+        "query": {
+          "limit": "{{limit}}",
+          "offset": "{{offset}}"
+        }
+      },
+      "beforeRequest": "request.query = { limit: request.query.limit ?? '50', offset: request.query.offset ?? '0', ...request.query };\nreturn request;",
+      "afterResponse": "return response.data.map((roadmap) => ({ roadmap_id: roadmap.id, roadmap_name: roadmap.name, roadmap_public_name: roadmap.publicName, roadmap_active: roadmap.active, roadmap_custom_domain: roadmap.customDomain, roadmap_public_id: roadmap.publicId, roadmap_section_count: roadmap.sections.length, roadmap_item_count: roadmap.sections.reduce((acc, s) => acc + s.items.length, 0) }));"
+    },
+    "get_roadmap": {
+      "label": "Get Roadmap",
+      "description": "Get a single roadmap with its sections, items, tags and vote counts.",
+      "inputs": {
+        "roadmap": {
+          "label": "Roadmap",
+          "description": "The public roadmap to inspect.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.produktly.com/api/v1/roadmaps"
+            },
+            "list": "$.data",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        }
+      },
+      "request": {
+        "url": "https://api.produktly.com/api/v1/roadmaps/{{roadmap}}"
+      },
+      "afterResponse": "const items = response.sections.flatMap((section) => section.items.map((item) => ({ roadmap_id: response.id, section_id: section.id, section_name: section.name, item_id: item.id, item_name: item.name, item_description: item.description, item_votes: item.votesCount, item_updated_at: item.updatedAt, item_tag: item.tag ? item.tag.name : null })));\nreturn { roadmap_id: response.id, roadmap_name: response.name, roadmap_public_name: response.publicName, roadmap_active: response.active, roadmap_custom_domain: response.customDomain, roadmap_public_id: response.publicId, section_count: response.sections.length, item_count: items.length, items };",
+      "outputs": {
+        "roadmap_id": "$.roadmap_id",
+        "item_count": "$.item_count",
+        "items": "$.items"
+      }
+    },
+    "list_nps_widgets": {
+      "label": "List NPS Widgets",
+      "description": "List all NPS widgets configured in your Produktly account.",
+      "inputs": {
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of widgets to return (1-100, default 50).",
+          "type": "number",
+          "defaultValue": "50"
+        },
+        "offset": {
+          "label": "Offset",
+          "description": "Number of widgets to skip for pagination (default 0).",
+          "type": "number",
+          "defaultValue": "0"
+        }
+      },
+      "request": {
+        "url": "https://api.produktly.com/api/v1/nps-widgets",
+        "query": {
+          "limit": "{{limit}}",
+          "offset": "{{offset}}"
+        }
+      },
+      "beforeRequest": "request.query = { limit: request.query.limit ?? '50', offset: request.query.offset ?? '0', ...request.query };\nreturn request;",
+      "afterResponse": "return response.data.map((widget) => ({ widget_id: widget.id, widget_name: widget.name, widget_active: widget.active, widget_created_at: widget.createdAt }));"
+    },
+    "get_nps_score": {
+      "label": "Get NPS Score",
+      "description": "Get the current Net Promoter Score (NPS) for a widget, broken down into promoters, passives and detractors.",
+      "inputs": {
+        "widget": {
+          "label": "NPS Widget",
+          "description": "The NPS widget to read responses from.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.produktly.com/api/v1/nps-widgets"
+            },
+            "list": "$.data",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "start_date": {
+          "label": "Start Date",
+          "description": "Optional ISO 8601 date to limit the score to responses from this date onward (e.g. 2024-01-01)."
+        },
+        "end_date": {
+          "label": "End Date",
+          "description": "Optional ISO 8601 date to limit the score to responses up to this date (e.g. 2024-12-31)."
+        }
+      },
+      "request": {
+        "url": "https://api.produktly.com/api/v1/nps-widgets/{{widget}}/score",
+        "query": {
+          "startDate": "{{start_date}}",
+          "endDate": "{{end_date}}"
+        }
+      },
+      "afterResponse": "return { widget_id: inputs.widget, nps_score: response.npsScore, total_responses: response.totalResponses, promoters_count: response.promoters.count, promoters_percentage: response.promoters.percentage, passives_count: response.passives.count, passives_percentage: response.passives.percentage, detractors_count: response.detractors.count, detractors_percentage: response.detractors.percentage };",
+      "outputs": {
+        "nps_score": "$.nps_score",
+        "total_responses": "$.total_responses"
+      }
+    },
+    "list_nps_responses": {
+      "label": "List NPS Responses",
+      "description": "List individual NPS responses (rating + comment + user info) for a widget.",
+      "inputs": {
+        "widget": {
+          "label": "NPS Widget",
+          "description": "The NPS widget to read responses from.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.produktly.com/api/v1/nps-widgets"
+            },
+            "list": "$.data",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of responses to return (1-100, default 50).",
+          "type": "number",
+          "defaultValue": "50"
+        },
+        "offset": {
+          "label": "Offset",
+          "description": "Number of responses to skip for pagination (default 0).",
+          "type": "number",
+          "defaultValue": "0"
+        },
+        "start_date": {
+          "label": "Start Date",
+          "description": "Optional ISO 8601 date to filter responses from (e.g. 2024-01-01)."
+        },
+        "end_date": {
+          "label": "End Date",
+          "description": "Optional ISO 8601 date to filter responses up to (e.g. 2024-12-31)."
+        }
+      },
+      "request": {
+        "url": "https://api.produktly.com/api/v1/nps-widgets/{{widget}}/responses",
+        "query": {
+          "limit": "{{limit}}",
+          "offset": "{{offset}}",
+          "startDate": "{{start_date}}",
+          "endDate": "{{end_date}}"
+        }
+      },
+      "beforeRequest": "request.query = { limit: request.query.limit ?? '50', offset: request.query.offset ?? '0', ...request.query };\nreturn request;",
+      "afterResponse": "return response.data.map((resp) => ({ response_id: resp.id, response_rating: resp.rating, response_comment: resp.comment, response_email: resp.email, response_user_name: resp.name, response_user_id: resp.userId, response_url: resp.url, response_language: resp.language, response_created_at: resp.createdAt }));"
+    },
+    "list_tags": {
+      "label": "List Tags",
+      "description": "List all tags that can be attached to changelog posts.",
+      "inputs": {
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of tags to return (1-100, default 50).",
+          "type": "number",
+          "defaultValue": "50"
+        },
+        "offset": {
+          "label": "Offset",
+          "description": "Number of tags to skip for pagination (default 0).",
+          "type": "number",
+          "defaultValue": "0"
+        }
+      },
+      "request": {
+        "url": "https://api.produktly.com/api/v1/tags",
+        "query": {
+          "limit": "{{limit}}",
+          "offset": "{{offset}}"
+        }
+      },
+      "beforeRequest": "request.query = { limit: request.query.limit ?? '50', offset: request.query.offset ?? '0', ...request.query };\nreturn request;",
+      "afterResponse": "return response.data.map((tag) => ({ tag_id: tag.id, tag_name: tag.name, tag_background_color: tag.backgroundColor, tag_text_color: tag.textColor }));"
+    },
+    "get_company_stats": {
+      "label": "Get Company Stats",
+      "description": "Get a company-wide statistics summary across all your Produktly features.",
+      "inputs": {
+        "start_date": {
+          "label": "Start Date",
+          "description": "Optional ISO 8601 date for the start of the period (e.g. 2024-01-01)."
+        },
+        "end_date": {
+          "label": "End Date",
+          "description": "Optional ISO 8601 date for the end of the period (e.g. 2024-12-31)."
+        }
+      },
+      "request": {
+        "url": "https://api.produktly.com/api/v1/stats/summary",
+        "query": {
+          "startDate": "{{start_date}}",
+          "endDate": "{{end_date}}"
+        }
+      },
+      "afterResponse": "return { period_start: response.period.start, period_end: response.period.end, period_days: response.period.days, period_granularity: response.period.granularity, previous_period_start: response.previousPeriod.start, previous_period_end: response.previousPeriod.end, features: response.features.map((f) => ({ feature_type: f.type, feature_label: f.label, primary_label: f.primary.label, primary_count: f.primary.count, primary_previous_count: f.primary.previousCount, primary_change_pct: f.primary.changePct, secondary_label: f.secondary.label, secondary_value: f.secondary.value, secondary_previous_value: f.secondary.previousValue, secondary_change_pp: f.secondary.changePp })) };",
+      "outputs": {
+        "period_start": "$.period_start",
+        "period_end": "$.period_end",
+        "features": "$.features"
+      }
+    },
+    "get_widget_stats": {
+      "label": "Get Widget Stats",
+      "description": "Get event and unique-user statistics for a specific entity type (e.g. all changelogs, all NPS widgets).",
+      "inputs": {
+        "entity_type": {
+          "label": "Entity Type",
+          "description": "The Produktly feature to get stats for.",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "tour",
+              "label": "Product Tour"
+            },
+            {
+              "value": "checklist",
+              "label": "Checklist"
+            },
+            {
+              "value": "smartTip",
+              "label": "Smart Tip"
+            },
+            {
+              "value": "announcement",
+              "label": "Announcement"
+            },
+            {
+              "value": "changelog",
+              "label": "Changelog"
+            },
+            {
+              "value": "npsWidget",
+              "label": "NPS Widget"
+            },
+            {
+              "value": "roadmap",
+              "label": "Roadmap"
+            }
+          ]
+        },
+        "entity_id": {
+          "label": "Entity ID",
+          "description": "Optional. Filter stats to a single entity of the chosen type (e.g. a specific changelog ID).",
+          "type": "number"
+        },
+        "start_date": {
+          "label": "Start Date",
+          "description": "Optional ISO 8601 date for the start of the period (e.g. 2024-01-01)."
+        },
+        "end_date": {
+          "label": "End Date",
+          "description": "Optional ISO 8601 date for the end of the period (e.g. 2024-12-31)."
+        }
+      },
+      "request": {
+        "url": "https://api.produktly.com/api/v1/stats/widgets/{{entity_type}}",
+        "query": {
+          "entityId": "{{entity_id}}",
+          "startDate": "{{start_date}}",
+          "endDate": "{{end_date}}"
+        }
+      },
+      "afterResponse": "return { entity_type: response.entityType, period_start: response.period.start, period_end: response.period.end, widget_count: response.widgets.length, widgets: response.widgets.map((w) => ({ entity_id: w.entityId, name: w.name, archived_at: w.archivedAt, total_events: w.totalEvents, total_unique_users: w.totalUniqueUsers, event_breakdown: Object.entries(w.events).map(([eventName, stats]) => `${eventName}: ${stats.count} (${stats.uniqueUsers} unique)`).join(' | ') })) };",
+      "outputs": {
+        "entity_type": "$.entity_type",
+        "widget_count": "$.widget_count",
+        "widgets": "$.widgets"
+      }
+    }
+  }
+}

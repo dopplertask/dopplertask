@@ -1,0 +1,772 @@
+{
+  "name": "baserow",
+  "label": "Baserow",
+  "description": "Open-source online database tool, alternative to Airtable",
+  "icon": "",
+  "hosts": [
+    "{{credential.apiUrl}}"
+  ],
+  "baseUrl": "https://{{credential.apiUrl}}/api",
+  "upstream": {
+    "package": "@activepieces/piece-baserow",
+    "version": "0.12.3"
+  },
+  "credential": {
+    "fields": {
+      "apiUrl": {
+        "label": "API URL",
+        "description": "The host of your Baserow instance, such as api.baserow.io for Baserow Cloud.",
+        "required": true,
+        "defaultValue": "api.baserow.io"
+      },
+      "token": {
+        "label": "Database Token",
+        "description": "Go to Settings > Database tokens in Baserow, create a token, copy it, and paste it here.",
+        "required": true,
+        "secret": true
+      }
+    },
+    "headers": {
+      "Authorization": "Token {{credential.token}}"
+    }
+  },
+  "actions": {
+    "baserow_delete_row": {
+      "label": "Delete Row",
+      "description": "Deletes an existing row.",
+      "audience": "human",
+      "inputs": {
+        "table_id": {
+          "label": "Table",
+          "description": "Only tables this connection can access are listed.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://{{credential.apiUrl}}/api/database/tables/all-tables/"
+            }
+          }
+        },
+        "row_id": {
+          "label": "Row",
+          "description": "Type to search the rows by any cell value.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://{{credential.apiUrl}}/api/database/rows/table/{{table_id}}/",
+              "query": {
+                "size": "200",
+                "user_field_names": "true"
+              }
+            },
+            "list": "$.results",
+            "label": "$.id"
+          }
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.apiUrl}}/api/database/rows/table/{{table_id}}/{{row_id}}/"
+      },
+      "afterResponse": "return {success: true};"
+    },
+    "baserow_get_row": {
+      "label": "Get Row",
+      "description": "Gets a single row by its ID from a table.",
+      "audience": "human",
+      "inputs": {
+        "table_id": {
+          "label": "Table",
+          "description": "Only tables this connection can access are listed.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://{{credential.apiUrl}}/api/database/tables/all-tables/"
+            }
+          }
+        },
+        "row_id": {
+          "label": "Row",
+          "description": "Type to search the rows by any cell value.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://{{credential.apiUrl}}/api/database/rows/table/{{table_id}}/",
+              "query": {
+                "size": "200",
+                "user_field_names": "true"
+              }
+            },
+            "list": "$.results",
+            "label": "$.id"
+          }
+        }
+      },
+      "request": {
+        "url": "https://{{credential.apiUrl}}/api/database/rows/table/{{table_id}}/{{row_id}}/",
+        "query": {
+          "user_field_names": "true"
+        }
+      }
+    },
+    "baserow_list_rows": {
+      "label": "List Rows",
+      "description": "Lists rows from a table with optional search, sorting, and filtering.",
+      "audience": "human",
+      "inputs": {
+        "table_id": {
+          "label": "Table",
+          "description": "Only tables this connection can access are listed.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://{{credential.apiUrl}}/api/database/tables/all-tables/"
+            }
+          }
+        },
+        "page": {
+          "label": "Page",
+          "description": "Which page of results to return, starting at 1.",
+          "type": "number",
+          "required": false,
+          "defaultValue": "1"
+        },
+        "limit": {
+          "label": "Page Size",
+          "description": "Rows per page, up to 200.",
+          "type": "number",
+          "required": false,
+          "defaultValue": "100"
+        },
+        "search": {
+          "label": "Search",
+          "description": "Returns rows with this text in any cell."
+        },
+        "order_by": {
+          "label": "Sort By",
+          "description": "Column name to sort by. Start it with - to sort in reverse."
+        },
+        "filter_type": {
+          "label": "Match",
+          "description": "Whether rows must match every filter or just one.",
+          "type": "select",
+          "defaultValue": "AND",
+          "options": [
+            {
+              "value": "AND",
+              "label": "All filters"
+            },
+            {
+              "value": "OR",
+              "label": "Any filter"
+            }
+          ]
+        },
+        "filters": {
+          "label": "Filters",
+          "type": "json",
+          "description": "One JSON filter per entry, with a field ID, an operator and a value, for example {\"field\": 123, \"type\": \"equal\", \"value\": \"Active\"}. Operators: equal, not_equal, contains, contains_not, higher_than, lower_than, is_empty, is_not_empty. Empty returns all rows."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.apiUrl}}/api/database/rows/table/{{table_id}}/",
+        "query": {
+          "user_field_names": "true",
+          "page": "{{page}}",
+          "size": "{{limit}}",
+          "search": "{{search}}",
+          "order_by": "{{order_by}}"
+        }
+      },
+      "beforeRequest": "const filters = JSON.parse(inputs.filters || '[]'); if (filters.length > 0) request.query.filters = JSON.stringify({filter_type: inputs.filter_type || 'AND', filters: filters.map((entry, index) => { let filter = entry; if (typeof entry === 'string') { try { filter = JSON.parse(entry); } catch (e) { throw new Error(`Filter ${index + 1} is not valid JSON.`); } } if (typeof filter !== 'object' || filter === null || Array.isArray(filter)) filter = {}; return {field: Number(filter.field), type: String(filter.type ?? 'equal'), value: String(filter.value ?? '')}; })}); return request;",
+      "afterResponse": "return {count: response.count, rows: response.results};"
+    },
+    "baserow_find_row": {
+      "label": "Find Row",
+      "description": "Finds a row by matching a field value. Returns the first match.",
+      "audience": "human",
+      "inputs": {
+        "table_id": {
+          "label": "Table",
+          "description": "Only tables this connection can access are listed.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://{{credential.apiUrl}}/api/database/tables/all-tables/"
+            }
+          }
+        },
+        "field_name": {
+          "label": "Field",
+          "description": "The column to look in.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://{{credential.apiUrl}}/api/database/fields/table/{{table_id}}/"
+            }
+          }
+        },
+        "field_value": {
+          "label": "Field Value",
+          "description": "Returns the first row whose value equals this exactly.",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://{{credential.apiUrl}}/api/database/rows/table/{{table_id}}/",
+        "query": {
+          "user_field_names": "true",
+          "size": "1"
+        }
+      },
+      "beforeRequest": "const field = /^\\d+$/.test(inputs.field_name) ? 'field_' + inputs.field_name : inputs.field_name; request.query['filter__' + field + '__equal'] = inputs.field_value; return request;",
+      "afterResponse": "return response.results.length === 0 ? {found: false, count: 0} : {found: true, count: response.count, ...response.results[0]};"
+    },
+    "baserow_aggregate_field": {
+      "label": "Aggregate Field",
+      "description": "Calculates a sum, average, count and more over a column in a view.",
+      "audience": "human",
+      "inputs": {
+        "table_id": {
+          "label": "Table",
+          "description": "Only tables this connection can access are listed.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://{{credential.apiUrl}}/api/database/tables/all-tables/"
+            }
+          }
+        },
+        "view_id": {
+          "label": "View",
+          "description": "The grid view to use. Its filters apply to the result.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://{{credential.apiUrl}}/api/database/views/table/{{table_id}}/",
+              "query": {
+                "type": "grid"
+              }
+            }
+          }
+        },
+        "field_id": {
+          "label": "Field",
+          "description": "The column to calculate over.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://{{credential.apiUrl}}/api/database/fields/table/{{table_id}}/"
+            }
+          }
+        },
+        "aggregation_type": {
+          "label": "Calculation",
+          "description": "Sum, average, median, deviation and variance need a number column.",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "sum",
+              "label": "Sum"
+            },
+            {
+              "value": "average",
+              "label": "Average"
+            },
+            {
+              "value": "min",
+              "label": "Minimum"
+            },
+            {
+              "value": "max",
+              "label": "Maximum"
+            },
+            {
+              "value": "not_empty_count",
+              "label": "Count of Filled Cells"
+            },
+            {
+              "value": "empty_count",
+              "label": "Count of Empty Cells"
+            },
+            {
+              "value": "unique_count",
+              "label": "Count of Unique Values"
+            },
+            {
+              "value": "median",
+              "label": "Median"
+            },
+            {
+              "value": "std_dev",
+              "label": "Standard Deviation"
+            },
+            {
+              "value": "variance",
+              "label": "Variance"
+            }
+          ]
+        }
+      },
+      "request": {
+        "url": "https://{{credential.apiUrl}}/api/database/views/grid/{{view_id}}/aggregation/{{field_id}}/",
+        "query": {
+          "type": "{{aggregation_type}}"
+        }
+      },
+      "afterResponse": "return {result: response.value};"
+    },
+    "baserow_batch_create_rows": {
+      "label": "Batch Create Rows",
+      "description": "Creates up to 200 rows in one request.",
+      "audience": "human",
+      "inputs": {
+        "table_id": {
+          "label": "Table",
+          "description": "Only tables this connection can access are listed.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://{{credential.apiUrl}}/api/database/tables/all-tables/"
+            }
+          }
+        },
+        "rows": {
+          "label": "Rows",
+          "description": "A JSON list of rows, up to 200, keyed by column name.",
+          "type": "json",
+          "required": true,
+          "defaultValue": "[{\"Name\": \"Row 1\"}, {\"Name\": \"Row 2\"}]"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.apiUrl}}/api/database/rows/table/{{table_id}}/batch/",
+        "query": {
+          "user_field_names": "true"
+        },
+        "body": {
+          "items": "{{rows}}"
+        }
+      },
+      "beforeRequest": "const rows = request.body.items; if (!Array.isArray(rows)) throw new Error('Rows must be a JSON array.'); if (rows.length > 200) throw new Error('At most 200 rows per request.'); return request;",
+      "afterResponse": "return {count: response.items.length, rows: response.items};"
+    },
+    "baserow_batch_update_rows": {
+      "label": "Batch Update Rows",
+      "description": "Updates up to 200 rows in one request.",
+      "audience": "human",
+      "inputs": {
+        "table_id": {
+          "label": "Table",
+          "description": "Only tables this connection can access are listed.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://{{credential.apiUrl}}/api/database/tables/all-tables/"
+            }
+          }
+        },
+        "rows": {
+          "label": "Rows",
+          "description": "A JSON list of up to 200 rows, each with its id and the new values.",
+          "type": "json",
+          "required": true,
+          "defaultValue": "[{\"id\": 1, \"Name\": \"Updated Row 1\"}]"
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://{{credential.apiUrl}}/api/database/rows/table/{{table_id}}/batch/",
+        "query": {
+          "user_field_names": "true"
+        },
+        "body": {
+          "items": "{{rows}}"
+        }
+      },
+      "beforeRequest": "const rows = request.body.items; if (!Array.isArray(rows)) throw new Error('Rows must be a JSON array.'); if (rows.length > 200) throw new Error('At most 200 rows per request.'); return request;",
+      "afterResponse": "return {count: response.items.length, rows: response.items};"
+    },
+    "baserow_batch_delete_rows": {
+      "label": "Batch Delete Rows",
+      "description": "Deletes up to 200 rows in one request.",
+      "audience": "human",
+      "inputs": {
+        "table_id": {
+          "label": "Table",
+          "description": "Only tables this connection can access are listed.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://{{credential.apiUrl}}/api/database/tables/all-tables/"
+            }
+          }
+        },
+        "row_ids": {
+          "label": "Row IDs",
+          "description": "Up to 200 row IDs, for example from List Rows or Find Row.",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.apiUrl}}/api/database/rows/table/{{table_id}}/batch-delete/",
+        "body": {
+          "items": "{{row_ids}}"
+        }
+      },
+      "beforeRequest": "const ids = (Array.isArray(request.body.items) ? request.body.items : []).map((id) => parseInt(String(id), 10)).filter((id) => !isNaN(id)); if (ids.length === 0) throw new Error('Row IDs must contain at least one number.'); if (ids.length > 200) throw new Error('At most 200 rows per request.'); request.body.items = ids; return request;",
+      "afterResponse": "return {deleted_count: JSON.parse(inputs.row_ids).map((id) => parseInt(String(id), 10)).filter((id) => !isNaN(id)).length};"
+    },
+    "baserow_upload_file": {
+      "label": "Upload File",
+      "description": "Uploads a file from a link, ready to put in a file column.",
+      "audience": "both",
+      "inputs": {
+        "url": {
+          "label": "File URL",
+          "description": "A public link Baserow can download the file from.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.apiUrl}}/api/user-files/upload-via-url/",
+        "body": {
+          "url": "{{url}}"
+        }
+      }
+    },
+    "baserow_create_row_ai": {
+      "label": "Create Row",
+      "description": "Creates a new row in a table from a JSON map of field values.",
+      "audience": "ai",
+      "inputs": {
+        "table_id": {
+          "label": "Table ID",
+          "description": "The numeric Baserow table ID. Resolve it with List Tables.",
+          "type": "number",
+          "required": true
+        },
+        "fields": {
+          "label": "Fields",
+          "type": "json",
+          "required": true,
+          "description": "JSON object mapping field names to values, e.g. {\"Name\": \"Acme\", \"Status\": \"Active\"}. Single select takes the option name or ID; multiple select, link-to-table and collaborator fields take arrays (link rows accept row IDs or primary field values; collaborators take [{\"id\": 1}]). File fields take [{\"name\": \"<file name from Upload File>\"}]."
+        },
+        "create_missing_select_options": {
+          "label": "Create Missing Select Options",
+          "type": "boolean",
+          "description": "Adds single/multiple select values that do not exist yet as new options before writing. Requires an Email & Password connection."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.apiUrl}}/api/database/rows/table/{{table_id}}/",
+        "query": {
+          "user_field_names": "true"
+        },
+        "body": "{{fields}}"
+      },
+      "beforeRequest": "if (inputs.create_missing_select_options === 'true') throw new Error('Creating missing select options edits the field and requires a Baserow connection that uses Email & Password. Turn the option off, or reconnect Baserow with Email & Password.'); const fields = request.body; if (typeof fields !== 'object' || fields === null || Array.isArray(fields)) throw new Error('Fields must be a JSON object.'); return request;"
+    },
+    "baserow_get_row_ai": {
+      "label": "Get Row",
+      "description": "Gets a single row by its ID.",
+      "audience": "ai",
+      "inputs": {
+        "table_id": {
+          "label": "Table ID",
+          "description": "The numeric Baserow table ID. Resolve it with List Tables.",
+          "type": "number",
+          "required": true
+        },
+        "row_id": {
+          "label": "Row ID",
+          "description": "The numeric row ID. Resolve it with Find Row or List Rows.",
+          "type": "number",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://{{credential.apiUrl}}/api/database/rows/table/{{table_id}}/{{row_id}}/",
+        "query": {
+          "user_field_names": "true"
+        }
+      }
+    },
+    "baserow_list_rows_ai": {
+      "label": "List Rows",
+      "description": "Lists rows from a table with optional search, sorting, filters and view.",
+      "audience": "ai",
+      "inputs": {
+        "table_id": {
+          "label": "Table ID",
+          "description": "The numeric Baserow table ID. Resolve it with List Tables.",
+          "type": "number",
+          "required": true
+        },
+        "search": {
+          "label": "Search",
+          "description": "Only return rows with cell data matching this text."
+        },
+        "filters": {
+          "label": "Filters",
+          "type": "json",
+          "description": "Optional filter tree: {\"filter_type\": \"AND\" | \"OR\", \"filters\": [{\"field\": \"<field name or ID>\", \"type\": \"<operator>\", \"value\": \"<value>\"}], \"groups\": [<nested tree>]}. Operators include equal, not_equal, contains, contains_not, higher_than, lower_than, date_is, empty, not_empty, boolean, link_row_has, single_select_equal."
+        },
+        "order_by": {
+          "label": "Order By",
+          "description": "Comma-separated field names; prefix a name with \"-\" for descending, e.g. \"-Created,Name\"."
+        },
+        "include": {
+          "label": "Include Fields",
+          "description": "Only return these field names. Leave empty for all fields.",
+          "type": "json"
+        },
+        "exclude": {
+          "label": "Exclude Fields",
+          "description": "Field names to leave out of the response.",
+          "type": "json"
+        },
+        "view_id": {
+          "label": "View ID",
+          "description": "Apply the filters and sorts saved on this view. Resolve with List Views.",
+          "type": "number",
+          "required": false
+        },
+        "page": {
+          "label": "Page",
+          "description": "Page number, starting at 1.",
+          "type": "number",
+          "required": false,
+          "defaultValue": "1"
+        },
+        "size": {
+          "label": "Page Size",
+          "description": "Rows per page, 1–200. Defaults to 100.",
+          "type": "number",
+          "required": false,
+          "defaultValue": "100"
+        }
+      },
+      "request": {
+        "url": "https://{{credential.apiUrl}}/api/database/rows/table/{{table_id}}/",
+        "query": {
+          "search": "{{search}}",
+          "order_by": "{{order_by}}",
+          "view_id": "{{view_id}}",
+          "user_field_names": "true"
+        }
+      },
+      "beforeRequest": "if (inputs.size && (Number(inputs.size) < 1 || Number(inputs.size) > 200)) throw new Error('Page Size must be between 1 and 200.'); request.query.page = inputs.page || '1'; request.query.size = inputs.size || '100'; for (const key of ['include', 'exclude']) { const names = JSON.parse(inputs[key] || '[]'); if (names.length > 0) request.query[key] = names.map(String).join(','); } if (inputs.filters) { const filters = JSON.parse(inputs.filters); if (typeof filters !== 'object' || filters === null || Array.isArray(filters)) throw new Error('Filters must be a JSON object.'); request.query.filters = JSON.stringify(filters); } return request;",
+      "afterResponse": "return {count: response.count, has_more: response.next !== null, rows: response.results};"
+    },
+    "baserow_update_row_ai": {
+      "label": "Update Row",
+      "description": "Updates only the given fields of a row.",
+      "audience": "ai",
+      "inputs": {
+        "table_id": {
+          "label": "Table ID",
+          "description": "The numeric Baserow table ID. Resolve it with List Tables.",
+          "type": "number",
+          "required": true
+        },
+        "row_id": {
+          "label": "Row ID",
+          "description": "The numeric row ID. Resolve it with Find Row or List Rows.",
+          "type": "number",
+          "required": true
+        },
+        "fields": {
+          "label": "Fields",
+          "type": "json",
+          "required": true,
+          "description": "JSON object of field name to new value, e.g. {\"Status\": \"Done\"}. Only these fields are written. Use null to clear a value. Formats match Create Row."
+        },
+        "create_missing_select_options": {
+          "label": "Create Missing Select Options",
+          "type": "boolean",
+          "description": "Adds single/multiple select values that do not exist yet as new options before writing. Requires an Email & Password connection."
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://{{credential.apiUrl}}/api/database/rows/table/{{table_id}}/{{row_id}}/",
+        "query": {
+          "user_field_names": "true"
+        },
+        "body": "{{fields}}"
+      },
+      "beforeRequest": "if (inputs.create_missing_select_options === 'true') throw new Error('Creating missing select options edits the field and requires a Baserow connection that uses Email & Password. Turn the option off, or reconnect Baserow with Email & Password.'); const fields = request.body; if (typeof fields !== 'object' || fields === null || Array.isArray(fields)) throw new Error('Fields must be a JSON object.'); if (Object.keys(fields).length === 0) throw new Error('Fields must contain at least one field to update.'); return request;"
+    },
+    "baserow_delete_row_ai": {
+      "label": "Delete Row",
+      "description": "Deletes a row by its ID.",
+      "audience": "ai",
+      "inputs": {
+        "table_id": {
+          "label": "Table ID",
+          "description": "The numeric Baserow table ID. Resolve it with List Tables.",
+          "type": "number",
+          "required": true
+        },
+        "row_id": {
+          "label": "Row ID",
+          "description": "The numeric row ID. Resolve it with Find Row or List Rows.",
+          "type": "number",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.apiUrl}}/api/database/rows/table/{{table_id}}/{{row_id}}/"
+      },
+      "afterResponse": "return {deleted: true, table_id: Number(inputs.table_id), row_id: Number(inputs.row_id)};"
+    },
+    "baserow_batch_create_rows_ai": {
+      "label": "Batch Create Rows",
+      "description": "Creates up to 200 rows in one request.",
+      "audience": "ai",
+      "inputs": {
+        "table_id": {
+          "label": "Table ID",
+          "description": "The numeric Baserow table ID. Resolve it with List Tables.",
+          "type": "number",
+          "required": true
+        },
+        "rows": {
+          "label": "Rows",
+          "type": "json",
+          "required": true,
+          "description": "JSON array of row objects keyed by field name, e.g. [{\"Name\": \"A\"}, {\"Name\": \"B\"}]. Maximum 200. Value formats match Create Row."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.apiUrl}}/api/database/rows/table/{{table_id}}/batch/",
+        "query": {
+          "user_field_names": "true"
+        },
+        "body": {
+          "items": "{{rows}}"
+        }
+      },
+      "beforeRequest": "const rows = request.body.items; if (!Array.isArray(rows) || rows.length === 0) throw new Error('Rows must be a non-empty JSON array of objects.'); if (rows.length > 200) throw new Error(`Rows accepts at most 200 items per call; received ${rows.length}.`); rows.forEach((row, index) => { if (typeof row !== 'object' || row === null || Array.isArray(row)) throw new Error(`Rows[${index}] must be a JSON object.`); }); return request;",
+      "afterResponse": "return {count: response.items.length, rows: response.items};"
+    },
+    "baserow_batch_update_rows_ai": {
+      "label": "Batch Update Rows",
+      "description": "Updates up to 200 rows in one request.",
+      "audience": "ai",
+      "inputs": {
+        "table_id": {
+          "label": "Table ID",
+          "description": "The numeric Baserow table ID. Resolve it with List Tables.",
+          "type": "number",
+          "required": true
+        },
+        "rows": {
+          "label": "Rows",
+          "type": "json",
+          "required": true,
+          "description": "JSON array of objects, each with the numeric row \"id\" and the field names to change, e.g. [{\"id\": 1, \"Status\": \"Done\"}]. Maximum 200."
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://{{credential.apiUrl}}/api/database/rows/table/{{table_id}}/batch/",
+        "query": {
+          "user_field_names": "true"
+        },
+        "body": {
+          "items": "{{rows}}"
+        }
+      },
+      "beforeRequest": "const rows = request.body.items; if (!Array.isArray(rows) || rows.length === 0) throw new Error('Rows must be a non-empty JSON array of objects.'); if (rows.length > 200) throw new Error(`Rows accepts at most 200 items per call; received ${rows.length}.`); rows.forEach((row, index) => { if (typeof row !== 'object' || row === null || Array.isArray(row)) throw new Error(`Rows[${index}] must be a JSON object.`); }); const missing = rows.findIndex((row) => !Number.isInteger(Number(row.id))); if (missing !== -1) throw new Error(`Rows[${missing}] is missing a numeric \"id\".`); return request;",
+      "afterResponse": "return {count: response.items.length, rows: response.items};"
+    },
+    "baserow_batch_delete_rows_ai": {
+      "label": "Batch Delete Rows",
+      "description": "Deletes up to 200 rows in one request.",
+      "audience": "ai",
+      "inputs": {
+        "table_id": {
+          "label": "Table ID",
+          "description": "The numeric Baserow table ID. Resolve it with List Tables.",
+          "type": "number",
+          "required": true
+        },
+        "row_ids": {
+          "label": "Row IDs",
+          "description": "Numeric IDs of the rows to delete. Maximum 200.",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.apiUrl}}/api/database/rows/table/{{table_id}}/batch-delete/",
+        "body": {
+          "items": "{{row_ids}}"
+        }
+      },
+      "beforeRequest": "const ids = JSON.parse(inputs.row_ids || '[]'); if (ids.length === 0) throw new Error('Row IDs must contain at least one ID.'); if (ids.length > 200) throw new Error(`Row IDs accepts at most 200 IDs per call; received ${ids.length}.`); const numbers = ids.map((id) => { const value = Number(id); if (!Number.isInteger(value) || value <= 0) throw new Error(`Row IDs contains an invalid ID: ${String(id)}.`); return value; }); request.body.items = numbers; return request;",
+      "afterResponse": "const ids = JSON.parse(inputs.row_ids).map(Number); return {deleted: true, count: ids.length, row_ids: ids};"
+    },
+    "baserow_list_tables": {
+      "label": "List Tables",
+      "description": "Lists the tables the connection can access.",
+      "audience": "ai",
+      "inputs": {},
+      "request": {
+        "url": "https://{{credential.apiUrl}}/api/database/tables/all-tables/"
+      },
+      "afterResponse": "return {count: response.length, tables: response.map((table) => ({id: table.id, name: table.name, database_id: table.database_id}))};"
+    },
+    "baserow_get_table_fields": {
+      "label": "Get Table Fields",
+      "description": "Lists the fields (columns) of a table.",
+      "audience": "ai",
+      "inputs": {
+        "table_id": {
+          "label": "Table ID",
+          "description": "The numeric Baserow table ID. Resolve it with List Tables.",
+          "type": "number",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://{{credential.apiUrl}}/api/database/fields/table/{{table_id}}/"
+      },
+      "afterResponse": "return {count: response.length, fields: response.map((field) => ({id: field.id, name: field.name, type: field.type, primary: field.primary, read_only: field.read_only, select_options: 'select_options' in field ? field.select_options.map((option) => ({id: option.id, value: option.value})) : undefined, link_row_table_id: 'link_row_table_id' in field ? field.link_row_table_id : undefined}))};"
+    },
+    "baserow_list_row_names": {
+      "label": "List Row Names",
+      "description": "Gets the primary field value of the given rows.",
+      "audience": "ai",
+      "inputs": {
+        "table_id": {
+          "label": "Table ID",
+          "description": "The numeric Baserow table ID. Resolve it with List Tables.",
+          "type": "number",
+          "required": true
+        },
+        "row_ids": {
+          "label": "Row IDs",
+          "description": "Numeric row IDs to look up.",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://{{credential.apiUrl}}/api/database/rows/names/"
+      },
+      "beforeRequest": "const ids = JSON.parse(inputs.row_ids || '[]'); if (ids.length === 0) throw new Error('Row IDs must contain at least one ID.'); if (ids.length > 200) throw new Error(`Row IDs accepts at most 200 IDs per call; received ${ids.length}.`); const numbers = ids.map((id) => { const value = Number(id); if (!Number.isInteger(value) || value <= 0) throw new Error(`Row IDs contains an invalid ID: ${String(id)}.`); return value; }); request.query['table__' + inputs.table_id] = numbers.join(','); return request;",
+      "afterResponse": "const names = response[String(inputs.table_id)] ?? {}; return {rows: Object.entries(names).map(([id, name]) => ({id: Number(id), name}))};"
+    }
+  }
+}

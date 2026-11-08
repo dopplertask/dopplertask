@@ -1,0 +1,1553 @@
+{
+  "name": "close",
+  "label": "Close",
+  "description": "Sales automation and CRM integration for Close",
+  "icon": "",
+  "hosts": [
+    "api.close.com"
+  ],
+  "baseUrl": "https://api.close.com/api/v1",
+  "upstream": {
+    "package": "@activepieces/piece-close",
+    "version": "0.3.2"
+  },
+  "credential": {
+    "fields": {
+      "apiKey": {
+        "label": "API Key",
+        "description": "Your Close API key. In Close go to Settings → Developer → API Keys and create a key.",
+        "secret": true,
+        "required": true
+      }
+    },
+    "basic": {
+      "username": "{{credential.apiKey}}",
+      "password": ""
+    }
+  },
+  "actions": {
+    "create_lead": {
+      "label": "Create Lead",
+      "description": "Creates a new lead.",
+      "audience": "human",
+      "inputs": {
+        "name": {
+          "label": "Lead Name",
+          "description": "The name of the lead/company.",
+          "required": true
+        },
+        "url": {
+          "label": "URL"
+        },
+        "description": {
+          "label": "Description",
+          "type": "multiline"
+        },
+        "contacts": {
+          "label": "Contacts",
+          "description": "List of contacts, each with name, title, officePhone, mobilePhone, homePhone, directPhone, faxPhone, otherPhone, officeEmail, homeEmail, directEmail, otherEmail and url.",
+          "type": "json"
+        },
+        "statusId": {
+          "label": "Status",
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.close.com/api/v1/status/lead/"
+            },
+            "list": "$.data",
+            "label": "$.label",
+            "value": "$.id"
+          }
+        },
+        "customFields": {
+          "label": "Custom Fields",
+          "description": "Object of custom field ID (cf_...) to value.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.close.com/api/v1/lead/"
+      },
+      "beforeRequest": "const filledCustomFields = (value) => Object.fromEntries(Object.entries(String(value).trim() ? JSON.parse(value) : {}).filter(([, item]) => item !== '' && item != null && !(Array.isArray(item) && item.length === 0)).map(([key, item]) => ['custom.' + key, item]));\nconst contacts = inputs.contacts.trim() ? JSON.parse(inputs.contacts) : [];\nconst phoneKeys = ['officePhone', 'mobilePhone', 'homePhone', 'directPhone', 'faxPhone', 'otherPhone'], emailKeys = ['officeEmail', 'homeEmail', 'directEmail', 'otherEmail'];\nrequest.body = { name: inputs.name, url: inputs.url || undefined, description: inputs.description || undefined, status_id: inputs.statusId || undefined, ...filledCustomFields(inputs.customFields),\n  contacts: contacts.map((person) => {\n    const phones = phoneKeys.filter((key) => person[key]?.trim()).map((key) => ({ type: key.replace('Phone', ''), phone: person[key].trim() }));\n    const emails = emailKeys.filter((key) => person[key]?.trim()).map((key) => ({ type: key.replace('Email', ''), email: person[key].trim() }));\n    return { name: person.name?.trim(), title: person.title?.trim(), phones: phones.length > 0 ? phones : undefined, emails: emails.length > 0 ? emails : undefined, urls: person.url ? [{ type: 'url', url: person.url }] : [] };\n  }) };\nreturn request;",
+      "outputs": {
+        "id": "$.id"
+      }
+    },
+    "create_contact": {
+      "label": "Create Contact",
+      "description": "Creates a new contact.",
+      "audience": "human",
+      "inputs": {
+        "lead_id": {
+          "label": "Lead",
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.close.com/api/v1/lead/",
+              "query": {
+                "_fields": "id,name"
+              }
+            },
+            "list": "$.data",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "name": {
+          "label": "Name",
+          "required": true
+        },
+        "title": {
+          "label": "Title"
+        },
+        "officePhone": {
+          "label": "Office Phone"
+        },
+        "mobilePhone": {
+          "label": "Mobile Phone"
+        },
+        "homePhone": {
+          "label": "Home Phone"
+        },
+        "directPhone": {
+          "label": "Direct Phone"
+        },
+        "faxPhone": {
+          "label": "Fax Phone"
+        },
+        "otherPhone": {
+          "label": "Other Phone"
+        },
+        "officeEmail": {
+          "label": "Office Email"
+        },
+        "homeEmail": {
+          "label": "Home Email"
+        },
+        "directEmail": {
+          "label": "Direct Email"
+        },
+        "otherEmail": {
+          "label": "Other Email"
+        },
+        "url": {
+          "label": "URL"
+        },
+        "customFields": {
+          "label": "Custom Fields",
+          "description": "Object of custom field ID (cf_...) to value.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.close.com/api/v1/contact/"
+      },
+      "beforeRequest": "const filledCustomFields = (value) => Object.fromEntries(Object.entries(String(value).trim() ? JSON.parse(value) : {}).filter(([, item]) => item !== '' && item != null && !(Array.isArray(item) && item.length === 0)).map(([key, item]) => ['custom.' + key, item]));\nconst emails = [['officeEmail', 'office'], ['otherEmail', 'other'], ['homeEmail', 'home'], ['directEmail', 'direct']].filter(([key]) => inputs[key]).map(([key, type]) => ({ email: inputs[key].trim(), type }));\nconst phones = [['officePhone', 'office'], ['otherPhone', 'other'], ['mobilePhone', 'mobile'], ['homePhone', 'home'], ['directPhone', 'direct'], ['faxPhone', 'fax']].filter(([key]) => inputs[key]).map(([key, type]) => ({ phone: inputs[key].trim(), type }));\nrequest.body = { lead_id: inputs.lead_id || undefined, title: inputs.title || undefined, name: inputs.name, ...filledCustomFields(inputs.customFields), phones, emails, urls: inputs.url ? [{ url: inputs.url, type: 'url' }] : [] };\nreturn request;",
+      "afterResponse": "return response !== null && typeof response === 'object' && !Array.isArray(response) ? { ...response, custom: Object.fromEntries(Object.entries(response).filter(([key]) => key.startsWith('custom.')).map(([key, value]) => [key.slice(7), value])) } : response;",
+      "outputs": {
+        "id": "$.id"
+      }
+    },
+    "create_opportunity": {
+      "label": "Create Opportunity",
+      "description": "Create a new opportunity.",
+      "audience": "human",
+      "inputs": {
+        "lead_id": {
+          "label": "Lead",
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.close.com/api/v1/lead/",
+              "query": {
+                "_fields": "id,name"
+              }
+            },
+            "list": "$.data",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "status_id": {
+          "label": "Status",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.close.com/api/v1/status/opportunity/"
+            },
+            "list": "$.data",
+            "label": "$.label",
+            "value": "$.id"
+          }
+        },
+        "name": {
+          "label": "Opportunity Name",
+          "description": "A descriptive name for the opportunity."
+        },
+        "note": {
+          "label": "Notes",
+          "description": "Additional details about the opportunity.",
+          "type": "multiline"
+        },
+        "confidence": {
+          "label": "Confidence %",
+          "description": "The probability of winning this opportunity (0-100).",
+          "type": "number"
+        },
+        "value": {
+          "label": "Value (cents)",
+          "description": "Monetary value in cents of your organization currency, e.g. 340000 for $3,400.00.",
+          "type": "number"
+        },
+        "value_period": {
+          "label": "Value Period",
+          "description": "The period for the opportunity value.",
+          "type": "select",
+          "defaultValue": "one_time",
+          "options": [
+            {
+              "value": "one_time",
+              "label": "One-Time"
+            },
+            {
+              "value": "monthly",
+              "label": "Monthly"
+            },
+            {
+              "value": "annual",
+              "label": "Annual"
+            }
+          ]
+        },
+        "contact_id": {
+          "label": "Contact ID",
+          "description": "The ID of the contact associated with this opportunity."
+        },
+        "user_id": {
+          "label": "User",
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.close.com/api/v1/user/",
+              "query": {
+                "_fields": "id,email"
+              }
+            },
+            "list": "$.data",
+            "label": "$.email",
+            "value": "$.id"
+          }
+        },
+        "custom_fields": {
+          "label": "Custom Fields",
+          "description": "Object of custom field ID (cf_...) to value.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.close.com/api/v1/opportunity/",
+        "body": {
+          "lead_id": "{{lead_id}}",
+          "status_id": "{{status_id}}",
+          "name": "{{name}}",
+          "note": "{{note}}",
+          "confidence": "{{confidence}}",
+          "value": "{{value}}",
+          "value_period": "{{value_period}}",
+          "contact_id": "{{contact_id}}",
+          "user_id": "{{user_id}}"
+        }
+      },
+      "beforeRequest": "const parseInteger = (value, label, min, max) => { if (value == null || value === '') return undefined; const number = typeof value === 'string' ? Number(value.trim()) : value; if (typeof number !== 'number' || !Number.isInteger(number) || number < min || number > max) throw new Error(`${label} must be a whole number from ${min} to ${max}.`); return number; };\nconst defined = (fields) => Object.fromEntries(Object.entries(fields).filter(([, item]) => item !== undefined));\nconst filledCustomFields = (value) => Object.fromEntries(Object.entries(String(value).trim() ? JSON.parse(value) : {}).filter(([, item]) => item !== '' && item != null && !(Array.isArray(item) && item.length === 0)).map(([key, item]) => ['custom.' + key, item]));\nconst confidence = parseInteger(inputs.confidence, 'Confidence %', 0, 100), value = parseInteger(inputs.value, 'Value (cents)', 0, Number.MAX_SAFE_INTEGER);\nrequest.body = defined({ ...request.body, confidence, value, ...filledCustomFields(inputs.custom_fields) });\nreturn request;",
+      "afterResponse": "return response !== null && typeof response === 'object' && !Array.isArray(response) ? { ...response, custom: Object.fromEntries(Object.entries(response).filter(([key]) => key.startsWith('custom.')).map(([key, value]) => [key.slice(7), value])) } : response;",
+      "outputs": {
+        "id": "$.id"
+      }
+    },
+    "create_contact_ai": {
+      "label": "Create Contact",
+      "description": "Add a contact person to a lead.",
+      "audience": "ai",
+      "inputs": {
+        "leadId": {
+          "label": "Lead ID",
+          "description": "lead_... the contact belongs to. Leave empty to create a new lead."
+        },
+        "name": {
+          "label": "Name",
+          "required": true
+        },
+        "title": {
+          "label": "Title"
+        },
+        "email": {
+          "label": "Email"
+        },
+        "phone": {
+          "label": "Phone"
+        },
+        "url": {
+          "label": "Website"
+        },
+        "customFields": {
+          "label": "Custom Fields",
+          "description": "Object of cf_... id to value.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.close.com/api/v1/contact/"
+      },
+      "beforeRequest": "const isRecord = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);\nconst optionalText = (value) => { if (typeof value === 'number' && Number.isFinite(value)) return String(value); if (typeof value !== 'string') return undefined; const trimmed = value.trim(); return trimmed === '' ? undefined : trimmed; };\nconst requiredText = (value, label) => { const text = optionalText(value); if (text === undefined) throw new Error(`${label} is required.`); return text; };\nconst closeId = (value, label, prefix) => { const id = requiredText(value, label); if (!/^[A-Za-z0-9_-]+$/.test(id) || (prefix !== undefined && !id.startsWith(`${prefix}_`))) throw new Error(`${label} must be a Close ID${prefix ? ` starting with \"${prefix}_\"` : ''}, e.g. ${prefix ?? 'lead'}_abc123.`); return id; };\nconst optionalCloseId = (value, label, prefix) => optionalText(value) === undefined ? undefined : closeId(value, label, prefix);\nconst customFieldsBody = (value, label = 'Custom Fields') => { if (value == null || value === '') return {}; let given; try { given = JSON.parse(value); } catch (error) { throw new Error(`${label} must be a JSON object.`); } if (!isRecord(given)) throw new Error(`${label} must be an object of key/value pairs.`); return Object.fromEntries(Object.entries(given).map(([key, item]) => { const id = key.startsWith('custom.') ? key.slice(7) : key; if (!/^cf_[A-Za-z0-9]+$/.test(id)) throw new Error(`${label}: \"${key}\" is not a custom field ID (expected cf_...). Use List Custom Fields to find IDs.`); return [`custom.${id}`, item]; })); };\nconst leadId = optionalCloseId(inputs.leadId, 'Lead ID', 'lead'), title = optionalText(inputs.title), email = optionalText(inputs.email), phone = optionalText(inputs.phone), url = optionalText(inputs.url);\nrequest.body = { name: requiredText(inputs.name, 'Name'), ...(leadId ? { lead_id: leadId } : {}), ...(title ? { title } : {}), ...(email ? { emails: [{ email, type: 'office' }] } : {}), ...(phone ? { phones: [{ phone, type: 'office' }] } : {}), ...(url ? { urls: [{ url, type: 'url' }] } : {}), ...customFieldsBody(inputs.customFields) };\nreturn request;",
+      "afterResponse": "const text = (value) => typeof value === 'string' ? value : null;\nconst record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};\nconst list = (value) => Array.isArray(value) ? value : [];\nconst customOf = (item) => Object.fromEntries(Object.entries(item).filter(([key]) => key.startsWith('custom.')).map(([key, value]) => [key.slice(7), value]));\nconst contact = (raw) => { const item = record(raw); return { id: text(item.id), leadId: text(item.lead_id), name: text(item.name), title: text(item.title), emails: list(item.emails).map((entry) => ({ email: text(record(entry).email), type: text(record(entry).type) })), phones: list(item.phones).map((entry) => ({ phone: text(record(entry).phone), phoneFormatted: text(record(entry).phone_formatted), type: text(record(entry).type) })), urls: list(item.urls).map((entry) => ({ url: text(record(entry).url), type: text(record(entry).type) })), primaryEmail: text(record(list(item.emails)[0]).email), primaryPhone: text(record(list(item.phones)[0]).phone), custom: customOf(item), dateCreated: text(item.date_created), dateUpdated: text(item.date_updated) }; };\nreturn contact(response);",
+      "outputs": {
+        "id": "$.id"
+      }
+    },
+    "create_lead_ai": {
+      "label": "Create Lead",
+      "description": "Create a lead (company), optionally with a first contact.",
+      "audience": "ai",
+      "inputs": {
+        "name": {
+          "label": "Lead Name",
+          "description": "Company or lead name.",
+          "required": true
+        },
+        "description": {
+          "label": "Description",
+          "type": "multiline"
+        },
+        "url": {
+          "label": "Website"
+        },
+        "statusId": {
+          "label": "Lead Status ID",
+          "description": "stat_... from List Lead Statuses."
+        },
+        "contactName": {
+          "label": "Contact Name"
+        },
+        "contactTitle": {
+          "label": "Contact Title"
+        },
+        "contactEmail": {
+          "label": "Contact Email"
+        },
+        "contactPhone": {
+          "label": "Contact Phone"
+        },
+        "customFields": {
+          "label": "Custom Fields",
+          "description": "Object of cf_... id to value.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.close.com/api/v1/lead/"
+      },
+      "beforeRequest": "const isRecord = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);\nconst optionalText = (value) => { if (typeof value === 'number' && Number.isFinite(value)) return String(value); if (typeof value !== 'string') return undefined; const trimmed = value.trim(); return trimmed === '' ? undefined : trimmed; };\nconst requiredText = (value, label) => { const text = optionalText(value); if (text === undefined) throw new Error(`${label} is required.`); return text; };\nconst closeId = (value, label, prefix) => { const id = requiredText(value, label); if (!/^[A-Za-z0-9_-]+$/.test(id) || (prefix !== undefined && !id.startsWith(`${prefix}_`))) throw new Error(`${label} must be a Close ID${prefix ? ` starting with \"${prefix}_\"` : ''}, e.g. ${prefix ?? 'lead'}_abc123.`); return id; };\nconst optionalCloseId = (value, label, prefix) => optionalText(value) === undefined ? undefined : closeId(value, label, prefix);\nconst customFieldsBody = (value, label = 'Custom Fields') => { if (value == null || value === '') return {}; let given; try { given = JSON.parse(value); } catch (error) { throw new Error(`${label} must be a JSON object.`); } if (!isRecord(given)) throw new Error(`${label} must be an object of key/value pairs.`); return Object.fromEntries(Object.entries(given).map(([key, item]) => { const id = key.startsWith('custom.') ? key.slice(7) : key; if (!/^cf_[A-Za-z0-9]+$/.test(id)) throw new Error(`${label}: \"${key}\" is not a custom field ID (expected cf_...). Use List Custom Fields to find IDs.`); return [`custom.${id}`, item]; })); };\nconst defined = (fields) => Object.fromEntries(Object.entries(fields).filter(([, item]) => item !== undefined));\nconst statusId = optionalCloseId(inputs.statusId, 'Lead Status ID', 'stat'), name = optionalText(inputs.contactName), title = optionalText(inputs.contactTitle), email = optionalText(inputs.contactEmail), phone = optionalText(inputs.contactPhone);\nconst contacts = [name, title, email, phone].some((item) => item !== undefined) ? [defined({ name, title, ...(email ? { emails: [{ email, type: 'office' }] } : {}), ...(phone ? { phones: [{ phone, type: 'office' }] } : {}) })] : undefined;\nrequest.body = defined({ name: requiredText(inputs.name, 'Lead Name'), description: optionalText(inputs.description), url: optionalText(inputs.url), status_id: statusId, contacts, ...customFieldsBody(inputs.customFields) });\nreturn request;",
+      "afterResponse": "const text = (value) => typeof value === 'string' ? value : null;\nconst record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};\nconst list = (value) => Array.isArray(value) ? value : [];\nconst customOf = (item) => Object.fromEntries(Object.entries(item).filter(([key]) => key.startsWith('custom.')).map(([key, value]) => [key.slice(7), value]));\nconst contact = (raw) => { const item = record(raw); return { id: text(item.id), leadId: text(item.lead_id), name: text(item.name), title: text(item.title), emails: list(item.emails).map((entry) => ({ email: text(record(entry).email), type: text(record(entry).type) })), phones: list(item.phones).map((entry) => ({ phone: text(record(entry).phone), phoneFormatted: text(record(entry).phone_formatted), type: text(record(entry).type) })), urls: list(item.urls).map((entry) => ({ url: text(record(entry).url), type: text(record(entry).type) })), primaryEmail: text(record(list(item.emails)[0]).email), primaryPhone: text(record(list(item.phones)[0]).phone), custom: customOf(item), dateCreated: text(item.date_created), dateUpdated: text(item.date_updated) }; };\nconst lead = (raw) => { const item = record(raw), id = text(item.id); return { id, name: text(item.display_name) ?? text(item.name), description: text(item.description), url: text(item.url), statusId: text(item.status_id), statusLabel: text(item.status_label), contacts: list(item.contacts).map((entry) => contact(entry)), opportunityIds: list(item.opportunities).map((entry) => text(record(entry).id)).filter((entry) => entry !== null), addresses: list(item.addresses).map((entry) => record(entry)), custom: { ...record(item.custom), ...customOf(item) }, createdBy: text(item.created_by), dateCreated: text(item.date_created), dateUpdated: text(item.date_updated), appUrl: id ? 'https://app.close.com/lead/' + encodeURIComponent(id) + '/' : null }; };\nreturn lead(response);",
+      "outputs": {
+        "id": "$.id",
+        "appUrl": "$.appUrl"
+      }
+    },
+    "create_note": {
+      "label": "Create Note",
+      "description": "Add a note to a lead in Close.",
+      "audience": "ai",
+      "inputs": {
+        "leadId": {
+          "label": "Lead ID",
+          "required": true
+        },
+        "note": {
+          "label": "Note",
+          "type": "multiline",
+          "required": true
+        },
+        "contactId": {
+          "label": "Contact ID"
+        },
+        "activityAt": {
+          "label": "Activity At"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.close.com/api/v1/activity/note/"
+      },
+      "beforeRequest": "const optionalText = (value) => { if (typeof value === 'number' && Number.isFinite(value)) return String(value); if (typeof value !== 'string') return undefined; const trimmed = value.trim(); return trimmed === '' ? undefined : trimmed; };\nconst requiredText = (value, label) => { const text = optionalText(value); if (text === undefined) throw new Error(`${label} is required.`); return text; };\nconst closeId = (value, label, prefix) => { const id = requiredText(value, label); if (!/^[A-Za-z0-9_-]+$/.test(id) || (prefix !== undefined && !id.startsWith(`${prefix}_`))) throw new Error(`${label} must be a Close ID${prefix ? ` starting with \"${prefix}_\"` : ''}, e.g. ${prefix ?? 'lead'}_abc123.`); return id; };\nconst optionalCloseId = (value, label, prefix) => optionalText(value) === undefined ? undefined : closeId(value, label, prefix);\nconst isoDateTime = (value, label) => { const text = optionalText(value); if (text === undefined) return undefined; const time = Date.parse(text); if (Number.isNaN(time)) throw new Error(`${label} must be an ISO 8601 date-time, e.g. 2026-10-18T12:00:00Z.`); return new Date(time).toISOString(); };\nconst defined = (fields) => Object.fromEntries(Object.entries(fields).filter(([, item]) => item !== undefined));\nrequest.body = defined({ lead_id: closeId(inputs.leadId, 'Lead ID', 'lead'), note: requiredText(inputs.note, 'Note'), contact_id: optionalCloseId(inputs.contactId, 'Contact ID', 'cont'), activity_at: isoDateTime(inputs.activityAt, 'Activity At') });\nreturn request;",
+      "afterResponse": "const text = (value) => typeof value === 'string' ? value : null;\nconst number = (value) => typeof value === 'number' && Number.isFinite(value) ? value : null;\nconst record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};\nconst activity = (raw) => { const item = record(raw), envelope = record(item.envelope); return { id: text(item.id), type: text(item._type), leadId: text(item.lead_id), contactId: text(item.contact_id), userId: text(item.user_id), userName: text(item.user_name), direction: text(item.direction), status: text(item.status), subject: text(item.subject) ?? text(item.title) ?? text(envelope.subject), text: text(item.note) ?? text(item.text) ?? text(item.body_text), durationSeconds: number(item.duration), phone: text(item.phone) ?? text(item.remote_phone), activityAt: text(item.activity_at), dateCreated: text(item.date_created), dateUpdated: text(item.date_updated) }; };\nreturn activity(response);",
+      "outputs": {
+        "id": "$.id"
+      }
+    },
+    "create_opportunity_ai": {
+      "label": "Create Opportunity",
+      "description": "Create an opportunity (deal) on a lead.",
+      "audience": "ai",
+      "inputs": {
+        "leadId": {
+          "label": "Lead ID",
+          "description": "Lead to attach the opportunity to (lead_...).",
+          "required": true
+        },
+        "statusId": {
+          "label": "Status ID",
+          "description": "Opportunity status ID (stat_...). Use List Pipelines to find IDs."
+        },
+        "contactId": {
+          "label": "Contact ID",
+          "description": "Contact on the lead (cont_...)."
+        },
+        "userId": {
+          "label": "Owner User ID",
+          "description": "User who owns the opportunity (user_...)."
+        },
+        "valueCents": {
+          "label": "Value (cents)",
+          "description": "Whole number of cents, e.g. 340000 for 3,400.00.",
+          "type": "number"
+        },
+        "valuePeriod": {
+          "label": "Value Period",
+          "description": "one_time, monthly or annual."
+        },
+        "confidence": {
+          "label": "Confidence %",
+          "description": "0 to 100.",
+          "type": "number"
+        },
+        "note": {
+          "label": "Note",
+          "type": "multiline"
+        },
+        "expectedCloseDate": {
+          "label": "Close Date",
+          "description": "Expected (or won) close date, e.g. 2026-11-30."
+        },
+        "customFields": {
+          "label": "Custom Fields",
+          "description": "Object of custom field ID (cf_...) to value.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.close.com/api/v1/opportunity/"
+      },
+      "beforeRequest": "const isRecord = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);\nconst optionalText = (value) => { if (typeof value === 'number' && Number.isFinite(value)) return String(value); if (typeof value !== 'string') return undefined; const trimmed = value.trim(); return trimmed === '' ? undefined : trimmed; };\nconst requiredText = (value, label) => { const text = optionalText(value); if (text === undefined) throw new Error(`${label} is required.`); return text; };\nconst closeId = (value, label, prefix) => { const id = requiredText(value, label); if (!/^[A-Za-z0-9_-]+$/.test(id) || (prefix !== undefined && !id.startsWith(`${prefix}_`))) throw new Error(`${label} must be a Close ID${prefix ? ` starting with \"${prefix}_\"` : ''}, e.g. ${prefix ?? 'lead'}_abc123.`); return id; };\nconst optionalCloseId = (value, label, prefix) => optionalText(value) === undefined ? undefined : closeId(value, label, prefix);\nconst parseInteger = (value, label, min, max) => { if (value == null || value === '') return undefined; const number = typeof value === 'string' ? Number(value.trim()) : value; if (typeof number !== 'number' || !Number.isInteger(number) || number < min || number > max) throw new Error(`${label} must be a whole number from ${min} to ${max}.`); return number; };\nconst isoDate = (value, label) => { const text = optionalText(value); if (text === undefined) return undefined; if (/^\\d{4}-\\d{2}-\\d{2}$/.test(text) && !Number.isNaN(Date.parse(`${text}T00:00:00Z`))) return text; const time = Date.parse(text); if (Number.isNaN(time)) throw new Error(`${label} must be a date like 2026-10-18 or an ISO 8601 date-time.`); return new Date(time).toISOString(); };\nconst customFieldsBody = (value, label = 'Custom Fields') => { if (value == null || value === '') return {}; let given; try { given = JSON.parse(value); } catch (error) { throw new Error(`${label} must be a JSON object.`); } if (!isRecord(given)) throw new Error(`${label} must be an object of key/value pairs.`); return Object.fromEntries(Object.entries(given).map(([key, item]) => { const id = key.startsWith('custom.') ? key.slice(7) : key; if (!/^cf_[A-Za-z0-9]+$/.test(id)) throw new Error(`${label}: \"${key}\" is not a custom field ID (expected cf_...). Use List Custom Fields to find IDs.`); return [`custom.${id}`, item]; })); };\nconst defined = (fields) => Object.fromEntries(Object.entries(fields).filter(([, item]) => item !== undefined));\nconst valuePeriod = (value) => { const period = optionalText(value); if (period !== undefined && !['one_time', 'monthly', 'annual'].includes(period)) throw new Error('Value Period must be one_time, monthly or annual.'); return period; };\nconst leadId = closeId(inputs.leadId, 'Lead ID', 'lead');\nrequest.body = { lead_id: leadId, ...defined({ status_id: optionalCloseId(inputs.statusId, 'Status ID', 'stat'), contact_id: optionalCloseId(inputs.contactId, 'Contact ID', 'cont'), user_id: optionalCloseId(inputs.userId, 'Owner User ID', 'user'), value: parseInteger(inputs.valueCents, 'Value (cents)', 0, Number.MAX_SAFE_INTEGER), value_period: valuePeriod(inputs.valuePeriod), confidence: parseInteger(inputs.confidence, 'Confidence %', 0, 100), note: optionalText(inputs.note), date_won: isoDate(inputs.expectedCloseDate, 'Close Date'), ...customFieldsBody(inputs.customFields) }) };\nreturn request;",
+      "afterResponse": "const text = (value) => typeof value === 'string' ? value : null;\nconst number = (value) => typeof value === 'number' && Number.isFinite(value) ? value : null;\nconst record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};\nconst customOf = (item) => Object.fromEntries(Object.entries(item).filter(([key]) => key.startsWith('custom.')).map(([key, value]) => [key.slice(7), value]));\nconst opportunity = (raw) => { const item = record(raw); return { id: text(item.id), leadId: text(item.lead_id), leadName: text(item.lead_name), contactId: text(item.contact_id), userId: text(item.user_id), userName: text(item.user_name), statusId: text(item.status_id), statusLabel: text(item.status_label), statusType: text(item.status_type), pipelineId: text(item.pipeline_id), pipelineName: text(item.pipeline_name), valueCents: number(item.value), valueCurrency: text(item.value_currency), valueFormatted: text(item.value_formatted), valuePeriod: text(item.value_period), confidence: number(item.confidence), note: text(item.note), dateWon: text(item.date_won), dateLost: text(item.date_lost), custom: customOf(item), dateCreated: text(item.date_created), dateUpdated: text(item.date_updated) }; };\nreturn opportunity(response);",
+      "outputs": {
+        "id": "$.id"
+      }
+    },
+    "create_task": {
+      "label": "Create Task",
+      "description": "Create a to-do task on a lead.",
+      "audience": "ai",
+      "inputs": {
+        "leadId": {
+          "label": "Lead ID",
+          "description": "lead_...",
+          "required": true
+        },
+        "text": {
+          "label": "Text",
+          "type": "multiline",
+          "required": true
+        },
+        "assignedTo": {
+          "label": "Assigned To (user ID)",
+          "description": "user_..."
+        },
+        "date": {
+          "label": "Due",
+          "description": "YYYY-MM-DD or ISO 8601 date-time."
+        },
+        "isComplete": {
+          "label": "Complete",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.close.com/api/v1/task/"
+      },
+      "beforeRequest": "const optionalText = (value) => { if (typeof value === 'number' && Number.isFinite(value)) return String(value); if (typeof value !== 'string') return undefined; const trimmed = value.trim(); return trimmed === '' ? undefined : trimmed; };\nconst requiredText = (value, label) => { const text = optionalText(value); if (text === undefined) throw new Error(`${label} is required.`); return text; };\nconst closeId = (value, label, prefix) => { const id = requiredText(value, label); if (!/^[A-Za-z0-9_-]+$/.test(id) || (prefix !== undefined && !id.startsWith(`${prefix}_`))) throw new Error(`${label} must be a Close ID${prefix ? ` starting with \"${prefix}_\"` : ''}, e.g. ${prefix ?? 'lead'}_abc123.`); return id; };\nconst optionalCloseId = (value, label, prefix) => optionalText(value) === undefined ? undefined : closeId(value, label, prefix);\nconst parseBoolean = (value, label) => { if (value == null || value === '') return undefined; if (value === true || value === 'true') return true; if (value === false || value === 'false') return false; throw new Error(`${label} must be true or false.`); };\nconst isoDate = (value, label) => { const text = optionalText(value); if (text === undefined) return undefined; if (/^\\d{4}-\\d{2}-\\d{2}$/.test(text) && !Number.isNaN(Date.parse(`${text}T00:00:00Z`))) return text; const time = Date.parse(text); if (Number.isNaN(time)) throw new Error(`${label} must be a date like 2026-10-18 or an ISO 8601 date-time.`); return new Date(time).toISOString(); };\nconst defined = (fields) => Object.fromEntries(Object.entries(fields).filter(([, item]) => item !== undefined));\nrequest.body = defined({ _type: 'lead', lead_id: closeId(inputs.leadId, 'Lead ID', 'lead'), text: requiredText(inputs.text, 'Text'), assigned_to: optionalCloseId(inputs.assignedTo, 'Assigned To', 'user'), date: isoDate(inputs.date, 'Due'), is_complete: parseBoolean(inputs.isComplete, 'Complete') });\nreturn request;",
+      "afterResponse": "const text = (value) => typeof value === 'string' ? value : null;\nconst flag = (value) => typeof value === 'boolean' ? value : null;\nconst record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};\nconst task = (raw) => { const item = record(raw); return { id: text(item.id), type: text(item._type), leadId: text(item.lead_id), leadName: text(item.lead_name), contactId: text(item.contact_id), assignedTo: text(item.assigned_to), assignedToName: text(item.assigned_to_name), text: text(item.text), date: text(item.date), isComplete: flag(item.is_complete), isDateless: flag(item.is_dateless), dateCreated: text(item.date_created), dateUpdated: text(item.date_updated) }; };\nreturn task(response);",
+      "outputs": {
+        "id": "$.id"
+      }
+    },
+    "delete_activity": {
+      "label": "Delete Activity",
+      "description": "Permanently delete a note, call, email, SMS or meeting.",
+      "audience": "ai",
+      "inputs": {
+        "activityType": {
+          "label": "Activity Type",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "note",
+              "label": "Note"
+            },
+            {
+              "value": "call",
+              "label": "Call"
+            },
+            {
+              "value": "email",
+              "label": "Email"
+            },
+            {
+              "value": "sms",
+              "label": "SMS"
+            },
+            {
+              "value": "meeting",
+              "label": "Meeting"
+            }
+          ]
+        },
+        "activityId": {
+          "label": "Activity ID",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.close.com/api/v1/activity/{{activityType}}/{{activityId}}/"
+      },
+      "afterResponse": "const optional = (value) => { const trimmed = String(value ?? '').trim(); return trimmed === '' ? undefined : trimmed; };\nreturn { deleted: true, id: optional(inputs.activityId) };",
+      "beforeRequest": "const optionalText = (value) => { if (typeof value === 'number' && Number.isFinite(value)) return String(value); if (typeof value !== 'string') return undefined; const trimmed = value.trim(); return trimmed === '' ? undefined : trimmed; };\nconst requiredText = (value, label) => { const text = optionalText(value); if (text === undefined) throw new Error(`${label} is required.`); return text; };\nconst closeId = (value, label, prefix) => { const id = requiredText(value, label); if (!/^[A-Za-z0-9_-]+$/.test(id) || (prefix !== undefined && !id.startsWith(`${prefix}_`))) throw new Error(`${label} must be a Close ID${prefix ? ` starting with \"${prefix}_\"` : ''}, e.g. ${prefix ?? 'lead'}_abc123.`); return id; };\nconst activityType = (value) => { const type = requiredText(value, 'Activity Type').toLowerCase(); if (!['note', 'call', 'email', 'sms', 'meeting'].includes(type)) throw new Error('Activity Type must be one of: note, call, email, sms, meeting.'); return type; };\nconst type = activityType(inputs.activityType), id = closeId(inputs.activityId, 'Activity ID', 'acti');\nrequest.url = request.url.replace(/[^/]*\\/[^/]*\\/$/, `${type}/${id}/`);\nreturn request;"
+    },
+    "delete_contact": {
+      "label": "Delete Contact",
+      "description": "Permanently delete a contact person from its lead.",
+      "audience": "ai",
+      "inputs": {
+        "contactId": {
+          "label": "Contact ID",
+          "description": "cont_...",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.close.com/api/v1/contact/{{contactId}}/"
+      },
+      "afterResponse": "const optional = (value) => { const trimmed = String(value ?? '').trim(); return trimmed === '' ? undefined : trimmed; };\nreturn { deleted: true, id: optional(inputs.contactId) };",
+      "beforeRequest": "const optionalText = (value) => { if (typeof value === 'number' && Number.isFinite(value)) return String(value); if (typeof value !== 'string') return undefined; const trimmed = value.trim(); return trimmed === '' ? undefined : trimmed; };\nconst requiredText = (value, label) => { const text = optionalText(value); if (text === undefined) throw new Error(`${label} is required.`); return text; };\nconst closeId = (value, label, prefix) => { const id = requiredText(value, label); if (!/^[A-Za-z0-9_-]+$/.test(id) || (prefix !== undefined && !id.startsWith(`${prefix}_`))) throw new Error(`${label} must be a Close ID${prefix ? ` starting with \"${prefix}_\"` : ''}, e.g. ${prefix ?? 'lead'}_abc123.`); return id; };\nconst lastSegment = (url, value) => url.replace(/[^/]*\\/$/, `${value}/`);\nrequest.url = lastSegment(request.url, closeId(inputs.contactId, 'Contact ID', 'cont'));\nreturn request;"
+    },
+    "delete_lead": {
+      "label": "Delete Lead",
+      "description": "Permanently delete a lead with its contacts, opportunities, tasks and activities.",
+      "audience": "ai",
+      "inputs": {
+        "leadId": {
+          "label": "Lead ID",
+          "description": "lead_...",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.close.com/api/v1/lead/{{leadId}}/"
+      },
+      "afterResponse": "const optional = (value) => { const trimmed = String(value ?? '').trim(); return trimmed === '' ? undefined : trimmed; };\nreturn { deleted: true, id: optional(inputs.leadId) };",
+      "beforeRequest": "const optionalText = (value) => { if (typeof value === 'number' && Number.isFinite(value)) return String(value); if (typeof value !== 'string') return undefined; const trimmed = value.trim(); return trimmed === '' ? undefined : trimmed; };\nconst requiredText = (value, label) => { const text = optionalText(value); if (text === undefined) throw new Error(`${label} is required.`); return text; };\nconst closeId = (value, label, prefix) => { const id = requiredText(value, label); if (!/^[A-Za-z0-9_-]+$/.test(id) || (prefix !== undefined && !id.startsWith(`${prefix}_`))) throw new Error(`${label} must be a Close ID${prefix ? ` starting with \"${prefix}_\"` : ''}, e.g. ${prefix ?? 'lead'}_abc123.`); return id; };\nconst lastSegment = (url, value) => url.replace(/[^/]*\\/$/, `${value}/`);\nrequest.url = lastSegment(request.url, closeId(inputs.leadId, 'Lead ID', 'lead'));\nreturn request;"
+    },
+    "delete_opportunity": {
+      "label": "Delete Opportunity",
+      "description": "Permanently delete a opportunity.",
+      "audience": "ai",
+      "inputs": {
+        "opportunityId": {
+          "label": "Opportunity ID",
+          "description": "oppo_...",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.close.com/api/v1/opportunity/{{opportunityId}}/"
+      },
+      "afterResponse": "const optional = (value) => { const trimmed = String(value ?? '').trim(); return trimmed === '' ? undefined : trimmed; };\nreturn { deleted: true, id: optional(inputs.opportunityId) };",
+      "beforeRequest": "const optionalText = (value) => { if (typeof value === 'number' && Number.isFinite(value)) return String(value); if (typeof value !== 'string') return undefined; const trimmed = value.trim(); return trimmed === '' ? undefined : trimmed; };\nconst requiredText = (value, label) => { const text = optionalText(value); if (text === undefined) throw new Error(`${label} is required.`); return text; };\nconst closeId = (value, label, prefix) => { const id = requiredText(value, label); if (!/^[A-Za-z0-9_-]+$/.test(id) || (prefix !== undefined && !id.startsWith(`${prefix}_`))) throw new Error(`${label} must be a Close ID${prefix ? ` starting with \"${prefix}_\"` : ''}, e.g. ${prefix ?? 'lead'}_abc123.`); return id; };\nconst lastSegment = (url, value) => url.replace(/[^/]*\\/$/, `${value}/`);\nrequest.url = lastSegment(request.url, closeId(inputs.opportunityId, 'Opportunity ID', 'oppo'));\nreturn request;"
+    },
+    "delete_task": {
+      "label": "Delete Task",
+      "description": "Permanently delete a task.",
+      "audience": "ai",
+      "inputs": {
+        "taskId": {
+          "label": "Task ID",
+          "description": "task_...",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.close.com/api/v1/task/{{taskId}}/"
+      },
+      "afterResponse": "const optional = (value) => { const trimmed = String(value ?? '').trim(); return trimmed === '' ? undefined : trimmed; };\nreturn { deleted: true, id: optional(inputs.taskId) };",
+      "beforeRequest": "const optionalText = (value) => { if (typeof value === 'number' && Number.isFinite(value)) return String(value); if (typeof value !== 'string') return undefined; const trimmed = value.trim(); return trimmed === '' ? undefined : trimmed; };\nconst requiredText = (value, label) => { const text = optionalText(value); if (text === undefined) throw new Error(`${label} is required.`); return text; };\nconst closeId = (value, label, prefix) => { const id = requiredText(value, label); if (!/^[A-Za-z0-9_-]+$/.test(id) || (prefix !== undefined && !id.startsWith(`${prefix}_`))) throw new Error(`${label} must be a Close ID${prefix ? ` starting with \"${prefix}_\"` : ''}, e.g. ${prefix ?? 'lead'}_abc123.`); return id; };\nconst lastSegment = (url, value) => url.replace(/[^/]*\\/$/, `${value}/`);\nrequest.url = lastSegment(request.url, closeId(inputs.taskId, 'Task ID', 'task'));\nreturn request;"
+    },
+    "get_activity": {
+      "label": "Get Activity",
+      "description": "Get one note, call, email, SMS or meeting by ID.",
+      "audience": "ai",
+      "inputs": {
+        "activityType": {
+          "label": "Activity Type",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "note",
+              "label": "Note"
+            },
+            {
+              "value": "call",
+              "label": "Call"
+            },
+            {
+              "value": "email",
+              "label": "Email"
+            },
+            {
+              "value": "sms",
+              "label": "SMS"
+            },
+            {
+              "value": "meeting",
+              "label": "Meeting"
+            }
+          ]
+        },
+        "activityId": {
+          "label": "Activity ID",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://api.close.com/api/v1/activity/{{activityType}}/{{activityId}}/"
+      },
+      "afterResponse": "const text = (value) => typeof value === 'string' ? value : null;\nconst number = (value) => typeof value === 'number' && Number.isFinite(value) ? value : null;\nconst record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};\nconst activity = (raw) => { const item = record(raw), envelope = record(item.envelope); return { id: text(item.id), type: text(item._type), leadId: text(item.lead_id), contactId: text(item.contact_id), userId: text(item.user_id), userName: text(item.user_name), direction: text(item.direction), status: text(item.status), subject: text(item.subject) ?? text(item.title) ?? text(envelope.subject), text: text(item.note) ?? text(item.text) ?? text(item.body_text), durationSeconds: number(item.duration), phone: text(item.phone) ?? text(item.remote_phone), activityAt: text(item.activity_at), dateCreated: text(item.date_created), dateUpdated: text(item.date_updated) }; };\nreturn activity(response);",
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const optionalText = (value) => { if (typeof value === 'number' && Number.isFinite(value)) return String(value); if (typeof value !== 'string') return undefined; const trimmed = value.trim(); return trimmed === '' ? undefined : trimmed; };\nconst requiredText = (value, label) => { const text = optionalText(value); if (text === undefined) throw new Error(`${label} is required.`); return text; };\nconst closeId = (value, label, prefix) => { const id = requiredText(value, label); if (!/^[A-Za-z0-9_-]+$/.test(id) || (prefix !== undefined && !id.startsWith(`${prefix}_`))) throw new Error(`${label} must be a Close ID${prefix ? ` starting with \"${prefix}_\"` : ''}, e.g. ${prefix ?? 'lead'}_abc123.`); return id; };\nconst activityType = (value) => { const type = requiredText(value, 'Activity Type').toLowerCase(); if (!['note', 'call', 'email', 'sms', 'meeting'].includes(type)) throw new Error('Activity Type must be one of: note, call, email, sms, meeting.'); return type; };\nconst type = activityType(inputs.activityType), id = closeId(inputs.activityId, 'Activity ID', 'acti');\nrequest.url = request.url.replace(/[^/]*\\/[^/]*\\/$/, `${type}/${id}/`);\nreturn request;"
+    },
+    "get_contact": {
+      "label": "Get Contact",
+      "description": "Get one contact by its ID.",
+      "audience": "ai",
+      "inputs": {
+        "contactId": {
+          "label": "Contact ID",
+          "description": "cont_...",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://api.close.com/api/v1/contact/{{contactId}}/"
+      },
+      "afterResponse": "const text = (value) => typeof value === 'string' ? value : null;\nconst record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};\nconst list = (value) => Array.isArray(value) ? value : [];\nconst customOf = (item) => Object.fromEntries(Object.entries(item).filter(([key]) => key.startsWith('custom.')).map(([key, value]) => [key.slice(7), value]));\nconst contact = (raw) => { const item = record(raw); return { id: text(item.id), leadId: text(item.lead_id), name: text(item.name), title: text(item.title), emails: list(item.emails).map((entry) => ({ email: text(record(entry).email), type: text(record(entry).type) })), phones: list(item.phones).map((entry) => ({ phone: text(record(entry).phone), phoneFormatted: text(record(entry).phone_formatted), type: text(record(entry).type) })), urls: list(item.urls).map((entry) => ({ url: text(record(entry).url), type: text(record(entry).type) })), primaryEmail: text(record(list(item.emails)[0]).email), primaryPhone: text(record(list(item.phones)[0]).phone), custom: customOf(item), dateCreated: text(item.date_created), dateUpdated: text(item.date_updated) }; };\nreturn contact(response);",
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const optionalText = (value) => { if (typeof value === 'number' && Number.isFinite(value)) return String(value); if (typeof value !== 'string') return undefined; const trimmed = value.trim(); return trimmed === '' ? undefined : trimmed; };\nconst requiredText = (value, label) => { const text = optionalText(value); if (text === undefined) throw new Error(`${label} is required.`); return text; };\nconst closeId = (value, label, prefix) => { const id = requiredText(value, label); if (!/^[A-Za-z0-9_-]+$/.test(id) || (prefix !== undefined && !id.startsWith(`${prefix}_`))) throw new Error(`${label} must be a Close ID${prefix ? ` starting with \"${prefix}_\"` : ''}, e.g. ${prefix ?? 'lead'}_abc123.`); return id; };\nconst lastSegment = (url, value) => url.replace(/[^/]*\\/$/, `${value}/`);\nrequest.url = lastSegment(request.url, closeId(inputs.contactId, 'Contact ID', 'cont'));\nreturn request;"
+    },
+    "get_current_user": {
+      "label": "Get Current User",
+      "description": "Get the Close user who owns the API key.",
+      "audience": "ai",
+      "inputs": {},
+      "request": {
+        "url": "https://api.close.com/api/v1/me/",
+        "query": {
+          "_fields": "id,email,first_name,last_name,organizations,date_created,email_accounts"
+        }
+      },
+      "afterResponse": "const text = (value) => typeof value === 'string' ? value : null;\nconst record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};\nconst list = (value) => Array.isArray(value) ? value : [];\nconst user = (raw) => { const item = record(raw), name = [text(item.first_name), text(item.last_name)].filter((part) => !!part && part.trim() !== '').join(' ').trim(); return { id: text(item.id), email: text(item.email), firstName: text(item.first_name), lastName: text(item.last_name), name: name === '' ? null : name, organizationIds: list(item.organizations).map((entry) => typeof entry === 'string' ? entry : text(record(entry).id)).filter((entry) => entry !== null), dateCreated: text(item.date_created) }; };\nconst item = record(response);\nreturn { ...user(item), emailAccounts: list(item.email_accounts).map((entry) => { const account = record(entry); return { id: text(account.id), type: text(account._type), emails: list(account.identities).map((identity) => text(record(identity).email)).filter((email) => email !== null) }; }) };",
+      "outputs": {
+        "id": "$.id",
+        "email": "$.email"
+      }
+    },
+    "get_lead": {
+      "label": "Get Lead",
+      "description": "Get one lead by its ID.",
+      "audience": "ai",
+      "inputs": {
+        "leadId": {
+          "label": "Lead ID",
+          "description": "lead_...",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://api.close.com/api/v1/lead/{{leadId}}/"
+      },
+      "afterResponse": "const text = (value) => typeof value === 'string' ? value : null;\nconst record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};\nconst list = (value) => Array.isArray(value) ? value : [];\nconst customOf = (item) => Object.fromEntries(Object.entries(item).filter(([key]) => key.startsWith('custom.')).map(([key, value]) => [key.slice(7), value]));\nconst contact = (raw) => { const item = record(raw); return { id: text(item.id), leadId: text(item.lead_id), name: text(item.name), title: text(item.title), emails: list(item.emails).map((entry) => ({ email: text(record(entry).email), type: text(record(entry).type) })), phones: list(item.phones).map((entry) => ({ phone: text(record(entry).phone), phoneFormatted: text(record(entry).phone_formatted), type: text(record(entry).type) })), urls: list(item.urls).map((entry) => ({ url: text(record(entry).url), type: text(record(entry).type) })), primaryEmail: text(record(list(item.emails)[0]).email), primaryPhone: text(record(list(item.phones)[0]).phone), custom: customOf(item), dateCreated: text(item.date_created), dateUpdated: text(item.date_updated) }; };\nconst lead = (raw) => { const item = record(raw), id = text(item.id); return { id, name: text(item.display_name) ?? text(item.name), description: text(item.description), url: text(item.url), statusId: text(item.status_id), statusLabel: text(item.status_label), contacts: list(item.contacts).map((entry) => contact(entry)), opportunityIds: list(item.opportunities).map((entry) => text(record(entry).id)).filter((entry) => entry !== null), addresses: list(item.addresses).map((entry) => record(entry)), custom: { ...record(item.custom), ...customOf(item) }, createdBy: text(item.created_by), dateCreated: text(item.date_created), dateUpdated: text(item.date_updated), appUrl: id ? 'https://app.close.com/lead/' + encodeURIComponent(id) + '/' : null }; };\nreturn lead(response);",
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const optionalText = (value) => { if (typeof value === 'number' && Number.isFinite(value)) return String(value); if (typeof value !== 'string') return undefined; const trimmed = value.trim(); return trimmed === '' ? undefined : trimmed; };\nconst requiredText = (value, label) => { const text = optionalText(value); if (text === undefined) throw new Error(`${label} is required.`); return text; };\nconst closeId = (value, label, prefix) => { const id = requiredText(value, label); if (!/^[A-Za-z0-9_-]+$/.test(id) || (prefix !== undefined && !id.startsWith(`${prefix}_`))) throw new Error(`${label} must be a Close ID${prefix ? ` starting with \"${prefix}_\"` : ''}, e.g. ${prefix ?? 'lead'}_abc123.`); return id; };\nconst lastSegment = (url, value) => url.replace(/[^/]*\\/$/, `${value}/`);\nrequest.url = lastSegment(request.url, closeId(inputs.leadId, 'Lead ID', 'lead'));\nreturn request;"
+    },
+    "get_opportunity": {
+      "label": "Get Opportunity",
+      "description": "Get one opportunity by ID.",
+      "audience": "ai",
+      "inputs": {
+        "opportunityId": {
+          "label": "Opportunity ID",
+          "description": "oppo_...",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://api.close.com/api/v1/opportunity/{{opportunityId}}/"
+      },
+      "afterResponse": "const text = (value) => typeof value === 'string' ? value : null;\nconst number = (value) => typeof value === 'number' && Number.isFinite(value) ? value : null;\nconst record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};\nconst customOf = (item) => Object.fromEntries(Object.entries(item).filter(([key]) => key.startsWith('custom.')).map(([key, value]) => [key.slice(7), value]));\nconst opportunity = (raw) => { const item = record(raw); return { id: text(item.id), leadId: text(item.lead_id), leadName: text(item.lead_name), contactId: text(item.contact_id), userId: text(item.user_id), userName: text(item.user_name), statusId: text(item.status_id), statusLabel: text(item.status_label), statusType: text(item.status_type), pipelineId: text(item.pipeline_id), pipelineName: text(item.pipeline_name), valueCents: number(item.value), valueCurrency: text(item.value_currency), valueFormatted: text(item.value_formatted), valuePeriod: text(item.value_period), confidence: number(item.confidence), note: text(item.note), dateWon: text(item.date_won), dateLost: text(item.date_lost), custom: customOf(item), dateCreated: text(item.date_created), dateUpdated: text(item.date_updated) }; };\nreturn opportunity(response);",
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const optionalText = (value) => { if (typeof value === 'number' && Number.isFinite(value)) return String(value); if (typeof value !== 'string') return undefined; const trimmed = value.trim(); return trimmed === '' ? undefined : trimmed; };\nconst requiredText = (value, label) => { const text = optionalText(value); if (text === undefined) throw new Error(`${label} is required.`); return text; };\nconst closeId = (value, label, prefix) => { const id = requiredText(value, label); if (!/^[A-Za-z0-9_-]+$/.test(id) || (prefix !== undefined && !id.startsWith(`${prefix}_`))) throw new Error(`${label} must be a Close ID${prefix ? ` starting with \"${prefix}_\"` : ''}, e.g. ${prefix ?? 'lead'}_abc123.`); return id; };\nconst lastSegment = (url, value) => url.replace(/[^/]*\\/$/, `${value}/`);\nrequest.url = lastSegment(request.url, closeId(inputs.opportunityId, 'Opportunity ID', 'oppo'));\nreturn request;"
+    },
+    "get_task": {
+      "label": "Get Task",
+      "description": "Get one task by ID.",
+      "audience": "ai",
+      "inputs": {
+        "taskId": {
+          "label": "Task ID",
+          "description": "task_...",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://api.close.com/api/v1/task/{{taskId}}/"
+      },
+      "afterResponse": "const text = (value) => typeof value === 'string' ? value : null;\nconst flag = (value) => typeof value === 'boolean' ? value : null;\nconst record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};\nconst task = (raw) => { const item = record(raw); return { id: text(item.id), type: text(item._type), leadId: text(item.lead_id), leadName: text(item.lead_name), contactId: text(item.contact_id), assignedTo: text(item.assigned_to), assignedToName: text(item.assigned_to_name), text: text(item.text), date: text(item.date), isComplete: flag(item.is_complete), isDateless: flag(item.is_dateless), dateCreated: text(item.date_created), dateUpdated: text(item.date_updated) }; };\nreturn task(response);",
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const optionalText = (value) => { if (typeof value === 'number' && Number.isFinite(value)) return String(value); if (typeof value !== 'string') return undefined; const trimmed = value.trim(); return trimmed === '' ? undefined : trimmed; };\nconst requiredText = (value, label) => { const text = optionalText(value); if (text === undefined) throw new Error(`${label} is required.`); return text; };\nconst closeId = (value, label, prefix) => { const id = requiredText(value, label); if (!/^[A-Za-z0-9_-]+$/.test(id) || (prefix !== undefined && !id.startsWith(`${prefix}_`))) throw new Error(`${label} must be a Close ID${prefix ? ` starting with \"${prefix}_\"` : ''}, e.g. ${prefix ?? 'lead'}_abc123.`); return id; };\nconst lastSegment = (url, value) => url.replace(/[^/]*\\/$/, `${value}/`);\nrequest.url = lastSegment(request.url, closeId(inputs.taskId, 'Task ID', 'task'));\nreturn request;"
+    },
+    "list_activities": {
+      "label": "List Activities",
+      "description": "List notes, calls, emails, SMS and meetings, newest first.",
+      "audience": "ai",
+      "inputs": {
+        "leadId": {
+          "label": "Lead ID"
+        },
+        "type": {
+          "label": "Activity Type",
+          "type": "select",
+          "options": [
+            {
+              "value": "note",
+              "label": "Note"
+            },
+            {
+              "value": "call",
+              "label": "Call"
+            },
+            {
+              "value": "email",
+              "label": "Email"
+            },
+            {
+              "value": "sms",
+              "label": "SMS"
+            },
+            {
+              "value": "meeting",
+              "label": "Meeting"
+            }
+          ]
+        },
+        "contactId": {
+          "label": "Contact ID"
+        },
+        "userId": {
+          "label": "User ID"
+        },
+        "createdAfter": {
+          "label": "Created After"
+        },
+        "createdBefore": {
+          "label": "Created Before"
+        },
+        "limit": {
+          "label": "Limit",
+          "type": "number",
+          "defaultValue": "25"
+        },
+        "skip": {
+          "label": "Skip",
+          "type": "number"
+        }
+      },
+      "request": {
+        "url": "https://api.close.com/api/v1/activity/"
+      },
+      "beforeRequest": "const optionalText = (value) => { if (typeof value === 'number' && Number.isFinite(value)) return String(value); if (typeof value !== 'string') return undefined; const trimmed = value.trim(); return trimmed === '' ? undefined : trimmed; };\nconst requiredText = (value, label) => { const text = optionalText(value); if (text === undefined) throw new Error(`${label} is required.`); return text; };\nconst closeId = (value, label, prefix) => { const id = requiredText(value, label); if (!/^[A-Za-z0-9_-]+$/.test(id) || (prefix !== undefined && !id.startsWith(`${prefix}_`))) throw new Error(`${label} must be a Close ID${prefix ? ` starting with \"${prefix}_\"` : ''}, e.g. ${prefix ?? 'lead'}_abc123.`); return id; };\nconst optionalCloseId = (value, label, prefix) => optionalText(value) === undefined ? undefined : closeId(value, label, prefix);\nconst parseInteger = (value, label, min, max) => { if (value == null || value === '') return undefined; const number = typeof value === 'string' ? Number(value.trim()) : value; if (typeof number !== 'number' || !Number.isInteger(number) || number < min || number > max) throw new Error(`${label} must be a whole number from ${min} to ${max}.`); return number; };\nconst isoDateTime = (value, label) => { const text = optionalText(value); if (text === undefined) return undefined; const time = Date.parse(text); if (Number.isNaN(time)) throw new Error(`${label} must be an ISO 8601 date-time, e.g. 2026-10-18T12:00:00Z.`); return new Date(time).toISOString(); };\nconst pageQuery = (query, limit, skip) => { const size = typeof limit === 'number' && Number.isFinite(limit) ? Math.min(100, Math.max(1, Math.trunc(limit))) : 100; return { ...Object.fromEntries(Object.entries(query).filter(([, item]) => item != null).map(([key, item]) => [key, Array.isArray(item) ? item.join(',') : String(item)])), _limit: String(size), _skip: String(Math.max(0, Math.trunc(skip ?? 0))) }; };\nconst types = { note: 'Note', call: 'Call', email: 'Email', sms: 'SMS', meeting: 'Meeting' };\nconst leadId = optionalCloseId(inputs.leadId, 'Lead ID', 'lead'), given = optionalText(inputs.type)?.toLowerCase(), type = given === undefined ? undefined : types[given];\nif (given !== undefined && type === undefined) throw new Error(`Activity Type must be one of: ${Object.keys(types).join(', ')}.`);\nconst contactId = optionalCloseId(inputs.contactId, 'Contact ID', 'cont'), userId = optionalCloseId(inputs.userId, 'User ID', 'user');\nif (leadId === undefined && (type !== undefined || contactId !== undefined || userId !== undefined)) throw new Error('Close only filters by Activity Type, Contact ID or User ID when Lead ID is also given.');\nconst limit = parseInteger(inputs.limit, 'Limit', 1, 100) ?? 25, skip = parseInteger(inputs.skip, 'Skip', 0, 1000000) ?? 0;\nrequest.query = pageQuery({ lead_id: leadId, _type: type, contact_id: contactId, user_id: userId, date_created__gt: isoDateTime(inputs.createdAfter, 'Created After'), date_created__lt: isoDateTime(inputs.createdBefore, 'Created Before') }, limit, skip);\nreturn request;",
+      "afterResponse": "const optional = (value) => { const trimmed = String(value ?? '').trim(); return trimmed === '' ? undefined : trimmed; };\nconst text = (value) => typeof value === 'string' ? value : null;\nconst number = (value) => typeof value === 'number' && Number.isFinite(value) ? value : null;\nconst record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};\nconst activity = (raw) => { const item = record(raw), envelope = record(item.envelope); return { id: text(item.id), type: text(item._type), leadId: text(item.lead_id), contactId: text(item.contact_id), userId: text(item.user_id), userName: text(item.user_name), direction: text(item.direction), status: text(item.status), subject: text(item.subject) ?? text(item.title) ?? text(envelope.subject), text: text(item.note) ?? text(item.text) ?? text(item.body_text), durationSeconds: number(item.duration), phone: text(item.phone) ?? text(item.remote_phone), activityAt: text(item.activity_at), dateCreated: text(item.date_created), dateUpdated: text(item.date_updated) }; };\nconst page = (answer, skip, map) => { const items = Array.isArray(answer?.data) ? answer.data : [], hasMore = answer?.has_more === true && items.length > 0, mapped = items.map((item) => map(item)); return { items: mapped, count: mapped.length, hasMore, nextSkip: hasMore ? skip + items.length : null }; };\nreturn page(response, optional(inputs.skip) === undefined ? 0 : Math.max(0, Math.trunc(Number(optional(inputs.skip)))), activity);"
+    },
+    "list_opportunities": {
+      "label": "List Opportunities",
+      "description": "List opportunities with optional filters.",
+      "audience": "ai",
+      "inputs": {
+        "leadId": {
+          "label": "Lead ID"
+        },
+        "userId": {
+          "label": "Owner User ID"
+        },
+        "statusId": {
+          "label": "Status ID"
+        },
+        "statusType": {
+          "label": "Status Type",
+          "description": "active, won or lost."
+        },
+        "closeDateFrom": {
+          "label": "Close Date From",
+          "description": "YYYY-MM-DD, inclusive."
+        },
+        "closeDateTo": {
+          "label": "Close Date To",
+          "description": "YYYY-MM-DD, inclusive."
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "1 to 100, default 100.",
+          "type": "number"
+        },
+        "skip": {
+          "label": "Skip",
+          "description": "nextSkip from the previous page.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "url": "https://api.close.com/api/v1/opportunity/"
+      },
+      "beforeRequest": "const optionalText = (value) => { if (typeof value === 'number' && Number.isFinite(value)) return String(value); if (typeof value !== 'string') return undefined; const trimmed = value.trim(); return trimmed === '' ? undefined : trimmed; };\nconst requiredText = (value, label) => { const text = optionalText(value); if (text === undefined) throw new Error(`${label} is required.`); return text; };\nconst closeId = (value, label, prefix) => { const id = requiredText(value, label); if (!/^[A-Za-z0-9_-]+$/.test(id) || (prefix !== undefined && !id.startsWith(`${prefix}_`))) throw new Error(`${label} must be a Close ID${prefix ? ` starting with \"${prefix}_\"` : ''}, e.g. ${prefix ?? 'lead'}_abc123.`); return id; };\nconst optionalCloseId = (value, label, prefix) => optionalText(value) === undefined ? undefined : closeId(value, label, prefix);\nconst parseInteger = (value, label, min, max) => { if (value == null || value === '') return undefined; const number = typeof value === 'string' ? Number(value.trim()) : value; if (typeof number !== 'number' || !Number.isInteger(number) || number < min || number > max) throw new Error(`${label} must be a whole number from ${min} to ${max}.`); return number; };\nconst isoDate = (value, label) => { const text = optionalText(value); if (text === undefined) return undefined; if (/^\\d{4}-\\d{2}-\\d{2}$/.test(text) && !Number.isNaN(Date.parse(`${text}T00:00:00Z`))) return text; const time = Date.parse(text); if (Number.isNaN(time)) throw new Error(`${label} must be a date like 2026-10-18 or an ISO 8601 date-time.`); return new Date(time).toISOString(); };\nconst pageQuery = (query, limit, skip) => { const size = typeof limit === 'number' && Number.isFinite(limit) ? Math.min(100, Math.max(1, Math.trunc(limit))) : 100; return { ...Object.fromEntries(Object.entries(query).filter(([, item]) => item != null).map(([key, item]) => [key, Array.isArray(item) ? item.join(',') : String(item)])), _limit: String(size), _skip: String(Math.max(0, Math.trunc(skip ?? 0))) }; };\nconst leadId = optionalCloseId(inputs.leadId, 'Lead ID', 'lead'), userId = optionalCloseId(inputs.userId, 'Owner User ID', 'user'), statusId = optionalCloseId(inputs.statusId, 'Status ID', 'stat'), statusType = optionalText(inputs.statusType);\nif (statusType !== undefined && !['active', 'won', 'lost'].includes(statusType)) throw new Error('Status Type must be active, won or lost.');\nconst query = { lead_id: leadId, user_id: userId, status_id: statusId, status_type: statusType, date_won__gte: isoDate(inputs.closeDateFrom, 'Close Date From'), date_won__lte: isoDate(inputs.closeDateTo, 'Close Date To'), _order_by: '-date_created' };\nconst limit = parseInteger(inputs.limit, 'Limit', 1, 100), skip = parseInteger(inputs.skip, 'Skip', 0, Number.MAX_SAFE_INTEGER);\nrequest.query = pageQuery(query, limit, skip);\nreturn request;",
+      "afterResponse": "const optional = (value) => { const trimmed = String(value ?? '').trim(); return trimmed === '' ? undefined : trimmed; };\nconst text = (value) => typeof value === 'string' ? value : null;\nconst number = (value) => typeof value === 'number' && Number.isFinite(value) ? value : null;\nconst record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};\nconst customOf = (item) => Object.fromEntries(Object.entries(item).filter(([key]) => key.startsWith('custom.')).map(([key, value]) => [key.slice(7), value]));\nconst opportunity = (raw) => { const item = record(raw); return { id: text(item.id), leadId: text(item.lead_id), leadName: text(item.lead_name), contactId: text(item.contact_id), userId: text(item.user_id), userName: text(item.user_name), statusId: text(item.status_id), statusLabel: text(item.status_label), statusType: text(item.status_type), pipelineId: text(item.pipeline_id), pipelineName: text(item.pipeline_name), valueCents: number(item.value), valueCurrency: text(item.value_currency), valueFormatted: text(item.value_formatted), valuePeriod: text(item.value_period), confidence: number(item.confidence), note: text(item.note), dateWon: text(item.date_won), dateLost: text(item.date_lost), custom: customOf(item), dateCreated: text(item.date_created), dateUpdated: text(item.date_updated) }; };\nconst page = (answer, skip, map) => { const items = Array.isArray(answer?.data) ? answer.data : [], hasMore = answer?.has_more === true && items.length > 0, mapped = items.map((item) => map(item)); return { items: mapped, count: mapped.length, hasMore, nextSkip: hasMore ? skip + items.length : null }; };\nreturn page(response, optional(inputs.skip) === undefined ? 0 : Math.max(0, Math.trunc(Number(optional(inputs.skip)))), opportunity);"
+    },
+    "list_sequence_subscriptions": {
+      "label": "List Sequence Subscriptions",
+      "description": "List sequence subscriptions for a sequence, contact or lead.",
+      "audience": "ai",
+      "inputs": {
+        "sequenceId": {
+          "label": "Sequence ID"
+        },
+        "contactId": {
+          "label": "Contact ID"
+        },
+        "leadId": {
+          "label": "Lead ID"
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "1-100, default 100",
+          "type": "number"
+        },
+        "skip": {
+          "label": "Skip",
+          "description": "Use nextSkip from the previous call.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "url": "https://api.close.com/api/v1/sequence_subscription/"
+      },
+      "beforeRequest": "const optionalText = (value) => { if (typeof value === 'number' && Number.isFinite(value)) return String(value); if (typeof value !== 'string') return undefined; const trimmed = value.trim(); return trimmed === '' ? undefined : trimmed; };\nconst requiredText = (value, label) => { const text = optionalText(value); if (text === undefined) throw new Error(`${label} is required.`); return text; };\nconst closeId = (value, label, prefix) => { const id = requiredText(value, label); if (!/^[A-Za-z0-9_-]+$/.test(id) || (prefix !== undefined && !id.startsWith(`${prefix}_`))) throw new Error(`${label} must be a Close ID${prefix ? ` starting with \"${prefix}_\"` : ''}, e.g. ${prefix ?? 'lead'}_abc123.`); return id; };\nconst optionalCloseId = (value, label, prefix) => optionalText(value) === undefined ? undefined : closeId(value, label, prefix);\nconst parseInteger = (value, label, min, max) => { if (value == null || value === '') return undefined; const number = typeof value === 'string' ? Number(value.trim()) : value; if (typeof number !== 'number' || !Number.isInteger(number) || number < min || number > max) throw new Error(`${label} must be a whole number from ${min} to ${max}.`); return number; };\nconst pageQuery = (query, limit, skip) => { const size = typeof limit === 'number' && Number.isFinite(limit) ? Math.min(100, Math.max(1, Math.trunc(limit))) : 100; return { ...Object.fromEntries(Object.entries(query).filter(([, item]) => item != null).map(([key, item]) => [key, Array.isArray(item) ? item.join(',') : String(item)])), _limit: String(size), _skip: String(Math.max(0, Math.trunc(skip ?? 0))) }; };\nconst query = { sequence_id: optionalCloseId(inputs.sequenceId, 'Sequence ID', 'seq'), contact_id: optionalCloseId(inputs.contactId, 'Contact ID', 'cont'), lead_id: optionalCloseId(inputs.leadId, 'Lead ID', 'lead') };\nif (!query.sequence_id && !query.contact_id && !query.lead_id) throw new Error('Provide at least one of Sequence ID, Contact ID or Lead ID.');\nconst limit = parseInteger(inputs.limit, 'Limit', 1, 100), skip = parseInteger(inputs.skip, 'Skip', 0, 1000000);\nrequest.query = pageQuery(query, limit, skip);\nreturn request;",
+      "afterResponse": "const optional = (value) => { const trimmed = String(value ?? '').trim(); return trimmed === '' ? undefined : trimmed; };\nconst text = (value) => typeof value === 'string' ? value : null;\nconst record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};\nconst list = (value) => Array.isArray(value) ? value : [];\nconst subscription = (raw) => { const item = record(raw); return { id: text(item.id), sequenceId: text(item.sequence_id), contactId: text(item.contact_id), leadId: text(item.lead_id), contactEmail: text(item.contact_email), senderAccountId: text(item.sender_account_id), senderName: text(item.sender_name), senderEmail: text(item.sender_email), status: text(item.status), statusReason: text(item.status_reason), callsAssignedTo: list(item.calls_assigned_to).filter((entry) => typeof entry === 'string'), dateCreated: text(item.date_created), dateUpdated: text(item.date_updated) }; };\nconst page = (answer, skip, map) => { const items = Array.isArray(answer?.data) ? answer.data : [], hasMore = answer?.has_more === true && items.length > 0, mapped = items.map((item) => map(item)); return { items: mapped, count: mapped.length, hasMore, nextSkip: hasMore ? skip + items.length : null }; };\nreturn page(response, optional(inputs.skip) === undefined ? 0 : Math.max(0, Math.trunc(Number(optional(inputs.skip)))), subscription);"
+    },
+    "list_sequences": {
+      "label": "List Sequences",
+      "description": "List email/call sequences (workflows).",
+      "audience": "ai",
+      "inputs": {
+        "limit": {
+          "label": "Limit",
+          "description": "1-100, default 100",
+          "type": "number"
+        },
+        "skip": {
+          "label": "Skip",
+          "description": "Use nextSkip from the previous call.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "url": "https://api.close.com/api/v1/sequence/"
+      },
+      "beforeRequest": "const parseInteger = (value, label, min, max) => { if (value == null || value === '') return undefined; const number = typeof value === 'string' ? Number(value.trim()) : value; if (typeof number !== 'number' || !Number.isInteger(number) || number < min || number > max) throw new Error(`${label} must be a whole number from ${min} to ${max}.`); return number; };\nconst pageQuery = (query, limit, skip) => { const size = typeof limit === 'number' && Number.isFinite(limit) ? Math.min(100, Math.max(1, Math.trunc(limit))) : 100; return { ...Object.fromEntries(Object.entries(query).filter(([, item]) => item != null).map(([key, item]) => [key, Array.isArray(item) ? item.join(',') : String(item)])), _limit: String(size), _skip: String(Math.max(0, Math.trunc(skip ?? 0))) }; };\nconst limit = parseInteger(inputs.limit, 'Limit', 1, 100), skip = parseInteger(inputs.skip, 'Skip', 0, 1000000);\nrequest.query = pageQuery({}, limit, skip);\nreturn request;",
+      "afterResponse": "const optional = (value) => { const trimmed = String(value ?? '').trim(); return trimmed === '' ? undefined : trimmed; };\nconst text = (value) => typeof value === 'string' ? value : null;\nconst number = (value) => typeof value === 'number' && Number.isFinite(value) ? value : null;\nconst record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};\nconst list = (value) => Array.isArray(value) ? value : [];\nconst sequence = (raw) => { const item = record(raw), steps = list(item.steps).map((entry) => { const step = record(entry); return { id: text(step.id), stepType: text(step.step_type), delaySeconds: number(step.delay), emailTemplateId: text(step.email_template_id) }; }); return { id: text(item.id), name: text(item.name), status: text(item.status), timezone: text(item.timezone), stepCount: steps.length, steps, dateCreated: text(item.date_created), dateUpdated: text(item.date_updated) }; };\nconst page = (answer, skip, map) => { const items = Array.isArray(answer?.data) ? answer.data : [], hasMore = answer?.has_more === true && items.length > 0, mapped = items.map((item) => map(item)); return { items: mapped, count: mapped.length, hasMore, nextSkip: hasMore ? skip + items.length : null }; };\nreturn page(response, optional(inputs.skip) === undefined ? 0 : Math.max(0, Math.trunc(Number(optional(inputs.skip)))), sequence);"
+    },
+    "list_smart_views": {
+      "label": "List Smart Views",
+      "description": "List saved Smart Views.",
+      "audience": "ai",
+      "inputs": {
+        "type": {
+          "label": "Type",
+          "type": "select",
+          "defaultValue": "lead",
+          "options": [
+            {
+              "value": "lead",
+              "label": "lead"
+            },
+            {
+              "value": "contact",
+              "label": "contact"
+            },
+            {
+              "value": "opportunity",
+              "label": "opportunity"
+            },
+            {
+              "value": "call",
+              "label": "call"
+            },
+            {
+              "value": "email",
+              "label": "email"
+            },
+            {
+              "value": "sms",
+              "label": "sms"
+            },
+            {
+              "value": "meeting",
+              "label": "meeting"
+            },
+            {
+              "value": "note",
+              "label": "note"
+            },
+            {
+              "value": "whatsapp_message",
+              "label": "whatsapp_message"
+            },
+            {
+              "value": "custom_activity",
+              "label": "custom_activity"
+            },
+            {
+              "value": "form_submission",
+              "label": "form_submission"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "1-100, default 100",
+          "type": "number"
+        },
+        "skip": {
+          "label": "Skip",
+          "description": "Use nextSkip from the previous call.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "url": "https://api.close.com/api/v1/saved_search/"
+      },
+      "beforeRequest": "const optionalText = (value) => { if (typeof value === 'number' && Number.isFinite(value)) return String(value); if (typeof value !== 'string') return undefined; const trimmed = value.trim(); return trimmed === '' ? undefined : trimmed; };\nconst parseInteger = (value, label, min, max) => { if (value == null || value === '') return undefined; const number = typeof value === 'string' ? Number(value.trim()) : value; if (typeof number !== 'number' || !Number.isInteger(number) || number < min || number > max) throw new Error(`${label} must be a whole number from ${min} to ${max}.`); return number; };\nconst pageQuery = (query, limit, skip) => { const size = typeof limit === 'number' && Number.isFinite(limit) ? Math.min(100, Math.max(1, Math.trunc(limit))) : 100; return { ...Object.fromEntries(Object.entries(query).filter(([, item]) => item != null).map(([key, item]) => [key, Array.isArray(item) ? item.join(',') : String(item)])), _limit: String(size), _skip: String(Math.max(0, Math.trunc(skip ?? 0))) }; };\nconst types = ['lead', 'contact', 'opportunity', 'call', 'email', 'sms', 'meeting', 'note', 'whatsapp_message', 'custom_activity', 'form_submission'];\nconst type = optionalText(inputs.type) ?? 'lead';\nif (!types.includes(type)) throw new Error(`Type must be one of: ${types.join(', ')}.`);\nconst limit = parseInteger(inputs.limit, 'Limit', 1, 100), skip = parseInteger(inputs.skip, 'Skip', 0, 1000000);\nrequest.query = pageQuery({ type }, limit, skip);\nreturn request;",
+      "afterResponse": "const optional = (value) => { const trimmed = String(value ?? '').trim(); return trimmed === '' ? undefined : trimmed; };\nconst text = (value) => typeof value === 'string' ? value : null;\nconst record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};\nconst smartView = (raw) => { const item = record(raw); return { id: text(item.id), name: text(item.name), type: text(item.type), description: text(item.description), isShared: item.is_shared === true, userId: text(item.user_id), dateCreated: text(item.date_created), dateUpdated: text(item.date_updated) }; };\nconst page = (answer, skip, map) => { const items = Array.isArray(answer?.data) ? answer.data : [], hasMore = answer?.has_more === true && items.length > 0, mapped = items.map((item) => map(item)); return { items: mapped, count: mapped.length, hasMore, nextSkip: hasMore ? skip + items.length : null }; };\nreturn page(response, optional(inputs.skip) === undefined ? 0 : Math.max(0, Math.trunc(Number(optional(inputs.skip)))), smartView);"
+    },
+    "list_tasks": {
+      "label": "List Tasks",
+      "description": "List tasks with optional filters.",
+      "audience": "ai",
+      "inputs": {
+        "leadId": {
+          "label": "Lead ID"
+        },
+        "assignedTo": {
+          "label": "Assigned To (user ID)"
+        },
+        "isComplete": {
+          "label": "Complete",
+          "description": "true or false; leave empty for both."
+        },
+        "dueFrom": {
+          "label": "Due From",
+          "description": "ISO 8601 date or date-time, inclusive."
+        },
+        "dueTo": {
+          "label": "Due To",
+          "description": "ISO 8601 date or date-time, inclusive."
+        },
+        "includeNotifications": {
+          "label": "Include Inbox Notifications",
+          "description": "Also return inbox items like opportunity_due or missed_call.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "view": {
+          "label": "View",
+          "description": "inbox, future or archive."
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "1 to 100, default 100.",
+          "type": "number"
+        },
+        "skip": {
+          "label": "Skip",
+          "description": "nextSkip from the previous page.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "url": "https://api.close.com/api/v1/task/"
+      },
+      "beforeRequest": "const optionalText = (value) => { if (typeof value === 'number' && Number.isFinite(value)) return String(value); if (typeof value !== 'string') return undefined; const trimmed = value.trim(); return trimmed === '' ? undefined : trimmed; };\nconst requiredText = (value, label) => { const text = optionalText(value); if (text === undefined) throw new Error(`${label} is required.`); return text; };\nconst closeId = (value, label, prefix) => { const id = requiredText(value, label); if (!/^[A-Za-z0-9_-]+$/.test(id) || (prefix !== undefined && !id.startsWith(`${prefix}_`))) throw new Error(`${label} must be a Close ID${prefix ? ` starting with \"${prefix}_\"` : ''}, e.g. ${prefix ?? 'lead'}_abc123.`); return id; };\nconst optionalCloseId = (value, label, prefix) => optionalText(value) === undefined ? undefined : closeId(value, label, prefix);\nconst parseInteger = (value, label, min, max) => { if (value == null || value === '') return undefined; const number = typeof value === 'string' ? Number(value.trim()) : value; if (typeof number !== 'number' || !Number.isInteger(number) || number < min || number > max) throw new Error(`${label} must be a whole number from ${min} to ${max}.`); return number; };\nconst parseBoolean = (value, label) => { if (value == null || value === '') return undefined; if (value === true || value === 'true') return true; if (value === false || value === 'false') return false; throw new Error(`${label} must be true or false.`); };\nconst isoDate = (value, label) => { const text = optionalText(value); if (text === undefined) return undefined; if (/^\\d{4}-\\d{2}-\\d{2}$/.test(text) && !Number.isNaN(Date.parse(`${text}T00:00:00Z`))) return text; const time = Date.parse(text); if (Number.isNaN(time)) throw new Error(`${label} must be a date like 2026-10-18 or an ISO 8601 date-time.`); return new Date(time).toISOString(); };\nconst pageQuery = (query, limit, skip) => { const size = typeof limit === 'number' && Number.isFinite(limit) ? Math.min(100, Math.max(1, Math.trunc(limit))) : 100; return { ...Object.fromEntries(Object.entries(query).filter(([, item]) => item != null).map(([key, item]) => [key, Array.isArray(item) ? item.join(',') : String(item)])), _limit: String(size), _skip: String(Math.max(0, Math.trunc(skip ?? 0))) }; };\nconst view = optionalText(inputs.view);\nconst query = { lead_id: optionalCloseId(inputs.leadId, 'Lead ID', 'lead'), assigned_to: optionalCloseId(inputs.assignedTo, 'Assigned To', 'user'), is_complete: parseBoolean(inputs.isComplete, 'Complete'), date__gte: isoDate(inputs.dueFrom, 'Due From'), date__lte: isoDate(inputs.dueTo, 'Due To'), _type: inputs.includeNotifications === 'true' ? 'all' : 'lead' };\nif (view !== undefined && !['inbox', 'future', 'archive'].includes(view)) throw new Error('View must be inbox, future or archive.');\nconst limit = parseInteger(inputs.limit, 'Limit', 1, 100), skip = parseInteger(inputs.skip, 'Skip', 0, Number.MAX_SAFE_INTEGER);\nrequest.query = pageQuery({ ...query, view, _order_by: 'date' }, limit, skip);\nreturn request;",
+      "afterResponse": "const optional = (value) => { const trimmed = String(value ?? '').trim(); return trimmed === '' ? undefined : trimmed; };\nconst text = (value) => typeof value === 'string' ? value : null;\nconst flag = (value) => typeof value === 'boolean' ? value : null;\nconst record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};\nconst task = (raw) => { const item = record(raw); return { id: text(item.id), type: text(item._type), leadId: text(item.lead_id), leadName: text(item.lead_name), contactId: text(item.contact_id), assignedTo: text(item.assigned_to), assignedToName: text(item.assigned_to_name), text: text(item.text), date: text(item.date), isComplete: flag(item.is_complete), isDateless: flag(item.is_dateless), dateCreated: text(item.date_created), dateUpdated: text(item.date_updated) }; };\nconst page = (answer, skip, map) => { const items = Array.isArray(answer?.data) ? answer.data : [], hasMore = answer?.has_more === true && items.length > 0, mapped = items.map((item) => map(item)); return { items: mapped, count: mapped.length, hasMore, nextSkip: hasMore ? skip + items.length : null }; };\nreturn page(response, optional(inputs.skip) === undefined ? 0 : Math.max(0, Math.trunc(Number(optional(inputs.skip)))), task);"
+    },
+    "list_users": {
+      "label": "List Users",
+      "description": "List the users in your Close organization.",
+      "audience": "ai",
+      "inputs": {
+        "limit": {
+          "label": "Limit",
+          "description": "1-100, default 100",
+          "type": "number"
+        },
+        "skip": {
+          "label": "Skip",
+          "description": "Use nextSkip from the previous call.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "url": "https://api.close.com/api/v1/user/"
+      },
+      "beforeRequest": "const parseInteger = (value, label, min, max) => { if (value == null || value === '') return undefined; const number = typeof value === 'string' ? Number(value.trim()) : value; if (typeof number !== 'number' || !Number.isInteger(number) || number < min || number > max) throw new Error(`${label} must be a whole number from ${min} to ${max}.`); return number; };\nconst pageQuery = (query, limit, skip) => { const size = typeof limit === 'number' && Number.isFinite(limit) ? Math.min(100, Math.max(1, Math.trunc(limit))) : 100; return { ...Object.fromEntries(Object.entries(query).filter(([, item]) => item != null).map(([key, item]) => [key, Array.isArray(item) ? item.join(',') : String(item)])), _limit: String(size), _skip: String(Math.max(0, Math.trunc(skip ?? 0))) }; };\nconst limit = parseInteger(inputs.limit, 'Limit', 1, 100), skip = parseInteger(inputs.skip, 'Skip', 0, 1000000);\nrequest.query = pageQuery({}, limit, skip);\nreturn request;",
+      "afterResponse": "const optional = (value) => { const trimmed = String(value ?? '').trim(); return trimmed === '' ? undefined : trimmed; };\nconst text = (value) => typeof value === 'string' ? value : null;\nconst record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};\nconst list = (value) => Array.isArray(value) ? value : [];\nconst user = (raw) => { const item = record(raw), name = [text(item.first_name), text(item.last_name)].filter((part) => !!part && part.trim() !== '').join(' ').trim(); return { id: text(item.id), email: text(item.email), firstName: text(item.first_name), lastName: text(item.last_name), name: name === '' ? null : name, organizationIds: list(item.organizations).map((entry) => typeof entry === 'string' ? entry : text(record(entry).id)).filter((entry) => entry !== null), dateCreated: text(item.date_created) }; };\nconst page = (answer, skip, map) => { const items = Array.isArray(answer?.data) ? answer.data : [], hasMore = answer?.has_more === true && items.length > 0, mapped = items.map((item) => map(item)); return { items: mapped, count: mapped.length, hasMore, nextSkip: hasMore ? skip + items.length : null }; };\nreturn page(response, optional(inputs.skip) === undefined ? 0 : Math.max(0, Math.trunc(Number(optional(inputs.skip)))), user);"
+    },
+    "log_call": {
+      "label": "Log Call",
+      "description": "Record a call made outside Close on a lead.",
+      "audience": "ai",
+      "inputs": {
+        "leadId": {
+          "label": "Lead ID",
+          "required": true
+        },
+        "contactId": {
+          "label": "Contact ID"
+        },
+        "direction": {
+          "label": "Direction",
+          "type": "select",
+          "options": [
+            {
+              "value": "outbound",
+              "label": "Outbound"
+            },
+            {
+              "value": "inbound",
+              "label": "Inbound"
+            }
+          ]
+        },
+        "durationSeconds": {
+          "label": "Duration (seconds)",
+          "type": "number"
+        },
+        "phone": {
+          "label": "Phone"
+        },
+        "note": {
+          "label": "Note",
+          "type": "multiline"
+        },
+        "activityAt": {
+          "label": "Activity At"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.close.com/api/v1/activity/call/"
+      },
+      "beforeRequest": "const optionalText = (value) => { if (typeof value === 'number' && Number.isFinite(value)) return String(value); if (typeof value !== 'string') return undefined; const trimmed = value.trim(); return trimmed === '' ? undefined : trimmed; };\nconst requiredText = (value, label) => { const text = optionalText(value); if (text === undefined) throw new Error(`${label} is required.`); return text; };\nconst closeId = (value, label, prefix) => { const id = requiredText(value, label); if (!/^[A-Za-z0-9_-]+$/.test(id) || (prefix !== undefined && !id.startsWith(`${prefix}_`))) throw new Error(`${label} must be a Close ID${prefix ? ` starting with \"${prefix}_\"` : ''}, e.g. ${prefix ?? 'lead'}_abc123.`); return id; };\nconst optionalCloseId = (value, label, prefix) => optionalText(value) === undefined ? undefined : closeId(value, label, prefix);\nconst parseInteger = (value, label, min, max) => { if (value == null || value === '') return undefined; const number = typeof value === 'string' ? Number(value.trim()) : value; if (typeof number !== 'number' || !Number.isInteger(number) || number < min || number > max) throw new Error(`${label} must be a whole number from ${min} to ${max}.`); return number; };\nconst isoDateTime = (value, label) => { const text = optionalText(value); if (text === undefined) return undefined; const time = Date.parse(text); if (Number.isNaN(time)) throw new Error(`${label} must be an ISO 8601 date-time, e.g. 2026-10-18T12:00:00Z.`); return new Date(time).toISOString(); };\nconst defined = (fields) => Object.fromEntries(Object.entries(fields).filter(([, item]) => item !== undefined));\nconst direction = optionalText(inputs.direction);\nif (direction !== undefined && direction !== 'outbound' && direction !== 'inbound') throw new Error('Direction must be outbound or inbound.');\nrequest.body = defined({ lead_id: closeId(inputs.leadId, 'Lead ID', 'lead'), contact_id: optionalCloseId(inputs.contactId, 'Contact ID', 'cont'), status: 'completed', direction, duration: parseInteger(inputs.durationSeconds, 'Duration (seconds)', 0, 86400), phone: optionalText(inputs.phone), note: optionalText(inputs.note), activity_at: isoDateTime(inputs.activityAt, 'Activity At') });\nreturn request;",
+      "afterResponse": "const text = (value) => typeof value === 'string' ? value : null;\nconst number = (value) => typeof value === 'number' && Number.isFinite(value) ? value : null;\nconst record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};\nconst activity = (raw) => { const item = record(raw), envelope = record(item.envelope); return { id: text(item.id), type: text(item._type), leadId: text(item.lead_id), contactId: text(item.contact_id), userId: text(item.user_id), userName: text(item.user_name), direction: text(item.direction), status: text(item.status), subject: text(item.subject) ?? text(item.title) ?? text(envelope.subject), text: text(item.note) ?? text(item.text) ?? text(item.body_text), durationSeconds: number(item.duration), phone: text(item.phone) ?? text(item.remote_phone), activityAt: text(item.activity_at), dateCreated: text(item.date_created), dateUpdated: text(item.date_updated) }; };\nreturn activity(response);",
+      "outputs": {
+        "id": "$.id"
+      }
+    },
+    "log_email": {
+      "label": "Log Email",
+      "description": "Record an email that was already sent or received, without sending anything.",
+      "audience": "ai",
+      "inputs": {
+        "leadId": {
+          "label": "Lead ID",
+          "required": true
+        },
+        "direction": {
+          "label": "Direction",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "sent",
+              "label": "Sent (to the lead)"
+            },
+            {
+              "value": "received",
+              "label": "Received (from the lead)"
+            }
+          ]
+        },
+        "subject": {
+          "label": "Subject",
+          "required": true
+        },
+        "bodyText": {
+          "label": "Body",
+          "type": "multiline",
+          "required": true
+        },
+        "to": {
+          "label": "To",
+          "description": "List of email addresses.",
+          "type": "json"
+        },
+        "sender": {
+          "label": "Sender"
+        },
+        "contactId": {
+          "label": "Contact ID"
+        },
+        "activityAt": {
+          "label": "Activity At"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.close.com/api/v1/activity/email/"
+      },
+      "beforeRequest": "const optionalText = (value) => { if (typeof value === 'number' && Number.isFinite(value)) return String(value); if (typeof value !== 'string') return undefined; const trimmed = value.trim(); return trimmed === '' ? undefined : trimmed; };\nconst requiredText = (value, label) => { const text = optionalText(value); if (text === undefined) throw new Error(`${label} is required.`); return text; };\nconst closeId = (value, label, prefix) => { const id = requiredText(value, label); if (!/^[A-Za-z0-9_-]+$/.test(id) || (prefix !== undefined && !id.startsWith(`${prefix}_`))) throw new Error(`${label} must be a Close ID${prefix ? ` starting with \"${prefix}_\"` : ''}, e.g. ${prefix ?? 'lead'}_abc123.`); return id; };\nconst optionalCloseId = (value, label, prefix) => optionalText(value) === undefined ? undefined : closeId(value, label, prefix);\nconst isoDateTime = (value, label) => { const text = optionalText(value); if (text === undefined) return undefined; const time = Date.parse(text); if (Number.isNaN(time)) throw new Error(`${label} must be an ISO 8601 date-time, e.g. 2026-10-18T12:00:00Z.`); return new Date(time).toISOString(); };\nconst stringList = (value) => { if (value == null || value === '') return undefined; let items; try { items = JSON.parse(value); } catch (error) { items = undefined; } if (!Array.isArray(items)) items = String(value).split(','); return items.map((item) => typeof item === 'string' ? item.trim() : typeof item === 'number' ? String(item) : '').filter((item) => item !== ''); };\nconst defined = (fields) => Object.fromEntries(Object.entries(fields).filter(([, item]) => item !== undefined));\nconst direction = requiredText(inputs.direction, 'Direction');\nif (direction !== 'sent' && direction !== 'received') throw new Error('Direction must be sent or received.');\nconst sender = optionalText(inputs.sender);\nif (direction === 'received' && sender === undefined) throw new Error('Sender is required for a received email.');\nrequest.body = defined({ lead_id: closeId(inputs.leadId, 'Lead ID', 'lead'), status: direction === 'sent' ? 'sent' : 'inbox', subject: requiredText(inputs.subject, 'Subject'), body_text: requiredText(inputs.bodyText, 'Body'), to: stringList(inputs.to), sender, contact_id: optionalCloseId(inputs.contactId, 'Contact ID', 'cont'), activity_at: isoDateTime(inputs.activityAt, 'Activity At') });\nreturn request;",
+      "afterResponse": "const text = (value) => typeof value === 'string' ? value : null;\nconst number = (value) => typeof value === 'number' && Number.isFinite(value) ? value : null;\nconst record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};\nconst activity = (raw) => { const item = record(raw), envelope = record(item.envelope); return { id: text(item.id), type: text(item._type), leadId: text(item.lead_id), contactId: text(item.contact_id), userId: text(item.user_id), userName: text(item.user_name), direction: text(item.direction), status: text(item.status), subject: text(item.subject) ?? text(item.title) ?? text(envelope.subject), text: text(item.note) ?? text(item.text) ?? text(item.body_text), durationSeconds: number(item.duration), phone: text(item.phone) ?? text(item.remote_phone), activityAt: text(item.activity_at), dateCreated: text(item.date_created), dateUpdated: text(item.date_updated) }; };\nreturn activity(response);",
+      "outputs": {
+        "id": "$.id"
+      }
+    },
+    "pause_sequence_subscription": {
+      "label": "Pause Sequence Subscription",
+      "description": "Pause a contact sequence subscription.",
+      "audience": "ai",
+      "inputs": {
+        "subscriptionId": {
+          "label": "Subscription ID",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.close.com/api/v1/sequence_subscription/{{subscriptionId}}/",
+        "body": {
+          "status": "paused"
+        }
+      },
+      "afterResponse": "const text = (value) => typeof value === 'string' ? value : null;\nconst record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};\nconst list = (value) => Array.isArray(value) ? value : [];\nconst subscription = (raw) => { const item = record(raw); return { id: text(item.id), sequenceId: text(item.sequence_id), contactId: text(item.contact_id), leadId: text(item.lead_id), contactEmail: text(item.contact_email), senderAccountId: text(item.sender_account_id), senderName: text(item.sender_name), senderEmail: text(item.sender_email), status: text(item.status), statusReason: text(item.status_reason), callsAssignedTo: list(item.calls_assigned_to).filter((entry) => typeof entry === 'string'), dateCreated: text(item.date_created), dateUpdated: text(item.date_updated) }; };\nreturn subscription(response);",
+      "outputs": {
+        "id": "$.id",
+        "status": "$.status"
+      },
+      "beforeRequest": "const optionalText = (value) => { if (typeof value === 'number' && Number.isFinite(value)) return String(value); if (typeof value !== 'string') return undefined; const trimmed = value.trim(); return trimmed === '' ? undefined : trimmed; };\nconst requiredText = (value, label) => { const text = optionalText(value); if (text === undefined) throw new Error(`${label} is required.`); return text; };\nconst closeId = (value, label, prefix) => { const id = requiredText(value, label); if (!/^[A-Za-z0-9_-]+$/.test(id) || (prefix !== undefined && !id.startsWith(`${prefix}_`))) throw new Error(`${label} must be a Close ID${prefix ? ` starting with \"${prefix}_\"` : ''}, e.g. ${prefix ?? 'lead'}_abc123.`); return id; };\nconst lastSegment = (url, value) => url.replace(/[^/]*\\/$/, `${value}/`);\nrequest.url = lastSegment(request.url, closeId(inputs.subscriptionId, 'Subscription ID', 'sub'));\nreturn request;"
+    },
+    "search_contacts": {
+      "label": "Search Contacts",
+      "description": "Find contacts by text and/or lead.",
+      "audience": "ai",
+      "inputs": {
+        "text": {
+          "label": "Text",
+          "description": "Words to find, e.g. a name or email."
+        },
+        "exactPhrase": {
+          "label": "Exact Phrase",
+          "description": "Match the words in order next to each other.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "leadId": {
+          "label": "Lead ID",
+          "description": "Only contacts of this lead_..."
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "1 to 100, default 25.",
+          "type": "number"
+        },
+        "cursor": {
+          "label": "Cursor",
+          "description": "nextCursor from the previous page."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.close.com/api/v1/data/search/"
+      },
+      "beforeRequest": "const optionalText = (value) => { if (typeof value === 'number' && Number.isFinite(value)) return String(value); if (typeof value !== 'string') return undefined; const trimmed = value.trim(); return trimmed === '' ? undefined : trimmed; };\nconst requiredText = (value, label) => { const text = optionalText(value); if (text === undefined) throw new Error(`${label} is required.`); return text; };\nconst closeId = (value, label, prefix) => { const id = requiredText(value, label); if (!/^[A-Za-z0-9_-]+$/.test(id) || (prefix !== undefined && !id.startsWith(`${prefix}_`))) throw new Error(`${label} must be a Close ID${prefix ? ` starting with \"${prefix}_\"` : ''}, e.g. ${prefix ?? 'lead'}_abc123.`); return id; };\nconst optionalCloseId = (value, label, prefix) => optionalText(value) === undefined ? undefined : closeId(value, label, prefix);\nconst parseInteger = (value, label, min, max) => { if (value == null || value === '') return undefined; const number = typeof value === 'string' ? Number(value.trim()) : value; if (typeof number !== 'number' || !Number.isInteger(number) || number < min || number > max) throw new Error(`${label} must be a whole number from ${min} to ${max}.`); return number; };\nconst parseBoolean = (value, label) => { if (value == null || value === '') return undefined; if (value === true || value === 'true') return true; if (value === false || value === 'false') return false; throw new Error(`${label} must be true or false.`); };\nconst searchLimit = (limit) => typeof limit === 'number' && Number.isFinite(limit) ? Math.min(100, Math.max(1, Math.trunc(limit))) : 100;\nconst words = optionalText(inputs.text), leadId = optionalCloseId(inputs.leadId, 'Lead ID', 'lead'), exact = parseBoolean(inputs.exactPhrase, 'Exact Phrase') === true, limit = parseInteger(inputs.limit, 'Limit', 1, 100) ?? 25, queries = [{ type: 'object_type', object_type: 'contact' }];\nif (words !== undefined) queries.push({ type: 'text', value: words, mode: exact ? 'phrase' : 'full_words' });\nif (leadId !== undefined) queries.push({ type: 'field_condition', field: { type: 'regular_field', object_type: 'contact', field_name: 'lead_id' }, condition: { type: 'reference', reference_type: 'lead', object_ids: [leadId] } });\nconst cursor = optionalText(inputs.cursor);\nrequest.body = { query: { type: 'and', queries }, _limit: searchLimit(limit), ...(cursor ? { cursor } : {}), _fields: { contact: ['id', 'lead_id', 'name', 'title', 'emails', 'phones', 'urls', 'custom', 'date_created', 'date_updated'] }, sort: [{ field: { type: 'regular_field', object_type: 'contact', field_name: 'date_created' }, direction: 'desc' }] };\nreturn request;",
+      "afterResponse": "const text = (value) => typeof value === 'string' ? value : null;\nconst record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};\nconst list = (value) => Array.isArray(value) ? value : [];\nconst customOf = (item) => Object.fromEntries(Object.entries(item).filter(([key]) => key.startsWith('custom.')).map(([key, value]) => [key.slice(7), value]));\nconst contact = (raw) => { const item = record(raw); return { id: text(item.id), leadId: text(item.lead_id), name: text(item.name), title: text(item.title), emails: list(item.emails).map((entry) => ({ email: text(record(entry).email), type: text(record(entry).type) })), phones: list(item.phones).map((entry) => ({ phone: text(record(entry).phone), phoneFormatted: text(record(entry).phone_formatted), type: text(record(entry).type) })), urls: list(item.urls).map((entry) => ({ url: text(record(entry).url), type: text(record(entry).type) })), primaryEmail: text(record(list(item.emails)[0]).email), primaryPhone: text(record(list(item.phones)[0]).phone), custom: customOf(item), dateCreated: text(item.date_created), dateUpdated: text(item.date_updated) }; };\nconst cursorPage = (answer, map) => { const items = Array.isArray(answer?.data) ? answer.data : [], cursor = typeof answer?.cursor === 'string' && answer.cursor !== '' ? answer.cursor : null, mapped = items.map((item) => map(item)); return { items: mapped, count: mapped.length, hasMore: cursor !== null, nextCursor: cursor }; };\nreturn cursorPage(response, contact);",
+      "outputs": {
+        "nextCursor": "$.nextCursor"
+      }
+    },
+    "search_leads": {
+      "label": "Search Leads",
+      "description": "Find leads by text and/or status.",
+      "audience": "ai",
+      "inputs": {
+        "text": {
+          "label": "Text",
+          "description": "Words to find, e.g. company name or email."
+        },
+        "exactPhrase": {
+          "label": "Exact Phrase",
+          "description": "Match the words in order next to each other.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "statusId": {
+          "label": "Lead Status ID",
+          "description": "stat_... from List Lead Statuses."
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "1 to 100, default 25.",
+          "type": "number"
+        },
+        "cursor": {
+          "label": "Cursor",
+          "description": "nextCursor from the previous page."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.close.com/api/v1/data/search/"
+      },
+      "beforeRequest": "const optionalText = (value) => { if (typeof value === 'number' && Number.isFinite(value)) return String(value); if (typeof value !== 'string') return undefined; const trimmed = value.trim(); return trimmed === '' ? undefined : trimmed; };\nconst requiredText = (value, label) => { const text = optionalText(value); if (text === undefined) throw new Error(`${label} is required.`); return text; };\nconst closeId = (value, label, prefix) => { const id = requiredText(value, label); if (!/^[A-Za-z0-9_-]+$/.test(id) || (prefix !== undefined && !id.startsWith(`${prefix}_`))) throw new Error(`${label} must be a Close ID${prefix ? ` starting with \"${prefix}_\"` : ''}, e.g. ${prefix ?? 'lead'}_abc123.`); return id; };\nconst optionalCloseId = (value, label, prefix) => optionalText(value) === undefined ? undefined : closeId(value, label, prefix);\nconst parseInteger = (value, label, min, max) => { if (value == null || value === '') return undefined; const number = typeof value === 'string' ? Number(value.trim()) : value; if (typeof number !== 'number' || !Number.isInteger(number) || number < min || number > max) throw new Error(`${label} must be a whole number from ${min} to ${max}.`); return number; };\nconst parseBoolean = (value, label) => { if (value == null || value === '') return undefined; if (value === true || value === 'true') return true; if (value === false || value === 'false') return false; throw new Error(`${label} must be true or false.`); };\nconst searchLimit = (limit) => typeof limit === 'number' && Number.isFinite(limit) ? Math.min(100, Math.max(1, Math.trunc(limit))) : 100;\nconst words = optionalText(inputs.text), statusId = optionalCloseId(inputs.statusId, 'Lead Status ID', 'stat'), exact = parseBoolean(inputs.exactPhrase, 'Exact Phrase') === true, limit = parseInteger(inputs.limit, 'Limit', 1, 100) ?? 25, queries = [{ type: 'object_type', object_type: 'lead' }];\nif (words !== undefined) queries.push({ type: 'text', value: words, mode: exact ? 'phrase' : 'full_words' });\nif (statusId !== undefined) queries.push({ type: 'field_condition', field: { type: 'regular_field', object_type: 'lead', field_name: 'status_id' }, condition: { type: 'reference', reference_type: 'status.lead', object_ids: [statusId] } });\nconst cursor = optionalText(inputs.cursor);\nrequest.body = { query: { type: 'and', queries }, _limit: searchLimit(limit), ...(cursor ? { cursor } : {}), _fields: { lead: ['id', 'display_name', 'name', 'description', 'url', 'status_id', 'status_label', 'contacts', 'opportunities', 'addresses', 'custom', 'created_by', 'date_created', 'date_updated'] }, sort: [{ field: { type: 'regular_field', object_type: 'lead', field_name: 'date_created' }, direction: 'desc' }] };\nreturn request;",
+      "afterResponse": "const text = (value) => typeof value === 'string' ? value : null;\nconst record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};\nconst list = (value) => Array.isArray(value) ? value : [];\nconst customOf = (item) => Object.fromEntries(Object.entries(item).filter(([key]) => key.startsWith('custom.')).map(([key, value]) => [key.slice(7), value]));\nconst contact = (raw) => { const item = record(raw); return { id: text(item.id), leadId: text(item.lead_id), name: text(item.name), title: text(item.title), emails: list(item.emails).map((entry) => ({ email: text(record(entry).email), type: text(record(entry).type) })), phones: list(item.phones).map((entry) => ({ phone: text(record(entry).phone), phoneFormatted: text(record(entry).phone_formatted), type: text(record(entry).type) })), urls: list(item.urls).map((entry) => ({ url: text(record(entry).url), type: text(record(entry).type) })), primaryEmail: text(record(list(item.emails)[0]).email), primaryPhone: text(record(list(item.phones)[0]).phone), custom: customOf(item), dateCreated: text(item.date_created), dateUpdated: text(item.date_updated) }; };\nconst lead = (raw) => { const item = record(raw), id = text(item.id); return { id, name: text(item.display_name) ?? text(item.name), description: text(item.description), url: text(item.url), statusId: text(item.status_id), statusLabel: text(item.status_label), contacts: list(item.contacts).map((entry) => contact(entry)), opportunityIds: list(item.opportunities).map((entry) => text(record(entry).id)).filter((entry) => entry !== null), addresses: list(item.addresses).map((entry) => record(entry)), custom: { ...record(item.custom), ...customOf(item) }, createdBy: text(item.created_by), dateCreated: text(item.date_created), dateUpdated: text(item.date_updated), appUrl: id ? 'https://app.close.com/lead/' + encodeURIComponent(id) + '/' : null }; };\nconst cursorPage = (answer, map) => { const items = Array.isArray(answer?.data) ? answer.data : [], cursor = typeof answer?.cursor === 'string' && answer.cursor !== '' ? answer.cursor : null, mapped = items.map((item) => map(item)); return { items: mapped, count: mapped.length, hasMore: cursor !== null, nextCursor: cursor }; };\nreturn cursorPage(response, lead);",
+      "outputs": {
+        "nextCursor": "$.nextCursor"
+      }
+    },
+    "send_sms": {
+      "label": "Send SMS",
+      "description": "Send a real text message (not just a log entry) to a lead from a Close phone number.",
+      "audience": "ai",
+      "inputs": {
+        "leadId": {
+          "label": "Lead ID",
+          "required": true
+        },
+        "localPhone": {
+          "label": "From (Close number)",
+          "required": true
+        },
+        "remotePhone": {
+          "label": "To (phone)",
+          "required": true
+        },
+        "text": {
+          "label": "Message",
+          "type": "multiline",
+          "required": true
+        },
+        "contactId": {
+          "label": "Contact ID"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.close.com/api/v1/activity/sms/"
+      },
+      "beforeRequest": "const optionalText = (value) => { if (typeof value === 'number' && Number.isFinite(value)) return String(value); if (typeof value !== 'string') return undefined; const trimmed = value.trim(); return trimmed === '' ? undefined : trimmed; };\nconst requiredText = (value, label) => { const text = optionalText(value); if (text === undefined) throw new Error(`${label} is required.`); return text; };\nconst closeId = (value, label, prefix) => { const id = requiredText(value, label); if (!/^[A-Za-z0-9_-]+$/.test(id) || (prefix !== undefined && !id.startsWith(`${prefix}_`))) throw new Error(`${label} must be a Close ID${prefix ? ` starting with \"${prefix}_\"` : ''}, e.g. ${prefix ?? 'lead'}_abc123.`); return id; };\nconst optionalCloseId = (value, label, prefix) => optionalText(value) === undefined ? undefined : closeId(value, label, prefix);\nconst defined = (fields) => Object.fromEntries(Object.entries(fields).filter(([, item]) => item !== undefined));\nconst e164 = (value, label) => { const phone = requiredText(value, label).replace(/[\\s().-]/g, ''); if (!/^\\+[1-9]\\d{6,14}$/.test(phone)) throw new Error(`${label} must be a phone number in E.164 format, e.g. +16505551234.`); return phone; };\nrequest.body = defined({ lead_id: closeId(inputs.leadId, 'Lead ID', 'lead'), contact_id: optionalCloseId(inputs.contactId, 'Contact ID', 'cont'), status: 'outbox', direction: 'outbound', local_phone: e164(inputs.localPhone, 'From (Close number)'), remote_phone: e164(inputs.remotePhone, 'To (phone)'), text: requiredText(inputs.text, 'Message') });\nreturn request;",
+      "afterResponse": "const text = (value) => typeof value === 'string' ? value : null;\nconst number = (value) => typeof value === 'number' && Number.isFinite(value) ? value : null;\nconst record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};\nconst activity = (raw) => { const item = record(raw), envelope = record(item.envelope); return { id: text(item.id), type: text(item._type), leadId: text(item.lead_id), contactId: text(item.contact_id), userId: text(item.user_id), userName: text(item.user_name), direction: text(item.direction), status: text(item.status), subject: text(item.subject) ?? text(item.title) ?? text(envelope.subject), text: text(item.note) ?? text(item.text) ?? text(item.body_text), durationSeconds: number(item.duration), phone: text(item.phone) ?? text(item.remote_phone), activityAt: text(item.activity_at), dateCreated: text(item.date_created), dateUpdated: text(item.date_updated) }; };\nreturn activity(response);",
+      "outputs": {
+        "id": "$.id"
+      }
+    },
+    "subscribe_contact_to_sequence": {
+      "label": "Subscribe Contact to Sequence",
+      "description": "Enroll a contact in a Close sequence (workflow).",
+      "audience": "ai",
+      "inputs": {
+        "sequenceId": {
+          "label": "Sequence ID",
+          "required": true
+        },
+        "contactId": {
+          "label": "Contact ID",
+          "required": true
+        },
+        "contactEmail": {
+          "label": "Contact Email",
+          "required": true
+        },
+        "senderAccountId": {
+          "label": "Sender Email Account ID",
+          "description": "emailacct_... from Get Current User.",
+          "required": true
+        },
+        "senderName": {
+          "label": "Sender Name",
+          "required": true
+        },
+        "senderEmail": {
+          "label": "Sender Email",
+          "required": true
+        },
+        "callsAssignedTo": {
+          "label": "Calls Assigned To (user IDs)",
+          "description": "List of user IDs (user_...).",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.close.com/api/v1/sequence_subscription/"
+      },
+      "beforeRequest": "const optionalText = (value) => { if (typeof value === 'number' && Number.isFinite(value)) return String(value); if (typeof value !== 'string') return undefined; const trimmed = value.trim(); return trimmed === '' ? undefined : trimmed; };\nconst requiredText = (value, label) => { const text = optionalText(value); if (text === undefined) throw new Error(`${label} is required.`); return text; };\nconst closeId = (value, label, prefix) => { const id = requiredText(value, label); if (!/^[A-Za-z0-9_-]+$/.test(id) || (prefix !== undefined && !id.startsWith(`${prefix}_`))) throw new Error(`${label} must be a Close ID${prefix ? ` starting with \"${prefix}_\"` : ''}, e.g. ${prefix ?? 'lead'}_abc123.`); return id; };\nconst stringList = (value) => { if (value == null || value === '') return undefined; let items; try { items = JSON.parse(value); } catch (error) { items = undefined; } if (!Array.isArray(items)) items = String(value).split(','); return items.map((item) => typeof item === 'string' ? item.trim() : typeof item === 'number' ? String(item) : '').filter((item) => item !== ''); };\nconst emailAddress = (value, label) => { const email = requiredText(value, label); if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) throw new Error(`${label} must be an email address.`); return email; };\nconst users = (stringList(inputs.callsAssignedTo) ?? []).map((user) => closeId(user, 'Calls Assigned To', 'user'));\nrequest.body = { sequence_id: closeId(inputs.sequenceId, 'Sequence ID', 'seq'), contact_id: closeId(inputs.contactId, 'Contact ID', 'cont'), contact_email: emailAddress(inputs.contactEmail, 'Contact Email'), sender_account_id: closeId(inputs.senderAccountId, 'Sender Email Account ID', 'emailacct'), sender_name: requiredText(inputs.senderName, 'Sender Name'), sender_email: emailAddress(inputs.senderEmail, 'Sender Email'), ...(users.length > 0 ? { calls_assigned_to: users } : {}) };\nreturn request;",
+      "afterResponse": "const text = (value) => typeof value === 'string' ? value : null;\nconst record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};\nconst list = (value) => Array.isArray(value) ? value : [];\nconst subscription = (raw) => { const item = record(raw); return { id: text(item.id), sequenceId: text(item.sequence_id), contactId: text(item.contact_id), leadId: text(item.lead_id), contactEmail: text(item.contact_email), senderAccountId: text(item.sender_account_id), senderName: text(item.sender_name), senderEmail: text(item.sender_email), status: text(item.status), statusReason: text(item.status_reason), callsAssignedTo: list(item.calls_assigned_to).filter((entry) => typeof entry === 'string'), dateCreated: text(item.date_created), dateUpdated: text(item.date_updated) }; };\nreturn subscription(response);",
+      "outputs": {
+        "id": "$.id"
+      }
+    },
+    "update_contact": {
+      "label": "Update Contact",
+      "description": "Change the name, title, email, phone or custom fields of a contact.",
+      "audience": "ai",
+      "inputs": {
+        "contactId": {
+          "label": "Contact ID",
+          "description": "cont_...",
+          "required": true
+        },
+        "name": {
+          "label": "Name"
+        },
+        "title": {
+          "label": "Title",
+          "description": "Pass a space to clear it."
+        },
+        "email": {
+          "label": "Email",
+          "description": "Replaces all emails on the contact."
+        },
+        "phone": {
+          "label": "Phone",
+          "description": "Replaces all phones on the contact."
+        },
+        "url": {
+          "label": "Website",
+          "description": "Replaces all URLs on the contact."
+        },
+        "customFields": {
+          "label": "Custom Fields",
+          "description": "Object of cf_... id to value; null clears a field.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.close.com/api/v1/contact/{{contactId}}/"
+      },
+      "beforeRequest": "const isRecord = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);\nconst optionalText = (value) => { if (typeof value === 'number' && Number.isFinite(value)) return String(value); if (typeof value !== 'string') return undefined; const trimmed = value.trim(); return trimmed === '' ? undefined : trimmed; };\nconst clearableText = (value) => value === undefined || value === '' ? undefined : String(value).trim();\nconst requiredText = (value, label) => { const text = optionalText(value); if (text === undefined) throw new Error(`${label} is required.`); return text; };\nconst closeId = (value, label, prefix) => { const id = requiredText(value, label); if (!/^[A-Za-z0-9_-]+$/.test(id) || (prefix !== undefined && !id.startsWith(`${prefix}_`))) throw new Error(`${label} must be a Close ID${prefix ? ` starting with \"${prefix}_\"` : ''}, e.g. ${prefix ?? 'lead'}_abc123.`); return id; };\nconst customFieldsBody = (value, label = 'Custom Fields') => { if (value == null || value === '') return {}; let given; try { given = JSON.parse(value); } catch (error) { throw new Error(`${label} must be a JSON object.`); } if (!isRecord(given)) throw new Error(`${label} must be an object of key/value pairs.`); return Object.fromEntries(Object.entries(given).map(([key, item]) => { const id = key.startsWith('custom.') ? key.slice(7) : key; if (!/^cf_[A-Za-z0-9]+$/.test(id)) throw new Error(`${label}: \"${key}\" is not a custom field ID (expected cf_...). Use List Custom Fields to find IDs.`); return [`custom.${id}`, item]; })); };\nconst lastSegment = (url, value) => url.replace(/[^/]*\\/$/, `${value}/`);\nconst id = closeId(inputs.contactId, 'Contact ID', 'cont'), body = { ...customFieldsBody(inputs.customFields) };\nconst name = optionalText(inputs.name), title = clearableText(inputs.title), email = optionalText(inputs.email), phone = optionalText(inputs.phone), url = optionalText(inputs.url);\nif (name !== undefined) body.name = name;\nif (title !== undefined) body.title = title;\nif (email !== undefined) body.emails = [{ email, type: 'office' }];\nif (phone !== undefined) body.phones = [{ phone, type: 'office' }];\nif (url !== undefined) body.urls = [{ url, type: 'url' }];\nif (Object.keys(body).length === 0) throw new Error('Pass at least one field to update.');\nrequest.url = lastSegment(request.url, id);\nrequest.body = body;\nreturn request;",
+      "afterResponse": "const text = (value) => typeof value === 'string' ? value : null;\nconst record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};\nconst list = (value) => Array.isArray(value) ? value : [];\nconst customOf = (item) => Object.fromEntries(Object.entries(item).filter(([key]) => key.startsWith('custom.')).map(([key, value]) => [key.slice(7), value]));\nconst contact = (raw) => { const item = record(raw); return { id: text(item.id), leadId: text(item.lead_id), name: text(item.name), title: text(item.title), emails: list(item.emails).map((entry) => ({ email: text(record(entry).email), type: text(record(entry).type) })), phones: list(item.phones).map((entry) => ({ phone: text(record(entry).phone), phoneFormatted: text(record(entry).phone_formatted), type: text(record(entry).type) })), urls: list(item.urls).map((entry) => ({ url: text(record(entry).url), type: text(record(entry).type) })), primaryEmail: text(record(list(item.emails)[0]).email), primaryPhone: text(record(list(item.phones)[0]).phone), custom: customOf(item), dateCreated: text(item.date_created), dateUpdated: text(item.date_updated) }; };\nreturn contact(response);",
+      "outputs": {
+        "id": "$.id"
+      }
+    },
+    "update_lead": {
+      "label": "Update Lead",
+      "description": "Change the name, status, website, description or custom fields of a lead.",
+      "audience": "ai",
+      "inputs": {
+        "leadId": {
+          "label": "Lead ID",
+          "description": "lead_...",
+          "required": true
+        },
+        "name": {
+          "label": "Lead Name"
+        },
+        "description": {
+          "label": "Description",
+          "description": "Pass a space to clear it.",
+          "type": "multiline"
+        },
+        "url": {
+          "label": "Website",
+          "description": "Pass a space to clear it."
+        },
+        "statusId": {
+          "label": "Lead Status ID",
+          "description": "stat_... from List Lead Statuses."
+        },
+        "customFields": {
+          "label": "Custom Fields",
+          "description": "Object of cf_... id to value; null clears a field.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.close.com/api/v1/lead/{{leadId}}/"
+      },
+      "beforeRequest": "const isRecord = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);\nconst optionalText = (value) => { if (typeof value === 'number' && Number.isFinite(value)) return String(value); if (typeof value !== 'string') return undefined; const trimmed = value.trim(); return trimmed === '' ? undefined : trimmed; };\nconst clearableText = (value) => value === undefined || value === '' ? undefined : String(value).trim();\nconst requiredText = (value, label) => { const text = optionalText(value); if (text === undefined) throw new Error(`${label} is required.`); return text; };\nconst closeId = (value, label, prefix) => { const id = requiredText(value, label); if (!/^[A-Za-z0-9_-]+$/.test(id) || (prefix !== undefined && !id.startsWith(`${prefix}_`))) throw new Error(`${label} must be a Close ID${prefix ? ` starting with \"${prefix}_\"` : ''}, e.g. ${prefix ?? 'lead'}_abc123.`); return id; };\nconst optionalCloseId = (value, label, prefix) => optionalText(value) === undefined ? undefined : closeId(value, label, prefix);\nconst customFieldsBody = (value, label = 'Custom Fields') => { if (value == null || value === '') return {}; let given; try { given = JSON.parse(value); } catch (error) { throw new Error(`${label} must be a JSON object.`); } if (!isRecord(given)) throw new Error(`${label} must be an object of key/value pairs.`); return Object.fromEntries(Object.entries(given).map(([key, item]) => { const id = key.startsWith('custom.') ? key.slice(7) : key; if (!/^cf_[A-Za-z0-9]+$/.test(id)) throw new Error(`${label}: \"${key}\" is not a custom field ID (expected cf_...). Use List Custom Fields to find IDs.`); return [`custom.${id}`, item]; })); };\nconst lastSegment = (url, value) => url.replace(/[^/]*\\/$/, `${value}/`);\nconst id = closeId(inputs.leadId, 'Lead ID', 'lead'), body = { ...customFieldsBody(inputs.customFields) };\nconst name = optionalText(inputs.name), description = clearableText(inputs.description), url = clearableText(inputs.url), statusId = optionalCloseId(inputs.statusId, 'Lead Status ID', 'stat');\nif (name !== undefined) body.name = name;\nif (description !== undefined) body.description = description;\nif (url !== undefined) body.url = url;\nif (statusId !== undefined) body.status_id = statusId;\nif (Object.keys(body).length === 0) throw new Error('Pass at least one field to update.');\nrequest.url = lastSegment(request.url, id);\nrequest.body = body;\nreturn request;",
+      "afterResponse": "const text = (value) => typeof value === 'string' ? value : null;\nconst record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};\nconst list = (value) => Array.isArray(value) ? value : [];\nconst customOf = (item) => Object.fromEntries(Object.entries(item).filter(([key]) => key.startsWith('custom.')).map(([key, value]) => [key.slice(7), value]));\nconst contact = (raw) => { const item = record(raw); return { id: text(item.id), leadId: text(item.lead_id), name: text(item.name), title: text(item.title), emails: list(item.emails).map((entry) => ({ email: text(record(entry).email), type: text(record(entry).type) })), phones: list(item.phones).map((entry) => ({ phone: text(record(entry).phone), phoneFormatted: text(record(entry).phone_formatted), type: text(record(entry).type) })), urls: list(item.urls).map((entry) => ({ url: text(record(entry).url), type: text(record(entry).type) })), primaryEmail: text(record(list(item.emails)[0]).email), primaryPhone: text(record(list(item.phones)[0]).phone), custom: customOf(item), dateCreated: text(item.date_created), dateUpdated: text(item.date_updated) }; };\nconst lead = (raw) => { const item = record(raw), id = text(item.id); return { id, name: text(item.display_name) ?? text(item.name), description: text(item.description), url: text(item.url), statusId: text(item.status_id), statusLabel: text(item.status_label), contacts: list(item.contacts).map((entry) => contact(entry)), opportunityIds: list(item.opportunities).map((entry) => text(record(entry).id)).filter((entry) => entry !== null), addresses: list(item.addresses).map((entry) => record(entry)), custom: { ...record(item.custom), ...customOf(item) }, createdBy: text(item.created_by), dateCreated: text(item.date_created), dateUpdated: text(item.date_updated), appUrl: id ? 'https://app.close.com/lead/' + encodeURIComponent(id) + '/' : null }; };\nreturn lead(response);",
+      "outputs": {
+        "id": "$.id"
+      }
+    },
+    "update_note": {
+      "label": "Update Note",
+      "description": "Replace the text of a note in Close.",
+      "audience": "ai",
+      "inputs": {
+        "noteId": {
+          "label": "Note ID",
+          "required": true
+        },
+        "note": {
+          "label": "Note",
+          "type": "multiline",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.close.com/api/v1/activity/note/{{noteId}}/"
+      },
+      "afterResponse": "const text = (value) => typeof value === 'string' ? value : null;\nconst number = (value) => typeof value === 'number' && Number.isFinite(value) ? value : null;\nconst record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};\nconst activity = (raw) => { const item = record(raw), envelope = record(item.envelope); return { id: text(item.id), type: text(item._type), leadId: text(item.lead_id), contactId: text(item.contact_id), userId: text(item.user_id), userName: text(item.user_name), direction: text(item.direction), status: text(item.status), subject: text(item.subject) ?? text(item.title) ?? text(envelope.subject), text: text(item.note) ?? text(item.text) ?? text(item.body_text), durationSeconds: number(item.duration), phone: text(item.phone) ?? text(item.remote_phone), activityAt: text(item.activity_at), dateCreated: text(item.date_created), dateUpdated: text(item.date_updated) }; };\nreturn activity(response);",
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const optionalText = (value) => { if (typeof value === 'number' && Number.isFinite(value)) return String(value); if (typeof value !== 'string') return undefined; const trimmed = value.trim(); return trimmed === '' ? undefined : trimmed; };\nconst requiredText = (value, label) => { const text = optionalText(value); if (text === undefined) throw new Error(`${label} is required.`); return text; };\nconst closeId = (value, label, prefix) => { const id = requiredText(value, label); if (!/^[A-Za-z0-9_-]+$/.test(id) || (prefix !== undefined && !id.startsWith(`${prefix}_`))) throw new Error(`${label} must be a Close ID${prefix ? ` starting with \"${prefix}_\"` : ''}, e.g. ${prefix ?? 'lead'}_abc123.`); return id; };\nconst lastSegment = (url, value) => url.replace(/[^/]*\\/$/, `${value}/`);\nconst id = closeId(inputs.noteId, 'Note ID', 'acti');\nrequest.body = { note: requiredText(inputs.note, 'Note') };\nrequest.url = lastSegment(request.url, id);\nreturn request;"
+    },
+    "update_opportunity": {
+      "label": "Update Opportunity",
+      "description": "Change fields on an opportunity.",
+      "audience": "ai",
+      "inputs": {
+        "opportunityId": {
+          "label": "Opportunity ID",
+          "description": "oppo_...",
+          "required": true
+        },
+        "statusId": {
+          "label": "Status ID",
+          "description": "Opportunity status ID (stat_...). Use List Pipelines to find IDs."
+        },
+        "contactId": {
+          "label": "Contact ID",
+          "description": "Contact on the lead (cont_...)."
+        },
+        "userId": {
+          "label": "Owner User ID",
+          "description": "User who owns the opportunity (user_...)."
+        },
+        "valueCents": {
+          "label": "Value (cents)",
+          "description": "Whole number of cents, e.g. 340000 for 3,400.00.",
+          "type": "number"
+        },
+        "valuePeriod": {
+          "label": "Value Period",
+          "description": "one_time, monthly or annual."
+        },
+        "confidence": {
+          "label": "Confidence %",
+          "description": "0 to 100.",
+          "type": "number"
+        },
+        "note": {
+          "label": "Note",
+          "description": "Pass a space to clear it.",
+          "type": "multiline"
+        },
+        "expectedCloseDate": {
+          "label": "Close Date",
+          "description": "Expected (or won) close date, e.g. 2026-11-30."
+        },
+        "customFields": {
+          "label": "Custom Fields",
+          "description": "Object of custom field ID (cf_...) to value.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.close.com/api/v1/opportunity/{{opportunityId}}/"
+      },
+      "beforeRequest": "const isRecord = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);\nconst optionalText = (value) => { if (typeof value === 'number' && Number.isFinite(value)) return String(value); if (typeof value !== 'string') return undefined; const trimmed = value.trim(); return trimmed === '' ? undefined : trimmed; };\nconst clearableText = (value) => value === undefined || value === '' ? undefined : String(value).trim();\nconst requiredText = (value, label) => { const text = optionalText(value); if (text === undefined) throw new Error(`${label} is required.`); return text; };\nconst closeId = (value, label, prefix) => { const id = requiredText(value, label); if (!/^[A-Za-z0-9_-]+$/.test(id) || (prefix !== undefined && !id.startsWith(`${prefix}_`))) throw new Error(`${label} must be a Close ID${prefix ? ` starting with \"${prefix}_\"` : ''}, e.g. ${prefix ?? 'lead'}_abc123.`); return id; };\nconst optionalCloseId = (value, label, prefix) => optionalText(value) === undefined ? undefined : closeId(value, label, prefix);\nconst parseInteger = (value, label, min, max) => { if (value == null || value === '') return undefined; const number = typeof value === 'string' ? Number(value.trim()) : value; if (typeof number !== 'number' || !Number.isInteger(number) || number < min || number > max) throw new Error(`${label} must be a whole number from ${min} to ${max}.`); return number; };\nconst isoDate = (value, label) => { const text = optionalText(value); if (text === undefined) return undefined; if (/^\\d{4}-\\d{2}-\\d{2}$/.test(text) && !Number.isNaN(Date.parse(`${text}T00:00:00Z`))) return text; const time = Date.parse(text); if (Number.isNaN(time)) throw new Error(`${label} must be a date like 2026-10-18 or an ISO 8601 date-time.`); return new Date(time).toISOString(); };\nconst customFieldsBody = (value, label = 'Custom Fields') => { if (value == null || value === '') return {}; let given; try { given = JSON.parse(value); } catch (error) { throw new Error(`${label} must be a JSON object.`); } if (!isRecord(given)) throw new Error(`${label} must be an object of key/value pairs.`); return Object.fromEntries(Object.entries(given).map(([key, item]) => { const id = key.startsWith('custom.') ? key.slice(7) : key; if (!/^cf_[A-Za-z0-9]+$/.test(id)) throw new Error(`${label}: \"${key}\" is not a custom field ID (expected cf_...). Use List Custom Fields to find IDs.`); return [`custom.${id}`, item]; })); };\nconst defined = (fields) => Object.fromEntries(Object.entries(fields).filter(([, item]) => item !== undefined));\nconst lastSegment = (url, value) => url.replace(/[^/]*\\/$/, `${value}/`);\nconst valuePeriod = (value) => { const period = optionalText(value); if (period !== undefined && !['one_time', 'monthly', 'annual'].includes(period)) throw new Error('Value Period must be one_time, monthly or annual.'); return period; };\nconst id = closeId(inputs.opportunityId, 'Opportunity ID', 'oppo');\nconst body = defined({ status_id: optionalCloseId(inputs.statusId, 'Status ID', 'stat'), contact_id: optionalCloseId(inputs.contactId, 'Contact ID', 'cont'), user_id: optionalCloseId(inputs.userId, 'Owner User ID', 'user'), value: parseInteger(inputs.valueCents, 'Value (cents)', 0, Number.MAX_SAFE_INTEGER), value_period: valuePeriod(inputs.valuePeriod), confidence: parseInteger(inputs.confidence, 'Confidence %', 0, 100), note: clearableText(inputs.note), date_won: isoDate(inputs.expectedCloseDate, 'Close Date'), ...customFieldsBody(inputs.customFields) });\nif (Object.keys(body).length === 0) throw new Error('Pass at least one field to update.');\nrequest.url = lastSegment(request.url, id);\nrequest.body = body;\nreturn request;",
+      "afterResponse": "const text = (value) => typeof value === 'string' ? value : null;\nconst number = (value) => typeof value === 'number' && Number.isFinite(value) ? value : null;\nconst record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};\nconst customOf = (item) => Object.fromEntries(Object.entries(item).filter(([key]) => key.startsWith('custom.')).map(([key, value]) => [key.slice(7), value]));\nconst opportunity = (raw) => { const item = record(raw); return { id: text(item.id), leadId: text(item.lead_id), leadName: text(item.lead_name), contactId: text(item.contact_id), userId: text(item.user_id), userName: text(item.user_name), statusId: text(item.status_id), statusLabel: text(item.status_label), statusType: text(item.status_type), pipelineId: text(item.pipeline_id), pipelineName: text(item.pipeline_name), valueCents: number(item.value), valueCurrency: text(item.value_currency), valueFormatted: text(item.value_formatted), valuePeriod: text(item.value_period), confidence: number(item.confidence), note: text(item.note), dateWon: text(item.date_won), dateLost: text(item.date_lost), custom: customOf(item), dateCreated: text(item.date_created), dateUpdated: text(item.date_updated) }; };\nreturn opportunity(response);",
+      "outputs": {
+        "id": "$.id"
+      }
+    },
+    "update_task": {
+      "label": "Update Task",
+      "description": "Change, reassign or complete a task.",
+      "audience": "ai",
+      "inputs": {
+        "taskId": {
+          "label": "Task ID",
+          "description": "task_...",
+          "required": true
+        },
+        "text": {
+          "label": "Text",
+          "type": "multiline"
+        },
+        "assignedTo": {
+          "label": "Assigned To (user ID)",
+          "description": "user_..."
+        },
+        "date": {
+          "label": "Due",
+          "description": "YYYY-MM-DD or ISO 8601 date-time."
+        },
+        "isComplete": {
+          "label": "Complete",
+          "description": "true or false; leave empty to keep."
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.close.com/api/v1/task/{{taskId}}/"
+      },
+      "beforeRequest": "const optionalText = (value) => { if (typeof value === 'number' && Number.isFinite(value)) return String(value); if (typeof value !== 'string') return undefined; const trimmed = value.trim(); return trimmed === '' ? undefined : trimmed; };\nconst requiredText = (value, label) => { const text = optionalText(value); if (text === undefined) throw new Error(`${label} is required.`); return text; };\nconst closeId = (value, label, prefix) => { const id = requiredText(value, label); if (!/^[A-Za-z0-9_-]+$/.test(id) || (prefix !== undefined && !id.startsWith(`${prefix}_`))) throw new Error(`${label} must be a Close ID${prefix ? ` starting with \"${prefix}_\"` : ''}, e.g. ${prefix ?? 'lead'}_abc123.`); return id; };\nconst optionalCloseId = (value, label, prefix) => optionalText(value) === undefined ? undefined : closeId(value, label, prefix);\nconst parseBoolean = (value, label) => { if (value == null || value === '') return undefined; if (value === true || value === 'true') return true; if (value === false || value === 'false') return false; throw new Error(`${label} must be true or false.`); };\nconst isoDate = (value, label) => { const text = optionalText(value); if (text === undefined) return undefined; if (/^\\d{4}-\\d{2}-\\d{2}$/.test(text) && !Number.isNaN(Date.parse(`${text}T00:00:00Z`))) return text; const time = Date.parse(text); if (Number.isNaN(time)) throw new Error(`${label} must be a date like 2026-10-18 or an ISO 8601 date-time.`); return new Date(time).toISOString(); };\nconst defined = (fields) => Object.fromEntries(Object.entries(fields).filter(([, item]) => item !== undefined));\nconst lastSegment = (url, value) => url.replace(/[^/]*\\/$/, `${value}/`);\nconst id = closeId(inputs.taskId, 'Task ID', 'task');\nconst body = defined({ text: optionalText(inputs.text), assigned_to: optionalCloseId(inputs.assignedTo, 'Assigned To', 'user'), date: isoDate(inputs.date, 'Due'), is_complete: parseBoolean(inputs.isComplete, 'Complete') });\nif (Object.keys(body).length === 0) throw new Error('Pass at least one field to update.');\nrequest.url = lastSegment(request.url, id);\nrequest.body = body;\nreturn request;",
+      "afterResponse": "const text = (value) => typeof value === 'string' ? value : null;\nconst flag = (value) => typeof value === 'boolean' ? value : null;\nconst record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};\nconst task = (raw) => { const item = record(raw); return { id: text(item.id), type: text(item._type), leadId: text(item.lead_id), leadName: text(item.lead_name), contactId: text(item.contact_id), assignedTo: text(item.assigned_to), assignedToName: text(item.assigned_to_name), text: text(item.text), date: text(item.date), isComplete: flag(item.is_complete), isDateless: flag(item.is_dateless), dateCreated: text(item.date_created), dateUpdated: text(item.date_updated) }; };\nreturn task(response);",
+      "outputs": {
+        "id": "$.id"
+      }
+    }
+  }
+}

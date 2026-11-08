@@ -1,0 +1,190 @@
+{
+  "name": "attio",
+  "label": "Attio",
+  "description": "Modern, collaborative CRM platform built to be fully customizable and real-time.",
+  "icon": "",
+  "hosts": ["api.attio.com"],
+  "baseUrl": "https://api.attio.com/v2",
+  "upstream": {"package": "@activepieces/piece-attio", "version": "0.3.3"},
+  "credential": {
+    "fields": {
+      "accessToken": {
+        "label": "Access Token",
+        "description": "In Attio, open Workspace settings, then Developers, and create a new access token with the scopes you need.",
+        "secret": true,
+        "required": true
+      }
+    },
+    "headers": {"Authorization": "Bearer {{credential.accessToken}}"}
+  },
+  "actions": {
+    "create_note": {
+      "label": "Create Note",
+      "description": "Creates a new note on a record.",
+      "inputs": {
+        "parentObject": {
+          "label": "Parent Object",
+          "description": "The object type the record belongs to (e.g. person, company).",
+          "required": true,
+          "optionsFrom": {"request": {"url": "https://api.attio.com/v2/objects"}, "list": "$.data", "label": "$.singular_noun", "value": "$.id.object_id"}
+        },
+        "parentRecordId": {"label": "Parent Record ID", "description": "The ID of the record to attach this note to.", "required": true},
+        "title": {"label": "Title", "description": "The plaintext title of the note.", "required": true},
+        "format": {
+          "label": "Format",
+          "description": "How the note content should be interpreted.",
+          "type": "select",
+          "required": true,
+          "defaultValue": "plaintext",
+          "options": [{"value": "plaintext", "label": "Plaintext"}, {"value": "markdown", "label": "Markdown"}]
+        },
+        "content": {"label": "Content", "description": "The body of the note.", "type": "multiline", "required": true}
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.attio.com/v2/notes",
+        "body": {"data": {"parent_object": "{{parentObject}}", "parent_record_id": "{{parentRecordId}}", "title": "{{title}}", "format": "{{format}}", "content": "{{content}}"}}
+      },
+      "result": "$.data",
+      "outputs": {"noteId": "$.id.note_id"}
+    },
+    "get_call_transcript": {
+      "label": "Get Call Transcript",
+      "description": "Fetches the full transcript for a given call recording.",
+      "inputs": {
+        "meeting_id": {
+          "label": "Meeting",
+          "description": "The meeting that contains the call recording.",
+          "required": true,
+          "optionsFrom": {"request": {"url": "https://api.attio.com/v2/meetings", "query": {"limit": "200", "sort": "start_desc"}}, "list": "$.data", "label": "$.title", "value": "$.id.meeting_id"}
+        },
+        "call_recording_id": {
+          "label": "Call Recording",
+          "description": "The call recording to fetch the transcript for.",
+          "required": true,
+          "optionsFrom": {"request": {"url": "https://api.attio.com/v2/meetings/{{meeting_id}}/call_recordings", "query": {"limit": "200"}}, "list": "$.data", "label": "$.created_at", "value": "$.id.call_recording_id"}
+        }
+      },
+      "request": {"url": "https://api.attio.com/v2/meetings/{{meeting_id}}/call_recordings/{{call_recording_id}}/transcript"},
+      "outputs": {"transcript": "$.data.raw_transcript"}
+    },
+    "create_task": {
+      "label": "Create Task",
+      "description": "Create a new task in Attio, optionally linked to a record and assigned to a member.",
+      "inputs": {
+        "content": {"label": "Task Content", "description": "The text content of the task.", "type": "multiline", "required": true},
+        "deadline_at": {"label": "Deadline"},
+        "is_completed": {"label": "Mark as Completed", "type": "boolean"},
+        "linked_object": {
+          "label": "Linked Object",
+          "description": "The object type of the record to link this task to.",
+          "optionsFrom": {"request": {"url": "https://api.attio.com/v2/objects"}, "list": "$.data", "label": "$.singular_noun", "value": "$.id.object_id"}
+        },
+        "linked_record_id": {
+          "label": "Linked Record",
+          "description": "The record to link this task to.",
+          "optionsFrom": {"request": {"method": "POST", "url": "https://api.attio.com/v2/objects/{{linked_object}}/records/query", "body": {"limit": 200, "offset": 0}}, "list": "$.data", "label": "$.id.record_id", "value": "$.id.record_id"}
+        },
+        "assignee_email": {"label": "Assignee Email", "description": "Email address of the workspace member to assign this task to."}
+      },
+      "request": {"method": "POST", "url": "https://api.attio.com/v2/tasks"},
+      "beforeRequest": "request.body = {data: {content: inputs.content, format: 'plaintext', deadline_at: inputs.deadline_at || null, is_completed: inputs.is_completed === 'true', linked_records: inputs.linked_object && inputs.linked_record_id ? [{target_object: inputs.linked_object, target_record_id: inputs.linked_record_id}] : [], assignees: inputs.assignee_email ? [{workspace_member_email_address: inputs.assignee_email}] : []}}; return request;",
+      "result": "$.data",
+      "outputs": {"taskId": "$.id.task_id"}
+    },
+    "list_tasks": {
+      "label": "List Tasks",
+      "description": "List tasks with optional filters by linked record, assignee, or completion status.",
+      "inputs": {
+        "linked_object": {
+          "label": "Linked Object",
+          "description": "Filter tasks linked to records of this object type.",
+          "optionsFrom": {"request": {"url": "https://api.attio.com/v2/objects"}, "list": "$.data", "label": "$.singular_noun", "value": "$.id.object_id"}
+        },
+        "linked_record_id": {
+          "label": "Linked Record",
+          "description": "Filter tasks linked to this specific record.",
+          "optionsFrom": {"request": {"method": "POST", "url": "https://api.attio.com/v2/objects/{{linked_object}}/records/query", "body": {"limit": 200, "offset": 0}}, "list": "$.data", "label": "$.id.record_id", "value": "$.id.record_id"}
+        },
+        "assignee": {"label": "Assignee", "description": "Filter by workspace member email or ID. Enter \"null\" to find unassigned tasks."},
+        "is_completed": {
+          "label": "Completion Status",
+          "type": "select",
+          "options": [{"value": "all", "label": "All"}, {"value": "true", "label": "Completed"}, {"value": "false", "label": "Incomplete"}]
+        }
+      },
+      "request": {
+        "url": "https://api.attio.com/v2/tasks",
+        "query": {"limit": "500", "offset": "0", "linked_object": "{{linked_object}}", "linked_record_id": "{{linked_record_id}}", "assignee": "{{assignee}}", "is_completed": "{{is_completed}}"}
+      },
+      "beforeRequest": "if (request.query.is_completed === 'all') delete request.query.is_completed; return request;",
+      "afterResponse": "return {found: response.data.length > 0, result: response.data};",
+      "outputs": {"found": "$.found", "result": "$.result"}
+    },
+    "get_task": {
+      "label": "Get Task",
+      "description": "Fetch a single task by its ID.",
+      "inputs": {
+        "task_id": {
+          "label": "Task",
+          "description": "The task to retrieve.",
+          "required": true,
+          "optionsFrom": {"request": {"url": "https://api.attio.com/v2/tasks", "query": {"limit": "200"}}, "list": "$.data", "label": "$.content_plaintext", "value": "$.id.task_id"}
+        }
+      },
+      "request": {"url": "https://api.attio.com/v2/tasks/{{task_id}}"},
+      "result": "$.data",
+      "outputs": {"content": "$.content_plaintext", "isCompleted": "$.is_completed"}
+    },
+    "delete_task": {
+      "label": "Delete Task",
+      "description": "Permanently delete a task by its ID.",
+      "inputs": {
+        "task_id": {
+          "label": "Task",
+          "description": "The task to delete.",
+          "required": true,
+          "optionsFrom": {"request": {"url": "https://api.attio.com/v2/tasks", "query": {"limit": "200"}}, "list": "$.data", "label": "$.content_plaintext", "value": "$.id.task_id"}
+        }
+      },
+      "request": {"method": "DELETE", "url": "https://api.attio.com/v2/tasks/{{task_id}}"},
+      "afterResponse": "return {success: true};",
+      "outputs": {"success": "$.success"}
+    },
+    "update_task": {
+      "label": "Update Task",
+      "description": "Update an existing task in Attio.",
+      "inputs": {
+        "task_id": {
+          "label": "Task",
+          "description": "The task to update.",
+          "required": true,
+          "optionsFrom": {"request": {"url": "https://api.attio.com/v2/tasks", "query": {"limit": "200"}}, "list": "$.data", "label": "$.content_plaintext", "value": "$.id.task_id"}
+        },
+        "content": {"label": "Task Content", "description": "Update the text content of the task.", "type": "multiline"},
+        "deadline_at": {"label": "Deadline", "description": "Update the task deadline. Leave empty to keep existing value."},
+        "is_completed": {
+          "label": "Completion Status",
+          "description": "Update the completion status of the task.",
+          "type": "select",
+          "options": [{"value": "true", "label": "Mark as Completed"}, {"value": "false", "label": "Mark as Incomplete"}]
+        },
+        "linked_object": {
+          "label": "Linked Object",
+          "description": "The object type of the record to link this task to.",
+          "optionsFrom": {"request": {"url": "https://api.attio.com/v2/objects"}, "list": "$.data", "label": "$.singular_noun", "value": "$.id.object_id"}
+        },
+        "linked_record_id": {
+          "label": "Linked Record",
+          "description": "The record to link this task to.",
+          "optionsFrom": {"request": {"method": "POST", "url": "https://api.attio.com/v2/objects/{{linked_object}}/records/query", "body": {"limit": 200, "offset": 0}}, "list": "$.data", "label": "$.id.record_id", "value": "$.id.record_id"}
+        },
+        "assignee_email": {"label": "Assignee Email", "description": "Email address of the workspace member to assign this task to."}
+      },
+      "request": {"method": "PATCH", "url": "https://api.attio.com/v2/tasks/{{task_id}}"},
+      "beforeRequest": "const data = {}; if (inputs.content) { data.content = inputs.content; data.format = 'plaintext'; } if (inputs.deadline_at) data.deadline_at = inputs.deadline_at; if (inputs.is_completed) data.is_completed = inputs.is_completed === 'true'; if (inputs.linked_object && inputs.linked_record_id) data.linked_records = [{target_object: inputs.linked_object, target_record_id: inputs.linked_record_id}]; if (inputs.assignee_email) data.assignees = [{workspace_member_email_address: inputs.assignee_email}]; if (Object.keys(data).length === 0) throw new Error('At least one field must be provided to update the task.'); request.body = {data}; return request;",
+      "result": "$.data",
+      "outputs": {"taskId": "$.id.task_id"}
+    }
+  }
+}

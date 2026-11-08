@@ -1,0 +1,712 @@
+{
+  "name": "paperform",
+  "label": "Paperform",
+  "icon": "",
+  "hosts": [
+    "api.paperform.co"
+  ],
+  "baseUrl": "https://api.paperform.co/v1",
+  "upstream": {
+    "package": "@activepieces/piece-paperform",
+    "version": "0.2.1"
+  },
+  "credential": {
+    "fields": {
+      "apiKey": {
+        "label": "API Key",
+        "secret": true,
+        "required": true,
+        "description": "Your Paperform API key. You can find this in your Paperform dashboard under Settings > Developer."
+      }
+    },
+    "headers": {
+      "Authorization": "Bearer {{credential.apiKey}}"
+    }
+  },
+  "actions": {
+    "delete_form_submission": {
+      "label": "Delete Form Submission",
+      "description": "Deletes a completed submission by its ID.",
+      "inputs": {
+        "formId": {
+          "label": "Form",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.paperform.co/v1/forms?limit=100&sort=DESC"
+            },
+            "list": "$.results.forms",
+            "label": "$.title",
+            "value": "$.id"
+          }
+        },
+        "submissionId": {
+          "label": "Form Submission ID",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.paperform.co/v1/submissions/{{submissionId}}",
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "afterResponse": "return {success: true, message: `Submission with ID ${inputs.submissionId} has been successfully deleted.`};",
+      "audience": "both"
+    },
+    "delete_partial_form_submission": {
+      "label": "Delete Partial Form Submission",
+      "description": "Deletes a partial/in-progress submission by its ID.",
+      "inputs": {
+        "formId": {
+          "label": "Form",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.paperform.co/v1/forms?limit=100&sort=DESC"
+            },
+            "list": "$.results.forms",
+            "label": "$.title",
+            "value": "$.id"
+          }
+        },
+        "partialSubmissionId": {
+          "label": "Partial Submission ID",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.paperform.co/v1/forms/{{formId}}/partial-submissions?limit=100"
+            },
+            "list": "$.results['partial-submissions']",
+            "label": "$.id",
+            "value": "$.id"
+          }
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.paperform.co/v1/partial-submissions/{{partialSubmissionId}}",
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "afterResponse": "return {success: true, message: `Partial submission with ID ${inputs.partialSubmissionId} has been successfully deleted.`};",
+      "audience": "both"
+    },
+    "create_form_coupon": {
+      "label": "Create Form Coupon",
+      "description": "Creates a new discount coupon to a specified form.",
+      "inputs": {
+        "formId": {
+          "label": "Form",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.paperform.co/v1/forms?limit=100&sort=DESC"
+            },
+            "list": "$.results.forms",
+            "label": "$.title",
+            "value": "$.id"
+          }
+        },
+        "code": {
+          "label": "Coupon Code",
+          "required": true
+        },
+        "enabled": {
+          "label": "Enabled",
+          "description": "Whether the coupon is enabled or not.",
+          "type": "boolean",
+          "defaultValue": "true"
+        },
+        "target": {
+          "label": "Target",
+          "description": "The target of the coupon.",
+          "type": "select",
+          "options": [
+            {
+              "value": "price",
+              "label": "Price"
+            },
+            {
+              "value": "subscription",
+              "label": "Subscription"
+            }
+          ]
+        },
+        "discountType": {
+          "label": "Discount Type",
+          "description": "Choose between amount or percentage discount.",
+          "type": "select",
+          "options": [
+            {
+              "value": "amount",
+              "label": "Amount"
+            },
+            {
+              "value": "percentage",
+              "label": "Percentage"
+            }
+          ],
+          "required": true
+        },
+        "discountAmount": {
+          "label": "Discount Amount",
+          "type": "number"
+        },
+        "discountPercentage": {
+          "label": "Discount Percentage",
+          "type": "number"
+        },
+        "expiresAt": {
+          "label": "Expires At",
+          "description": "The date and time when the coupon expires."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.paperform.co/v1/forms/{{formId}}/coupons",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "code": "{{code}}",
+          "enabled": "{{enabled}}",
+          "target": "{{target}}",
+          "discountAmount": "{{discountAmount}}",
+          "discountPercentage": "{{discountPercentage}}",
+          "expiresAt": "{{expiresAt}}"
+        }
+      },
+      "beforeRequest": "const amount = Number(inputs.discountAmount), percentage = Number(inputs.discountPercentage); if (inputs.discountType === 'amount' && !(amount > 0)) throw new Error('Discount amount is required and must be ≥ 0 when discount type is amount'); if (inputs.discountType === 'percentage' && !(percentage > 0 && percentage <= 100)) throw new Error('Discount percentage is required and must be between 0 and 100 when discount type is percentage'); if (request.body.enabled === undefined) request.body.enabled = true; if (inputs.discountType !== 'amount') delete request.body.discountAmount; if (inputs.discountType !== 'percentage') delete request.body.discountPercentage; return request;",
+      "result": "$.results.coupon",
+      "outputs": {
+        "code": "$.code"
+      },
+      "audience": "both"
+    },
+    "update_form_coupon": {
+      "label": "Update Form Coupon",
+      "description": "Updates an existing form coupon.",
+      "inputs": {
+        "formId": {
+          "label": "Form",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.paperform.co/v1/forms?limit=100&sort=DESC"
+            },
+            "list": "$.results.forms",
+            "label": "$.title",
+            "value": "$.id"
+          }
+        },
+        "couponCode": {
+          "label": "Coupon",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.paperform.co/v1/forms/{{formId}}/coupons?limit=100"
+            },
+            "list": "$.results.coupons",
+            "label": "$.code",
+            "value": "$.code"
+          }
+        },
+        "enabled": {
+          "label": "Enabled",
+          "description": "Whether the coupon is enabled or not",
+          "type": "boolean"
+        },
+        "target": {
+          "label": "Target",
+          "description": "The target of the coupon.",
+          "type": "select",
+          "options": [
+            {
+              "value": "price",
+              "label": "Price"
+            },
+            {
+              "value": "subscription",
+              "label": "Subscription"
+            }
+          ]
+        },
+        "discountType": {
+          "label": "Discount Type",
+          "description": "Choose between amount or percentage discount.",
+          "type": "select",
+          "options": [
+            {
+              "value": "amount",
+              "label": "Amount"
+            },
+            {
+              "value": "percentage",
+              "label": "Percentage"
+            }
+          ]
+        },
+        "discountAmount": {
+          "label": "Discount Amount",
+          "type": "number"
+        },
+        "discountPercentage": {
+          "label": "Discount Percentage",
+          "type": "number"
+        },
+        "expiresAt": {
+          "label": "Expires At",
+          "description": "The date and time when the coupon expires."
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.paperform.co/v1/forms/{{formId}}/coupons/{{couponCode}}",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "enabled": "{{enabled}}",
+          "target": "{{target}}",
+          "discountAmount": "{{discountAmount}}",
+          "discountPercentage": "{{discountPercentage}}",
+          "expiresAt": "{{expiresAt}}"
+        }
+      },
+      "beforeRequest": "if (inputs.discountType === 'amount' && Number(inputs.discountAmount) < 0) throw new Error('Discount amount must be ≥ 0 when discount type is amount'); const percentage = Number(inputs.discountPercentage); if (inputs.discountType === 'percentage' && (percentage < 0 || percentage > 100)) throw new Error('Discount percentage must be between 0 and 100 when discount type is percentage'); if (inputs.discountType !== 'amount') delete request.body.discountAmount; if (inputs.discountType !== 'percentage') delete request.body.discountPercentage; return request;",
+      "result": "$.results.coupon",
+      "outputs": {
+        "code": "$.code"
+      },
+      "audience": "both"
+    },
+    "delete_form_coupon": {
+      "label": "Delete Form Coupon",
+      "description": "Deletes a coupon from a form.",
+      "inputs": {
+        "formId": {
+          "label": "Form",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.paperform.co/v1/forms?limit=100&sort=DESC"
+            },
+            "list": "$.results.forms",
+            "label": "$.title",
+            "value": "$.id"
+          }
+        },
+        "couponCode": {
+          "label": "Coupon",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.paperform.co/v1/forms/{{formId}}/coupons?limit=100"
+            },
+            "list": "$.results.coupons",
+            "label": "$.code",
+            "value": "$.code"
+          }
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.paperform.co/v1/forms/{{formId}}/coupons/{{couponCode}}",
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "afterResponse": "return {success: true, message: `Coupon \"${inputs.couponCode}\" has been successfully deleted.`};",
+      "audience": "both"
+    },
+    "create_form_product": {
+      "label": "Create Form Product",
+      "description": "Creates a form product.",
+      "inputs": {
+        "formId": {
+          "label": "Form",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.paperform.co/v1/forms?limit=100&sort=DESC"
+            },
+            "list": "$.results.forms",
+            "label": "$.title",
+            "value": "$.id"
+          }
+        },
+        "productFieldKey": {
+          "label": "Product Field",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.paperform.co/v1/forms/{{formId}}/fields"
+            },
+            "list": "$.results.fields",
+            "label": "$.title",
+            "value": "$.key"
+          }
+        },
+        "name": {
+          "label": "Product Name",
+          "required": true
+        },
+        "sku": {
+          "label": "Product SKU",
+          "required": true
+        },
+        "price": {
+          "label": "Product Price",
+          "type": "number",
+          "required": true
+        },
+        "quantity": {
+          "label": "Quantity",
+          "description": "Product quantity",
+          "type": "number"
+        },
+        "minimum": {
+          "label": "Minimum Quantity",
+          "type": "number"
+        },
+        "maximum": {
+          "label": "Maximum Quantity",
+          "type": "number"
+        },
+        "discountable": {
+          "label": "Discountable ?",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "imageUrl": {
+          "label": "Image URL",
+          "description": "URL of the product image"
+        },
+        "imageWidth": {
+          "label": "Image Width",
+          "description": "Width of the product image in pixels",
+          "type": "number"
+        },
+        "imageHeight": {
+          "label": "Image Height",
+          "description": "Height of the product image in pixels (optional)",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.paperform.co/v1/forms/{{formId}}/products",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "product_field_key": "{{productFieldKey}}",
+          "name": "{{name}}",
+          "price": "{{price}}",
+          "SKU": "{{sku}}",
+          "quantity": "{{quantity}}",
+          "minimum": "{{minimum}}",
+          "maximum": "{{maximum}}",
+          "discountable": "{{discountable}}"
+        }
+      },
+      "beforeRequest": "if (!(Number(inputs.price) > 0)) throw new Error('Product price is required and must be ≥ 0'); if (Number(inputs.quantity) < 0) throw new Error('Quantity must be ≥ 0'); if (Number(inputs.minimum) < 0) throw new Error('Minimum quantity must be ≥ 0'); if (Number(inputs.maximum) < 0) throw new Error('Maximum quantity must be ≥ 0'); if (inputs.minimum && inputs.maximum && Number(inputs.minimum) > Number(inputs.maximum)) throw new Error('Minimum quantity cannot be greater than maximum quantity'); if (inputs.imageUrl && !inputs.imageWidth) throw new Error('Provide Image Width.'); if (inputs.imageUrl && Number(inputs.imageWidth)) { const image = {url: inputs.imageUrl, width: Number(inputs.imageWidth)}; if (Number(inputs.imageHeight)) image.height = Number(inputs.imageHeight); request.body.images = [image]; } return request;",
+      "result": "$.results.product",
+      "outputs": {
+        "name": "$.name"
+      },
+      "audience": "both"
+    },
+    "update_form_product": {
+      "label": "Update Form Product",
+      "description": "Updates an existing form product.",
+      "inputs": {
+        "formId": {
+          "label": "Form",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.paperform.co/v1/forms?limit=100&sort=DESC"
+            },
+            "list": "$.results.forms",
+            "label": "$.title",
+            "value": "$.id"
+          }
+        },
+        "productSku": {
+          "label": "Product",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.paperform.co/v1/forms/{{formId}}/products?limit=100"
+            },
+            "list": "$.results.products",
+            "label": "$.name",
+            "value": "$.SKU"
+          }
+        },
+        "name": {
+          "label": "Product Name"
+        },
+        "price": {
+          "label": "Product Price",
+          "type": "number"
+        },
+        "quantity": {
+          "label": "Quantity",
+          "description": "Product quantity",
+          "type": "number"
+        },
+        "minimum": {
+          "label": "Minimum Quantity",
+          "type": "number"
+        },
+        "maximum": {
+          "label": "Maximum Quantity",
+          "type": "number"
+        },
+        "discountable": {
+          "label": "Discountable ?",
+          "type": "boolean"
+        },
+        "imageUrl": {
+          "label": "Image URL",
+          "description": "URL of the product image"
+        },
+        "imageWidth": {
+          "label": "Image Width",
+          "description": "Width of the product image in pixels.",
+          "type": "number"
+        },
+        "imageHeight": {
+          "label": "Image Height",
+          "description": "Height of the product image in pixels (optional).",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.paperform.co/v1/forms/{{formId}}/products/{{productSku}}",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "name": "{{name}}",
+          "price": "{{price}}",
+          "quantity": "{{quantity}}",
+          "minimum": "{{minimum}}",
+          "maximum": "{{maximum}}",
+          "discountable": "{{discountable}}"
+        }
+      },
+      "beforeRequest": "if (Number(inputs.price) < 0) throw new Error('Product price must be ≥ 0'); if (Number(inputs.quantity) < 0) throw new Error('Quantity must be ≥ 0'); if (Number(inputs.minimum) < 0) throw new Error('Minimum quantity must be ≥ 0'); if (Number(inputs.maximum) < 0) throw new Error('Maximum quantity must be ≥ 0'); if (inputs.minimum && inputs.maximum && Number(inputs.minimum) > Number(inputs.maximum)) throw new Error('Minimum quantity cannot be greater than maximum quantity'); if (inputs.imageUrl && !inputs.imageWidth) throw new Error('Provide Image Width.'); if (inputs.imageUrl && Number(inputs.imageWidth)) { const image = {url: inputs.imageUrl, width: Number(inputs.imageWidth)}; if (Number(inputs.imageHeight)) image.height = Number(inputs.imageHeight); request.body.images = [image]; } return request;",
+      "result": "$.results.product",
+      "outputs": {
+        "name": "$.name"
+      },
+      "audience": "both"
+    },
+    "delete_form_product": {
+      "label": "Delete Form Product",
+      "description": "Deletes an existing form product.",
+      "inputs": {
+        "formId": {
+          "label": "Form",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.paperform.co/v1/forms?limit=100&sort=DESC"
+            },
+            "list": "$.results.forms",
+            "label": "$.title",
+            "value": "$.id"
+          }
+        },
+        "productSku": {
+          "label": "Product",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.paperform.co/v1/forms/{{formId}}/products?limit=100"
+            },
+            "list": "$.results.products",
+            "label": "$.name",
+            "value": "$.SKU"
+          }
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.paperform.co/v1/forms/{{formId}}/products/{{productSku}}",
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "afterResponse": "return {success: true, message: `Product \"${inputs.productSku}\" has been successfully deleted.`};",
+      "audience": "both"
+    },
+    "create_space": {
+      "label": "Create Space",
+      "description": "Creates a new space.",
+      "inputs": {
+        "name": {
+          "label": "Space Name",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.paperform.co/v1/spaces",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "name": "{{name}}"
+        }
+      },
+      "result": "$.results.space",
+      "outputs": {
+        "id": "$.id",
+        "name": "$.name"
+      },
+      "audience": "both"
+    },
+    "update_space": {
+      "label": "Update Space",
+      "description": "Updates an existing space.",
+      "inputs": {
+        "spaceId": {
+          "label": "Space",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.paperform.co/v1/spaces?limit=100&sort=DESC"
+            },
+            "list": "$.results.spaces",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "name": {
+          "label": "Space Name",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.paperform.co/v1/spaces/{{spaceId}}",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "name": "{{name}}"
+        }
+      },
+      "result": "$.results.space",
+      "outputs": {
+        "id": "$.id",
+        "name": "$.name"
+      },
+      "audience": "both"
+    },
+    "find_form_product": {
+      "label": "Find Form Product",
+      "description": "Finds a form product by name.",
+      "inputs": {
+        "formId": {
+          "label": "Form",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.paperform.co/v1/forms?limit=100&sort=DESC"
+            },
+            "list": "$.results.forms",
+            "label": "$.title",
+            "value": "$.id"
+          },
+          "description": "Select the form to search products in"
+        },
+        "search": {
+          "label": "Form Product Name",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.paperform.co/v1/forms/{{formId}}/products",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "query": {
+          "search": "{{search}}",
+          "limit": "100"
+        }
+      },
+      "afterResponse": "const list = response.results.products; return {found: list.length > 0, data: list};",
+      "outputs": {
+        "found": "$.found",
+        "data": "$.data"
+      },
+      "audience": "both"
+    },
+    "find_form": {
+      "label": "Find Form",
+      "description": "Finds a form by title.",
+      "inputs": {
+        "search": {
+          "label": "Form Title",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.paperform.co/v1/forms",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "query": {
+          "search": "{{search}}",
+          "limit": "100",
+          "sort": "DESC"
+        }
+      },
+      "afterResponse": "const list = response.results.forms; return {found: list.length > 0, data: list};",
+      "outputs": {
+        "found": "$.found",
+        "data": "$.data"
+      },
+      "audience": "both"
+    },
+    "find_space": {
+      "label": "Find Space",
+      "description": "Finds a space by name.",
+      "inputs": {
+        "search": {
+          "label": "Space Name",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.paperform.co/v1/spaces",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "query": {
+          "search": "{{search}}",
+          "limit": "100",
+          "sort": "DESC"
+        }
+      },
+      "afterResponse": "const list = response.results.spaces; return {found: list.length > 0, data: list};",
+      "outputs": {
+        "found": "$.found",
+        "data": "$.data"
+      },
+      "audience": "both"
+    }
+  }
+}

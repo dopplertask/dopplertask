@@ -1,0 +1,125 @@
+{
+  "name": "azure-devops",
+  "label": "Azure DevOps",
+  "description": "Track work, code, and ship software with Azure Boards, Repos, and Pipelines.",
+  "icon": "",
+  "hosts": [
+    "dev.azure.com"
+  ],
+  "baseUrl": "https://dev.azure.com/{{credential.organization}}",
+  "upstream": {
+    "package": "@activepieces/piece-azure-devops",
+    "version": "0.1.3"
+  },
+  "credential": {
+    "fields": {
+      "organization": {
+        "label": "Organization",
+        "description": "The name of your Azure DevOps organization, as in https://dev.azure.com/mycompany.",
+        "required": true
+      },
+      "pat": {
+        "label": "Personal Access Token",
+        "description": "Your Azure DevOps PAT with Work Items (Read & Write) and Project and Team (Read) scopes.",
+        "secret": true,
+        "required": true
+      }
+    },
+    "basic": {
+      "username": "",
+      "password": "{{credential.pat}}"
+    }
+  },
+  "actions": {
+    "get_work_item": {
+      "label": "Get Work Item",
+      "description": "Retrieves a work item by ID from Azure DevOps",
+      "inputs": {
+        "project": {
+          "label": "Project",
+          "description": "Select the Azure DevOps project",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://dev.azure.com/{{credential.organization}}/_apis/projects",
+              "query": {
+                "api-version": "7.1"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.name"
+          }
+        },
+        "work_item_id": {
+          "label": "Work Item ID",
+          "description": "Numeric ID of the work item (e.g. 123).",
+          "type": "number",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://dev.azure.com/{{credential.organization}}/{{project}}/_apis/wit/workitems/{{work_item_id}}",
+        "query": {
+          "$expand": "all",
+          "api-version": "7.1"
+        }
+      },
+      "afterResponse": "const f = response.fields || {}; const n = v => v ?? null; return {id: response.id, rev: response.rev, url: n(response.url), title: n(f['System.Title']), work_item_type: n(f['System.WorkItemType']), state: n(f['System.State']), reason: n(f['System.Reason']), assigned_to: n(f['System.AssignedTo']?.displayName), assigned_to_email: n(f['System.AssignedTo']?.uniqueName), created_date: n(f['System.CreatedDate']), created_by: n(f['System.CreatedBy']?.displayName), changed_date: n(f['System.ChangedDate']), changed_by: n(f['System.ChangedBy']?.displayName), area_path: n(f['System.AreaPath']), iteration_path: n(f['System.IterationPath']), priority: n(f['Microsoft.VSTS.Common.Priority']), description: n(f['System.Description']), project: n(f['System.TeamProject'])};",
+      "outputs": {
+        "id": "$.id",
+        "title": "$.title",
+        "state": "$.state"
+      }
+    },
+    "add_comment": {
+      "label": "Add Comment",
+      "description": "Adds a comment to an existing work item in Azure DevOps",
+      "inputs": {
+        "project": {
+          "label": "Project",
+          "description": "Select the Azure DevOps project",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://dev.azure.com/{{credential.organization}}/_apis/projects",
+              "query": {
+                "api-version": "7.1"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.name"
+          }
+        },
+        "work_item_id": {
+          "label": "Work Item ID",
+          "description": "Numeric ID of the work item (e.g. 123).",
+          "type": "number",
+          "required": true
+        },
+        "comment": {
+          "label": "Comment",
+          "description": "The comment text to add (supports HTML)",
+          "type": "multiline",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://dev.azure.com/{{credential.organization}}/{{project}}/_apis/wit/workItems/{{work_item_id}}/comments",
+        "query": {
+          "api-version": "7.1-preview.4"
+        },
+        "body": {
+          "text": "{{comment}}"
+        }
+      },
+      "afterResponse": "const n = v => v ?? null; return {id: response.id, work_item_id: response.workItemId, text: n(response.text), created_by: n(response.createdBy?.displayName), created_by_email: n(response.createdBy?.uniqueName), created_date: n(response.createdDate), modified_by: n(response.modifiedBy?.displayName), modified_date: n(response.modifiedDate)};",
+      "outputs": {
+        "id": "$.id"
+      }
+    }
+  }
+}

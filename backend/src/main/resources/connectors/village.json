@@ -1,0 +1,1175 @@
+{
+  "name": "village",
+  "label": "Village",
+  "description": "The Social Capital API",
+  "icon": "",
+  "hosts": [
+    "api.village.ai"
+  ],
+  "baseUrl": "https://api.village.ai",
+  "upstream": {
+    "package": "@activepieces/piece-village",
+    "version": "0.4.6"
+  },
+  "credential": {
+    "fields": {
+      "token": {
+        "label": "API Token",
+        "description": "Your Village API token. Generate one from your Village settings and paste it here.",
+        "secret": true,
+        "required": true
+      }
+    },
+    "headers": {
+      "Authorization": "Bearer {{credential.token}}"
+    }
+  },
+  "actions": {
+    "get_app_info": {
+      "label": "Get App Information",
+      "description": "Get information about the partner application associated with your token — title, description, domain, logo URL, public key, and active flag. Useful for verifying your app configuration.",
+      "request": {
+        "method": "GET",
+        "url": "https://api.village.ai/v2/app"
+      }
+    },
+    "check_company_paths": {
+      "label": "Check Company Paths",
+      "description": "Quickly check if you have connections to a company without fetching full details. Returns whether paths exist, an overall score, count of reachable people, and avatar thumbnails.",
+      "inputs": {
+        "domain": {
+          "label": "Domain",
+          "description": "Company domain, e.g. \"acme.com\" (provide one of: domain, linkedin_url, url)"
+        },
+        "linkedin_url": {
+          "label": "LinkedIn URL",
+          "description": "LinkedIn company page URL, e.g. \"https://linkedin.com/company/acme-corp\" (provide one of: domain, linkedin_url, url)"
+        },
+        "url": {
+          "label": "URL",
+          "description": "Generic company URL (auto-detected) (provide one of: domain, linkedin_url, url)"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.village.ai/v2/companies/paths/check",
+        "body": {
+          "domain": "{{domain}}",
+          "linkedin_url": "{{linkedin_url}}",
+          "url": "{{url}}"
+        }
+      },
+      "beforeRequest": "const given = [\"domain\", \"linkedin_url\", \"url\"].filter(key => request.body[key] !== undefined); if (given.length === 0) throw new Error('Provide one of: domain, linkedin_url, url'); if (given.length > 1) throw new Error('Provide only one of: domain, linkedin_url, url'); return request;"
+    },
+    "companies_refresh": {
+      "label": "Refresh Companies",
+      "description": "Refresh/import company data from LinkedIn URLs or domains. Realtime mode returns enriched data synchronously (or times out after 25s); async mode returns job IDs for later status checking. At least one of linkedin_urls or domains must be provided.",
+      "inputs": {
+        "job_ids": {
+          "label": "Job IDs",
+          "description": "Job IDs to check status for (returned by async refresh calls). A JSON array.",
+          "type": "json"
+        },
+        "linkedin_urls": {
+          "label": "LinkedIn URLs",
+          "description": "LinkedIn company page URLs to refresh. A JSON array.",
+          "type": "json"
+        },
+        "domains": {
+          "label": "Domains",
+          "description": "Company domains to refresh, e.g. \"example.com\". A JSON array.",
+          "type": "json"
+        },
+        "realtime": {
+          "label": "Realtime",
+          "description": "If true, wait for enrichment (up to ~25s) and return company data inline. If false, return job IDs immediately.",
+          "type": "boolean",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.village.ai/v2/companies/refresh",
+        "body": {
+          "realtime": "{{realtime}}",
+          "linkedin_urls": "{{linkedin_urls}}",
+          "domains": "{{domains}}",
+          "job_ids": "{{job_ids}}"
+        }
+      },
+      "beforeRequest": "const body = { realtime: request.body.realtime }; for (const key of ['linkedin_urls', 'domains', 'job_ids']) { const values = Array.isArray(request.body[key]) ? request.body[key].map(String) : []; if (values.length > 0) body[key] = values; } if (!body.linkedin_urls && !body.domains && !body.job_ids) throw new Error('At least one of linkedin_urls, domains, or job_ids must be provided'); request.body = body; return request;"
+    },
+    "enrich_company": {
+      "label": "Enrich Company",
+      "description": "Get detailed information about a company by domain, LinkedIn URL, or any URL. Returns name, website, LinkedIn URL, logo, employee count, industry, founded year, and description.",
+      "inputs": {
+        "domain": {
+          "label": "Domain",
+          "description": "Company domain, e.g. \"example.com\" (provide one of: domain, linkedin_url, url)"
+        },
+        "linkedin_url": {
+          "label": "LinkedIn URL",
+          "description": "LinkedIn company page URL, e.g. \"https://linkedin.com/company/acme-corp\" (provide one of: domain, linkedin_url, url)"
+        },
+        "url": {
+          "label": "URL",
+          "description": "Generic company URL (auto-detected) (provide one of: domain, linkedin_url, url)"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.village.ai/v2/companies/enrich",
+        "body": {
+          "domain": "{{domain}}",
+          "linkedin_url": "{{linkedin_url}}",
+          "url": "{{url}}"
+        }
+      },
+      "beforeRequest": "const given = [\"domain\", \"linkedin_url\", \"url\"].filter(key => request.body[key] !== undefined); if (given.length === 0) throw new Error('Provide one of: domain, linkedin_url, url'); if (given.length > 1) throw new Error('Provide only one of: domain, linkedin_url, url'); return request;"
+    },
+    "enrich_company_bulk": {
+      "label": "Enrich Company (Bulk)",
+      "description": "Get detailed information for up to 10 companies in a single request. Each result contains either company data or an error.",
+      "inputs": {
+        "identifiers": {
+          "label": "Identifiers",
+          "description": "Up to 10 companies to look up. Each row specifies an identifier type and value. Each item is {\"identifierType\": \"domain\", \"linkedin_url\" or \"url\", \"identifierValue\": \"...\"}.",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.village.ai/v2/companies/enrich/bulk",
+        "body": {
+          "identifiers": "{{identifiers}}"
+        }
+      },
+      "beforeRequest": "const identifiers = request.body.identifiers ?? []; if (identifiers.length === 0) throw new Error('At least one identifier is required'); if (identifiers.length > 10) throw new Error('Maximum 10 identifiers per bulk request'); request.body.identifiers = identifiers.map((item, index) => { if (!item.identifierType || !item.identifierValue) throw new Error('Identifier at index ' + index + ' is missing identifierType or identifierValue'); return { [item.identifierType]: item.identifierValue }; }); return request;"
+    },
+    "get_company_paths": {
+      "label": "Get Company Paths",
+      "description": "Find introduction paths to people at a specific company. Returns up to 50 employees you can reach through your network, ranked by connection strength.",
+      "inputs": {
+        "domain": {
+          "label": "Domain",
+          "description": "Company domain, e.g. \"acme.com\" (provide one of: domain, linkedin_url, url)"
+        },
+        "linkedin_url": {
+          "label": "LinkedIn URL",
+          "description": "LinkedIn company page URL, e.g. \"https://linkedin.com/company/acme-corp\" (provide one of: domain, linkedin_url, url)"
+        },
+        "url": {
+          "label": "URL",
+          "description": "Generic company URL (auto-detected) (provide one of: domain, linkedin_url, url)"
+        },
+        "cursor": {
+          "label": "Cursor",
+          "description": "Opaque cursor for pagination (from previous response)"
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Number of results per page (default 25, max 50)",
+          "type": "number"
+        },
+        "connection_degrees": {
+          "label": "Connection Degrees",
+          "description": "Filter by connection degree (1=direct, 2=second-degree, 3=third-degree). Provide one or more values. A JSON array.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.village.ai/v2/companies/paths",
+        "body": {
+          "domain": "{{domain}}",
+          "linkedin_url": "{{linkedin_url}}",
+          "url": "{{url}}",
+          "cursor": "{{cursor}}",
+          "limit": "{{limit}}",
+          "connection_degrees": "{{connection_degrees}}"
+        }
+      },
+      "beforeRequest": "const given = [\"domain\", \"linkedin_url\", \"url\"].filter(key => request.body[key] !== undefined); if (given.length === 0) throw new Error('Provide one of: domain, linkedin_url, url'); if (given.length > 1) throw new Error('Provide only one of: domain, linkedin_url, url'); if (Array.isArray(request.body.connection_degrees)) request.body.connection_degrees = request.body.connection_degrees.map(Number); return request;"
+    },
+    "list_companies": {
+      "label": "List Companies",
+      "description": "Get your top-connected companies ranked by network strength. Returns a paginated list with connection score, label, LinkedIn URL, domain, and enrichment data.",
+      "inputs": {
+        "cursor": {
+          "label": "Cursor",
+          "description": "Opaque cursor for pagination (from previous response)"
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Number of results per page (default 25, max 100)",
+          "type": "number"
+        },
+        "connection_degrees": {
+          "label": "Connection Degrees",
+          "description": "Filter by connection degree (1=direct, 2=second-degree, 3=third-degree). Provide one or more values. A JSON array.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.village.ai/v2/companies",
+        "body": {
+          "cursor": "{{cursor}}",
+          "limit": "{{limit}}",
+          "connection_degrees": "{{connection_degrees}}"
+        }
+      },
+      "beforeRequest": "if (Array.isArray(request.body.connection_degrees)) request.body.connection_degrees = request.body.connection_degrees.map(Number); return request;"
+    },
+    "search_companies": {
+      "label": "Search Companies",
+      "description": "Search for companies using natural language (in the \"prompt\" field) and/or structured filters. Returns matching companies with relevance and connection-strength scores; supports cursor-based pagination.",
+      "inputs": {
+        "prompt": {
+          "label": "Prompt",
+          "description": "Natural language search query, e.g. \"Find B2B SaaS companies with 50-200 employees in California\". Either prompt or filters must be provided.",
+          "type": "multiline"
+        },
+        "filters": {
+          "label": "Filters",
+          "description": "Structured filters. Supported keys: name, domain, linkedinUrl, linkedinId, industry, companySize, companyType, country, city, foundedAfter, foundedBefore, keywords.",
+          "type": "json"
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of results per page (default 25, max 100)",
+          "type": "number"
+        },
+        "mode": {
+          "label": "Mode",
+          "description": "Search mode: auto (let system decide), lookup (direct match), simple (LLM-powered), or complex (thinking + high-reasoning SQL generation).",
+          "type": "select",
+          "options": [
+            {
+              "value": "auto",
+              "label": "Auto"
+            },
+            {
+              "value": "lookup",
+              "label": "Lookup"
+            },
+            {
+              "value": "simple",
+              "label": "Simple"
+            },
+            {
+              "value": "complex",
+              "label": "Complex"
+            }
+          ]
+        },
+        "scope": {
+          "label": "Scope",
+          "description": "Search scope: network (connections first) or global (all companies).",
+          "type": "select",
+          "options": [
+            {
+              "value": "network",
+              "label": "Network"
+            },
+            {
+              "value": "global",
+              "label": "Global"
+            }
+          ]
+        },
+        "cursor": {
+          "label": "Cursor",
+          "description": "Pagination cursor (encoded string) from a previous response."
+        },
+        "network_filters": {
+          "label": "Network Filters",
+          "description": "Network path and relationship filters.",
+          "type": "json"
+        },
+        "include_counts": {
+          "label": "Include Counts",
+          "description": "Inline count scope to compute on the first page only. Ignored when cursor is provided and adds latency.",
+          "type": "select",
+          "options": [
+            {
+              "value": "global",
+              "label": "Global"
+            },
+            {
+              "value": "network",
+              "label": "Network"
+            },
+            {
+              "value": "all",
+              "label": "All"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.village.ai/v2/companies/search",
+        "body": {
+          "prompt": "{{prompt}}",
+          "filters": "{{filters}}",
+          "limit": "{{limit}}",
+          "mode": "{{mode}}",
+          "scope": "{{scope}}",
+          "cursor": "{{cursor}}",
+          "network_filters": "{{network_filters}}",
+          "include_counts": "{{include_counts}}"
+        }
+      },
+      "beforeRequest": "if (!request.body.prompt && !request.body.filters) throw new Error('Either prompt or filters must be provided.'); return request;"
+    },
+    "sort_companies": {
+      "label": "Sort Companies",
+      "description": "Rank a list of companies (up to 100 LinkedIn URLs or domains) by how well-connected you are to people there. Each result includes a score, label, LinkedIn URL, and domain.",
+      "inputs": {
+        "companies": {
+          "label": "Companies",
+          "description": "Array of company URLs (LinkedIn URLs or domains), e.g. \"https://linkedin.com/company/acme-corp\" or \"example.com\". Max 100. A JSON array.",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.village.ai/v2/companies/sort",
+        "body": {
+          "companies": "{{companies}}"
+        }
+      },
+      "beforeRequest": "const companies = request.body.companies; if (!Array.isArray(companies) || companies.length === 0) throw new Error('At least one company URL is required'); if (companies.length > 100) throw new Error('Maximum 100 companies per request'); request.body.companies = companies.map(String); return request;"
+    },
+    "join_group": {
+      "label": "Join Group",
+      "description": "Join a group using an invite link. Once joined, you gain access to the shared network of all group members.",
+      "inputs": {
+        "group_invite_link": {
+          "label": "Group Invite Link",
+          "description": "The invite link code shared by a group admin or member",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.village.ai/v2/groups/join",
+        "body": {
+          "group_invite_link": "{{group_invite_link}}"
+        }
+      }
+    },
+    "leave_group": {
+      "label": "Leave Group",
+      "description": "Leave a group you are a member of. If you are the last member, the group is deleted. Admins must remove all other members before leaving.",
+      "inputs": {
+        "group_id": {
+          "label": "Group ID",
+          "description": "ID of the group to leave",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.village.ai/v2/groups/leave",
+        "body": {
+          "group_id": "{{group_id}}"
+        }
+      }
+    },
+    "list_groups": {
+      "label": "List Groups",
+      "description": "Get all groups (communities) you are a member of. Groups allow members to share network access with each other, expanding everyone's reach.",
+      "request": {
+        "method": "GET",
+        "url": "https://api.village.ai/v2/groups"
+      }
+    },
+    "upsert_group": {
+      "label": "Create or Update Group",
+      "description": "Create a new group or update an existing one. To create: provide a name (id is auto-generated). To update: provide group_id (requires admin permissions).",
+      "inputs": {
+        "name": {
+          "label": "Name",
+          "description": "Group name (max 100 characters)",
+          "required": true
+        },
+        "group_id": {
+          "label": "Group ID",
+          "description": "Existing group ID to update. Omit to create a new group."
+        },
+        "logo": {
+          "label": "Logo",
+          "description": "URL to the group logo image"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.village.ai/v2/groups",
+        "body": {
+          "name": "{{name}}",
+          "group_id": "{{group_id}}",
+          "logo": "{{logo}}"
+        }
+      },
+      "outputs": {
+        "id": "$.id"
+      }
+    },
+    "list_integrations": {
+      "label": "List Gmail Integrations",
+      "description": "Get all your connected Gmail integrations, including rate limits, timezone, the default sending account, and whether you can add more based on your plan.",
+      "request": {
+        "method": "GET",
+        "url": "https://api.village.ai/v2/integrations"
+      }
+    },
+    "resync_integration": {
+      "label": "Reset Integration",
+      "description": "Trigger a full resync of a Google or LinkedIn integration. Clears sync cursors and re-imports all contacts/calendar data; all graph operations use MERGE so it is fully idempotent.",
+      "inputs": {
+        "id": {
+          "label": "Integration ID",
+          "description": "Numeric ID of the integration to resync",
+          "type": "number",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.village.ai/v2/integrations/{{id}}/resync"
+      }
+    },
+    "update_integration": {
+      "label": "Update Gmail Integration",
+      "description": "Update settings for a connected Gmail integration — adjust rate limits, timezone, status, or set as the default sending account. Provide only the fields you want to change.",
+      "inputs": {
+        "id": {
+          "label": "Integration ID",
+          "description": "Numeric ID of the integration to update",
+          "type": "number",
+          "required": true
+        },
+        "email_sending_per_day": {
+          "label": "Emails Per Day",
+          "description": "Daily email sending limit (1-500)",
+          "type": "number"
+        },
+        "email_sending_per_hour": {
+          "label": "Emails Per Hour",
+          "description": "Hourly email sending limit (1-100)",
+          "type": "number"
+        },
+        "email_sending_min_delay_seconds": {
+          "label": "Minimum Delay (seconds)",
+          "description": "Minimum delay between emails in seconds (60-3600)",
+          "type": "number"
+        },
+        "timezone": {
+          "label": "Timezone",
+          "description": "Timezone for scheduling, e.g. \"America/New_York\""
+        },
+        "status": {
+          "label": "Status",
+          "description": "Integration status",
+          "type": "select",
+          "options": [
+            {
+              "value": "connected",
+              "label": "Connected"
+            },
+            {
+              "value": "disconnected",
+              "label": "Disconnected"
+            },
+            {
+              "value": "failed",
+              "label": "Failed"
+            }
+          ]
+        },
+        "email_sending_default": {
+          "label": "Set as Default",
+          "description": "Whether this should be the default integration for email sending",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://api.village.ai/v2/integrations/{{id}}",
+        "body": {
+          "email_sending_per_day": "{{email_sending_per_day}}",
+          "email_sending_per_hour": "{{email_sending_per_hour}}",
+          "email_sending_min_delay_seconds": "{{email_sending_min_delay_seconds}}",
+          "timezone": "{{timezone}}",
+          "status": "{{status}}",
+          "email_sending_default": "{{email_sending_default}}"
+        }
+      },
+      "beforeRequest": "const ranges = { email_sending_per_day: [1, 500], email_sending_per_hour: [1, 100], email_sending_min_delay_seconds: [60, 3600] }; for (const [key, [low, high]] of Object.entries(ranges)) { const value = request.body[key]; if (value != null && (!Number.isInteger(value) || value < low || value > high)) throw new Error(key + ' must be an integer between ' + low + ' and ' + high + ' (got ' + value + ')'); } if (Object.keys(request.body).length === 0) throw new Error('At least one field must be provided for update (email_sending_per_day, email_sending_per_hour, email_sending_min_delay_seconds, timezone, status, or email_sending_default)'); return request;"
+    },
+    "add_list_items": {
+      "label": "Add items to list",
+      "description": "Add people or companies to a list. Each identifier is resolved (LinkedIn URLs, company domains, emails, or graph IDs) and added. Returns detailed results per item.",
+      "inputs": {
+        "id": {
+          "label": "List ID",
+          "description": "List ID",
+          "required": true
+        },
+        "items": {
+          "label": "Items",
+          "description": "Items to add to the list (max 100) Each item is {\"identifier\": \"...\", \"type\": \"people\" or \"company\"}.",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.village.ai/v2/lists/{{id}}/items",
+        "body": {
+          "items": "{{items}}"
+        }
+      },
+      "beforeRequest": "const items = request.body.items ?? []; if (items.length === 0) throw new Error('At least one item is required'); if (items.length > 100) throw new Error('Maximum 100 items per request'); request.body.items = items.map((item, index) => { if (!item.identifier) throw new Error(\"Item at index \" + index + \" is missing required 'identifier'\"); const entry = { identifier: item.identifier }; if (item.type) entry.type = item.type; return entry; }); return request;"
+    },
+    "check_list_membership": {
+      "label": "Check list membership",
+      "description": "Check which lists contain the given entities. Returns a map of entity_id to the lists that contain it. Entities not in any list are omitted.",
+      "inputs": {
+        "entity_ids": {
+          "label": "Entity IDs",
+          "description": "Array of entity IDs (person or company IDs) to check membership for (max 1000) A JSON array.",
+          "type": "json",
+          "required": true
+        },
+        "entity_type": {
+          "label": "Entity Type",
+          "description": "Type of entities being checked",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "people",
+              "label": "People"
+            },
+            {
+              "value": "company",
+              "label": "Company"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.village.ai/v2/lists/check-membership",
+        "body": {
+          "entity_ids": "{{entity_ids}}",
+          "entity_type": "{{entity_type}}"
+        }
+      },
+      "beforeRequest": "const ids = request.body.entity_ids ?? []; if (ids.length === 0) throw new Error('At least one entity ID is required'); if (ids.length > 1000) throw new Error('Maximum 1000 entity IDs per request'); request.body.entity_ids = ids; return request;"
+    },
+    "create_list": {
+      "label": "Create a list",
+      "description": "Create a new list to organize people or companies. The creator becomes the list owner. List creation may be limited based on your subscription plan.",
+      "inputs": {
+        "title": {
+          "label": "Title",
+          "description": "List title",
+          "required": true
+        },
+        "type": {
+          "label": "Type",
+          "description": "Type of entities in the list",
+          "type": "select",
+          "defaultValue": "people",
+          "options": [
+            {
+              "value": "people",
+              "label": "People"
+            },
+            {
+              "value": "company",
+              "label": "Company"
+            }
+          ]
+        },
+        "description": {
+          "label": "Description",
+          "description": "Optional list description",
+          "type": "multiline"
+        },
+        "is_public": {
+          "label": "Is Public",
+          "description": "Whether the list is publicly accessible",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.village.ai/v2/lists",
+        "body": {
+          "title": "{{title}}",
+          "type": "{{type}}",
+          "description": "{{description}}",
+          "is_public": "{{is_public}}"
+        }
+      },
+      "outputs": {
+        "id": "$.id"
+      }
+    },
+    "delete_list": {
+      "label": "Delete a list",
+      "description": "Permanently delete a list and all its items. This action cannot be undone.",
+      "inputs": {
+        "id": {
+          "label": "List ID",
+          "description": "List ID",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.village.ai/v2/lists/{{id}}"
+      }
+    },
+    "get_list": {
+      "label": "Get a list",
+      "description": "Get a list with all its items. Returns the list metadata plus paginated items. For people lists, items are sorted by connection strength (warmth score).",
+      "inputs": {
+        "id": {
+          "label": "List ID",
+          "description": "List ID",
+          "required": true
+        },
+        "cursor": {
+          "label": "Cursor",
+          "description": "Opaque cursor for items pagination (from previous response)"
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Number of items per page (max 100)",
+          "type": "number",
+          "defaultValue": "20"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.village.ai/v2/lists/{{id}}",
+        "query": {
+          "cursor": "{{cursor}}",
+          "limit": "{{limit}}"
+        }
+      }
+    },
+    "list_lists": {
+      "label": "List all lists",
+      "description": "Get all your saved lists of people or companies. Supports pagination, filtering by type, and searching by title.",
+      "inputs": {
+        "cursor": {
+          "label": "Cursor",
+          "description": "Opaque cursor for pagination (from previous response)"
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Number of lists per page (max 100)",
+          "type": "number",
+          "defaultValue": "20"
+        },
+        "type": {
+          "label": "Type",
+          "description": "Filter lists by type",
+          "type": "select",
+          "options": [
+            {
+              "value": "people",
+              "label": "People"
+            },
+            {
+              "value": "company",
+              "label": "Company"
+            }
+          ]
+        },
+        "search": {
+          "label": "Search",
+          "description": "Search lists by title"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.village.ai/v2/lists",
+        "query": {
+          "cursor": "{{cursor}}",
+          "limit": "{{limit}}",
+          "type": "{{type}}",
+          "search": "{{search}}"
+        }
+      }
+    },
+    "update_list": {
+      "label": "Update a list",
+      "description": "Update a list's metadata. Provide at least one of: title or description. The list type cannot be changed after creation.",
+      "inputs": {
+        "id": {
+          "label": "List ID",
+          "description": "List ID",
+          "required": true
+        },
+        "title": {
+          "label": "Title",
+          "description": "New list title"
+        },
+        "description": {
+          "label": "Description",
+          "description": "New list description. Leave blank to keep unchanged.",
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://api.village.ai/v2/lists/{{id}}",
+        "body": {
+          "title": "{{title}}",
+          "description": "{{description}}"
+        }
+      },
+      "beforeRequest": "if (Object.keys(request.body).length === 0) throw new Error('At least one field must be provided for update (title or description)'); return request;"
+    },
+    "enrich_person": {
+      "label": "Enrich Person",
+      "description": "Get detailed profile information (name, headline, current company, location, photo, LinkedIn URL) for a person identified by LinkedIn URL or generic URL.",
+      "inputs": {
+        "linkedin_url": {
+          "label": "LinkedIn URL",
+          "description": "LinkedIn profile URL, e.g. https://linkedin.com/in/johndoe (provide this OR url)"
+        },
+        "url": {
+          "label": "URL",
+          "description": "Generic URL — auto-detected (provide this OR linkedin_url)"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.village.ai/v2/people/enrich",
+        "body": {
+          "linkedin_url": "{{linkedin_url}}",
+          "url": "{{url}}"
+        }
+      },
+      "beforeRequest": "const given = [\"linkedin_url\", \"url\"].filter(key => request.body[key] !== undefined); if (given.length === 0) throw new Error('Provide one of: linkedin_url, url'); if (given.length > 1) throw new Error('Provide only one of: linkedin_url, url'); return request;"
+    },
+    "enrich_person_bulk": {
+      "label": "Enrich Person (Bulk)",
+      "description": "Get detailed profile information for up to 10 people in a single request. Partial results are returned if some lookups fail — check each result for success or error status.",
+      "inputs": {
+        "identifiers": {
+          "label": "Identifiers",
+          "description": "Up to 10 people to enrich. Each row is one person. Each item is {\"identifierType\": \"linkedin_url\" or \"url\", \"identifierValue\": \"...\"}.",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.village.ai/v2/people/enrich/bulk",
+        "body": {
+          "identifiers": "{{identifiers}}"
+        }
+      },
+      "beforeRequest": "const identifiers = request.body.identifiers; if (!Array.isArray(identifiers) || identifiers.length === 0) throw new Error('At least one identifier is required.'); if (identifiers.length > 10) throw new Error('Maximum 10 identifiers per bulk request.'); request.body.identifiers = identifiers.map((item, index) => { if (!item?.identifierType || !item?.identifierValue) throw new Error('Identifier at index ' + index + ' is missing identifierType or identifierValue.'); return { [item.identifierType]: item.identifierValue }; }); return request;"
+    },
+    "enrich_person_email": {
+      "label": "Enrich Person Email",
+      "description": "Find the email address for a person by LinkedIn URL or generic URL. Returns the verified email address if found, or null if unavailable.",
+      "inputs": {
+        "linkedin_url": {
+          "label": "LinkedIn URL",
+          "description": "LinkedIn profile URL, e.g. https://linkedin.com/in/johndoe (provide this OR url)"
+        },
+        "url": {
+          "label": "URL",
+          "description": "Generic URL — auto-detected (provide this OR linkedin_url)"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.village.ai/v2/people/enrich/emails",
+        "body": {
+          "linkedin_url": "{{linkedin_url}}",
+          "url": "{{url}}"
+        }
+      },
+      "beforeRequest": "const given = [\"linkedin_url\", \"url\"].filter(key => request.body[key] !== undefined); if (given.length === 0) throw new Error('Provide one of: linkedin_url, url'); if (given.length > 1) throw new Error('Provide only one of: linkedin_url, url'); return request;"
+    },
+    "enrich_person_email_bulk": {
+      "label": "Enrich Person Email (Bulk)",
+      "description": "Find email addresses for up to 10 people in a single request. Returns email addresses where found, with error messages for failed lookups.",
+      "inputs": {
+        "identifiers": {
+          "label": "Identifiers",
+          "description": "Up to 10 people to look up emails for. Each row is one person. Each item is {\"identifierType\": \"linkedin_url\" or \"url\", \"identifierValue\": \"...\"}.",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.village.ai/v2/people/enrich/emails/bulk",
+        "body": {
+          "identifiers": "{{identifiers}}"
+        }
+      },
+      "beforeRequest": "const identifiers = request.body.identifiers; if (!Array.isArray(identifiers) || identifiers.length === 0) throw new Error('At least one identifier is required.'); if (identifiers.length > 10) throw new Error('Maximum 10 identifiers per bulk request.'); request.body.identifiers = identifiers.map((item, index) => { if (!item?.identifierType || !item?.identifierValue) throw new Error('Identifier at index ' + index + ' is missing identifierType or identifierValue.'); return { [item.identifierType]: item.identifierValue }; }); return request;"
+    },
+    "get_person_paths": {
+      "label": "Get Person Paths",
+      "description": "Find introduction paths to reach a specific person through your professional network. Provide a LinkedIn URL and get back direct connections, mutual contacts, and connection strength scores (0-100).",
+      "inputs": {
+        "linkedin_url": {
+          "label": "LinkedIn URL",
+          "description": "LinkedIn profile URL of the target person, e.g. https://linkedin.com/in/johndoe (provide this OR url)"
+        },
+        "url": {
+          "label": "URL",
+          "description": "Generic URL — auto-detected (provide this OR linkedin_url)"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.village.ai/v2/people/paths",
+        "body": {
+          "linkedin_url": "{{linkedin_url}}",
+          "url": "{{url}}"
+        }
+      },
+      "beforeRequest": "const given = [\"linkedin_url\", \"url\"].filter(key => request.body[key] !== undefined); if (given.length === 0) throw new Error('Provide one of: linkedin_url, url'); if (given.length > 1) throw new Error('Provide only one of: linkedin_url, url'); return request;"
+    },
+    "get_person_paths_bulk": {
+      "label": "Get Person Paths (Bulk)",
+      "description": "Find introduction paths to multiple people in a single request. Provide up to 100 LinkedIn IDs (the slug after linkedin.com/in/) and get connection paths for each.",
+      "inputs": {
+        "linkedin_ids": {
+          "label": "LinkedIn IDs",
+          "description": "LinkedIn identifiers (e.g. \"johndoe\" from linkedin.com/in/johndoe). Max 100 per request. A JSON array.",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.village.ai/v2/people/paths/bulk",
+        "body": {
+          "linkedin_ids": "{{linkedin_ids}}"
+        }
+      },
+      "beforeRequest": "const ids = request.body.linkedin_ids; if (!Array.isArray(ids) || ids.length === 0) throw new Error('At least one LinkedIn ID is required.'); if (ids.length > 100) throw new Error('Maximum 100 LinkedIn IDs per bulk request.'); return request;"
+    },
+    "list_people": {
+      "label": "List People",
+      "description": "Get your network contacts ranked by connection strength. Returns a paginated list with enrichment data, supporting cursor-based pagination and optional connection-degree filtering.",
+      "inputs": {
+        "cursor": {
+          "label": "Cursor",
+          "description": "Opaque cursor for pagination (from previous response)"
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Number of results per page (default 25, max 100)",
+          "type": "number",
+          "defaultValue": "25"
+        },
+        "connection_degrees": {
+          "label": "Connection Degrees",
+          "description": "Filter by connection degree (1=direct, 2=second-degree, 3=third-degree). Provide one or more values. A JSON array.",
+          "type": "json"
+        },
+        "company_domain": {
+          "label": "Company Domain",
+          "description": "Filter by current company domain (exact match), e.g. \"google.com\""
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.village.ai/v2/people",
+        "body": {
+          "cursor": "{{cursor}}",
+          "limit": "{{limit}}",
+          "connection_degrees": "{{connection_degrees}}",
+          "company_domain": "{{company_domain}}"
+        }
+      },
+      "beforeRequest": "if (Array.isArray(request.body.connection_degrees)) request.body.connection_degrees = request.body.connection_degrees.map(Number); return request;"
+    },
+    "people_refresh": {
+      "label": "Refresh People",
+      "description": "Refresh or import people data from LinkedIn URLs. In realtime mode, returns enriched person data immediately (or times out after 25 seconds and converts to async). In async mode, returns job IDs for later status checking.",
+      "inputs": {
+        "linkedin_urls": {
+          "label": "LinkedIn URLs",
+          "description": "LinkedIn profile URLs to refresh. At least one is required. A JSON array.",
+          "type": "json",
+          "required": true
+        },
+        "realtime": {
+          "label": "Realtime",
+          "description": "If true, waits synchronously for results (up to 25s). If false, returns job IDs for async processing.",
+          "type": "boolean",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.village.ai/v2/people/refresh",
+        "body": {
+          "linkedin_urls": "{{linkedin_urls}}",
+          "realtime": "{{realtime}}"
+        }
+      },
+      "beforeRequest": "const urls = request.body.linkedin_urls; if (!Array.isArray(urls) || urls.length === 0) throw new Error('At least one LinkedIn URL is required.'); request.body.linkedin_urls = urls.map(String); return request;"
+    },
+    "search_people": {
+      "label": "Search People",
+      "description": "Search for people using natural language queries. Pass your search text in \"prompt\" (e.g. \"engineers at Google\"). Supports cursor-based pagination and structured filters.",
+      "inputs": {
+        "prompt": {
+          "label": "Prompt",
+          "description": "Natural language search query (e.g. \"Find CTOs at SaaS companies in San Francisco\")",
+          "type": "multiline"
+        },
+        "filters": {
+          "label": "Filters",
+          "description": "Structured search filters as JSON (alternative or complement to prompt). Either prompt or filters must be provided.",
+          "type": "json"
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of results per page (1-100, default 25)",
+          "type": "number",
+          "defaultValue": "25"
+        },
+        "mode": {
+          "label": "Mode",
+          "description": "Search execution mode. \"auto\" classifies the query. Use \"lookup\" for direct matches, \"simple\" for firmographic queries, and \"complex\" for multi-step queries.",
+          "type": "select",
+          "options": [
+            {
+              "value": "auto",
+              "label": "Auto"
+            },
+            {
+              "value": "lookup",
+              "label": "Lookup"
+            },
+            {
+              "value": "simple",
+              "label": "Simple"
+            },
+            {
+              "value": "complex",
+              "label": "Complex"
+            }
+          ]
+        },
+        "scope": {
+          "label": "Scope",
+          "description": "\"network\" searches your connections first, \"global\" searches everyone, \"specific_list\" restricts to caller-provided identifiers (requires specific_list_data).",
+          "type": "select",
+          "options": [
+            {
+              "value": "network",
+              "label": "Network"
+            },
+            {
+              "value": "global",
+              "label": "Global"
+            },
+            {
+              "value": "specific_list",
+              "label": "Specific List"
+            }
+          ]
+        },
+        "cursor": {
+          "label": "Cursor",
+          "description": "Pagination cursor (encoded string from a previous response)"
+        },
+        "network_filters": {
+          "label": "Network Filters",
+          "description": "Network filtering options as JSON",
+          "type": "json"
+        },
+        "include_counts": {
+          "label": "Include Counts",
+          "description": "Inline count scopes to compute on the first page only. Ignored when cursor is provided and adds latency.",
+          "type": "select",
+          "options": [
+            {
+              "value": "global",
+              "label": "Global"
+            },
+            {
+              "value": "network",
+              "label": "Network"
+            },
+            {
+              "value": "all",
+              "label": "All"
+            }
+          ]
+        },
+        "specific_list_data": {
+          "label": "Specific List Data",
+          "description": "Required when scope=\"specific_list\". Caller-supplied candidate set (1..50,000 entries). Each entry is a bare LinkedIn identifier or { id, score? }.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.village.ai/v2/people/search",
+        "body": {
+          "prompt": "{{prompt}}",
+          "filters": "{{filters}}",
+          "limit": "{{limit}}",
+          "mode": "{{mode}}",
+          "scope": "{{scope}}",
+          "cursor": "{{cursor}}",
+          "network_filters": "{{network_filters}}",
+          "include_counts": "{{include_counts}}",
+          "specific_list_data": "{{specific_list_data}}"
+        }
+      },
+      "beforeRequest": "if (!request.body.prompt && !request.body.filters) throw new Error('Either prompt or filters must be provided.'); return request;"
+    },
+    "sort_people": {
+      "label": "Sort People",
+      "description": "Rank a list of LinkedIn profile URLs by how well-connected you are to them. Returns each person sorted by connection strength (highest first), with score (0-100) and score_label.",
+      "inputs": {
+        "people": {
+          "label": "People",
+          "description": "Array of LinkedIn person profile URLs (e.g. https://linkedin.com/in/johndoe). At least one is required. A JSON array.",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.village.ai/v2/people/sort",
+        "body": {
+          "people": "{{people}}"
+        }
+      },
+      "beforeRequest": "const people = request.body.people; if (!Array.isArray(people) || people.length === 0) throw new Error('At least one person URL is required.'); request.body.people = people.map(String); return request;"
+    },
+    "join_team": {
+      "label": "Join Team",
+      "description": "Join a team using an invite link. Provide the invite link code (the part after /join/ in the URL).",
+      "inputs": {
+        "team_invite_link": {
+          "label": "Team Invite Link",
+          "description": "The invite link code shared by a team admin (e.g. the part after /join/ in the invite URL)",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.village.ai/v2/teams/join",
+        "body": {
+          "team_invite_link": "{{team_invite_link}}"
+        }
+      }
+    },
+    "leave_team": {
+      "label": "Leave Team",
+      "description": "Leave a team you are a member of. If you are the last member of a non-paid team, the team is deleted. Admins of paid teams cannot leave — use Cancel Plan instead.",
+      "inputs": {
+        "team_id": {
+          "label": "Team ID",
+          "description": "ID of the team to leave",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.village.ai/v2/teams/leave",
+        "body": {
+          "team_id": "{{team_id}}"
+        }
+      }
+    },
+    "list_teams": {
+      "label": "List Teams",
+      "description": "Get all teams you are a member of. Each team includes id, name, logo, invite_link, and an is_admin flag indicating your admin status.",
+      "request": {
+        "method": "GET",
+        "url": "https://api.village.ai/v2/teams"
+      }
+    },
+    "upsert_team": {
+      "label": "Create or Update Team",
+      "description": "Create or update a team. The team ID is derived from the team name; repeated calls with the same name update the same team (requires admin permissions on update).",
+      "inputs": {
+        "name": {
+          "label": "Name",
+          "description": "Team name (max 100 characters)",
+          "required": true
+        },
+        "logo": {
+          "label": "Logo",
+          "description": "URL to the team logo image"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.village.ai/v2/teams",
+        "body": {
+          "name": "{{name}}",
+          "logo": "{{logo}}"
+        }
+      },
+      "outputs": {
+        "id": "$.id"
+      }
+    },
+    "get_current_user": {
+      "label": "Get Current User",
+      "description": "Get profile information for the authenticated user — id, email, name, account creation date, sync completion status, and active flag. Useful for verifying auth and checking whether the user's network data is ready.",
+      "request": {
+        "method": "GET",
+        "url": "https://api.village.ai/v2/user/me"
+      }
+    },
+    "import_relationships": {
+      "label": "Import Relationships",
+      "description": "Import manual relationships to expand your network graph — useful for adding people you know but aren't connected to digitally. Provide email addresses or LinkedIn URLs with optional scores (0-10); higher scores indicate stronger relationships. Max 1000 per request.",
+      "inputs": {
+        "people": {
+          "label": "People",
+          "description": "Up to 1000 people to import. Each row: identifier (email or LinkedIn URL), optional score (0-10), optional relationship type. Each item is {\"identifier\": \"...\", \"score\": 0-10, \"user_relationship_type\": \"met_in_person\", \"worked_together\", \"studied_together\", \"attended_event\" or \"introduced_by_someone\"}.",
+          "type": "json",
+          "required": true
+        },
+        "min_score": {
+          "label": "Default Score",
+          "description": "Default score (0-10) applied to rows without an explicit score.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.village.ai/v2/user/relationships",
+        "body": {
+          "people": "{{people}}",
+          "min_score": "{{min_score}}"
+        }
+      },
+      "beforeRequest": "const people = request.body.people ?? []; const minScore = request.body.min_score; if (people.length === 0) throw new Error('At least one person is required'); if (people.length > 1000) throw new Error('Maximum 1000 people allowed per request (got ' + people.length + ')'); if (minScore != null && (minScore < 0 || minScore > 10)) throw new Error('Default Score must be between 0 and 10 (got ' + minScore + ')'); const body = { people: people.map((person, index) => { const identifier = (person.identifier ?? '').trim(); if (!identifier) throw new Error('people[' + index + '].identifier is required'); const entry = { identifier }; if (person.score !== undefined && person.score !== null) { if (person.score < 0 || person.score > 10) throw new Error('people[' + index + '].score must be between 0 and 10 (got ' + person.score + ')'); entry.score = person.score; } if (person.user_relationship_type) entry.user_relationship_type = person.user_relationship_type; return entry; }) }; if (minScore != null) body.min_score = minScore; request.body = body; return request;"
+    }
+  }
+}

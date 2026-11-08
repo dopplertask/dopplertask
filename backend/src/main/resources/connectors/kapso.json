@@ -1,0 +1,989 @@
+{
+  "name": "kapso",
+  "label": "Kapso",
+  "description": "Send and receive WhatsApp messages, media, templates, and more using the Kapso WhatsApp API.",
+  "icon": "",
+  "hosts": [
+    "api.kapso.ai"
+  ],
+  "baseUrl": "https://api.kapso.ai/meta/whatsapp",
+  "upstream": {
+    "package": "@activepieces/piece-kapso",
+    "version": "0.2.1"
+  },
+  "credential": {
+    "fields": {
+      "apiKey": {
+        "label": "API Key",
+        "description": "Your Kapso API key. You can obtain it from your [Kapso dashboard](https://app.kapso.ai).",
+        "secret": true,
+        "required": true
+      }
+    },
+    "headers": {
+      "X-API-Key": "{{credential.apiKey}}"
+    }
+  },
+  "actions": {
+    "send_text_message": {
+      "label": "Send Text Message",
+      "description": "Send a text message via WhatsApp.",
+      "audience": "both",
+      "inputs": {
+        "businessAccountId": {
+          "label": "Business Account ID",
+          "description": "Your WhatsApp Business Account (WABA) ID. Find it in your [Kapso dashboard](https://app.kapso.ai).",
+          "required": true
+        },
+        "phoneNumberId": {
+          "label": "Phone Number",
+          "description": "Select the WhatsApp phone number to send from.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.kapso.ai/meta/whatsapp/v23.0/{{businessAccountId}}/phone_numbers"
+            },
+            "list": "$.data",
+            "label": "$.verified_name",
+            "value": "$.id"
+          }
+        },
+        "to": {
+          "label": "Recipient Phone Number",
+          "description": "The recipient's phone number in international format (e.g. 15551234567).",
+          "required": true
+        },
+        "body": {
+          "label": "Message",
+          "description": "The text message to send.",
+          "required": true,
+          "type": "multiline"
+        },
+        "previewUrl": {
+          "label": "Preview URL",
+          "description": "Whether to show a link preview if the message contains a URL.",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.kapso.ai/meta/whatsapp/v23.0/{{phoneNumberId}}/messages",
+        "body": {
+          "messaging_product": "whatsapp",
+          "recipient_type": "individual",
+          "to": "{{to}}",
+          "type": "text",
+          "text": {
+            "body": "{{body}}",
+            "preview_url": "{{previewUrl}}"
+          }
+        }
+      },
+      "outputs": {
+        "messageId": "$.messages[0].id"
+      },
+      "afterResponse": "const camel = (v) => Array.isArray(v) ? v.map(camel) : v && Object.prototype.toString.call(v) === '[object Object]' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k.replace(/[\\-_]([a-z0-9])/gi, (m, l) => l.toUpperCase()), camel(x)])) : v; return camel(response);"
+    },
+    "send_buttons": {
+      "label": "Send Button Message",
+      "description": "Send an interactive button message via WhatsApp (up to 3 buttons).",
+      "audience": "both",
+      "inputs": {
+        "businessAccountId": {
+          "label": "Business Account ID",
+          "description": "Your WhatsApp Business Account (WABA) ID. Find it in your [Kapso dashboard](https://app.kapso.ai).",
+          "required": true
+        },
+        "phoneNumberId": {
+          "label": "Phone Number",
+          "description": "Select the WhatsApp phone number to send from.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.kapso.ai/meta/whatsapp/v23.0/{{businessAccountId}}/phone_numbers"
+            },
+            "list": "$.data",
+            "label": "$.verified_name",
+            "value": "$.id"
+          }
+        },
+        "to": {
+          "label": "Recipient Phone Number",
+          "description": "The recipient's phone number in international format (e.g. 15551234567).",
+          "required": true
+        },
+        "bodyText": {
+          "label": "Body Text",
+          "description": "The message body displayed above the buttons.",
+          "required": true,
+          "type": "multiline"
+        },
+        "buttons": {
+          "label": "Buttons",
+          "description": "Up to 3 buttons, as a JSON array of {\"id\", \"title\"} (title max 20 characters).",
+          "required": true,
+          "type": "json"
+        },
+        "footerText": {
+          "label": "Footer Text",
+          "description": "Optional footer text displayed below the buttons."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.kapso.ai/meta/whatsapp/v23.0/{{phoneNumberId}}/messages",
+        "body": {
+          "messaging_product": "whatsapp",
+          "recipient_type": "individual",
+          "to": "{{to}}",
+          "type": "interactive",
+          "interactive": {
+            "type": "button",
+            "body": {
+              "text": "{{bodyText}}"
+            },
+            "footer": {
+              "text": "{{footerText}}"
+            }
+          }
+        }
+      },
+      "beforeRequest": "const i = request.body.interactive; i.action = { buttons: JSON.parse(inputs.buttons).map((b) => ({ type: 'reply', reply: { id: b.id, title: b.title } })) }; if (!inputs.footerText) delete i.footer; return request;",
+      "outputs": {
+        "messageId": "$.messages[0].id"
+      },
+      "afterResponse": "const camel = (v) => Array.isArray(v) ? v.map(camel) : v && Object.prototype.toString.call(v) === '[object Object]' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k.replace(/[\\-_]([a-z0-9])/gi, (m, l) => l.toUpperCase()), camel(x)])) : v; return camel(response);"
+    },
+    "send_list_message": {
+      "label": "Send List Message",
+      "description": "Send an interactive list message via WhatsApp.",
+      "audience": "both",
+      "inputs": {
+        "businessAccountId": {
+          "label": "Business Account ID",
+          "description": "Your WhatsApp Business Account (WABA) ID. Find it in your [Kapso dashboard](https://app.kapso.ai).",
+          "required": true
+        },
+        "phoneNumberId": {
+          "label": "Phone Number",
+          "description": "Select the WhatsApp phone number to send from.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.kapso.ai/meta/whatsapp/v23.0/{{businessAccountId}}/phone_numbers"
+            },
+            "list": "$.data",
+            "label": "$.verified_name",
+            "value": "$.id"
+          }
+        },
+        "to": {
+          "label": "Recipient Phone Number",
+          "description": "The recipient's phone number in international format (e.g. 15551234567).",
+          "required": true
+        },
+        "bodyText": {
+          "label": "Body Text",
+          "description": "The message body displayed above the list.",
+          "required": true,
+          "type": "multiline"
+        },
+        "buttonText": {
+          "label": "Button Text",
+          "description": "The text on the button that opens the list (max 20 characters).",
+          "required": true
+        },
+        "sections": {
+          "label": "Sections",
+          "description": "List sections, as a JSON array of {\"title\", \"rows\"}; each row needs id, title, and optionally description.",
+          "required": true,
+          "type": "json"
+        },
+        "headerText": {
+          "label": "Header Text",
+          "description": "Optional header text."
+        },
+        "footerText": {
+          "label": "Footer Text",
+          "description": "Optional footer text."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.kapso.ai/meta/whatsapp/v23.0/{{phoneNumberId}}/messages",
+        "body": {
+          "messaging_product": "whatsapp",
+          "recipient_type": "individual",
+          "to": "{{to}}",
+          "type": "interactive",
+          "interactive": {
+            "type": "list",
+            "body": {
+              "text": "{{bodyText}}"
+            },
+            "footer": {
+              "text": "{{footerText}}"
+            }
+          }
+        }
+      },
+      "beforeRequest": "const i = request.body.interactive; i.action = { button: inputs.buttonText, sections: JSON.parse(inputs.sections).map((s) => ({ ...(s.title ? { title: s.title } : {}), rows: (typeof s.rows === 'string' ? JSON.parse(s.rows) : s.rows).map((r) => ({ id: r.id, title: r.title, ...(r.description ? { description: r.description } : {}) })) })) }; if (inputs.headerText) i.header = { type: 'text', text: inputs.headerText }; if (!inputs.footerText) delete i.footer; return request;",
+      "outputs": {
+        "messageId": "$.messages[0].id"
+      },
+      "afterResponse": "const camel = (v) => Array.isArray(v) ? v.map(camel) : v && Object.prototype.toString.call(v) === '[object Object]' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k.replace(/[\\-_]([a-z0-9])/gi, (m, l) => l.toUpperCase()), camel(x)])) : v; return camel(response);"
+    },
+    "send_image": {
+      "label": "Send Image",
+      "description": "Send an image message via WhatsApp.",
+      "audience": "both",
+      "inputs": {
+        "businessAccountId": {
+          "label": "Business Account ID",
+          "description": "Your WhatsApp Business Account (WABA) ID. Find it in your [Kapso dashboard](https://app.kapso.ai).",
+          "required": true
+        },
+        "phoneNumberId": {
+          "label": "Phone Number",
+          "description": "Select the WhatsApp phone number to send from.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.kapso.ai/meta/whatsapp/v23.0/{{businessAccountId}}/phone_numbers"
+            },
+            "list": "$.data",
+            "label": "$.verified_name",
+            "value": "$.id"
+          }
+        },
+        "to": {
+          "label": "Recipient Phone Number",
+          "description": "The recipient's phone number in international format (e.g. 15551234567).",
+          "required": true
+        },
+        "imageUrl": {
+          "label": "Image URL",
+          "description": "Public URL of the image to send."
+        },
+        "imageId": {
+          "label": "Image Media ID",
+          "description": "Media ID of a previously uploaded image. Use either URL or Media ID."
+        },
+        "caption": {
+          "label": "Caption",
+          "description": "Optional caption for the image.",
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.kapso.ai/meta/whatsapp/v23.0/{{phoneNumberId}}/messages",
+        "body": {
+          "messaging_product": "whatsapp",
+          "recipient_type": "individual",
+          "to": "{{to}}",
+          "type": "image",
+          "image": {
+            "link": "{{imageUrl}}",
+            "id": "{{imageId}}",
+            "caption": "{{caption}}"
+          }
+        }
+      },
+      "outputs": {
+        "messageId": "$.messages[0].id"
+      },
+      "afterResponse": "const camel = (v) => Array.isArray(v) ? v.map(camel) : v && Object.prototype.toString.call(v) === '[object Object]' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k.replace(/[\\-_]([a-z0-9])/gi, (m, l) => l.toUpperCase()), camel(x)])) : v; return camel(response);"
+    },
+    "send_video": {
+      "label": "Send Video",
+      "description": "Send a video message via WhatsApp.",
+      "audience": "both",
+      "inputs": {
+        "businessAccountId": {
+          "label": "Business Account ID",
+          "description": "Your WhatsApp Business Account (WABA) ID. Find it in your [Kapso dashboard](https://app.kapso.ai).",
+          "required": true
+        },
+        "phoneNumberId": {
+          "label": "Phone Number",
+          "description": "Select the WhatsApp phone number to send from.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.kapso.ai/meta/whatsapp/v23.0/{{businessAccountId}}/phone_numbers"
+            },
+            "list": "$.data",
+            "label": "$.verified_name",
+            "value": "$.id"
+          }
+        },
+        "to": {
+          "label": "Recipient Phone Number",
+          "description": "The recipient's phone number in international format (e.g. 15551234567).",
+          "required": true
+        },
+        "videoUrl": {
+          "label": "Video URL",
+          "description": "Public URL of the video to send."
+        },
+        "videoId": {
+          "label": "Video Media ID",
+          "description": "Media ID of a previously uploaded video. Use either URL or Media ID."
+        },
+        "caption": {
+          "label": "Caption",
+          "description": "Optional caption for the video.",
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.kapso.ai/meta/whatsapp/v23.0/{{phoneNumberId}}/messages",
+        "body": {
+          "messaging_product": "whatsapp",
+          "recipient_type": "individual",
+          "to": "{{to}}",
+          "type": "video",
+          "video": {
+            "link": "{{videoUrl}}",
+            "id": "{{videoId}}",
+            "caption": "{{caption}}"
+          }
+        }
+      },
+      "outputs": {
+        "messageId": "$.messages[0].id"
+      },
+      "afterResponse": "const camel = (v) => Array.isArray(v) ? v.map(camel) : v && Object.prototype.toString.call(v) === '[object Object]' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k.replace(/[\\-_]([a-z0-9])/gi, (m, l) => l.toUpperCase()), camel(x)])) : v; return camel(response);"
+    },
+    "send_audio": {
+      "label": "Send Audio",
+      "description": "Send an audio message via WhatsApp.",
+      "audience": "both",
+      "inputs": {
+        "businessAccountId": {
+          "label": "Business Account ID",
+          "description": "Your WhatsApp Business Account (WABA) ID. Find it in your [Kapso dashboard](https://app.kapso.ai).",
+          "required": true
+        },
+        "phoneNumberId": {
+          "label": "Phone Number",
+          "description": "Select the WhatsApp phone number to send from.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.kapso.ai/meta/whatsapp/v23.0/{{businessAccountId}}/phone_numbers"
+            },
+            "list": "$.data",
+            "label": "$.verified_name",
+            "value": "$.id"
+          }
+        },
+        "to": {
+          "label": "Recipient Phone Number",
+          "description": "The recipient's phone number in international format (e.g. 15551234567).",
+          "required": true
+        },
+        "audioUrl": {
+          "label": "Audio URL",
+          "description": "Public URL of the audio file to send."
+        },
+        "audioId": {
+          "label": "Audio Media ID",
+          "description": "Media ID of a previously uploaded audio. Use either URL or Media ID."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.kapso.ai/meta/whatsapp/v23.0/{{phoneNumberId}}/messages",
+        "body": {
+          "messaging_product": "whatsapp",
+          "recipient_type": "individual",
+          "to": "{{to}}",
+          "type": "audio",
+          "audio": {
+            "link": "{{audioUrl}}",
+            "id": "{{audioId}}"
+          }
+        }
+      },
+      "outputs": {
+        "messageId": "$.messages[0].id"
+      },
+      "afterResponse": "const camel = (v) => Array.isArray(v) ? v.map(camel) : v && Object.prototype.toString.call(v) === '[object Object]' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k.replace(/[\\-_]([a-z0-9])/gi, (m, l) => l.toUpperCase()), camel(x)])) : v; return camel(response);"
+    },
+    "send_document": {
+      "label": "Send Document",
+      "description": "Send a document message via WhatsApp.",
+      "audience": "both",
+      "inputs": {
+        "businessAccountId": {
+          "label": "Business Account ID",
+          "description": "Your WhatsApp Business Account (WABA) ID. Find it in your [Kapso dashboard](https://app.kapso.ai).",
+          "required": true
+        },
+        "phoneNumberId": {
+          "label": "Phone Number",
+          "description": "Select the WhatsApp phone number to send from.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.kapso.ai/meta/whatsapp/v23.0/{{businessAccountId}}/phone_numbers"
+            },
+            "list": "$.data",
+            "label": "$.verified_name",
+            "value": "$.id"
+          }
+        },
+        "to": {
+          "label": "Recipient Phone Number",
+          "description": "The recipient's phone number in international format (e.g. 15551234567).",
+          "required": true
+        },
+        "documentUrl": {
+          "label": "Document URL",
+          "description": "Public URL of the document to send."
+        },
+        "documentId": {
+          "label": "Document Media ID",
+          "description": "Media ID of a previously uploaded document. Use either URL or Media ID."
+        },
+        "filename": {
+          "label": "Filename",
+          "description": "The filename to display for the document."
+        },
+        "caption": {
+          "label": "Caption",
+          "description": "Optional caption for the document.",
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.kapso.ai/meta/whatsapp/v23.0/{{phoneNumberId}}/messages",
+        "body": {
+          "messaging_product": "whatsapp",
+          "recipient_type": "individual",
+          "to": "{{to}}",
+          "type": "document",
+          "document": {
+            "link": "{{documentUrl}}",
+            "id": "{{documentId}}",
+            "filename": "{{filename}}",
+            "caption": "{{caption}}"
+          }
+        }
+      },
+      "outputs": {
+        "messageId": "$.messages[0].id"
+      },
+      "afterResponse": "const camel = (v) => Array.isArray(v) ? v.map(camel) : v && Object.prototype.toString.call(v) === '[object Object]' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k.replace(/[\\-_]([a-z0-9])/gi, (m, l) => l.toUpperCase()), camel(x)])) : v; return camel(response);"
+    },
+    "send_sticker": {
+      "label": "Send Sticker",
+      "description": "Send a sticker message via WhatsApp.",
+      "audience": "both",
+      "inputs": {
+        "businessAccountId": {
+          "label": "Business Account ID",
+          "description": "Your WhatsApp Business Account (WABA) ID. Find it in your [Kapso dashboard](https://app.kapso.ai).",
+          "required": true
+        },
+        "phoneNumberId": {
+          "label": "Phone Number",
+          "description": "Select the WhatsApp phone number to send from.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.kapso.ai/meta/whatsapp/v23.0/{{businessAccountId}}/phone_numbers"
+            },
+            "list": "$.data",
+            "label": "$.verified_name",
+            "value": "$.id"
+          }
+        },
+        "to": {
+          "label": "Recipient Phone Number",
+          "description": "The recipient's phone number in international format (e.g. 15551234567).",
+          "required": true
+        },
+        "stickerUrl": {
+          "label": "Sticker URL",
+          "description": "Public URL of the sticker (WebP format)."
+        },
+        "stickerId": {
+          "label": "Sticker Media ID",
+          "description": "Media ID of a previously uploaded sticker. Use either URL or Media ID."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.kapso.ai/meta/whatsapp/v23.0/{{phoneNumberId}}/messages",
+        "body": {
+          "messaging_product": "whatsapp",
+          "recipient_type": "individual",
+          "to": "{{to}}",
+          "type": "sticker",
+          "sticker": {
+            "link": "{{stickerUrl}}",
+            "id": "{{stickerId}}"
+          }
+        }
+      },
+      "outputs": {
+        "messageId": "$.messages[0].id"
+      },
+      "afterResponse": "const camel = (v) => Array.isArray(v) ? v.map(camel) : v && Object.prototype.toString.call(v) === '[object Object]' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k.replace(/[\\-_]([a-z0-9])/gi, (m, l) => l.toUpperCase()), camel(x)])) : v; return camel(response);"
+    },
+    "send_location": {
+      "label": "Send Location",
+      "description": "Send a location message via WhatsApp.",
+      "audience": "both",
+      "inputs": {
+        "businessAccountId": {
+          "label": "Business Account ID",
+          "description": "Your WhatsApp Business Account (WABA) ID. Find it in your [Kapso dashboard](https://app.kapso.ai).",
+          "required": true
+        },
+        "phoneNumberId": {
+          "label": "Phone Number",
+          "description": "Select the WhatsApp phone number to send from.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.kapso.ai/meta/whatsapp/v23.0/{{businessAccountId}}/phone_numbers"
+            },
+            "list": "$.data",
+            "label": "$.verified_name",
+            "value": "$.id"
+          }
+        },
+        "to": {
+          "label": "Recipient Phone Number",
+          "description": "The recipient's phone number in international format (e.g. 15551234567).",
+          "required": true
+        },
+        "latitude": {
+          "label": "Latitude",
+          "description": "Latitude of the location.",
+          "required": true,
+          "type": "number"
+        },
+        "longitude": {
+          "label": "Longitude",
+          "description": "Longitude of the location.",
+          "required": true,
+          "type": "number"
+        },
+        "name": {
+          "label": "Location Name",
+          "description": "Name of the location."
+        },
+        "address": {
+          "label": "Address",
+          "description": "Address of the location."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.kapso.ai/meta/whatsapp/v23.0/{{phoneNumberId}}/messages",
+        "body": {
+          "messaging_product": "whatsapp",
+          "recipient_type": "individual",
+          "to": "{{to}}",
+          "type": "location",
+          "location": {
+            "latitude": "{{latitude}}",
+            "longitude": "{{longitude}}",
+            "name": "{{name}}",
+            "address": "{{address}}"
+          }
+        }
+      },
+      "outputs": {
+        "messageId": "$.messages[0].id"
+      },
+      "afterResponse": "const camel = (v) => Array.isArray(v) ? v.map(camel) : v && Object.prototype.toString.call(v) === '[object Object]' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k.replace(/[\\-_]([a-z0-9])/gi, (m, l) => l.toUpperCase()), camel(x)])) : v; return camel(response);"
+    },
+    "request_user_location": {
+      "label": "Request User Location",
+      "description": "Send a location request message to a WhatsApp user.",
+      "audience": "both",
+      "inputs": {
+        "businessAccountId": {
+          "label": "Business Account ID",
+          "description": "Your WhatsApp Business Account (WABA) ID. Find it in your [Kapso dashboard](https://app.kapso.ai).",
+          "required": true
+        },
+        "phoneNumberId": {
+          "label": "Phone Number",
+          "description": "Select the WhatsApp phone number to send from.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.kapso.ai/meta/whatsapp/v23.0/{{businessAccountId}}/phone_numbers"
+            },
+            "list": "$.data",
+            "label": "$.verified_name",
+            "value": "$.id"
+          }
+        },
+        "to": {
+          "label": "Recipient Phone Number",
+          "description": "The recipient's phone number in international format (e.g. 15551234567).",
+          "required": true
+        },
+        "bodyText": {
+          "label": "Body Text",
+          "description": "The message body displayed with the location request.",
+          "required": true,
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.kapso.ai/meta/whatsapp/v23.0/{{phoneNumberId}}/messages",
+        "body": {
+          "messaging_product": "whatsapp",
+          "recipient_type": "individual",
+          "to": "{{to}}",
+          "type": "interactive",
+          "interactive": {
+            "type": "location_request_message",
+            "body": {
+              "text": "{{bodyText}}"
+            },
+            "action": {
+              "name": "send_location",
+              "parameters": {
+                "request_message": "{{bodyText}}"
+              }
+            }
+          }
+        }
+      },
+      "outputs": {
+        "messageId": "$.messages[0].id"
+      },
+      "afterResponse": "const camel = (v) => Array.isArray(v) ? v.map(camel) : v && Object.prototype.toString.call(v) === '[object Object]' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k.replace(/[\\-_]([a-z0-9])/gi, (m, l) => l.toUpperCase()), camel(x)])) : v; return camel(response);"
+    },
+    "send_contact": {
+      "label": "Send Contact",
+      "description": "Send a contact card via WhatsApp.",
+      "audience": "both",
+      "inputs": {
+        "businessAccountId": {
+          "label": "Business Account ID",
+          "description": "Your WhatsApp Business Account (WABA) ID. Find it in your [Kapso dashboard](https://app.kapso.ai).",
+          "required": true
+        },
+        "phoneNumberId": {
+          "label": "Phone Number",
+          "description": "Select the WhatsApp phone number to send from.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.kapso.ai/meta/whatsapp/v23.0/{{businessAccountId}}/phone_numbers"
+            },
+            "list": "$.data",
+            "label": "$.verified_name",
+            "value": "$.id"
+          }
+        },
+        "to": {
+          "label": "Recipient Phone Number",
+          "description": "The recipient's phone number in international format (e.g. 15551234567).",
+          "required": true
+        },
+        "formattedName": {
+          "label": "Full Name",
+          "description": "The contact's formatted full name.",
+          "required": true
+        },
+        "firstName": {
+          "label": "First Name",
+          "description": "The contact's first name."
+        },
+        "lastName": {
+          "label": "Last Name",
+          "description": "The contact's last name."
+        },
+        "phone": {
+          "label": "Phone Number",
+          "description": "The contact's phone number."
+        },
+        "email": {
+          "label": "Email",
+          "description": "The contact's email address."
+        },
+        "company": {
+          "label": "Company",
+          "description": "The contact's company name."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.kapso.ai/meta/whatsapp/v23.0/{{phoneNumberId}}/messages",
+        "body": {
+          "messaging_product": "whatsapp",
+          "recipient_type": "individual",
+          "to": "{{to}}",
+          "type": "contacts",
+          "contacts": [
+            {
+              "name": {
+                "formatted_name": "{{formattedName}}",
+                "first_name": "{{firstName}}",
+                "last_name": "{{lastName}}"
+              },
+              "phones": [
+                {
+                  "phone": "{{phone}}",
+                  "type": "CELL"
+                }
+              ],
+              "emails": [
+                {
+                  "email": "{{email}}",
+                  "type": "WORK"
+                }
+              ],
+              "org": {
+                "company": "{{company}}"
+              }
+            }
+          ]
+        }
+      },
+      "beforeRequest": "const c = request.body.contacts[0]; if (!inputs.phone) delete c.phones; if (!inputs.email) delete c.emails; if (!inputs.company) delete c.org; return request;",
+      "outputs": {
+        "messageId": "$.messages[0].id"
+      },
+      "afterResponse": "const camel = (v) => Array.isArray(v) ? v.map(camel) : v && Object.prototype.toString.call(v) === '[object Object]' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k.replace(/[\\-_]([a-z0-9])/gi, (m, l) => l.toUpperCase()), camel(x)])) : v; return camel(response);"
+    },
+    "send_reaction": {
+      "label": "Send Reaction",
+      "description": "React to a WhatsApp message with an emoji.",
+      "audience": "both",
+      "inputs": {
+        "businessAccountId": {
+          "label": "Business Account ID",
+          "description": "Your WhatsApp Business Account (WABA) ID. Find it in your [Kapso dashboard](https://app.kapso.ai).",
+          "required": true
+        },
+        "phoneNumberId": {
+          "label": "Phone Number",
+          "description": "Select the WhatsApp phone number to send from.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.kapso.ai/meta/whatsapp/v23.0/{{businessAccountId}}/phone_numbers"
+            },
+            "list": "$.data",
+            "label": "$.verified_name",
+            "value": "$.id"
+          }
+        },
+        "to": {
+          "label": "Recipient Phone Number",
+          "description": "The recipient's phone number in international format (e.g. 15551234567).",
+          "required": true
+        },
+        "messageId": {
+          "label": "Message ID",
+          "description": "The ID of the message to react to.",
+          "required": true
+        },
+        "emoji": {
+          "label": "Emoji",
+          "description": "The emoji to react with (e.g. 👍). Leave empty to remove a reaction."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.kapso.ai/meta/whatsapp/v23.0/{{phoneNumberId}}/messages",
+        "body": {
+          "messaging_product": "whatsapp",
+          "recipient_type": "individual",
+          "to": "{{to}}",
+          "type": "reaction",
+          "reaction": {
+            "message_id": "{{messageId}}",
+            "emoji": "{{emoji}}"
+          }
+        }
+      },
+      "outputs": {
+        "messageId": "$.messages[0].id"
+      },
+      "afterResponse": "const camel = (v) => Array.isArray(v) ? v.map(camel) : v && Object.prototype.toString.call(v) === '[object Object]' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k.replace(/[\\-_]([a-z0-9])/gi, (m, l) => l.toUpperCase()), camel(x)])) : v; return camel(response);"
+    },
+    "mark_as_read": {
+      "label": "Mark Message as Read",
+      "description": "Mark a WhatsApp message as read.",
+      "audience": "both",
+      "inputs": {
+        "businessAccountId": {
+          "label": "Business Account ID",
+          "description": "Your WhatsApp Business Account (WABA) ID. Find it in your [Kapso dashboard](https://app.kapso.ai).",
+          "required": true
+        },
+        "phoneNumberId": {
+          "label": "Phone Number",
+          "description": "Select the WhatsApp phone number to send from.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.kapso.ai/meta/whatsapp/v23.0/{{businessAccountId}}/phone_numbers"
+            },
+            "list": "$.data",
+            "label": "$.verified_name",
+            "value": "$.id"
+          }
+        },
+        "messageId": {
+          "label": "Message ID",
+          "description": "The ID of the message to mark as read.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.kapso.ai/meta/whatsapp/v23.0/{{phoneNumberId}}/messages",
+        "body": {
+          "messaging_product": "whatsapp",
+          "status": "read",
+          "message_id": "{{messageId}}"
+        }
+      },
+      "outputs": {
+        "success": "$.success"
+      },
+      "afterResponse": "const camel = (v) => Array.isArray(v) ? v.map(camel) : v && Object.prototype.toString.call(v) === '[object Object]' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k.replace(/[\\-_]([a-z0-9])/gi, (m, l) => l.toUpperCase()), camel(x)])) : v; return camel(response);"
+    },
+    "send_template_message": {
+      "label": "Send Template Message",
+      "description": "Send a pre-approved WhatsApp template message.",
+      "audience": "both",
+      "inputs": {
+        "businessAccountId": {
+          "label": "Business Account ID",
+          "description": "Your WhatsApp Business Account (WABA) ID. Find it in your [Kapso dashboard](https://app.kapso.ai).",
+          "required": true
+        },
+        "phoneNumberId": {
+          "label": "Phone Number",
+          "description": "Select the WhatsApp phone number to send from.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.kapso.ai/meta/whatsapp/v23.0/{{businessAccountId}}/phone_numbers"
+            },
+            "list": "$.data",
+            "label": "$.verified_name",
+            "value": "$.id"
+          }
+        },
+        "to": {
+          "label": "Recipient Phone Number",
+          "description": "The recipient's phone number in international format (e.g. 15551234567).",
+          "required": true
+        },
+        "template": {
+          "label": "Template",
+          "description": "The approved template to send, as JSON {\"name\", \"language\"}, such as {\"name\":\"order_update\",\"language\":\"en_US\"}.",
+          "required": true
+        },
+        "headerType": {
+          "label": "Header Type",
+          "description": "The type of header your template uses. Leave as None if no header.",
+          "type": "select",
+          "defaultValue": "none",
+          "options": [
+            {
+              "value": "none",
+              "label": "None"
+            },
+            {
+              "value": "text",
+              "label": "Text"
+            },
+            {
+              "value": "image",
+              "label": "Image"
+            },
+            {
+              "value": "video",
+              "label": "Video"
+            },
+            {
+              "value": "document",
+              "label": "Document"
+            },
+            {
+              "value": "location",
+              "label": "Location"
+            }
+          ]
+        },
+        "headerTextParameters": {
+          "label": "Header Text Parameters",
+          "description": "Text header parameters (only if header type is Text), as a JSON array of {\"parameterName\", \"text\"}.",
+          "type": "json"
+        },
+        "headerMediaUrl": {
+          "label": "Header Media URL",
+          "description": "Public URL of the media file for image, video, or document headers."
+        },
+        "headerMediaFilename": {
+          "label": "Header Document Filename",
+          "description": "Filename for document headers (e.g. invoice.pdf)."
+        },
+        "headerLocationLatitude": {
+          "label": "Header Location Latitude",
+          "description": "Latitude for location headers.",
+          "type": "number"
+        },
+        "headerLocationLongitude": {
+          "label": "Header Location Longitude",
+          "description": "Longitude for location headers.",
+          "type": "number"
+        },
+        "headerLocationName": {
+          "label": "Header Location Name",
+          "description": "Name of the location (e.g. Delivery Location)."
+        },
+        "headerLocationAddress": {
+          "label": "Header Location Address",
+          "description": "Address of the location."
+        },
+        "bodyParameters": {
+          "label": "Body Parameters",
+          "description": "Template body parameters, as a JSON array of {\"parameterName\", \"text\"}.",
+          "type": "json"
+        },
+        "buttonParameters": {
+          "label": "Button Parameters",
+          "description": "Template button parameters, as a JSON array of {\"subType\" (quick_reply, url, otp or flow), \"index\", \"value\", \"flowToken\", \"flowActionData\"}.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.kapso.ai/meta/whatsapp/v23.0/{{phoneNumberId}}/messages",
+        "body": {
+          "messaging_product": "whatsapp",
+          "recipient_type": "individual",
+          "to": "{{to}}",
+          "type": "template"
+        }
+      },
+      "beforeRequest": "const snake = (v) => Array.isArray(v) ? v.map(snake) : v && Object.prototype.toString.call(v) === '[object Object]' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [!/[A-Z]/.test(k) || /^[A-Z0-9_]+$/.test(k) ? k : k.replace(/([A-Z\\d]+)([A-Z][a-z])/g, '$1_$2').replace(/([a-z\\d])([A-Z])/g, '$1_$2').toLowerCase(), snake(x)])) : v;\nconst given = (v) => v !== undefined && v !== null && v !== '', list = (text) => (text ? JSON.parse(text) : []), t = JSON.parse(inputs.template), type = inputs.headerType, url = inputs.headerMediaUrl, parts = [];\nconst header = (p) => parts.push({ type: 'header', parameters: [p] }), texts = list(inputs.headerTextParameters);\nif (type === 'text' && texts.length) parts.push({ type: 'header', parameters: texts.map((p) => ({ type: 'text', parameter_name: p.parameterName, text: p.text })) });\nelse if ((type === 'image' || type === 'video') && url) header({ type, [type]: { link: url } });\nelse if (type === 'document' && url) header({ type, document: inputs.headerMediaFilename ? { link: url, filename: inputs.headerMediaFilename } : { link: url } });\nelse if (type === 'location' && given(inputs.headerLocationLatitude) && given(inputs.headerLocationLongitude)) { const l = { latitude: Number(inputs.headerLocationLatitude), longitude: Number(inputs.headerLocationLongitude) }; if (inputs.headerLocationName) l.name = inputs.headerLocationName; if (inputs.headerLocationAddress) l.address = inputs.headerLocationAddress; header({ type, location: l }); }\nconst body = list(inputs.bodyParameters); if (body.length) parts.push({ type: 'body', parameters: body.map((p) => (p.parameterName ? { type: 'text', text: p.text, parameter_name: p.parameterName } : { type: 'text', text: p.text })) });\nfor (const b of list(inputs.buttonParameters)) { const button = { type: 'button', sub_type: b.subType, index: b.index };\n  if (b.subType === 'quick_reply') button.parameters = [{ type: 'payload', payload: b.value }]; else if (b.subType === 'url' || b.subType === 'otp') button.parameters = [{ type: 'text', text: b.value }];\n  else if (b.subType === 'flow') { const a = {}; if (b.flowToken) a.flow_token = b.flowToken; if (b.flowActionData) a.flow_action_data = typeof b.flowActionData === 'string' ? JSON.parse(b.flowActionData) : b.flowActionData; button.parameters = [{ type: 'action', action: a }]; } else continue;\n  parts.push(button); }\nrequest.body.template = { name: t.name, language: { code: t.language }, components: parts }; request.body = snake(request.body); return request;",
+      "outputs": {
+        "messageId": "$.messages[0].id"
+      },
+      "afterResponse": "const camel = (v) => Array.isArray(v) ? v.map(camel) : v && Object.prototype.toString.call(v) === '[object Object]' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k.replace(/[\\-_]([a-z0-9])/gi, (m, l) => l.toUpperCase()), camel(x)])) : v; return camel(response);"
+    }
+  }
+}

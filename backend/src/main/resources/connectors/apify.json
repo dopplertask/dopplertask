@@ -1,0 +1,677 @@
+{
+  "name": "apify",
+  "label": "Apify",
+  "description": "Access Apify tools for web scraping, data extraction, and automation.",
+  "icon": "",
+  "hosts": [
+    "api.apify.com"
+  ],
+  "baseUrl": "https://api.apify.com/v2",
+  "upstream": {
+    "package": "@activepieces/piece-apify",
+    "version": "0.4.2"
+  },
+  "credential": {
+    "fields": {
+      "apikey": {
+        "label": "API Key",
+        "description": "Find your API key on Apify in the settings, API & Integrations section.",
+        "secret": true,
+        "required": true
+      }
+    },
+    "headers": {
+      "Authorization": "Bearer {{credential.apikey}}",
+      "x-apify-integration-platform": "activepieces"
+    }
+  },
+  "actions": {
+    "apify_find_actor": {
+      "label": "Find Actor",
+      "description": "Searches the public Apify Store for Actors by name or keyword.",
+      "audience": "ai",
+      "inputs": {
+        "search": {
+          "label": "Search Query",
+          "description": "Name or keyword to search the Apify Store for (e.g. \"instagram scraper\"). Leave empty to list popular store actors."
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of actors to return. Default 50.",
+          "type": "number",
+          "defaultValue": "50"
+        },
+        "offset": {
+          "label": "Offset",
+          "description": "Number of actors to skip at the start. Default 0.",
+          "type": "number",
+          "defaultValue": "0"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.apify.com/v2/store",
+        "query": {
+          "search": "{{search}}",
+          "limit": "{{limit}}",
+          "offset": "{{offset}}"
+        }
+      },
+      "afterResponse": "const actors = response.data.items.map((item) => ({ id: item.id, name: item.name, username: item.username, title: item.title, fullName: item.username && item.name ? item.username + '/' + item.name : item.name, description: item.description, stats: item.stats }));\nreturn { actors, count: actors.length, total: response.data.total };"
+    },
+    "apify_get_actor": {
+      "label": "Get Actor",
+      "description": "Retrieves metadata for a single Apify Actor by ID.",
+      "audience": "ai",
+      "inputs": {
+        "actorId": {
+          "label": "Actor ID",
+          "description": "The ID (or \"username~actor-name\") of the Actor. Obtain it from Find Actor or List Actors.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.apify.com/v2/acts/{{actorId}}"
+      },
+      "result": "$.data",
+      "beforeRequest": "const start = request.url.indexOf('/v2/') + 4;\nconst raw = { '%7E': '~', '%21': '!', '%24': '$', '%26': '&', '%27': \"'\", '%28': '(', '%29': ')', '%2B': '+', '%2C': ',', '%3B': ';', '%3D': '=', '%3A': ':', '%40': '@', '%2F': '/' };\nrequest.url = request.url.slice(0, start) + request.url.slice(start).replace('%2F', '~').replace(/%[0-9A-F]{2}/g, (code) => raw[code] ?? code);\nreturn request;"
+    },
+    "apify_list_actors": {
+      "label": "List Actors",
+      "description": "Lists the Actors owned by the authenticated account.",
+      "audience": "ai",
+      "inputs": {
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of actors to return. Default 50.",
+          "type": "number",
+          "defaultValue": "50"
+        },
+        "offset": {
+          "label": "Offset",
+          "description": "Number of actors to skip at the start. Default 0.",
+          "type": "number",
+          "defaultValue": "0"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.apify.com/v2/acts",
+        "query": {
+          "my": "1",
+          "desc": "1",
+          "sortBy": "stats.lastRunStartedAt",
+          "limit": "{{limit}}",
+          "offset": "{{offset}}"
+        }
+      },
+      "afterResponse": "return { actors: response.data.items.map((item) => ({ id: item.id, name: item.name, username: item.username, fullName: item.username + '/' + item.name, createdAt: item.createdAt, modifiedAt: item.modifiedAt })), count: response.data.items.length, total: response.data.total };"
+    },
+    "apify_get_actor_run": {
+      "label": "Get Actor Run",
+      "description": "Retrieves the status and details of an Actor run by run ID.",
+      "audience": "ai",
+      "inputs": {
+        "runId": {
+          "label": "Run ID",
+          "description": "The ID of the run to read. Obtain it from Run Actor, List Actor Runs, or Get Last Actor Run.",
+          "required": true
+        },
+        "waitForFinish": {
+          "label": "Wait For Finish (seconds)",
+          "description": "Optional. Block server-side up to this many seconds (max 60) waiting for the run to reach a terminal state before returning. Leave empty for an immediate status read.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.apify.com/v2/actor-runs/{{runId}}",
+        "query": {
+          "waitForFinish": "{{waitForFinish}}"
+        }
+      },
+      "result": "$.data",
+      "beforeRequest": "const start = request.url.indexOf('/v2/') + 4;\nconst raw = { '%7E': '~', '%21': '!', '%24': '$', '%26': '&', '%27': \"'\", '%28': '(', '%29': ')', '%2B': '+', '%2C': ',', '%3B': ';', '%3D': '=', '%3A': ':', '%40': '@', '%2F': '/' };\nrequest.url = request.url.slice(0, start) + request.url.slice(start).replace('%2F', '~').replace(/%[0-9A-F]{2}/g, (code) => raw[code] ?? code);\nif (request.query.waitForFinish !== undefined) request.query.waitForFinish = String(Math.min(Math.max(Number(request.query.waitForFinish), 0), 60));\nreturn request;"
+    },
+    "apify_list_actor_runs": {
+      "label": "List Actor Runs",
+      "description": "Lists the run history of a single Actor.",
+      "audience": "ai",
+      "inputs": {
+        "actorId": {
+          "label": "Actor ID",
+          "description": "The ID (or \"username~actor-name\") of the Actor. Obtain it from Find Actor or List Actors.",
+          "required": true
+        },
+        "status": {
+          "label": "Status",
+          "description": "Optionally filter runs by status.",
+          "type": "select",
+          "options": [
+            {
+              "value": "READY",
+              "label": "Ready"
+            },
+            {
+              "value": "RUNNING",
+              "label": "Running"
+            },
+            {
+              "value": "SUCCEEDED",
+              "label": "Succeeded"
+            },
+            {
+              "value": "FAILED",
+              "label": "Failed"
+            },
+            {
+              "value": "TIMING-OUT",
+              "label": "Timing Out"
+            },
+            {
+              "value": "TIMED-OUT",
+              "label": "Timed Out"
+            },
+            {
+              "value": "ABORTING",
+              "label": "Aborting"
+            },
+            {
+              "value": "ABORTED",
+              "label": "Aborted"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of runs to return. Default 50.",
+          "type": "number",
+          "defaultValue": "50"
+        },
+        "offset": {
+          "label": "Offset",
+          "description": "Number of runs to skip at the start. Default 0.",
+          "type": "number",
+          "defaultValue": "0"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.apify.com/v2/acts/{{actorId}}/runs",
+        "query": {
+          "status": "{{status}}",
+          "desc": "1",
+          "limit": "{{limit}}",
+          "offset": "{{offset}}"
+        }
+      },
+      "afterResponse": "return { runs: response.data.items, count: response.data.items.length, total: response.data.total, actorId: inputs.actorId };",
+      "beforeRequest": "const start = request.url.indexOf('/v2/') + 4;\nconst raw = { '%7E': '~', '%21': '!', '%24': '$', '%26': '&', '%27': \"'\", '%28': '(', '%29': ')', '%2B': '+', '%2C': ',', '%3B': ';', '%3D': '=', '%3A': ':', '%40': '@', '%2F': '/' };\nrequest.url = request.url.slice(0, start) + request.url.slice(start).replace('%2F', '~').replace(/%[0-9A-F]{2}/g, (code) => raw[code] ?? code);\nreturn request;"
+    },
+    "apify_list_runs": {
+      "label": "List Runs",
+      "description": "Lists Actor runs across the whole account.",
+      "audience": "ai",
+      "inputs": {
+        "status": {
+          "label": "Status",
+          "description": "Optionally filter runs by status.",
+          "type": "select",
+          "options": [
+            {
+              "value": "READY",
+              "label": "Ready"
+            },
+            {
+              "value": "RUNNING",
+              "label": "Running"
+            },
+            {
+              "value": "SUCCEEDED",
+              "label": "Succeeded"
+            },
+            {
+              "value": "FAILED",
+              "label": "Failed"
+            },
+            {
+              "value": "TIMING-OUT",
+              "label": "Timing Out"
+            },
+            {
+              "value": "TIMED-OUT",
+              "label": "Timed Out"
+            },
+            {
+              "value": "ABORTING",
+              "label": "Aborting"
+            },
+            {
+              "value": "ABORTED",
+              "label": "Aborted"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of runs to return. Default 50.",
+          "type": "number",
+          "defaultValue": "50"
+        },
+        "offset": {
+          "label": "Offset",
+          "description": "Number of runs to skip at the start. Default 0.",
+          "type": "number",
+          "defaultValue": "0"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.apify.com/v2/actor-runs",
+        "query": {
+          "status": "{{status}}",
+          "desc": "1",
+          "limit": "{{limit}}",
+          "offset": "{{offset}}"
+        }
+      },
+      "afterResponse": "return { runs: response.data.items, count: response.data.items.length, total: response.data.total };"
+    },
+    "apify_get_last_actor_run": {
+      "label": "Get Last Actor Run",
+      "description": "Retrieves the most recent run of an Actor, optionally filtered by status.",
+      "audience": "ai",
+      "inputs": {
+        "actorId": {
+          "label": "Actor ID",
+          "description": "The ID (or \"username~actor-name\") of the Actor. Obtain it from Find Actor or List Actors.",
+          "required": true
+        },
+        "status": {
+          "label": "Status",
+          "description": "Optionally restrict to the last run with this status.",
+          "type": "select",
+          "options": [
+            {
+              "value": "READY",
+              "label": "Ready"
+            },
+            {
+              "value": "RUNNING",
+              "label": "Running"
+            },
+            {
+              "value": "SUCCEEDED",
+              "label": "Succeeded"
+            },
+            {
+              "value": "FAILED",
+              "label": "Failed"
+            },
+            {
+              "value": "TIMING-OUT",
+              "label": "Timing Out"
+            },
+            {
+              "value": "TIMED-OUT",
+              "label": "Timed Out"
+            },
+            {
+              "value": "ABORTING",
+              "label": "Aborting"
+            },
+            {
+              "value": "ABORTED",
+              "label": "Aborted"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.apify.com/v2/acts/{{actorId}}/runs/last",
+        "query": {
+          "status": "{{status}}"
+        }
+      },
+      "result": "$.data",
+      "beforeRequest": "const start = request.url.indexOf('/v2/') + 4;\nconst raw = { '%7E': '~', '%21': '!', '%24': '$', '%26': '&', '%27': \"'\", '%28': '(', '%29': ')', '%2B': '+', '%2C': ',', '%3B': ';', '%3D': '=', '%3A': ':', '%40': '@', '%2F': '/' };\nrequest.url = request.url.slice(0, start) + request.url.slice(start).replace('%2F', '~').replace(/%[0-9A-F]{2}/g, (code) => raw[code] ?? code);\nreturn request;"
+    },
+    "apify_get_build": {
+      "label": "Get Build",
+      "description": "Retrieves the status and metadata of an Actor build by build ID.",
+      "audience": "ai",
+      "inputs": {
+        "buildId": {
+          "label": "Build ID",
+          "description": "The ID of the build to read. Obtain it from an actor's build list or a run's buildId.",
+          "required": true
+        },
+        "waitForFinish": {
+          "label": "Wait For Finish (seconds)",
+          "description": "Optional. Block server-side up to this many seconds (max 60) waiting for the build to finish before returning. Leave empty for an immediate status read.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.apify.com/v2/actor-builds/{{buildId}}",
+        "query": {
+          "waitForFinish": "{{waitForFinish}}"
+        }
+      },
+      "result": "$.data",
+      "beforeRequest": "const start = request.url.indexOf('/v2/') + 4;\nconst raw = { '%7E': '~', '%21': '!', '%24': '$', '%26': '&', '%27': \"'\", '%28': '(', '%29': ')', '%2B': '+', '%2C': ',', '%3B': ';', '%3D': '=', '%3A': ':', '%40': '@', '%2F': '/' };\nrequest.url = request.url.slice(0, start) + request.url.slice(start).replace('%2F', '~').replace(/%[0-9A-F]{2}/g, (code) => raw[code] ?? code);\nif (request.query.waitForFinish !== undefined) request.query.waitForFinish = String(Math.min(Math.max(Number(request.query.waitForFinish), 0), 60));\nreturn request;"
+    },
+    "apify_get_dataset": {
+      "label": "Get Dataset",
+      "description": "Retrieves metadata for an Apify dataset by dataset ID.",
+      "audience": "ai",
+      "inputs": {
+        "datasetId": {
+          "label": "Dataset ID",
+          "description": "The ID of the dataset. Obtain it from List Datasets or a run's defaultDatasetId (Get Actor Run).",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.apify.com/v2/datasets/{{datasetId}}"
+      },
+      "result": "$.data",
+      "beforeRequest": "const start = request.url.indexOf('/v2/') + 4;\nconst raw = { '%7E': '~', '%21': '!', '%24': '$', '%26': '&', '%27': \"'\", '%28': '(', '%29': ')', '%2B': '+', '%2C': ',', '%3B': ';', '%3D': '=', '%3A': ':', '%40': '@', '%2F': '/' };\nrequest.url = request.url.slice(0, start) + request.url.slice(start).replace('%2F', '~').replace(/%[0-9A-F]{2}/g, (code) => raw[code] ?? code);\nreturn request;"
+    },
+    "apify_list_datasets": {
+      "label": "List Datasets",
+      "description": "Lists the datasets in the authenticated account.",
+      "audience": "ai",
+      "inputs": {
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of datasets to return. Default 50.",
+          "type": "number",
+          "defaultValue": "50"
+        },
+        "offset": {
+          "label": "Offset",
+          "description": "Number of datasets to skip at the start. Default 0.",
+          "type": "number",
+          "defaultValue": "0"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.apify.com/v2/datasets",
+        "query": {
+          "desc": "1",
+          "limit": "{{limit}}",
+          "offset": "{{offset}}"
+        }
+      },
+      "afterResponse": "return { datasets: response.data.items.map((item) => ({ id: item.id, name: item.name, title: item.title, itemCount: item.itemCount, createdAt: item.createdAt, modifiedAt: item.modifiedAt })), count: response.data.items.length, total: response.data.total };"
+    },
+    "apify_list_key_value_stores": {
+      "label": "List Key-Value Stores",
+      "description": "Lists the key-value stores in the authenticated account.",
+      "audience": "ai",
+      "inputs": {
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of stores to return. Default 50.",
+          "type": "number",
+          "defaultValue": "50"
+        },
+        "offset": {
+          "label": "Offset",
+          "description": "Number of stores to skip at the start. Default 0.",
+          "type": "number",
+          "defaultValue": "0"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.apify.com/v2/key-value-stores",
+        "query": {
+          "desc": "1",
+          "limit": "{{limit}}",
+          "offset": "{{offset}}"
+        }
+      },
+      "afterResponse": "return { stores: response.data.items.map((item) => ({ id: item.id, name: item.name, title: item.title, createdAt: item.createdAt, modifiedAt: item.modifiedAt })), count: response.data.items.length, total: response.data.total };"
+    },
+    "apify_get_key_value_store": {
+      "label": "Get Key-Value Store",
+      "description": "Retrieves metadata for an Apify key-value store by store ID.",
+      "audience": "ai",
+      "inputs": {
+        "storeId": {
+          "label": "Key-Value Store ID",
+          "description": "The ID of the key-value store. Obtain it from List Key-Value Stores or a run's defaultKeyValueStoreId.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.apify.com/v2/key-value-stores/{{storeId}}"
+      },
+      "result": "$.data",
+      "beforeRequest": "const start = request.url.indexOf('/v2/') + 4;\nconst raw = { '%7E': '~', '%21': '!', '%24': '$', '%26': '&', '%27': \"'\", '%28': '(', '%29': ')', '%2B': '+', '%2C': ',', '%3B': ';', '%3D': '=', '%3A': ':', '%40': '@', '%2F': '/' };\nrequest.url = request.url.slice(0, start) + request.url.slice(start).replace('%2F', '~').replace(/%[0-9A-F]{2}/g, (code) => raw[code] ?? code);\nreturn request;"
+    },
+    "apify_list_key_value_store_keys": {
+      "label": "List Key-Value Store Keys",
+      "description": "Lists the record keys in an Apify key-value store.",
+      "audience": "ai",
+      "inputs": {
+        "storeId": {
+          "label": "Key-Value Store ID",
+          "description": "The ID of the key-value store. Obtain it from List Key-Value Stores or a run's defaultKeyValueStoreId.",
+          "required": true
+        },
+        "prefix": {
+          "label": "Key Prefix",
+          "description": "Optional. Only return keys starting with this prefix."
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of keys to return.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.apify.com/v2/key-value-stores/{{storeId}}/keys",
+        "query": {
+          "prefix": "{{prefix}}",
+          "limit": "{{limit}}"
+        }
+      },
+      "afterResponse": "return { keys: response.data.items, count: response.data.count, isTruncated: response.data.isTruncated, nextExclusiveStartKey: response.data.nextExclusiveStartKey, storeId: inputs.storeId };",
+      "beforeRequest": "const start = request.url.indexOf('/v2/') + 4;\nconst raw = { '%7E': '~', '%21': '!', '%24': '$', '%26': '&', '%27': \"'\", '%28': '(', '%29': ')', '%2B': '+', '%2C': ',', '%3B': ';', '%3D': '=', '%3A': ':', '%40': '@', '%2F': '/' };\nrequest.url = request.url.slice(0, start) + request.url.slice(start).replace('%2F', '~').replace(/%[0-9A-F]{2}/g, (code) => raw[code] ?? code);\nreturn request;"
+    },
+    "apify_list_tasks": {
+      "label": "List Tasks",
+      "description": "Lists the saved Actor tasks in the authenticated account.",
+      "audience": "ai",
+      "inputs": {
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of tasks to return. Default 50.",
+          "type": "number",
+          "defaultValue": "50"
+        },
+        "offset": {
+          "label": "Offset",
+          "description": "Number of tasks to skip at the start. Default 0.",
+          "type": "number",
+          "defaultValue": "0"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.apify.com/v2/actor-tasks",
+        "query": {
+          "desc": "1",
+          "limit": "{{limit}}",
+          "offset": "{{offset}}"
+        }
+      },
+      "afterResponse": "return { tasks: response.data.items.map((item) => ({ id: item.id, name: item.name, title: item.title, actId: item.actId, username: item.username, createdAt: item.createdAt, modifiedAt: item.modifiedAt })), count: response.data.items.length, total: response.data.total };"
+    },
+    "apify_get_task": {
+      "label": "Get Task",
+      "description": "Retrieves metadata for a saved Actor task by task ID.",
+      "audience": "ai",
+      "inputs": {
+        "taskId": {
+          "label": "Task ID",
+          "description": "The ID of the saved task. Obtain it from List Tasks.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.apify.com/v2/actor-tasks/{{taskId}}"
+      },
+      "result": "$.data",
+      "beforeRequest": "const start = request.url.indexOf('/v2/') + 4;\nconst raw = { '%7E': '~', '%21': '!', '%24': '$', '%26': '&', '%27': \"'\", '%28': '(', '%29': ')', '%2B': '+', '%2C': ',', '%3B': ';', '%3D': '=', '%3A': ':', '%40': '@', '%2F': '/' };\nrequest.url = request.url.slice(0, start) + request.url.slice(start).replace('%2F', '~').replace(/%[0-9A-F]{2}/g, (code) => raw[code] ?? code);\nreturn request;"
+    },
+    "apify_get_task_last_run": {
+      "label": "Get Task Last Run",
+      "description": "Retrieves the most recent run of a saved Actor task, optionally filtered by status.",
+      "audience": "ai",
+      "inputs": {
+        "taskId": {
+          "label": "Task ID",
+          "description": "The ID of the saved task. Obtain it from List Tasks.",
+          "required": true
+        },
+        "status": {
+          "label": "Status",
+          "description": "Optionally restrict to the last run with this status.",
+          "type": "select",
+          "options": [
+            {
+              "value": "READY",
+              "label": "Ready"
+            },
+            {
+              "value": "RUNNING",
+              "label": "Running"
+            },
+            {
+              "value": "SUCCEEDED",
+              "label": "Succeeded"
+            },
+            {
+              "value": "FAILED",
+              "label": "Failed"
+            },
+            {
+              "value": "TIMING-OUT",
+              "label": "Timing Out"
+            },
+            {
+              "value": "TIMED-OUT",
+              "label": "Timed Out"
+            },
+            {
+              "value": "ABORTING",
+              "label": "Aborting"
+            },
+            {
+              "value": "ABORTED",
+              "label": "Aborted"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.apify.com/v2/actor-tasks/{{taskId}}/runs/last",
+        "query": {
+          "status": "{{status}}"
+        }
+      },
+      "result": "$.data",
+      "beforeRequest": "const start = request.url.indexOf('/v2/') + 4;\nconst raw = { '%7E': '~', '%21': '!', '%24': '$', '%26': '&', '%27': \"'\", '%28': '(', '%29': ')', '%2B': '+', '%2C': ',', '%3B': ';', '%3D': '=', '%3A': ':', '%40': '@', '%2F': '/' };\nrequest.url = request.url.slice(0, start) + request.url.slice(start).replace('%2F', '~').replace(/%[0-9A-F]{2}/g, (code) => raw[code] ?? code);\nreturn request;"
+    },
+    "apify_update_task_input": {
+      "label": "Update Task Input",
+      "description": "Overwrites the stored input body of a saved Actor task by task ID.",
+      "audience": "ai",
+      "inputs": {
+        "taskId": {
+          "label": "Task ID",
+          "description": "The ID of the saved task to reconfigure. Obtain it from List Tasks.",
+          "required": true
+        },
+        "input": {
+          "label": "Input JSON",
+          "description": "The full JSON input body to store on the task. This replaces the existing input entirely. Match the Actor's input schema (see Get Actor Input Schema for the task's actor).",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.apify.com/v2/actor-tasks/{{taskId}}/input",
+        "body": "{{input}}"
+      },
+      "afterResponse": "return { taskId: inputs.taskId, input: response };",
+      "beforeRequest": "const start = request.url.indexOf('/v2/') + 4;\nconst raw = { '%7E': '~', '%21': '!', '%24': '$', '%26': '&', '%27': \"'\", '%28': '(', '%29': ')', '%2B': '+', '%2C': ',', '%3B': ';', '%3D': '=', '%3A': ':', '%40': '@', '%2F': '/' };\nrequest.url = request.url.slice(0, start) + request.url.slice(start).replace('%2F', '~').replace(/%[0-9A-F]{2}/g, (code) => raw[code] ?? code);\nreturn request;"
+    },
+    "apify_create_task": {
+      "label": "Create Task",
+      "description": "Creates a new saved Actor task.",
+      "audience": "ai",
+      "inputs": {
+        "name": {
+          "label": "Name",
+          "description": "Unique name for the task (within your account). Creation fails if the name is already taken.",
+          "required": true
+        },
+        "actorId": {
+          "label": "Actor ID",
+          "description": "The ID (or \"username~actor-name\") of the Actor this task wraps. Obtain it from Find Actor or List Actors.",
+          "required": true
+        },
+        "input": {
+          "label": "Input JSON",
+          "description": "The JSON input body to store on the task. Match the Actor's input schema (see Get Actor Input Schema).",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/actor-tasks",
+        "body": {
+          "name": "{{name}}",
+          "actId": "{{actorId}}",
+          "input": "{{input}}"
+        }
+      },
+      "result": "$.data"
+    },
+    "apify_get_account": {
+      "label": "Get Account",
+      "description": "Retrieves the authenticated Apify account profile.",
+      "audience": "ai",
+      "request": {
+        "method": "GET",
+        "url": "https://api.apify.com/v2/users/me"
+      },
+      "result": "$.data"
+    },
+    "apify_get_account_limits": {
+      "label": "Get Account Limits",
+      "description": "Retrieves the authenticated account's plan limits and current usage.",
+      "audience": "ai",
+      "request": {
+        "method": "GET",
+        "url": "https://api.apify.com/v2/users/me/limits"
+      },
+      "result": "$.data"
+    }
+  }
+}

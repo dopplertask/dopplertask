@@ -1,0 +1,377 @@
+{
+  "name": "apitable",
+  "label": "AITable",
+  "description": "Interactive spreadsheets with collaboration",
+  "icon": "",
+  "hosts": [
+    "{{credential.apiTableUrl}}"
+  ],
+  "baseUrl": "https://{{credential.apiTableUrl}}/fusion",
+  "upstream": {
+    "package": "@activepieces/piece-apitable",
+    "version": "0.5.3"
+  },
+  "credential": {
+    "fields": {
+      "token": {
+        "label": "API Token",
+        "description": "Generate it in AITable under My Settings → Developer.",
+        "secret": true,
+        "required": true
+      },
+      "apiTableUrl": {
+        "label": "Instance URL",
+        "description": "The host of your AITable instance, such as aitable.ai. Keep the default unless you self-host AITable.",
+        "required": true,
+        "defaultValue": "aitable.ai"
+      }
+    },
+    "headers": {
+      "Authorization": "Bearer {{credential.token}}"
+    }
+  },
+  "actions": {
+    "apitable_find_record": {
+      "label": "Find Records",
+      "description": "Finds records in a datasheet.",
+      "inputs": {
+        "space_id": {
+          "label": "Space",
+          "description": "The AITable workspace that holds your datasheet.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://{{credential.apiTableUrl}}/fusion/v1/spaces"
+            },
+            "list": "$.data.spaces",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "datasheet_id": {
+          "label": "Datasheet",
+          "description": "The table inside the space.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://{{credential.apiTableUrl}}/fusion/v2/spaces/{{space_id}}/nodes",
+              "query": {
+                "type": "Datasheet"
+              }
+            },
+            "list": "$.data.nodes",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "filter": {
+          "label": "Filter Formula",
+          "description": "Only records where this formula is true are returned.",
+          "type": "multiline"
+        },
+        "recordIds": {
+          "label": "Record IDs",
+          "description": "Only return these records. Empty: search all.",
+          "type": "json"
+        },
+        "fieldNames": {
+          "label": "Fields to Return",
+          "description": "Field names to include. Empty: every field.",
+          "type": "json"
+        },
+        "pageSize": {
+          "label": "Page Size",
+          "description": "Records returned per page.",
+          "type": "number",
+          "defaultValue": "100"
+        },
+        "maxRecords": {
+          "label": "Max Records",
+          "description": "Caps matching records before paging. Empty: no cap.",
+          "type": "number"
+        },
+        "pageNum": {
+          "label": "Page Number",
+          "description": "Which page to return, starting at 1.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "url": "https://{{credential.apiTableUrl}}/fusion/v1/datasheets/{{datasheet_id}}/records"
+      },
+      "outputs": {
+        "records": "$.data.records",
+        "total": "$.data.total"
+      },
+      "beforeRequest": "const list = (v) => { if (!v) return ''; const a = JSON.parse(v); return Array.isArray(a) ? a.join(',') : String(a); }; const q = { pageSize: inputs.pageSize || '100', pageNum: inputs.pageNum || '1', recordIds: list(inputs.recordIds), fieldNames: list(inputs.fieldNames), maxRecords: inputs.maxRecords, filterByFormula: inputs.filter }; request.query = {}; for (const k in q) if (q[k]) request.query[k] = q[k]; return request;"
+    },
+    "apitable_delete_record": {
+      "label": "Delete Record",
+      "description": "Deletes one or more records from a datasheet.",
+      "audience": "ai",
+      "inputs": {
+        "space_id": {
+          "label": "Space",
+          "description": "The AITable workspace that holds your datasheet.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://{{credential.apiTableUrl}}/fusion/v1/spaces"
+            },
+            "list": "$.data.spaces",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "datasheet_id": {
+          "label": "Datasheet",
+          "description": "The table inside the space.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://{{credential.apiTableUrl}}/fusion/v2/spaces/{{space_id}}/nodes",
+              "query": {
+                "type": "Datasheet"
+              }
+            },
+            "list": "$.data.nodes",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "recordIds": {
+          "label": "Record IDs",
+          "description": "The IDs of the records to delete.",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.apiTableUrl}}/fusion/v1/datasheets/{{datasheet_id}}/records"
+      },
+      "beforeRequest": "const ids = JSON.parse(inputs.recordIds); request.query = { recordIds: (Array.isArray(ids) ? ids : [ids]).join(',') }; return request;"
+    },
+    "apitable_list_spaces": {
+      "label": "List Spaces",
+      "description": "Lists the spaces available to the authenticated account.",
+      "audience": "ai",
+      "inputs": {},
+      "request": {
+        "url": "https://{{credential.apiTableUrl}}/fusion/v1/spaces"
+      },
+      "outputs": {
+        "spaces": "$.data.spaces"
+      }
+    },
+    "apitable_list_datasheets": {
+      "label": "List Datasheets",
+      "description": "Lists the datasheets available in a space.",
+      "audience": "ai",
+      "inputs": {
+        "space_id": {
+          "label": "Space",
+          "description": "The AITable workspace that holds your datasheet.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://{{credential.apiTableUrl}}/fusion/v1/spaces"
+            },
+            "list": "$.data.spaces",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        }
+      },
+      "request": {
+        "url": "https://{{credential.apiTableUrl}}/fusion/v2/spaces/{{space_id}}/nodes",
+        "query": {
+          "type": "Datasheet"
+        }
+      },
+      "outputs": {
+        "nodes": "$.data.nodes"
+      }
+    },
+    "apitable_get_datasheet_fields": {
+      "label": "Get Datasheet Fields",
+      "description": "Reads the field (column) definitions of a datasheet.",
+      "audience": "ai",
+      "inputs": {
+        "space_id": {
+          "label": "Space",
+          "description": "The AITable workspace that holds your datasheet.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://{{credential.apiTableUrl}}/fusion/v1/spaces"
+            },
+            "list": "$.data.spaces",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "datasheet_id": {
+          "label": "Datasheet",
+          "description": "The table inside the space.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://{{credential.apiTableUrl}}/fusion/v2/spaces/{{space_id}}/nodes",
+              "query": {
+                "type": "Datasheet"
+              }
+            },
+            "list": "$.data.nodes",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        }
+      },
+      "request": {
+        "url": "https://{{credential.apiTableUrl}}/fusion/v1/datasheets/{{datasheet_id}}/fields"
+      },
+      "outputs": {
+        "fields": "$.data.fields"
+      }
+    },
+    "apitable_list_views": {
+      "label": "List Views",
+      "description": "Lists the views of a datasheet.",
+      "audience": "ai",
+      "inputs": {
+        "space_id": {
+          "label": "Space",
+          "description": "The AITable workspace that holds your datasheet.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://{{credential.apiTableUrl}}/fusion/v1/spaces"
+            },
+            "list": "$.data.spaces",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "datasheet_id": {
+          "label": "Datasheet",
+          "description": "The table inside the space.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://{{credential.apiTableUrl}}/fusion/v2/spaces/{{space_id}}/nodes",
+              "query": {
+                "type": "Datasheet"
+              }
+            },
+            "list": "$.data.nodes",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        }
+      },
+      "request": {
+        "url": "https://{{credential.apiTableUrl}}/fusion/v1/datasheets/{{datasheet_id}}/views"
+      },
+      "outputs": {
+        "views": "$.data.views"
+      }
+    },
+    "apitable_search_nodes": {
+      "label": "Search Nodes",
+      "description": "Searches the file nodes (datasheets, folders, forms, dashboards, etc.) in a space.",
+      "audience": "ai",
+      "inputs": {
+        "space_id": {
+          "label": "Space",
+          "description": "The AITable workspace that holds your datasheet.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://{{credential.apiTableUrl}}/fusion/v1/spaces"
+            },
+            "list": "$.data.spaces",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "type": {
+          "label": "Node Type",
+          "description": "The type of node to search for.",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "Datasheet",
+              "label": "Datasheet"
+            },
+            {
+              "value": "Folder",
+              "label": "Folder"
+            },
+            {
+              "value": "Form",
+              "label": "Form"
+            },
+            {
+              "value": "Dashboard",
+              "label": "Dashboard"
+            },
+            {
+              "value": "Mirror",
+              "label": "Mirror"
+            }
+          ]
+        },
+        "query": {
+          "label": "Name Query",
+          "description": "Filter results to node names containing this text."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.apiTableUrl}}/fusion/v2/spaces/{{space_id}}/nodes",
+        "query": {
+          "type": "{{type}}",
+          "query": "{{query}}"
+        }
+      },
+      "outputs": {
+        "nodes": "$.data.nodes"
+      }
+    },
+    "apitable_get_node_details": {
+      "label": "Get Node Details",
+      "description": "Reads the details of a single file node, including its children.",
+      "audience": "ai",
+      "inputs": {
+        "space_id": {
+          "label": "Space",
+          "description": "The AITable workspace that holds your datasheet.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://{{credential.apiTableUrl}}/fusion/v1/spaces"
+            },
+            "list": "$.data.spaces",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "node_id": {
+          "label": "Node ID",
+          "description": "The ID of the node to read.",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://{{credential.apiTableUrl}}/fusion/v1/spaces/{{space_id}}/nodes/{{node_id}}"
+      },
+      "outputs": {
+        "id": "$.data.id",
+        "name": "$.data.name",
+        "type": "$.data.type",
+        "children": "$.data.children"
+      }
+    }
+  }
+}

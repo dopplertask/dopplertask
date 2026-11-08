@@ -1,0 +1,1159 @@
+{
+  "name": "tally",
+  "label": "Tally",
+  "description": "Receive form submissions from Tally forms",
+  "icon": "",
+  "hosts": [
+    "api.tally.so"
+  ],
+  "baseUrl": "https://api.tally.so",
+  "upstream": {
+    "package": "@activepieces/piece-tally",
+    "version": "0.7.1"
+  },
+  "credential": {
+    "fields": {
+      "apiKey": {
+        "label": "API Key",
+        "description": "To get your API key:\n\n1. Sign in to [Tally](https://tally.so) and open **Settings**.\n2. Go to **API keys** and click **Create API key**.\n3. Copy the key and paste it below.",
+        "secret": true,
+        "required": true
+      }
+    },
+    "headers": {
+      "Authorization": "Bearer {{credential.apiKey}}"
+    }
+  },
+  "actions": {
+    "list_forms": {
+      "label": "List Forms",
+      "description": "List all forms in your Tally account",
+      "audience": "ai",
+      "inputs": {
+        "page": {
+          "label": "Page",
+          "description": "Page number, starting at 1. Defaults to 1.",
+          "type": "number",
+          "required": false
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Number of forms per page (max 500). Defaults to 50.",
+          "type": "number",
+          "required": false
+        }
+      },
+      "request": {
+        "url": "https://api.tally.so/forms",
+        "query": {
+          "page": "{{page}}",
+          "limit": "{{limit}}"
+        }
+      },
+      "outputs": {
+        "items": "$.items",
+        "hasMore": "$.hasMore",
+        "page": "$.page"
+      }
+    },
+    "create_form": {
+      "label": "Create Form",
+      "description": "Create a new form from a blocks definition",
+      "audience": "ai",
+      "inputs": {
+        "blocks": {
+          "label": "Blocks",
+          "description": "Array of Tally block objects that define the form content and fields (titles, inputs, choices, etc). Fetch an existing form with Get Form to see the exact shape blocks must take.",
+          "type": "json",
+          "required": true
+        },
+        "status": {
+          "label": "Status",
+          "description": "BLANK has no content yet; DRAFT is editable and not publicly accessible; PUBLISHED is live and accepting submissions.",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "BLANK",
+              "label": "Blank"
+            },
+            {
+              "value": "DRAFT",
+              "label": "Draft"
+            },
+            {
+              "value": "PUBLISHED",
+              "label": "Published"
+            }
+          ]
+        },
+        "workspace_id": {
+          "label": "Workspace",
+          "description": "Defaults to your account's default workspace if left empty.",
+          "required": false,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.tally.so/workspaces"
+            },
+            "list": "$.items",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "folder_id": {
+          "label": "Folder",
+          "description": "Only folders inside the selected workspace are shown.",
+          "required": false,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.tally.so/workspaces/{{workspace_id}}/folders"
+            },
+            "list": "$",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "template_id": {
+          "label": "Template ID",
+          "description": "Optional Tally template ID to base the form on.",
+          "required": false
+        },
+        "settings": {
+          "label": "Settings",
+          "description": "Optional form settings object (language, notifications, redirects, data retention, styling, password protection, etc).",
+          "type": "json",
+          "required": false
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.tally.so/forms",
+        "body": {
+          "blocks": "{{blocks}}",
+          "status": "{{status}}",
+          "workspaceId": "{{workspace_id}}",
+          "templateId": "{{template_id}}",
+          "folderId": "{{folder_id}}",
+          "settings": "{{settings}}"
+        }
+      },
+      "outputs": {
+        "id": "$.id",
+        "name": "$.name",
+        "status": "$.status",
+        "workspaceId": "$.workspaceId"
+      }
+    },
+    "get_form": {
+      "label": "Get Form",
+      "description": "Get a single form by id, including its blocks and settings",
+      "audience": "ai",
+      "inputs": {
+        "form_id": {
+          "label": "Form",
+          "description": "Only forms this API key can access are listed.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.tally.so/forms",
+              "query": {
+                "page": "1",
+                "limit": "100"
+              }
+            },
+            "list": "$.items",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        }
+      },
+      "request": {
+        "url": "https://api.tally.so/forms/{{form_id}}"
+      },
+      "outputs": {
+        "id": "$.id",
+        "name": "$.name",
+        "status": "$.status",
+        "workspaceId": "$.workspaceId"
+      }
+    },
+    "update_form": {
+      "label": "Update Form",
+      "description": "Update a form's name, status, blocks, or settings",
+      "audience": "ai",
+      "inputs": {
+        "form_id": {
+          "label": "Form",
+          "description": "Only forms this API key can access are listed.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.tally.so/forms",
+              "query": {
+                "page": "1",
+                "limit": "100"
+              }
+            },
+            "list": "$.items",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "name": {
+          "label": "Name",
+          "required": false
+        },
+        "status": {
+          "label": "Status",
+          "type": "select",
+          "required": false,
+          "options": [
+            {
+              "value": "BLANK",
+              "label": "Blank"
+            },
+            {
+              "value": "DRAFT",
+              "label": "Draft"
+            },
+            {
+              "value": "PUBLISHED",
+              "label": "Published"
+            }
+          ]
+        },
+        "blocks": {
+          "label": "Blocks",
+          "description": "Replaces the entire blocks array. Use Get Form first to fetch the current blocks so you can merge your change into the full array rather than dropping the rest of the form content.",
+          "type": "json",
+          "required": false
+        },
+        "settings": {
+          "label": "Settings",
+          "description": "Replaces the entire settings object. Use Get Form first if you need to preserve other settings.",
+          "type": "json",
+          "required": false
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://api.tally.so/forms/{{form_id}}",
+        "body": {
+          "name": "{{name}}",
+          "status": "{{status}}",
+          "blocks": "{{blocks}}",
+          "settings": "{{settings}}"
+        }
+      },
+      "outputs": {
+        "id": "$.id",
+        "name": "$.name",
+        "status": "$.status",
+        "workspaceId": "$.workspaceId"
+      }
+    },
+    "delete_form": {
+      "label": "Delete Form",
+      "description": "Permanently delete a form",
+      "audience": "ai",
+      "inputs": {
+        "form_id": {
+          "label": "Form",
+          "description": "Only forms this API key can access are listed.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.tally.so/forms",
+              "query": {
+                "page": "1",
+                "limit": "100"
+              }
+            },
+            "list": "$.items",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.tally.so/forms/{{form_id}}"
+      },
+      "afterResponse": "return {formId: inputs.form_id, deleted: true};",
+      "outputs": {
+        "formId": "$.formId",
+        "deleted": "$.deleted"
+      }
+    },
+    "list_form_questions": {
+      "label": "List Form Questions",
+      "description": "List the questions on a form, with their ids and titles",
+      "audience": "ai",
+      "inputs": {
+        "form_id": {
+          "label": "Form",
+          "description": "Only forms this API key can access are listed.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.tally.so/forms",
+              "query": {
+                "page": "1",
+                "limit": "100"
+              }
+            },
+            "list": "$.items",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        }
+      },
+      "request": {
+        "url": "https://api.tally.so/forms/{{form_id}}/questions"
+      },
+      "outputs": {
+        "questions": "$.questions",
+        "hasResponses": "$.hasResponses"
+      }
+    },
+    "list_submissions": {
+      "label": "List Submissions",
+      "description": "List a form's submissions, with filters for status and date range",
+      "audience": "ai",
+      "inputs": {
+        "form_id": {
+          "label": "Form",
+          "description": "Only forms this API key can access are listed.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.tally.so/forms",
+              "query": {
+                "page": "1",
+                "limit": "100"
+              }
+            },
+            "list": "$.items",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "filter": {
+          "label": "Filter",
+          "description": "Filter by submission completion status. Defaults to all.",
+          "type": "select",
+          "required": false,
+          "options": [
+            {
+              "value": "all",
+              "label": "All"
+            },
+            {
+              "value": "completed",
+              "label": "Completed"
+            },
+            {
+              "value": "partial",
+              "label": "Partial"
+            }
+          ]
+        },
+        "start_date": {
+          "label": "Start Date",
+          "description": "ISO 8601 date-time. Include submissions on or after this date.",
+          "required": false
+        },
+        "end_date": {
+          "label": "End Date",
+          "description": "ISO 8601 date-time. Include submissions on or before this date.",
+          "required": false
+        },
+        "after_id": {
+          "label": "After Submission ID",
+          "description": "Return submissions after this submission id (cursor-style pagination).",
+          "required": false
+        },
+        "page": {
+          "label": "Page",
+          "description": "Page number, starting at 1. Defaults to 1.",
+          "type": "number",
+          "required": false
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Submissions per page (max 500). Defaults to 50.",
+          "type": "number",
+          "required": false
+        }
+      },
+      "request": {
+        "url": "https://api.tally.so/forms/{{form_id}}/submissions",
+        "query": {
+          "page": "{{page}}",
+          "limit": "{{limit}}",
+          "filter": "{{filter}}",
+          "startDate": "{{start_date}}",
+          "endDate": "{{end_date}}",
+          "afterId": "{{after_id}}"
+        }
+      },
+      "outputs": {
+        "submissions": "$.submissions",
+        "questions": "$.questions",
+        "hasMore": "$.hasMore"
+      }
+    },
+    "get_submission": {
+      "label": "Get Submission",
+      "description": "Get a single submission by id",
+      "audience": "ai",
+      "inputs": {
+        "form_id": {
+          "label": "Form",
+          "description": "Only forms this API key can access are listed.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.tally.so/forms",
+              "query": {
+                "page": "1",
+                "limit": "100"
+              }
+            },
+            "list": "$.items",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "submission_id": {
+          "label": "Submission ID",
+          "description": "Obtain from List Submissions or the New Submission trigger payload.",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://api.tally.so/forms/{{form_id}}/submissions/{{submission_id}}"
+      },
+      "outputs": {
+        "submission": "$.submission",
+        "questions": "$.questions"
+      }
+    },
+    "delete_submission": {
+      "label": "Delete Submission",
+      "description": "Permanently delete a single submission",
+      "audience": "ai",
+      "inputs": {
+        "form_id": {
+          "label": "Form",
+          "description": "Only forms this API key can access are listed.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.tally.so/forms",
+              "query": {
+                "page": "1",
+                "limit": "100"
+              }
+            },
+            "list": "$.items",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "submission_id": {
+          "label": "Submission ID",
+          "description": "Obtain from List Submissions or Get Submission.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.tally.so/forms/{{form_id}}/submissions/{{submission_id}}"
+      },
+      "afterResponse": "return {formId: inputs.form_id, submissionId: inputs.submission_id, deleted: true};",
+      "outputs": {
+        "formId": "$.formId",
+        "submissionId": "$.submissionId",
+        "deleted": "$.deleted"
+      }
+    },
+    "get_form_metrics": {
+      "label": "Get Form Metrics",
+      "description": "Get summary metrics for a form over a time period",
+      "audience": "ai",
+      "inputs": {
+        "form_id": {
+          "label": "Form",
+          "description": "Only forms this API key can access are listed.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.tally.so/forms",
+              "query": {
+                "page": "1",
+                "limit": "100"
+              }
+            },
+            "list": "$.items",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "period": {
+          "label": "Period",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "today",
+              "label": "Today"
+            },
+            {
+              "value": "yesterday",
+              "label": "Yesterday"
+            },
+            {
+              "value": "24h",
+              "label": "Last 24 hours"
+            },
+            {
+              "value": "7d",
+              "label": "Last 7 days"
+            },
+            {
+              "value": "30d",
+              "label": "Last 30 days"
+            },
+            {
+              "value": "3m",
+              "label": "Last 3 months"
+            },
+            {
+              "value": "6m",
+              "label": "Last 6 months"
+            },
+            {
+              "value": "12m",
+              "label": "Last 12 months"
+            },
+            {
+              "value": "all",
+              "label": "All time"
+            }
+          ]
+        }
+      },
+      "request": {
+        "url": "https://api.tally.so/forms/{{form_id}}/analytics/metrics",
+        "query": {
+          "period": "{{period}}"
+        }
+      }
+    },
+    "get_form_visit_analytics": {
+      "label": "Get Form Visit Analytics",
+      "description": "Get visit counts over time for a form",
+      "audience": "ai",
+      "inputs": {
+        "form_id": {
+          "label": "Form",
+          "description": "Only forms this API key can access are listed.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.tally.so/forms",
+              "query": {
+                "page": "1",
+                "limit": "100"
+              }
+            },
+            "list": "$.items",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "period": {
+          "label": "Period",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "today",
+              "label": "Today"
+            },
+            {
+              "value": "yesterday",
+              "label": "Yesterday"
+            },
+            {
+              "value": "24h",
+              "label": "Last 24 hours"
+            },
+            {
+              "value": "7d",
+              "label": "Last 7 days"
+            },
+            {
+              "value": "30d",
+              "label": "Last 30 days"
+            },
+            {
+              "value": "3m",
+              "label": "Last 3 months"
+            },
+            {
+              "value": "6m",
+              "label": "Last 6 months"
+            },
+            {
+              "value": "12m",
+              "label": "Last 12 months"
+            },
+            {
+              "value": "all",
+              "label": "All time"
+            }
+          ]
+        }
+      },
+      "request": {
+        "url": "https://api.tally.so/forms/{{form_id}}/analytics/visits",
+        "query": {
+          "period": "{{period}}"
+        }
+      }
+    },
+    "get_form_submission_analytics": {
+      "label": "Get Form Submission Analytics",
+      "description": "Get completed vs partial submission counts over time for a form",
+      "audience": "ai",
+      "inputs": {
+        "form_id": {
+          "label": "Form",
+          "description": "Only forms this API key can access are listed.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.tally.so/forms",
+              "query": {
+                "page": "1",
+                "limit": "100"
+              }
+            },
+            "list": "$.items",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "period": {
+          "label": "Period",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "today",
+              "label": "Today"
+            },
+            {
+              "value": "yesterday",
+              "label": "Yesterday"
+            },
+            {
+              "value": "24h",
+              "label": "Last 24 hours"
+            },
+            {
+              "value": "7d",
+              "label": "Last 7 days"
+            },
+            {
+              "value": "30d",
+              "label": "Last 30 days"
+            },
+            {
+              "value": "3m",
+              "label": "Last 3 months"
+            },
+            {
+              "value": "6m",
+              "label": "Last 6 months"
+            },
+            {
+              "value": "12m",
+              "label": "Last 12 months"
+            },
+            {
+              "value": "all",
+              "label": "All time"
+            }
+          ]
+        }
+      },
+      "request": {
+        "url": "https://api.tally.so/forms/{{form_id}}/analytics/submissions",
+        "query": {
+          "period": "{{period}}"
+        }
+      }
+    },
+    "get_form_analytics_dimensions": {
+      "label": "Get Form Analytics Dimensions",
+      "description": "Get visitor breakdowns by source, browser, OS, device, and location for a form",
+      "audience": "ai",
+      "inputs": {
+        "form_id": {
+          "label": "Form",
+          "description": "Only forms this API key can access are listed.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.tally.so/forms",
+              "query": {
+                "page": "1",
+                "limit": "100"
+              }
+            },
+            "list": "$.items",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "period": {
+          "label": "Period",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "today",
+              "label": "Today"
+            },
+            {
+              "value": "yesterday",
+              "label": "Yesterday"
+            },
+            {
+              "value": "24h",
+              "label": "Last 24 hours"
+            },
+            {
+              "value": "7d",
+              "label": "Last 7 days"
+            },
+            {
+              "value": "30d",
+              "label": "Last 30 days"
+            },
+            {
+              "value": "3m",
+              "label": "Last 3 months"
+            },
+            {
+              "value": "6m",
+              "label": "Last 6 months"
+            },
+            {
+              "value": "12m",
+              "label": "Last 12 months"
+            },
+            {
+              "value": "all",
+              "label": "All time"
+            }
+          ]
+        }
+      },
+      "request": {
+        "url": "https://api.tally.so/forms/{{form_id}}/analytics/dimensions",
+        "query": {
+          "period": "{{period}}"
+        }
+      }
+    },
+    "get_form_drop_off_analytics": {
+      "label": "Get Form Drop-off Analytics",
+      "description": "Get per-question drop-off rates for a form",
+      "audience": "ai",
+      "inputs": {
+        "form_id": {
+          "label": "Form",
+          "description": "Only forms this API key can access are listed.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.tally.so/forms",
+              "query": {
+                "page": "1",
+                "limit": "100"
+              }
+            },
+            "list": "$.items",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "period": {
+          "label": "Period",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "today",
+              "label": "Today"
+            },
+            {
+              "value": "yesterday",
+              "label": "Yesterday"
+            },
+            {
+              "value": "24h",
+              "label": "Last 24 hours"
+            },
+            {
+              "value": "7d",
+              "label": "Last 7 days"
+            },
+            {
+              "value": "30d",
+              "label": "Last 30 days"
+            },
+            {
+              "value": "3m",
+              "label": "Last 3 months"
+            },
+            {
+              "value": "6m",
+              "label": "Last 6 months"
+            },
+            {
+              "value": "12m",
+              "label": "Last 12 months"
+            },
+            {
+              "value": "all",
+              "label": "All time"
+            }
+          ]
+        }
+      },
+      "request": {
+        "url": "https://api.tally.so/forms/{{form_id}}/analytics/drop-off",
+        "query": {
+          "period": "{{period}}"
+        }
+      }
+    },
+    "list_workspaces": {
+      "label": "List Workspaces",
+      "description": "List all workspaces in your Tally account",
+      "audience": "ai",
+      "inputs": {
+        "page": {
+          "label": "Page",
+          "description": "Page number, starting at 1. Defaults to 1.",
+          "type": "number",
+          "required": false
+        }
+      },
+      "request": {
+        "url": "https://api.tally.so/workspaces",
+        "query": {
+          "page": "{{page}}"
+        }
+      },
+      "outputs": {
+        "items": "$.items",
+        "hasMore": "$.hasMore"
+      }
+    },
+    "create_workspace": {
+      "label": "Create Workspace",
+      "description": "Create a new workspace",
+      "audience": "ai",
+      "inputs": {
+        "name": {
+          "label": "Name",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.tally.so/workspaces",
+        "body": {
+          "name": "{{name}}"
+        }
+      },
+      "outputs": {
+        "id": "$.id",
+        "name": "$.name"
+      }
+    },
+    "get_workspace": {
+      "label": "Get Workspace",
+      "description": "Get a single workspace by id",
+      "audience": "ai",
+      "inputs": {
+        "workspace_id": {
+          "label": "Workspace",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.tally.so/workspaces"
+            },
+            "list": "$.items",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        }
+      },
+      "request": {
+        "url": "https://api.tally.so/workspaces/{{workspace_id}}"
+      },
+      "outputs": {
+        "id": "$.id",
+        "name": "$.name"
+      }
+    },
+    "rename_workspace": {
+      "label": "Rename Workspace",
+      "description": "Rename a workspace",
+      "audience": "ai",
+      "inputs": {
+        "workspace_id": {
+          "label": "Workspace",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.tally.so/workspaces"
+            },
+            "list": "$.items",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "name": {
+          "label": "New Name",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://api.tally.so/workspaces/{{workspace_id}}",
+        "body": {
+          "name": "{{name}}"
+        }
+      },
+      "afterResponse": "return {workspaceId: inputs.workspace_id, name: inputs.name};",
+      "outputs": {
+        "workspaceId": "$.workspaceId",
+        "name": "$.name"
+      }
+    },
+    "delete_workspace": {
+      "label": "Delete Workspace",
+      "description": "Permanently delete a workspace and everything inside it",
+      "audience": "ai",
+      "inputs": {
+        "workspace_id": {
+          "label": "Workspace",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.tally.so/workspaces"
+            },
+            "list": "$.items",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.tally.so/workspaces/{{workspace_id}}"
+      },
+      "afterResponse": "return {workspaceId: inputs.workspace_id, deleted: true};",
+      "outputs": {
+        "workspaceId": "$.workspaceId",
+        "deleted": "$.deleted"
+      }
+    },
+    "list_workspace_folders": {
+      "label": "List Workspace Folders",
+      "description": "List folders inside a workspace",
+      "audience": "ai",
+      "inputs": {
+        "workspace_id": {
+          "label": "Workspace",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.tally.so/workspaces"
+            },
+            "list": "$.items",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        }
+      },
+      "request": {
+        "url": "https://api.tally.so/workspaces/{{workspace_id}}/folders"
+      }
+    },
+    "create_folder": {
+      "label": "Create Folder",
+      "description": "Create a folder inside a workspace",
+      "audience": "ai",
+      "inputs": {
+        "workspace_id": {
+          "label": "Workspace",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.tally.so/workspaces"
+            },
+            "list": "$.items",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "name": {
+          "label": "Name",
+          "required": true
+        },
+        "parent_id": {
+          "label": "Folder",
+          "description": "Only folders inside the selected workspace are shown.",
+          "required": false,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.tally.so/workspaces/{{workspace_id}}/folders"
+            },
+            "list": "$",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.tally.so/workspaces/{{workspace_id}}/folders",
+        "body": {
+          "name": "{{name}}",
+          "parentId": "{{parent_id}}"
+        }
+      },
+      "outputs": {
+        "id": "$.id",
+        "name": "$.name",
+        "workspaceId": "$.workspaceId",
+        "parentId": "$.parentId"
+      }
+    },
+    "rename_folder": {
+      "label": "Rename Folder",
+      "description": "Rename a folder",
+      "audience": "ai",
+      "inputs": {
+        "workspace_id": {
+          "label": "Workspace",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.tally.so/workspaces"
+            },
+            "list": "$.items",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "folder_id": {
+          "label": "Folder",
+          "description": "Only folders inside the selected workspace are shown.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.tally.so/workspaces/{{workspace_id}}/folders"
+            },
+            "list": "$",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "name": {
+          "label": "New Name",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://api.tally.so/workspaces/{{workspace_id}}/folders/{{folder_id}}",
+        "body": {
+          "name": "{{name}}"
+        }
+      },
+      "afterResponse": "return {workspaceId: inputs.workspace_id, folderId: inputs.folder_id, name: inputs.name};",
+      "outputs": {
+        "workspaceId": "$.workspaceId",
+        "folderId": "$.folderId",
+        "name": "$.name"
+      }
+    },
+    "delete_folder": {
+      "label": "Delete Folder",
+      "description": "Delete a folder and its subtree, moving contained forms to trash",
+      "audience": "ai",
+      "inputs": {
+        "workspace_id": {
+          "label": "Workspace",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.tally.so/workspaces"
+            },
+            "list": "$.items",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "folder_id": {
+          "label": "Folder",
+          "description": "Only folders inside the selected workspace are shown.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.tally.so/workspaces/{{workspace_id}}/folders"
+            },
+            "list": "$",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.tally.so/workspaces/{{workspace_id}}/folders/{{folder_id}}"
+      },
+      "afterResponse": "return {workspaceId: inputs.workspace_id, folderId: inputs.folder_id, deleted: true};",
+      "outputs": {
+        "workspaceId": "$.workspaceId",
+        "folderId": "$.folderId",
+        "deleted": "$.deleted"
+      }
+    },
+    "get_current_user": {
+      "label": "Get Current User",
+      "description": "Get the connected account's profile and subscription plan",
+      "audience": "ai",
+      "inputs": {},
+      "request": {
+        "url": "https://api.tally.so/users/me"
+      },
+      "outputs": {
+        "id": "$.id",
+        "email": "$.email",
+        "fullName": "$.fullName",
+        "subscriptionPlan": "$.subscriptionPlan"
+      }
+    }
+  }
+}

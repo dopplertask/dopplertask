@@ -2,13 +2,73 @@
   "name": "circle",
   "label": "Circle",
   "description": "Circle.so is a platform for creating and managing communities.",
+  "icon": "",
   "hosts": ["app.circle.so"],
+  "baseUrl": "https://app.circle.so/api/admin/v2",
   "upstream": { "package": "@activepieces/piece-circle", "version": "0.2.2" },
   "credential": {
     "fields": { "apiToken": { "label": "API Token", "secret": true, "required": true, "description": "You can obtain your API token by navigating to Settings->Developers->Tokens." } },
     "headers": { "Authorization": "Bearer {{credential.apiToken}}" }
   },
   "actions": {
+    "create_post": {
+      "label": "Create Post",
+      "description": "Creates a new post in a specific space.",
+      "inputs": {
+        "space_id": { "label": "Space", "type": "number", "required": true,
+          "optionsFrom": { "request": { "url": "https://app.circle.so/api/admin/v2/spaces", "headers": { "Content-Type": "application/json" } }, "list": "$.records", "label": "$.name", "value": "$.id" } },
+        "name": { "label": "Post Name/Title", "description": "The title of the post.", "required": true },
+        "text_body": { "label": "Post Body (Plain Text)", "description": "Simple plain text content for the post. Used if 'Tiptap Body JSON' is not provided.", "type": "multiline" },
+        "tiptap_body_json": { "label": "Tiptap Body JSON", "description": "Full TipTap JSON object for the post body. If provided, 'Post Body (Plain Text)' is ignored.", "type": "json" },
+        "status": { "label": "Status", "description": "The status of the post.", "type": "select", "defaultValue": "published",
+          "options": [ { "label": "Draft", "value": "draft" }, { "label": "Published", "value": "published" }, { "label": "Scheduled", "value": "scheduled" } ] },
+        "published_at": { "label": "Published At (for Scheduled)", "description": "If status is 'scheduled', provide the future date and time for publishing." },
+        "is_comments_enabled": { "label": "Enable Comments", "description": "Allow comments on this post?", "type": "boolean", "defaultValue": "true" },
+        "skip_notifications": { "label": "Skip Notifications", "description": "Prevent notifications from being sent for this post?", "type": "boolean", "defaultValue": "false" },
+        "user_email": { "label": "Post As User Email (Optional)", "description": "Email of an existing community member to create this post as. If empty, posts as the authenticated admin." }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://app.circle.so/api/admin/v2/posts",
+        "headers": { "Content-Type": "application/json" },
+        "body": { "space_id": "{{space_id}}", "tiptap_body_json": "{{tiptap_body_json}}", "is_comments_enabled": "{{is_comments_enabled}}", "skip_notifications": "{{skip_notifications}}" }
+      },
+      "beforeRequest": "var t = request.body.tiptap_body_json, b = { space_id: request.body.space_id, name: inputs.name };\nif (t && typeof t === 'object' && t.body) b.tiptap_body = t;\nelse if (inputs.text_body || !t) b.tiptap_body = { body: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: inputs.text_body || '' }] }] } };\nelse throw new Error(\"Invalid body input. Provide either 'Post Body (Plain Text)' or a valid 'Tiptap Body JSON'. If both are empty, an empty post will be created.\");\nb.status = inputs.status || 'published';\nif (inputs.published_at && b.status === 'scheduled') b.published_at = new Date(inputs.published_at).toISOString();\nif ('is_comments_enabled' in request.body) { b.is_comments_enabled = request.body.is_comments_enabled; b.is_comments_closed = !b.is_comments_enabled; }\nif ('skip_notifications' in request.body) b.skip_notifications = request.body.skip_notifications;\nif (inputs.user_email) b.user_email = inputs.user_email;\nrequest.body = b;\nreturn request;"
+    },
+    "create_comment": {
+      "label": "Create Comment",
+      "description": "Creates a new comment on a post.",
+      "inputs": {
+        "space_id": { "label": "Space", "type": "number", "required": true,
+          "optionsFrom": { "request": { "url": "https://app.circle.so/api/admin/v2/spaces", "headers": { "Content-Type": "application/json" } }, "list": "$.records", "label": "$.name", "value": "$.id" } },
+        "post_id": { "label": "Post", "type": "number", "required": true,
+          "optionsFrom": { "request": { "url": "https://app.circle.so/api/admin/v2/posts", "headers": { "Content-Type": "application/json" }, "query": { "space_id": "{{space_id}}", "status": "all" } }, "list": "$.records", "label": "$.name", "value": "$.id" } },
+        "body": { "label": "Comment Body", "description": "The content of the comment.", "type": "multiline", "required": true },
+        "parent_comment_id": { "label": "Parent Comment ID (Optional)", "description": "ID of the comment to reply to. Leave empty if not a reply.", "type": "number" },
+        "skip_notifications": { "label": "Skip Notifications", "description": "Skip sending notifications for this comment?", "type": "boolean", "defaultValue": "false" }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://app.circle.so/api/admin/v2/comments",
+        "headers": { "Content-Type": "application/json" },
+        "body": { "post_id": "{{post_id}}", "body": "{{body}}", "parent_comment_id": "{{parent_comment_id}}", "skip_notifications": "{{skip_notifications}}" }
+      }
+    },
+    "add_member_to_space": {
+      "label": "Add Member to Space",
+      "description": "Add an existing member to a specific space by their email.",
+      "inputs": {
+        "space_id": { "label": "Space", "type": "number", "required": true,
+          "optionsFrom": { "request": { "url": "https://app.circle.so/api/admin/v2/spaces", "headers": { "Content-Type": "application/json" } }, "list": "$.records", "label": "$.name", "value": "$.id" } },
+        "email": { "label": "Member Email", "description": "The email address of the member to add to the space.", "required": true }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://app.circle.so/api/admin/v2/space_members",
+        "headers": { "Content-Type": "application/json" },
+        "body": { "space_id": "{{space_id}}", "email": "{{email}}" }
+      }
+    },
     "find_member_by_email": {
       "label": "Find Member by Email",
       "description": "Finds a community member by their email address.",
@@ -20,6 +80,36 @@
         "query": { "email": "{{email}}" }
       },
       "outputs": { "id": "$.id", "name": "$.name", "email": "$.email", "user_id": "$.user_id" }
+    },
+    "get_post_details": {
+      "label": "Get Post Details",
+      "description": "Retrieves the complete details of a specific post.",
+      "inputs": {
+        "space_id": { "label": "Space", "type": "number", "required": true,
+          "optionsFrom": { "request": { "url": "https://app.circle.so/api/admin/v2/spaces", "headers": { "Content-Type": "application/json" } }, "list": "$.records", "label": "$.name", "value": "$.id" } },
+        "post_id": { "label": "Post", "type": "number", "required": true,
+          "optionsFrom": { "request": { "url": "https://app.circle.so/api/admin/v2/posts", "headers": { "Content-Type": "application/json" }, "query": { "space_id": "{{space_id}}", "status": "all" } }, "list": "$.records", "label": "$.name", "value": "$.id" } }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://app.circle.so/api/admin/v2/posts/{{post_id}}",
+        "headers": { "Content-Type": "application/json" }
+      },
+      "outputs": { "id": "$.id", "name": "$.name", "url": "$.url" }
+    },
+    "get_member_details": {
+      "label": "Get Member Details",
+      "description": "Fetches the full profile details for a specific community member.",
+      "inputs": {
+        "member_id": { "label": "Community Member", "type": "number", "required": true,
+          "optionsFrom": { "request": { "url": "https://app.circle.so/api/admin/v2/community_members", "headers": { "Content-Type": "application/json" }, "query": { "status": "all" } }, "list": "$.records", "label": "$.name", "value": "$.id" } }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://app.circle.so/api/admin/v2/community_members/{{member_id}}",
+        "headers": { "Content-Type": "application/json" }
+      },
+      "outputs": { "id": "$.id", "name": "$.name", "email": "$.email" }
     }
   }
 }

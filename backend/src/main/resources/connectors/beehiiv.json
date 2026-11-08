@@ -2,38 +2,307 @@
   "name": "beehiiv",
   "label": "Beehiiv",
   "description": "Manage subscriptions and automations in Beehiiv",
-  "hosts": ["api.beehiiv.com"],
-  "upstream": { "package": "@activepieces/piece-beehiiv", "version": "0.4.2" },
+  "icon": "",
+  "hosts": [
+    "api.beehiiv.com"
+  ],
+  "baseUrl": "https://api.beehiiv.com/v2",
+  "upstream": {
+    "package": "@activepieces/piece-beehiiv",
+    "version": "0.4.2"
+  },
   "credential": {
-    "fields": { "apiKey": { "label": "API Key", "secret": true, "required": true, "description": "Your can obtain API key by naviating to **Settings->Workspace Settings-> API**." } },
-    "headers": { "Authorization": "Bearer {{credential.apiKey}}" }
+    "fields": {
+      "apiKey": {
+        "label": "API Key",
+        "secret": true,
+        "required": true,
+        "description": "Your can obtain API key by naviating to **Settings->Workspace Settings-> API**."
+      }
+    },
+    "headers": {
+      "Authorization": "Bearer {{credential.apiKey}}"
+    }
   },
   "actions": {
+    "create_subscription": {
+      "label": "Create Subscription",
+      "description": "Creates a new subscription.",
+      "inputs": {
+        "publicationId": {
+          "label": "Publication",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.beehiiv.com/v2/publications?limit=100&page=1"
+            },
+            "list": "$.data"
+          }
+        },
+        "email": {
+          "label": "Email",
+          "description": "The email address of the new subscription.",
+          "required": true
+        },
+        "reactivate_existing": {
+          "label": "Reactivate Existing",
+          "type": "boolean",
+          "defaultValue": "false",
+          "description": "Whether to reactivate the subscription if they have already unsubscribed. Use only if the subscription is knowingly resubscribing."
+        },
+        "send_welcome_email": {
+          "label": "Send Welcome Email",
+          "type": "boolean",
+          "defaultValue": "false",
+          "description": "Whether to send the default welcome email to the subscription."
+        },
+        "utm_source": {
+          "label": "UTM Source",
+          "description": "The source of the subscription."
+        },
+        "utm_medium": {
+          "label": "UTM Medium",
+          "description": "The medium of the subscription."
+        },
+        "utm_campaign": {
+          "label": "UTM Campaign",
+          "description": "The acquisition campaign of the subscription."
+        },
+        "referring_site": {
+          "label": "Referring Site",
+          "description": "The website that the subscription was referred from."
+        },
+        "referral_code": {
+          "label": "Referral Code",
+          "description": "A subscription's referral_code to give them credit for the new subscription."
+        },
+        "tier": {
+          "label": "Subscription Tier",
+          "description": "The tier for this subscription.",
+          "type": "select",
+          "options": [
+            {
+              "value": "free",
+              "label": "Free"
+            },
+            {
+              "value": "premium",
+              "label": "Premium"
+            }
+          ]
+        },
+        "custom_fields": {
+          "label": "Custom Fields",
+          "type": "json",
+          "description": "Custom field values by their display name, such as {\"Company\": \"Acme\"}."
+        },
+        "stripe_customer_id": {
+          "label": "Stripe Customer ID",
+          "description": "The Stripe customer ID for this subscription."
+        },
+        "double_opt_override": {
+          "label": "Double Opt-in Override",
+          "description": "Override publication double-opt settings for this subscription."
+        },
+        "premium_tier_ids": {
+          "label": "Premium Tier IDs",
+          "type": "json",
+          "description": "The IDs of the premium tiers this subscription is associated with."
+        },
+        "automation_ids": {
+          "label": "Automation IDs",
+          "description": "Enroll the subscription into automations after their subscription has been created.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.beehiiv.com/v2/publications/{{publicationId}}/automations?limit=100&page=1"
+            },
+            "list": "$.data"
+          }
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.beehiiv.com/v2/publications/{{publicationId}}/subscriptions",
+        "body": {
+          "email": "{{email}}",
+          "reactivate_existing": "{{reactivate_existing}}",
+          "send_welcome_email": "{{send_welcome_email}}",
+          "utm_source": "{{utm_source}}",
+          "utm_campaign": "{{utm_campaign}}",
+          "utm_medium": "{{utm_medium}}",
+          "referring_site": "{{referring_site}}",
+          "referral_code": "{{referral_code}}",
+          "double_opt_override": "{{double_opt_override}}",
+          "tier": "{{tier}}",
+          "premium_tier_ids": "{{premium_tier_ids}}",
+          "stripe_customer_id": "{{stripe_customer_id}}",
+          "automation_ids": "{{automation_ids}}"
+        }
+      },
+      "beforeRequest": "var body = request.body;\nif (Array.isArray(body.premium_tier_ids) && body.premium_tier_ids.length === 0) delete body.premium_tier_ids;\nvar fields = inputs.custom_fields ? JSON.parse(inputs.custom_fields) : {};\nbody.custom_fields = Object.keys(fields).map(function (name) { return { name: name, value: fields[name] }; });\nreturn request;",
+      "outputs": {
+        "id": "$.data.id",
+        "status": "$.data.status"
+      }
+    },
+    "update_subscription": {
+      "label": "Update Subscription",
+      "description": "Update an existing subscription.",
+      "inputs": {
+        "publicationId": {
+          "label": "Publication",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.beehiiv.com/v2/publications?limit=100&page=1"
+            },
+            "list": "$.data"
+          }
+        },
+        "subscriptionId": {
+          "label": "Subscription ID",
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.beehiiv.com/v2/publications/{{publicationId}}/subscriptions?limit=100&page=1"
+            },
+            "list": "$.data",
+            "label": "$.email"
+          },
+          "required": true
+        },
+        "tier": {
+          "label": "Subscription Tier",
+          "description": "Set the tier for this subscription.",
+          "type": "select",
+          "options": [
+            {
+              "value": "free",
+              "label": "Free"
+            },
+            {
+              "value": "premium",
+              "label": "Premium"
+            }
+          ]
+        },
+        "stripe_customer_id": {
+          "label": "Stripe Customer ID",
+          "description": "The Stripe Customer ID of the subscription."
+        },
+        "unsubscribe": {
+          "label": "Unsubscribe",
+          "type": "boolean",
+          "description": "Whether to unsubscribe this subscription from the publication."
+        },
+        "custom_fields": {
+          "label": "Custom Fields",
+          "type": "json",
+          "description": "Custom field values by their display name, such as {\"Company\": \"Acme\"}."
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.beehiiv.com/v2/publications/{{publicationId}}/subscriptions/{{subscriptionId}}",
+        "body": {
+          "tier": "{{tier}}",
+          "stripe_customer_id": "{{stripe_customer_id}}",
+          "unsubscribe": "{{unsubscribe}}"
+        }
+      },
+      "beforeRequest": "var fields = inputs.custom_fields ? JSON.parse(inputs.custom_fields) : {};\nvar list = Object.keys(fields).filter(function (name) { var value = fields[name]; return Array.isArray(value) ? value.length > 0 : value !== undefined && value !== null && value !== ''; }).map(function (name) { return { name: name, value: fields[name] }; });\nif (list.length > 0) request.body.custom_fields = list;\nreturn request;",
+      "outputs": {
+        "id": "$.data.id",
+        "status": "$.data.status"
+      }
+    },
     "delete_subscription": {
       "label": "Delete Subscription",
       "description": "Permanently deletes a subscription from a Beehiiv publication.",
       "inputs": {
-        "publicationId": { "label": "Publication", "required": true },
-        "subscriptionId": { "label": "Subscription ID", "required": true }
+        "publicationId": {
+          "label": "Publication",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.beehiiv.com/v2/publications?limit=100&page=1"
+            },
+            "list": "$.data"
+          }
+        },
+        "subscriptionId": {
+          "label": "Subscription ID",
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.beehiiv.com/v2/publications/{{publicationId}}/subscriptions?limit=100&page=1"
+            },
+            "list": "$.data",
+            "label": "$.email"
+          },
+          "required": true
+        }
       },
-      "request": { "method": "DELETE", "url": "https://api.beehiiv.com/v2/publications/{{publicationId}}/subscriptions/{{subscriptionId}}" }
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.beehiiv.com/v2/publications/{{publicationId}}/subscriptions/{{subscriptionId}}"
+      }
     },
     "add_subscription_to_automation": {
       "label": "Add Subscription to Automation",
       "description": "Adds an existing subscription to a specific automation flow.",
       "inputs": {
-        "publicationId": { "label": "Publication", "required": true },
-        "automationId": { "label": "Automation ID", "required": true },
-        "email": { "label": "Subscription Email", "description": "The email address of the subscription. Provide either Email or Subscription ID." },
-        "subscription_id": { "label": "Subscription ID" },
-        "double_opt_override": { "label": "Double Opt-in Override", "description": "Override publication double-opt settings for this subscription (e.g., \"on\")." }
+        "publicationId": {
+          "label": "Publication",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.beehiiv.com/v2/publications?limit=100&page=1"
+            },
+            "list": "$.data"
+          }
+        },
+        "automationId": {
+          "label": "Automation ID",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.beehiiv.com/v2/publications/{{publicationId}}/automations?limit=100&page=1"
+            },
+            "list": "$.data"
+          }
+        },
+        "email": {
+          "label": "Subscription Email",
+          "description": "The email address of the subscription. Provide either Email or Subscription ID."
+        },
+        "subscription_id": {
+          "label": "Subscription ID",
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.beehiiv.com/v2/publications/{{publicationId}}/subscriptions?limit=100&page=1"
+            },
+            "list": "$.data",
+            "label": "$.email"
+          }
+        },
+        "double_opt_override": {
+          "label": "Double Opt-in Override",
+          "description": "Override publication double-opt settings for this subscription (e.g., \"on\")."
+        }
       },
       "request": {
         "method": "POST",
         "url": "https://api.beehiiv.com/v2/publications/{{publicationId}}/automations/{{automationId}}/journeys",
-        "body": { "email": "{{email}}", "subscription_id": "{{subscription_id}}", "double_opt_override": "{{double_opt_override}}" }
+        "body": {
+          "email": "{{email}}",
+          "subscription_id": "{{subscription_id}}",
+          "double_opt_override": "{{double_opt_override}}"
+        }
       },
-      "outputs": { "id": "$.data.id", "status": "$.data.status" }
+      "outputs": {
+        "id": "$.data.id",
+        "status": "$.data.status"
+      },
+      "beforeRequest": "if (!inputs.email && !inputs.subscription_id) throw new Error('Either Subscription Email or Subscription ID must be provided.');\nreturn request;"
     }
   }
 }
