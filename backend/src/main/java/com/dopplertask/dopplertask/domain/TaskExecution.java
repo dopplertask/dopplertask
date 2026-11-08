@@ -200,13 +200,22 @@ public class TaskExecution {
 
     /** Ends the run as failed, and says why both in its log and as its reason. */
     public void fail(String reason) {
+        end(TaskExecutionStatus.FAILED, reason);
+    }
+
+    /** A person stopped the run. */
+    public void abort(String reason) {
+        end(TaskExecutionStatus.ABORTED, reason);
+    }
+
+    private void end(TaskExecutionStatus status, String reason) {
         TaskExecutionLog log = new TaskExecutionLog();
         log.setTaskExecution(this);
         log.setOutput(reason);
         log.setDate(new Date());
         log.setBroadcasted(true);
         addLog(log);
-        setStatus(TaskExecutionStatus.FAILED);
+        setStatus(status);
         setSuccess(false);
         setFailureReason(reason);
         setEnddate(new Date());

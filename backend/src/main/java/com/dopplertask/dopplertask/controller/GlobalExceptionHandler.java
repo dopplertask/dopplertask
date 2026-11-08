@@ -5,6 +5,7 @@ import com.dopplertask.dopplertask.service.CredentialProblemException;
 import com.dopplertask.dopplertask.service.IncompleteConnectionException;
 import com.dopplertask.dopplertask.service.LinkedTaskNotFoundException;
 import com.dopplertask.dopplertask.service.NoStartActionFoundException;
+import com.dopplertask.dopplertask.service.RunAlreadyEndedException;
 import com.dopplertask.dopplertask.service.TaskNotFoundException;
 import com.dopplertask.dopplertask.service.WhiteSpaceInNameException;
 import tools.jackson.core.JacksonException;
@@ -23,6 +24,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({LinkedTaskNotFoundException.class, TaskNotFoundException.class})
     public ResponseEntity<ErrorDto> generateNotFoundError(RuntimeException ex) {
         return error(ex.getMessage(), HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler(RunAlreadyEndedException.class)
+    public ResponseEntity<ErrorDto> generateRunAlreadyEndedError(RuntimeException ex) {
+        return error(ex.getMessage(), HttpStatus.CONFLICT);
     }
 
     @ExceptionHandler(ApprovalRequiredException.class)

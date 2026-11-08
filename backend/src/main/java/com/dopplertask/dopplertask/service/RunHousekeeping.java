@@ -38,17 +38,36 @@ public class RunHousekeeping {
     private final TransactionOperations transactions;
     private final Map<RunOfCustomer, GoingRun> going = new ConcurrentHashMap<>();
 
-    /** Two customers can have a run with the same number. */
+    /** Why a run was asked to stop. A person's stop aborts it, the time limit fails it. */
+    private record Stop(String reason, boolean byPerson, Instant askedAt) { }
 
-    private static final class GoingRun {
+    private final class GoingRun {
+        final long executionId;
         final Thread thread;
-        final Runnable markFailed;
+        /** From any thread, in the run's own customer scope. */
+        final Runnable endAsAsked;
         final Instant started = Instant.now();
-        volatile boolean interrupted;
+        volatile Stop stop;
 
-        GoingRun(Thread thread, Runnable markFailed) {
+        GoingRun(long executionId, Thread thread) {
+            this.executionId = executionId;
             this.thread = thread;
-            this.markFailed = markFailed;
+            this.endAsAsked = customerScope.bound(this::end);
+        }
+
+        void askToStop(Stop why) {
+            if (stop == null) {
+                stop = why;
+                thread.interrupt();
+            }
+        }
+
+        private void end() {
+            if (stop.byPerson()) {
+                executionService.abortRun(executionId, stop.reason());
+            } else {
+                executionService.failRun(executionId, stop.reason());
+            }
         }
     }
 
@@ -65,17 +84,38 @@ public class RunHousekeeping {
         this.transactions = transactions;
     }
 
-    /** From here on a run counts against the time limit. */
+    /** From here on a run counts against the time limit, and can be stopped. */
     public void watch(long executionId, Thread thread) {
-        Runnable markFailed = customerScope.bound(() -> executionService.failRun(executionId, tooLong()));
-        going.putIfAbsent(new RunOfCustomer(customerScope.current(), executionId), new GoingRun(thread, markFailed));
+        going.putIfAbsent(new RunOfCustomer(customerScope.current(), executionId), new GoingRun(executionId, thread));
     }
 
-    /** A run that had to be interrupted says so, since its last step can only say that it was disturbed. */
+    /** A run that had to be interrupted says why, since its last step can only say that it was disturbed. */
     public void finished(long executionId) {
         GoingRun run = going.remove(new RunOfCustomer(customerScope.current(), executionId));
-        if (run != null && run.interrupted) {
-            executionService.failRun(executionId, tooLong());
+        if (run != null && run.stop != null) {
+            run.endAsAsked.run();
+        }
+    }
+
+    /**
+     * A person stops a run. One that is going stops before its next step, or during a step that listens, and one that
+     * still waits ends before it starts.
+     */
+    public void stop(long executionId, String reason) {
+        GoingRun run = going.get(new RunOfCustomer(customerScope.current(), executionId));
+        if (run != null) {
+            run.askToStop(new Stop(reason, true, Instant.now()));
+            return;
+        }
+        boolean waiting = Boolean.TRUE.equals(transactions.execute(status -> taskExecutionDao.findById(executionId)
+                .filter(execution -> execution.getStatus() == TaskExecutionStatus.CREATED)
+                .map(execution -> {
+                    execution.abort(reason);
+                    return true;
+                })
+                .orElse(false)));
+        if (!waiting) {
+            throw new RunAlreadyEndedException();
         }
     }
 
@@ -89,27 +129,28 @@ public class RunHousekeeping {
     }
 
     /**
-     * A step that never returns would hold one of the places for runs for good. It is asked to stop first. If it does not
-     * listen, the run is at least ended for whoever waits for it at the next check, even though its thread stays busy.
+     * A step that never returns would hold one of the places for runs for good. It is asked to stop first. If it has not
+     * listened a whole check later, the run is at least ended for whoever waits for it, even though its thread stays busy.
+     * The same goes for a run that a person stopped.
      */
     void stopRunsOverTheLimit(Instant now) {
-        if (maxRunMinutes <= 0) {
-            return;
-        }
         Instant cutoff = now.minus(Duration.ofMinutes(maxRunMinutes));
+        Instant askedBefore = now.minusMillis(CHECK_MILLISECONDS);
         going.forEach((key, run) -> {
-            if (run.started.isAfter(cutoff)) {
+            Stop stop = run.stop;
+            if (stop == null) {
+                if (maxRunMinutes > 0 && !run.started.isAfter(cutoff)) {
+                    run.askToStop(new Stop(tooLong(), false, now));
+                }
                 return;
             }
-            if (!run.interrupted) {
-                run.interrupted = true;
-                run.thread.interrupt();
+            if (stop.askedAt().isAfter(askedBefore)) {
                 return;
             }
-            LOG.error("Run {} did not stop when asked, so it is marked as failed while its thread stays busy.", key.executionId());
+            LOG.error("Run {} did not stop when asked, so it is ended while its thread stays busy.", key.executionId());
             going.remove(key);
             // On a thread of its own, since the run that hangs can hold the row and the other runs must still get checked.
-            Thread.startVirtualThread(run.markFailed);
+            Thread.startVirtualThread(run.endAsAsked);
         });
     }
 

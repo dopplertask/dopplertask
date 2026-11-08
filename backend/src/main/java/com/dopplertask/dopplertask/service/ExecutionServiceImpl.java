@@ -55,6 +55,10 @@ public class ExecutionServiceImpl implements ExecutionService {
         if (taskRequest.isPresent() && executionReq.isPresent()) {
             Task task = taskRequest.get();
             TaskExecution execution = executionReq.get();
+            // Stopped while it waited.
+            if (execution.getStatus() == TaskExecutionStatus.ABORTED) {
+                return execution;
+            }
 
             // Assign task to execution
             execution.setTask(task);
@@ -155,6 +159,16 @@ public class ExecutionServiceImpl implements ExecutionService {
     public TaskExecution failRun(long id, String reason) {
         TaskExecution execution = taskExecutionDao.findById(id).orElseThrow();
         execution.fail(reason);
+        return execution;
+    }
+
+    @Override
+    @Transactional
+    public TaskExecution abortRun(long id, String reason) {
+        TaskExecution execution = taskExecutionDao.findById(id).orElseThrow();
+        if (execution.getStatus() != TaskExecutionStatus.FINISHED) {
+            execution.abort(reason);
+        }
         return execution;
     }
 
@@ -301,8 +315,10 @@ public class ExecutionServiceImpl implements ExecutionService {
             return "Could not resume. Execution " + resumeFromExecutionId + " is not a run of " + task.getName() + ".";
         }
         List<TaskExecutionStep> steps = earlierRun.getSteps();
-        if (steps.isEmpty() || steps.get(steps.size() - 1).getStatus() != StatusCode.FAILURE || earlierRun.getStatus() != TaskExecutionStatus.FAILED) {
-            return "Could not resume. Execution " + resumeFromExecutionId + " did not fail at a step.";
+        // A run that a person stopped ends at the step that was going, in the same way as one that failed there.
+        boolean endedAtAStep = earlierRun.getStatus() == TaskExecutionStatus.FAILED || earlierRun.getStatus() == TaskExecutionStatus.ABORTED;
+        if (steps.isEmpty() || steps.get(steps.size() - 1).getStatus() != StatusCode.FAILURE || !endedAtAStep) {
+            return "Could not resume. Execution " + resumeFromExecutionId + " did not fail or stop at a step.";
         }
         String failedPort = steps.get(steps.size() - 1).getPortId();
         if (failedPort == null || task.getActionByPort(failedPort) == null) {

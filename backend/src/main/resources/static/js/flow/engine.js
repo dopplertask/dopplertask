@@ -113,6 +113,8 @@ const AUTO_SAVE_KEY = 'autoSave';
 const LAST_TASK_KEY = 'lastTask';
 const RUNS_SHOWN = 100;
 const LIVE_POLL_MS = 250;
+/* Runs that a schedule or a webhook starts show up in the history this soon. */
+const RUNS_POLL_MS = 3000;
 
 const ACTIONS = {};
 const FAILURE_FIELDS = [];
@@ -523,7 +525,7 @@ async function request(url, options = {}) {
 
 /* ---------- Runs ---------- */
 
-const RUN_STATUSES = { FINISHED: 'success', FAILED: 'failed' };
+const RUN_STATUSES = { FINISHED: 'success', FAILED: 'failed', ABORTED: 'stopped' };
 const SWITCH_PORT = /port nr: (\d+)/;
 
 function choosePort(node, output) {
@@ -666,14 +668,40 @@ function createStore() {
     parameters: {}, steps: [], complete: false,
   });
 
+  /* A schedule can leave many thousands of runs, and only the latest of this task are shown. */
+  const latestRuns = async () => (await request(`/executions?taskName=${encodeURIComponent(task.name)}&limit=${RUNS_SHOWN}`)).executions
+    .filter((execution) => execution.startDate).map(runListItem);
+
   const loadRuns = async () => {
-    /* A schedule can leave many thousands of runs, and only the latest of this task are shown. */
-    const { executions } = await request(`/executions?taskName=${encodeURIComponent(task.name)}&limit=${RUNS_SHOWN}`);
-    runs = executions.filter((execution) => execution.startDate).map(runListItem);
+    runs = await latestRuns();
     /* The latest run supplies the values shown in the step panel, also after a reload. */
     if (runs[0]) applyExecution(runs[0], await request(`/execution/${runs[0].id}`));
     emit('run');
   };
+
+  /* Adds the runs that started since, and notes the ones that ended, without touching a run that is followed. */
+  const refreshRuns = async () => {
+    /* A task that was never saved, or is renamed and not yet saved, has no runs under its name. */
+    if (document.hidden || review || task.name !== savedName) return;
+    const name = task.name;
+    const latest = await latestRuns();
+    if (name !== task.name) return;
+    const known = new Map(runs.map((run) => [run.id, run]));
+    let changed = false;
+    latest.forEach((item) => {
+      const run = known.get(item.id);
+      if (!run) { changed = true; return; }
+      if (!run.following && run.status !== item.status) { Object.assign(run, item); changed = true; }
+    });
+    const added = latest.filter((item) => !known.has(item.id));
+    if (added.length) runs = [...added, ...runs].slice(0, RUNS_SHOWN);
+    if (changed) emit('run');
+  };
+  const keepRunsCurrent = async () => {
+    try { await refreshRuns(); } catch (error) { /* The next look tries again. */ }
+    setTimeout(keepRunsCurrent, RUNS_POLL_MS);
+  };
+  setTimeout(keepRunsCurrent, RUNS_POLL_MS);
 
   /* A step names its action by the first port; on the Start tile that can be the trigger's port. */
   const nodeForPort = (externalId, actionType) => {
@@ -718,6 +746,9 @@ function createStore() {
     run.logLines = execution.output || [];
     run.durationMs = run.steps.reduce((total, step) => total + step.durationMs, 0);
     run.complete = true;
+    /* The step that was going when a person stopped the run did not fail. */
+    const interrupted = run.status === 'stopped' && run.steps.at(-1)?.status === 'failed' ? run.steps.at(-1) : null;
+    if (interrupted) interrupted.status = 'stopped';
     /* A failure with no step, such as a missing parameter, is still shown as a failed run. */
     if (run.status === 'failed' && !run.steps.some((step) => step.status === 'failed')) {
       run.failure = run.logLines.find((line) => /failed|not active|could not/i.test(line)) || 'This run failed before reaching a step.';
@@ -732,12 +763,16 @@ function createStore() {
 
   /* While a run is going the server reports the steps finished so far. Its final record decides the result. */
   const followRun = (run) => {
+    if (run.following) return;
+    run.following = true;
+    run.live = true;
     const poll = async () => {
       try {
         const execution = await request(`/execution/${run.id}`);
         if (RUN_STATUSES[execution.status]) {
           applyExecution(run, execution);
           run.live = false;
+          run.following = false;
           if (runner.run === run) { runner.cursorMs = run.durationMs; runner.playing = false; }
           emit('run');
           return;
@@ -1029,8 +1064,17 @@ function createStore() {
     },
     async openRun(runId) {
       const run = runs.find((candidate) => candidate.id === runId);
-      if (!run.complete) applyExecution(run, await request(`/execution/${run.id}`));
+      if (!run.complete && !run.following) applyExecution(run, await request(`/execution/${run.id}`));
+      /* One that a schedule or a webhook started is followed as it goes, like one started here. */
+      if (run.status === 'running' && !run.following) {
+        run.nextNodeId = run.steps.length ? nextNodeAfter(run.steps.at(-1)) : rootNode(task).id;
+        followRun(run);
+      }
       runner.load(run);
+    },
+    /* The run ends as stopped once the server has stopped it, which following it shows. */
+    async stopRun(run) {
+      await request(`/execution/${run.id}/stop`, { method: 'POST' });
     },
     /* Runs one step on its own with the values given, without touching the run history. */
     async testStep(nodeId, { parameters, lastOutput, lastOutputVariables }) {
