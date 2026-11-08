@@ -38,7 +38,7 @@ public class ConnectorController {
         if (request.credential() == null || request.credential().isBlank()) {
             throw new CredentialProblemException("Choose a credential first, so that the choices can be read from the service.");
         }
-        ConnectorAction step = new ConnectorAction(name);
+        ConnectorAction step = ConnectorAction.of(name);
         step.setOperation(request.operation());
         if (request.settings() != null) {
             request.settings().forEach(step::setSetting);

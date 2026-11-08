@@ -96,7 +96,7 @@ public class ConnectorCheck {
         List<JsonNode> replies = new ArrayList<>();
         fixture.path("answers").forEach(replies::add);
         answers = replies.iterator();
-        ConnectorAction step = new ConnectorAction(connector);
+        ConnectorAction step = ConnectorAction.of(connector);
         step.setOperation(fixture.path("action").asText());
         JsonNode settings = fixture.has("settings") ? fixture.path("settings") : fixture.path("inputs");
         settings.properties().forEach(setting -> step.setSetting(setting.getKey(), setting.getValue().isString() ? setting.getValue().asString() : setting.getValue()));

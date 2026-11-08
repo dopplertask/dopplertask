@@ -78,6 +78,13 @@ object Connectors {
             if (operation.result.isNotEmpty() && !operation.result.startsWith("$")) problems += "$where's result ${operation.result} should start with $."
             operation.outputs.filter { !it.value.startsWith("$") }.forEach { problems += "$where gives ${it.key} from ${it.value}, which should start with $." }
         }
+        connector.triggers.forEach { (key, poll) ->
+            val where = "The trigger $key"
+            if (poll.label.isBlank()) problems += "$where needs a label."
+            problems += addressProblems(where, connector, poll.request.url, sample)
+            if (poll.newBy !in setOf("time", "lastItem")) problems += "$where should find new items by time or lastItem, not ${poll.newBy}."
+            listOf(poll.items, poll.key).filter { !it.startsWith("$") }.forEach { problems += "$where reads $it, which should start with $." }
+        }
         return problems
     }
 

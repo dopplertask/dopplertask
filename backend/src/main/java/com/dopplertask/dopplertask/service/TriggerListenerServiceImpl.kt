@@ -6,6 +6,8 @@ import com.dopplertask.dopplertask.domain.action.trigger.Trigger
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.jdbc.core.JdbcTemplate
+import com.dopplertask.dopplertask.domain.action.connector.ConnectorTrigger
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.context.annotation.Lazy
 import org.springframework.stereotype.Service
@@ -38,6 +40,12 @@ open class TriggerListenerServiceImpl {
 
     @Autowired
     protected lateinit var customerScope: ObjectProvider<CustomerScope>
+
+    @Autowired
+    protected lateinit var credentials: CredentialService
+
+    @Autowired
+    protected lateinit var database: JdbcTemplate
 
     @Autowired
     @Lazy
@@ -104,10 +112,16 @@ open class TriggerListenerServiceImpl {
 
     private fun fire(trigger: Trigger) {
         logger.info("Running trigger")
-        val triggerResult = trigger.trigger()
+        // A trigger that asks a service signs in as its credential, and remembers where it left off across restarts.
+        trigger.credential?.takeIf { it.isNotBlank() }?.let { trigger.useCredentialValues(credentials.valuesFor(it, trigger.credentialType)) }
+        val triggerResult = try {
+            trigger.trigger()
+        } finally {
+            if (trigger is ConnectorTrigger) database.update("UPDATE connector_trigger SET poll_state = ? WHERE id = ?", trigger.pollState, trigger.id)
+        }
 
         val taskRequest = TaskRequest()
-        taskRequest.triggerInfo = TriggerInfo(trigger.javaClass.simpleName, trigger.triggerSuffix, triggerResult.resultMap)
+        taskRequest.triggerInfo = TriggerInfo(trigger.stepTypeName, trigger.triggerSuffix, triggerResult.resultMap)
         taskRequest.taskName = trigger.task?.name
         taskRequest.parameters = mutableMapOf()
 

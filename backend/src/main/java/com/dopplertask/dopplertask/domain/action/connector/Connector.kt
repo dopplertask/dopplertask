@@ -23,6 +23,9 @@ class Connector {
     var credential: ConnectorCredential? = null
     var actions: LinkedHashMap<String, ConnectorOperation> = linkedMapOf()
 
+    /** What starts a task: the service is asked every few minutes for what is new. */
+    var triggers: LinkedHashMap<String, ConnectorPoll> = linkedMapOf()
+
     /** Where the file was copied from, so that a later copy can be compared with it. */
     var upstream: Map<String, String> = emptyMap()
 }
@@ -76,6 +79,24 @@ class ConnectorOperation {
      * Both scripts can send more requests with call({method, url, query, headers, body}), such as for the next page.
      */
     var afterResponse: String? = null
+}
+
+/** A trigger that asks the service for its newest items and starts the task once for each new one. */
+class ConnectorPoll {
+    var label: String = ""
+    var description: String = ""
+    var inputs: LinkedHashMap<String, ConnectorInput> = linkedMapOf()
+    var request: ConnectorRequest = ConnectorRequest()
+
+    /** Where the list of items is in the answer. */
+    var items: String = "$"
+
+    /**
+     * What makes an item new. "time": its time at key is later than the last check. "lastItem": it comes before the
+     * newest item already seen, by its id at key, in a list that starts with the newest.
+     */
+    var newBy: String = "time"
+    var key: String = "$.id"
 }
 
 class ConnectorInput {

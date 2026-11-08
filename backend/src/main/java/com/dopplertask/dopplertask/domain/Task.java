@@ -158,7 +158,7 @@ public class Task {
     }
 
     public Action getStartAction(String triggerName, String triggerSuffix) {
-        List<Action> actions = actionList.stream().filter(action -> action.getClass().getSimpleName().equalsIgnoreCase(triggerName) && action instanceof Trigger && ((Trigger) action).getTriggerSuffix().equals(triggerSuffix == null ? "" : triggerSuffix)).collect(Collectors.toList());
+        List<Action> actions = actionList.stream().filter(action -> action.getStepTypeName().equalsIgnoreCase(triggerName) && action instanceof Trigger && ((Trigger) action).getTriggerSuffix().equals(triggerSuffix == null ? "" : triggerSuffix)).collect(Collectors.toList());
         if (actions.isEmpty()) {
             return null;
         }

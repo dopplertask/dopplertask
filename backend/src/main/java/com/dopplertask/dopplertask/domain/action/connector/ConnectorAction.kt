@@ -4,10 +4,8 @@ import com.dopplertask.dopplertask.domain.ActionResult
 import com.dopplertask.dopplertask.domain.StatusCode
 import com.dopplertask.dopplertask.domain.TaskExecution
 import com.dopplertask.dopplertask.domain.action.Action
-import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationCategory
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
 import com.dopplertask.dopplertask.domain.action.integration.JsonApi
-import com.dopplertask.dopplertask.domain.action.integration.OAuthSignIn
 import com.dopplertask.dopplertask.service.BroadcastListener
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
@@ -21,8 +19,6 @@ import jakarta.persistence.Entity
 import jakarta.persistence.Lob
 import jakarta.persistence.Table
 import jakarta.persistence.Transient
-import tools.jackson.databind.JsonNode
-import java.net.URI
 
 /**
  * A step of a connector file. Its kind is the connector's name, so a task says Slack rather than ConnectorAction, and
@@ -34,11 +30,7 @@ import java.net.URI
 @Entity
 @Table(name = "ConnectorAction")
 @DiscriminatorValue("connector_action")
-class ConnectorAction() : Action() {
-
-    constructor(connector: String) : this() {
-        this.connector = connector
-    }
+class ConnectorAction : Action() {
 
     @Column
     @JsonProperty(value = "@type", access = JsonProperty.Access.WRITE_ONLY)
@@ -59,19 +51,16 @@ class ConnectorAction() : Action() {
     private var credentialValues: Map<String, String> = emptyMap()
 
     @JsonAnyGetter
-    fun settingValues(): Map<String, String> = JsonApi.mapper.readValue(settings, LinkedHashMap::class.java)
-        .entries.associate { it.key.toString() to it.value.toString() }
+    fun settingValues(): Map<String, String> = ConnectorSettings.read(settings)
 
     @JsonAnySetter
     fun setSetting(name: String, value: Any?) {
-        val text = if (value is String) value else JsonApi.mapper.writeValueAsString(value)
-        settings = JsonApi.mapper.writeValueAsString(settingValues() + (name to text))
+        settings = ConnectorSettings.with(settings, name, value)
     }
 
     override fun useCredentialValues(values: Map<String, String>) {
         credentialValues = values
-        // Signing in with an account reads these from the step, as it does for every step that offers it.
-        if (spec?.credential?.oauth2 != null) super.useCredentialValues(values.filterKeys { it.startsWith(OAUTH) } + ("oauthProvider" to stepTypeName))
+        spec?.let { super.useCredentialValues(ConnectorSender.accountFields(it, values)) }
     }
 
     override fun inlineCredentialValues(fields: Set<String>): Map<String, String> =
@@ -80,7 +69,7 @@ class ConnectorAction() : Action() {
     override fun forgetCredentialValues(fields: Set<String>) {
         credentialValues = emptyMap()
         settings = JsonApi.mapper.writeValueAsString(settingValues() - fields)
-        if (spec?.credential?.oauth2 != null) super.forgetCredentialValues(fields.filter { it.startsWith(OAUTH) }.toSet() + "oauthProvider")
+        spec?.let { super.forgetCredentialValues(ConnectorSender.accountFields(it, fields.associateWith { "" }).keys) }
     }
 
     private val spec: Connector?
@@ -116,19 +105,11 @@ class ConnectorAction() : Action() {
             info.add(PropertyInformation("operation", "Action", PropertyInformationType.DROPDOWN, choices.keys.firstOrNull().orEmpty(), "",
                 choices.map { (key, operation) -> PropertyInformation(key, operation.label) }))
             choices.forEach { (key, operation) ->
-                operation.inputs.forEach { (name, input) -> info.add(propertyOf(name, input, PropertyInformationCategory.PROPERTY, mapOf("operation" to arrayOf(key)))) }
+                operation.inputs.forEach { (name, input) -> info.add(ConnectorSettings.propertyOf(name, input, mapOf("operation" to arrayOf(key)))) }
             }
-            connector.credential?.fields?.forEach { (name, field) ->
-                info.add(propertyOf(name, field, if (field.secret) PropertyInformationCategory.SECRET else PropertyInformationCategory.CREDENTIAL, mapOf()))
-            }
-            // The connector's file names the service's sign-in addresses, so a person only gives the client.
-            connector.credential?.oauth2?.let { oauth -> info.addAll(OAuthSignIn.fields(stepTypeName, oauth.scope).filter { it.name !in FIXED_BY_FILE }) }
+            info.addAll(ConnectorSettings.credentialProperties(connector))
             return info
         }
-
-    private fun propertyOf(name: String, input: ConnectorInput, category: PropertyInformationCategory, shownFor: Map<String, Array<String>>) =
-        PropertyInformation(name, input.label, if (input.optionsFrom != null) PropertyInformationType.CHOICES else TYPES[input.type] ?: PropertyInformationType.STRING, input.defaultValue, input.description,
-            input.options.map { PropertyInformation(it.value, it.label) }, category, shownFor)
 
     override fun run(taskService: TaskService, execution: TaskExecution, variableExtractorUtil: VariableExtractorUtil, broadcastListener: BroadcastListener?) =
         perform(execution, variableExtractorUtil)
@@ -153,15 +134,10 @@ class ConnectorAction() : Action() {
     }
 
     private fun send(connector: Connector, chosen: ConnectorOperation, values: Map<String, String>): ActionResult {
-        // A script's own request goes out the same way, and a failed one stops the step with what the service said.
-        val scriptRequest = { spec: JsonNode ->
-            val answer = deliver(connector, ConnectorRequests.sign(connector, spec, credentialValues))
-            require(answer.statusCode == StatusCode.SUCCESS) { answer.errorMsg }
-            JsonApi.parsed(answer)
-        }
+        val sender = ConnectorSender(this, connector, credentialValues)
         val request = if (chosen === CUSTOM_CALL_OPERATION) ConnectorRequests.customCall(connector, values, credentialValues)
-        else ConnectorRequests.build(connector, chosen, values, credentialValues, scriptRequest)
-        val result = deliver(connector, request)
+        else ConnectorRequests.build(connector, chosen, values, credentialValues, sender::answerFor)
+        val result = sender.send(request)
         if (result.statusCode != StatusCode.SUCCESS) return result
         var answer = JsonApi.parsed(result)
         if (chosen.result.isNotEmpty()) {
@@ -169,7 +145,7 @@ class ConnectorAction() : Action() {
             result.output = if (answer.isValueNode) answer.asText() else answer.toString()
         }
         chosen.afterResponse?.let { script ->
-            answer = ConnectorScripts.run(script, values, null, answer, scriptRequest)
+            answer = ConnectorScripts.run(script, values, null, answer, sender::answerFor)
             result.output = if (answer.isValueNode) answer.asText() else answer.toString()
         }
         chosen.outputs.forEach { (name, path) -> JsonPaths.read(answer, path)?.let { result.outputVariables[name] = if (it.isValueNode) it.asText() else it.toString() } }
@@ -182,7 +158,7 @@ class ConnectorAction() : Action() {
         val chosen = operations[operation] ?: return emptyList()
         val source = chosen.inputs[input]?.optionsFrom ?: return emptyList()
         val lookup = ConnectorOperation().also { it.inputs = chosen.inputs; it.request = source.request }
-        val answer = deliver(connector, ConnectorRequests.build(connector, lookup, settingValues(), credentialValues))
+        val answer = ConnectorSender(this, connector, credentialValues).send(ConnectorRequests.build(connector, lookup, settingValues(), credentialValues))
         require(answer.statusCode == StatusCode.SUCCESS) { answer.errorMsg }
         val list = JsonPaths.read(JsonApi.parsed(answer), source.list) ?: return emptyList()
         return list.toList().map { item ->
@@ -193,22 +169,10 @@ class ConnectorAction() : Action() {
         }
     }
 
-    /** Sends a signed request, only to the connector's hosts. */
-    private fun deliver(connector: Connector, request: ConnectorRequests.Built): ActionResult {
-        require(Connectors.allows(connector, URI.create(request.url).host, credentialValues)) { "${connector.label} may only send its credential to ${connector.hosts.joinToString(", ")}." }
-        var headers = request.headers
-        if (connector.credential?.oauth2 != null) {
-            val signIn = OAuthSignIn.headersFor(this, connector.label)
-            signIn.failure?.let { return it }
-            headers = headers + signIn.headers
-        }
-        val address = Connectors.localServerForTests?.let { request.url.replaceFirst(Regex("^https://[^/]+"), it) } ?: request.url
-        return JsonApi.call(connector.label, request.method, address, headers, request.body)
-    }
-
     companion object {
-        private const val OAUTH = "oauth"
-        private val FIXED_BY_FILE = setOf("oauthProvider", "oauthAuthUrl", "oauthTokenUrl", "oauthAuthParameters")
+        /** An empty step of a connector, which also describes the connector's kind of step. */
+        @JvmStatic
+        fun of(connector: String) = ConnectorAction().also { it.connector = connector }
 
         const val CUSTOM_CALL = "custom_api_call"
 
@@ -222,9 +186,5 @@ class ConnectorAction() : Action() {
                   "headers": {"label": "Headers", "type": "json"},
                   "body": {"label": "Body", "type": "json"}}}""", ConnectorOperation::class.java)
 
-        private val TYPES = mapOf(
-            "string" to PropertyInformationType.STRING, "multiline" to PropertyInformationType.MULTILINE, "json" to PropertyInformationType.MULTILINE,
-            "number" to PropertyInformationType.NUMBER, "boolean" to PropertyInformationType.BOOLEAN, "select" to PropertyInformationType.DROPDOWN
-        )
     }
 }
