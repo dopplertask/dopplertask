@@ -444,6 +444,46 @@
       "beforeRequest": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar soql = (q) => '/services/data/v56.0/query?q=' + form(q);\nrequest.url = soql(\"SELECT Id, Name, BodyLength, ContentType FROM Attachment WHERE ParentId = '\" + inputs.record_id + \"'\");\nreturn request;",
       "afterResponse": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar soql = (q) => '/services/data/v56.0/query?q=' + form(q);\nvar files = call({method: 'GET', url: soql(\"SELECT ContentDocument.Id, ContentDocument.Title FROM ContentDocumentLink WHERE LinkedEntityId = '\" + inputs.record_id + \"'\")}).records || [];\nreturn {classic_attachments: response.records || [], files: files.map((d) => ({Id: d.ContentDocument.Id, Title: d.ContentDocument.Title}))};"
     },
+    "create_attachment": {
+      "label": "Create Legacy Attachment",
+      "description": "Creates a classic attachment. For new work, use Upload File.",
+      "inputs": {
+        "object": {
+          "label": "Object",
+          "description": "The type of Salesforce record, such as Account or Contact.",
+          "required": true,
+          "list": "objects"
+        },
+        "parent_id": {
+          "label": "Record",
+          "description": "Lists the 20 newest records. Enter an older ID as a custom value.",
+          "required": true,
+          "list": "records"
+        },
+        "file": {
+          "label": "File",
+          "type": "file",
+          "required": true
+        },
+        "file_name": {
+          "label": "File Name",
+          "description": "Include the extension.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.instanceUrl}}/services/data/v56.0/sobjects/Attachment",
+        "body": {
+          "ParentId": "{{parent_id}}",
+          "Name": "{{file_name}}",
+          "Body": "{{file}}"
+        }
+      },
+      "outputs": {
+        "id": "$.id"
+      }
+    },
     "run_report": {
       "label": "Run Report",
       "description": "Runs a report and returns its rows.",
@@ -1314,6 +1354,37 @@
       },
       "beforeRequest": "var sfId = (v, f) => { var t = String(v).trim(); if (!/^[a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?$/.test(t)) throw new Error(f + ' must be a 15- or 18-character Salesforce record id.'); return t; };\nrequest.url = '/services/data/v56.0/connect/files/' + sfId(inputs.content_document_id, 'Content Document ID');\nreturn request;",
       "afterResponse": "var n = response;\nreturn {id: n.id, title: n.title, name: n.name ?? null, file_extension: n.fileExtension ?? null, file_type: n.fileType ?? null, content_size: n.contentSize ?? null, mime_type: n.mimeType ?? null, owner_id: n.owner?.id ?? null, owner_name: n.owner?.displayName ?? n.owner?.name ?? null, created_date: n.createdDate ?? null, modified_date: n.modifiedDate ?? null, version_number: n.versionNumber ?? null, download_url: n.downloadUrl ?? null};"
+    },
+    "upload_file": {
+      "label": "Upload File",
+      "description": "Upload a file to Salesforce Files, optionally linked to a record.",
+      "inputs": {
+        "file": {
+          "label": "File",
+          "type": "file",
+          "required": true
+        },
+        "file_name": {
+          "label": "File Name",
+          "description": "Name with extension, e.g. report.pdf. Defaults to the uploaded file name."
+        },
+        "record_id": {
+          "label": "Record ID",
+          "description": "Id of the record to attach the file to."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.instanceUrl}}/services/data/v56.0/sobjects/ContentVersion",
+        "body": {
+          "VersionData": "{{file}}"
+        }
+      },
+      "outputs": {
+        "content_document_id": "$.content_document_id"
+      },
+      "beforeRequest": "var sfId = (v, f) => { var t = String(v).trim(); if (!/^[a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?$/.test(t)) throw new Error(f + ' must be a 15- or 18-character Salesforce record id.'); return t; };\nvar compact = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== null && v !== ''));\nvar name = (inputs.file_name || '').trim() || inputs.file;\nrequest.body = compact({Title: name, PathOnClient: name, VersionData: request.body.VersionData, FirstPublishLocationId: inputs.record_id ? sfId(inputs.record_id, 'Record ID') : undefined});\nreturn request;",
+      "afterResponse": "var sfId = (v, f) => { var t = String(v).trim(); if (!/^[a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?$/.test(t)) throw new Error(f + ' must be a 15- or 18-character Salesforce record id.'); return t; };\nvar form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar versionId = sfId(response.id, 'ContentVersion id');\nvar version = call({method: 'GET', url: '/services/data/v56.0/query?q=' + form(\"SELECT ContentDocumentId FROM ContentVersion WHERE Id = '\" + versionId + \"'\")});\nreturn {content_version_id: versionId, content_document_id: version.records?.[0]?.ContentDocumentId ?? null, title: (inputs.file_name || '').trim() || inputs.file, record_id: inputs.record_id ? sfId(inputs.record_id, 'Record ID') : null};"
     },
     "get_list_view_metadata": {
       "label": "Get List View Metadata",

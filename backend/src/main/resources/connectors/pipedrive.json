@@ -100,6 +100,15 @@
       "items": "$.data",
       "label": "$.name",
       "value": "$.id"
+    },
+    "deal_field_keys": {
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.companyDomain}}.pipedrive.com/api/v1/dealFields"
+      },
+      "items": "$.data",
+      "label": "$.name",
+      "value": "$.key"
     }
   },
   "actions": {
@@ -2898,6 +2907,258 @@
         }
       },
       "beforeRequest": "if (Number(inputs.organizationId) === Number(inputs.mergeWithId)) throw new Error('An organization cannot be merged with itself.');\nreturn request;"
+    }
+  },
+  "triggers": {
+    "new_person": {
+      "label": "New Person",
+      "description": "Triggers when a new person is created",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://{{credential.companyDomain}}.pipedrive.com/api/v1/webhooks",
+          "body": {
+            "event_object": "person",
+            "event_action": "create",
+            "subscription_url": "{{webhookUrl}}",
+            "version": "2.0"
+          }
+        },
+        "id": "$.data.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://{{credential.companyDomain}}.pipedrive.com/api/v1/webhooks/{{webhookId}}"
+        }
+      },
+      "afterResponse": "var encode = (text) => encodeURIComponent(text).replace(/%20/g, '+').replace(/[!'()~]/g, (character) => '%' + character.charCodeAt(0).toString(16).toUpperCase());\nvar withQuery = (path, params) => { var pairs = Object.keys(params).filter((key) => params[key] !== undefined && params[key] !== null).map((key) => encode(key) + '=' + encode(Array.isArray(params[key]) ? params[key].map(String).join(',') : String(params[key]))); return pairs.length ? path + (path.indexOf('?') < 0 ? '?' : '&') + pairs.join('&') : path; };\nvar pagesV1 = (path, params, page) => { var items = []; while (page.data !== null && page.data !== undefined) { items = items.concat(page.data); var paging = page.additional_data.pagination; if (!paging.more_items_in_collection) break; page = call({method: 'GET', url: withQuery(path, Object.assign({}, params, {start: paging.next_start, limit: 500}))}); } return items; };\nvar fieldsOf = (path) => pagesV1(path, {}, call({method: 'GET', url: withQuery(path, {start: 0, limit: 500})}));\nvar labelOf = (field, id) => { var option = (field.options || []).find((choice) => choice.id === id); return (option && option.label) || null; };\nvar named = (fields, record) => { var out = Object.assign({}, record); var raw = record.custom_fields || {}; fields.forEach((field) => { if (!field.edit_flag || !(field.key in raw)) return; var value = raw[field.key]; if (value === null || value === undefined) out[field.name] = null; else if (field.field_type === 'enum') out[field.name] = labelOf(field, value); else if (field.field_type === 'set' && Array.isArray(value)) out[field.name] = value.map((id) => labelOf(field, id)); else out[field.name] = value; }); delete out.custom_fields; return out; };\nvar record = call({method: 'GET', url: withQuery('/v2/persons/' + response.data.id, {include_fields: 'next_activity_id,last_activity_id,open_deals_count,related_open_deals_count,closed_deals_count,related_closed_deals_count,participant_open_deals_count,participant_closed_deals_count,email_messages_count,activities_count,done_activities_count,undone_activities_count,files_count,notes_count,followers_count,related_won_deals_count,lost_deals_count,related_lost_deals_count,last_incoming_mail_time,last_outgoing_mail_time,won_deals_count'})});\nreturn [named(fieldsOf('/v1/personFields'), record.data)];"
+    },
+    "updated_person": {
+      "label": "Updated Person",
+      "description": "Triggers when a person is updated.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://{{credential.companyDomain}}.pipedrive.com/api/v1/webhooks",
+          "body": {
+            "event_object": "person",
+            "event_action": "change",
+            "subscription_url": "{{webhookUrl}}",
+            "version": "2.0"
+          }
+        },
+        "id": "$.data.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://{{credential.companyDomain}}.pipedrive.com/api/v1/webhooks/{{webhookId}}"
+        }
+      },
+      "afterResponse": "var encode = (text) => encodeURIComponent(text).replace(/%20/g, '+').replace(/[!'()~]/g, (character) => '%' + character.charCodeAt(0).toString(16).toUpperCase());\nvar withQuery = (path, params) => { var pairs = Object.keys(params).filter((key) => params[key] !== undefined && params[key] !== null).map((key) => encode(key) + '=' + encode(Array.isArray(params[key]) ? params[key].map(String).join(',') : String(params[key]))); return pairs.length ? path + (path.indexOf('?') < 0 ? '?' : '&') + pairs.join('&') : path; };\nvar pagesV1 = (path, params, page) => { var items = []; while (page.data !== null && page.data !== undefined) { items = items.concat(page.data); var paging = page.additional_data.pagination; if (!paging.more_items_in_collection) break; page = call({method: 'GET', url: withQuery(path, Object.assign({}, params, {start: paging.next_start, limit: 500}))}); } return items; };\nvar fieldsOf = (path) => pagesV1(path, {}, call({method: 'GET', url: withQuery(path, {start: 0, limit: 500})}));\nvar labelOf = (field, id) => { var option = (field.options || []).find((choice) => choice.id === id); return (option && option.label) || null; };\nvar named = (fields, record) => { var out = Object.assign({}, record); var raw = record.custom_fields || {}; fields.forEach((field) => { if (!field.edit_flag || !(field.key in raw)) return; var value = raw[field.key]; if (value === null || value === undefined) out[field.name] = null; else if (field.field_type === 'enum') out[field.name] = labelOf(field, value); else if (field.field_type === 'set' && Array.isArray(value)) out[field.name] = value.map((id) => labelOf(field, id)); else out[field.name] = value; }); delete out.custom_fields; return out; };\nvar record = call({method: 'GET', url: withQuery('/v2/persons/' + response.data.id, {include_fields: 'next_activity_id,last_activity_id,open_deals_count,related_open_deals_count,closed_deals_count,related_closed_deals_count,participant_open_deals_count,participant_closed_deals_count,email_messages_count,activities_count,done_activities_count,undone_activities_count,files_count,notes_count,followers_count,related_won_deals_count,lost_deals_count,related_lost_deals_count,last_incoming_mail_time,last_outgoing_mail_time,won_deals_count'})});\nreturn [named(fieldsOf('/v1/personFields'), record.data)];"
+    },
+    "new_deal": {
+      "label": "New Deal",
+      "description": "Triggers when a new deal is created.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://{{credential.companyDomain}}.pipedrive.com/api/v1/webhooks",
+          "body": {
+            "event_object": "deal",
+            "event_action": "create",
+            "subscription_url": "{{webhookUrl}}",
+            "version": "2.0"
+          }
+        },
+        "id": "$.data.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://{{credential.companyDomain}}.pipedrive.com/api/v1/webhooks/{{webhookId}}"
+        }
+      },
+      "afterResponse": "var encode = (text) => encodeURIComponent(text).replace(/%20/g, '+').replace(/[!'()~]/g, (character) => '%' + character.charCodeAt(0).toString(16).toUpperCase());\nvar withQuery = (path, params) => { var pairs = Object.keys(params).filter((key) => params[key] !== undefined && params[key] !== null).map((key) => encode(key) + '=' + encode(Array.isArray(params[key]) ? params[key].map(String).join(',') : String(params[key]))); return pairs.length ? path + (path.indexOf('?') < 0 ? '?' : '&') + pairs.join('&') : path; };\nvar pagesV1 = (path, params, page) => { var items = []; while (page.data !== null && page.data !== undefined) { items = items.concat(page.data); var paging = page.additional_data.pagination; if (!paging.more_items_in_collection) break; page = call({method: 'GET', url: withQuery(path, Object.assign({}, params, {start: paging.next_start, limit: 500}))}); } return items; };\nvar fieldsOf = (path) => pagesV1(path, {}, call({method: 'GET', url: withQuery(path, {start: 0, limit: 500})}));\nvar labelOf = (field, id) => { var option = (field.options || []).find((choice) => choice.id === id); return (option && option.label) || null; };\nvar named = (fields, record) => { var out = Object.assign({}, record); var raw = record.custom_fields || {}; fields.forEach((field) => { if (!field.edit_flag || !(field.key in raw)) return; var value = raw[field.key]; if (value === null || value === undefined) out[field.name] = null; else if (field.field_type === 'enum') out[field.name] = labelOf(field, value); else if (field.field_type === 'set' && Array.isArray(value)) out[field.name] = value.map((id) => labelOf(field, id)); else out[field.name] = value; }); delete out.custom_fields; return out; };\nvar record = call({method: 'GET', url: withQuery('/v2/deals/' + response.data.id, {include_fields: 'next_activity_id,last_activity_id,first_won_time,products_count,files_count,notes_count,followers_count,email_messages_count,activities_count,done_activities_count,undone_activities_count,participants_count,last_incoming_mail_time,last_outgoing_mail_time,smart_bcc_email'})});\nreturn [named(fieldsOf('/v1/dealFields'), record.data)];"
+    },
+    "updated_deal": {
+      "label": "Updated Deal",
+      "description": "Triggers when a deal is updated.",
+      "inputs": {
+        "filter_by": {
+          "label": "Filter by",
+          "type": "select",
+          "options": [
+            {
+              "value": "status",
+              "label": "Deal Status"
+            },
+            {
+              "value": "stage_id",
+              "label": "Stage in Pipeline"
+            }
+          ]
+        },
+        "filter_by_field_value": {
+          "label": "Field Value",
+          "description": "The value the deal should have: open, won, lost or deleted for Deal Status, or a stage ID for Stage in Pipeline."
+        },
+        "field_to_watch": {
+          "label": "Field to watch for Changes On",
+          "list": "deal_field_keys"
+        }
+      },
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://{{credential.companyDomain}}.pipedrive.com/api/v1/webhooks",
+          "body": {
+            "event_object": "deal",
+            "event_action": "change",
+            "subscription_url": "{{webhookUrl}}",
+            "version": "2.0"
+          }
+        },
+        "id": "$.data.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://{{credential.companyDomain}}.pipedrive.com/api/v1/webhooks/{{webhookId}}"
+        }
+      },
+      "afterResponse": "var encode = (text) => encodeURIComponent(text).replace(/%20/g, '+').replace(/[!'()~]/g, (character) => '%' + character.charCodeAt(0).toString(16).toUpperCase());\nvar withQuery = (path, params) => { var pairs = Object.keys(params).filter((key) => params[key] !== undefined && params[key] !== null).map((key) => encode(key) + '=' + encode(Array.isArray(params[key]) ? params[key].map(String).join(',') : String(params[key]))); return pairs.length ? path + (path.indexOf('?') < 0 ? '?' : '&') + pairs.join('&') : path; };\nvar pagesV1 = (path, params, page) => { var items = []; while (page.data !== null && page.data !== undefined) { items = items.concat(page.data); var paging = page.additional_data.pagination; if (!paging.more_items_in_collection) break; page = call({method: 'GET', url: withQuery(path, Object.assign({}, params, {start: paging.next_start, limit: 500}))}); } return items; };\nvar fieldsOf = (path) => pagesV1(path, {}, call({method: 'GET', url: withQuery(path, {start: 0, limit: 500})}));\nvar labelOf = (field, id) => { var option = (field.options || []).find((choice) => choice.id === id); return (option && option.label) || null; };\nvar named = (fields, record) => { var out = Object.assign({}, record); var raw = record.custom_fields || {}; fields.forEach((field) => { if (!field.edit_flag || !(field.key in raw)) return; var value = raw[field.key]; if (value === null || value === undefined) out[field.name] = null; else if (field.field_type === 'enum') out[field.name] = labelOf(field, value); else if (field.field_type === 'set' && Array.isArray(value)) out[field.name] = value.map((id) => labelOf(field, id)); else out[field.name] = value; }); delete out.custom_fields; return out; };\nvar flat = (record) => { var out = Object.assign({}, record); var custom = out.custom_fields; delete out.custom_fields; if (!custom) return out; var extra = {}; Object.keys(custom).forEach((key) => { var field = custom[key]; if (field === null || field === undefined) { extra[key] = field; return; } switch (field.type) { case 'varchar': case 'text': case 'varchar_auto': case 'double': case 'phone': case 'date': extra[key] = field.value; break; case 'set': extra[key] = field.values && field.values.length ? field.values.map((choice) => choice.id).join(',') : ''; break; case 'enum': case 'user': case 'org': case 'people': extra[key] = field.id; break; case 'monetary': extra[key] = field.value; extra[key + '_currency'] = field.currency; break; case 'time': extra[key] = field.value; extra[key + '_timezone_id'] = field.timezone_id; break; case 'timerange': extra[key] = field.from; extra[key + '_timezone_id'] = field.timezone_id; extra[key + '_until'] = field.until; break; case 'daterange': extra[key] = field.from; extra[key + '_until'] = field.until; break; case 'address': extra[key] = field.value; ['subpremise', 'street_number', 'route', 'sublocality', 'locality', 'admin_area_level_1', 'admin_area_level_2', 'country', 'postal_code', 'formatted_address'].forEach((part) => { extra[key + '_' + part] = field[part]; }); break; } }); return Object.assign(out, extra); };\nvar filterBy = inputs.filter_by;\nvar wanted = inputs.filter_by_field_value === undefined || inputs.filter_by_field_value === '' ? undefined : filterBy === 'stage_id' ? Number(inputs.filter_by_field_value) : inputs.filter_by_field_value;\nvar watched = inputs.field_to_watch === 'label' ? 'label_ids' : inputs.field_to_watch;\nvar now = flat(response.data), before = flat(response.previous);\nvar changed = watched && watched in before && now[watched] !== before[watched];\nvar matches = filterBy && now[filterBy] === wanted;\nif (!(!filterBy && !watched) && !(!filterBy && changed) && !(matches && (!watched || changed))) return [];\nvar deal = call({method: 'GET', url: withQuery('/v2/deals/' + response.data.id, {include_fields: 'next_activity_id,last_activity_id,first_won_time,products_count,files_count,notes_count,followers_count,email_messages_count,activities_count,done_activities_count,undone_activities_count,participants_count,last_incoming_mail_time,last_outgoing_mail_time,smart_bcc_email'})});\nreturn [named(fieldsOf('/v1/dealFields'), deal.data)];"
+    },
+    "updated-deal-stage": {
+      "label": "Updated Deal Stage",
+      "description": "Triggers when a deal's stage is updated.",
+      "inputs": {
+        "stage_id": {
+          "label": "Stage in Pipeline",
+          "list": "stages"
+        }
+      },
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://{{credential.companyDomain}}.pipedrive.com/api/v1/webhooks",
+          "body": {
+            "subscription_url": "{{webhookUrl}}",
+            "event_object": "deal",
+            "event_action": "change",
+            "version": "2.0"
+          }
+        },
+        "id": "$.data.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://{{credential.companyDomain}}.pipedrive.com/api/v1/webhooks/{{webhookId}}"
+        }
+      },
+      "afterResponse": "var encode = (text) => encodeURIComponent(text).replace(/%20/g, '+').replace(/[!'()~]/g, (character) => '%' + character.charCodeAt(0).toString(16).toUpperCase());\nvar withQuery = (path, params) => { var pairs = Object.keys(params).filter((key) => params[key] !== undefined && params[key] !== null).map((key) => encode(key) + '=' + encode(Array.isArray(params[key]) ? params[key].map(String).join(',') : String(params[key]))); return pairs.length ? path + (path.indexOf('?') < 0 ? '?' : '&') + pairs.join('&') : path; };\nvar pagesV1 = (path, params, page) => { var items = []; while (page.data !== null && page.data !== undefined) { items = items.concat(page.data); var paging = page.additional_data.pagination; if (!paging.more_items_in_collection) break; page = call({method: 'GET', url: withQuery(path, Object.assign({}, params, {start: paging.next_start, limit: 500}))}); } return items; };\nvar fieldsOf = (path) => pagesV1(path, {}, call({method: 'GET', url: withQuery(path, {start: 0, limit: 500})}));\nvar labelOf = (field, id) => { var option = (field.options || []).find((choice) => choice.id === id); return (option && option.label) || null; };\nvar named = (fields, record) => { var out = Object.assign({}, record); var raw = record.custom_fields || {}; fields.forEach((field) => { if (!field.edit_flag || !(field.key in raw)) return; var value = raw[field.key]; if (value === null || value === undefined) out[field.name] = null; else if (field.field_type === 'enum') out[field.name] = labelOf(field, value); else if (field.field_type === 'set' && Array.isArray(value)) out[field.name] = value.map((id) => labelOf(field, id)); else out[field.name] = value; }); delete out.custom_fields; return out; };\nvar wanted = inputs.stage_id ? Number(inputs.stage_id) : undefined;\nvar data = response.data, previous = response.previous;\nif (!previous || previous.stage_id === null || previous.stage_id === undefined || data.stage_id === previous.stage_id) return [];\nif (wanted && data.stage_id !== wanted) return [];\nvar deal = call({method: 'GET', url: withQuery('/v2/deals/' + data.id, {include_fields: 'next_activity_id,last_activity_id,first_won_time,products_count,files_count,notes_count,followers_count,email_messages_count,activities_count,done_activities_count,undone_activities_count,participants_count,last_incoming_mail_time,last_outgoing_mail_time,smart_bcc_email'})});\nvar out = named(fieldsOf('/v1/dealFields'), deal.data);\nout.stage = call({method: 'GET', url: '/v2/stages/' + data.stage_id}).data;\nreturn [out];"
+    },
+    "new_activity": {
+      "label": "New Activity",
+      "description": "Triggers when a new activity is added",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://{{credential.companyDomain}}.pipedrive.com/api/v1/webhooks",
+          "body": {
+            "event_object": "activity",
+            "event_action": "create",
+            "subscription_url": "{{webhookUrl}}",
+            "version": "2.0"
+          }
+        },
+        "id": "$.data.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://{{credential.companyDomain}}.pipedrive.com/api/v1/webhooks/{{webhookId}}"
+        }
+      },
+      "afterResponse": "return [call({method: 'GET', url: '/v2/activities/' + response.data.id + '?include_fields=attendees'}).data];"
+    },
+    "new-note": {
+      "label": "New Note",
+      "description": "Triggers when a new note is created.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://{{credential.companyDomain}}.pipedrive.com/api/v1/webhooks",
+          "body": {
+            "event_object": "note",
+            "event_action": "create",
+            "subscription_url": "{{webhookUrl}}",
+            "version": "2.0"
+          }
+        },
+        "id": "$.data.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://{{credential.companyDomain}}.pipedrive.com/api/v1/webhooks/{{webhookId}}"
+        }
+      },
+      "afterResponse": "return [call({method: 'GET', url: '/v1/notes/' + response.data.id}).data];"
+    },
+    "new-lead": {
+      "label": "New Lead",
+      "description": "Triggers when a new lead is created.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://{{credential.companyDomain}}.pipedrive.com/api/v1/webhooks",
+          "body": {
+            "event_object": "lead",
+            "event_action": "create",
+            "subscription_url": "{{webhookUrl}}",
+            "version": "2.0"
+          }
+        },
+        "id": "$.data.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://{{credential.companyDomain}}.pipedrive.com/api/v1/webhooks/{{webhookId}}"
+        }
+      },
+      "afterResponse": "var encode = (text) => encodeURIComponent(text).replace(/%20/g, '+').replace(/[!'()~]/g, (character) => '%' + character.charCodeAt(0).toString(16).toUpperCase());\nvar withQuery = (path, params) => { var pairs = Object.keys(params).filter((key) => params[key] !== undefined && params[key] !== null).map((key) => encode(key) + '=' + encode(Array.isArray(params[key]) ? params[key].map(String).join(',') : String(params[key]))); return pairs.length ? path + (path.indexOf('?') < 0 ? '?' : '&') + pairs.join('&') : path; };\nvar pagesV1 = (path, params, page) => { var items = []; while (page.data !== null && page.data !== undefined) { items = items.concat(page.data); var paging = page.additional_data.pagination; if (!paging.more_items_in_collection) break; page = call({method: 'GET', url: withQuery(path, Object.assign({}, params, {start: paging.next_start, limit: 500}))}); } return items; };\nvar fieldsOf = (path) => pagesV1(path, {}, call({method: 'GET', url: withQuery(path, {start: 0, limit: 500})}));\nvar labelOfText = (field, id) => { var option = (field.options || []).find((choice) => choice.id.toString() === id); return (option && option.label) || null; };\nvar namedV1 = (fields, record) => { var out = Object.assign({}, record); fields.forEach((field) => { if (!field.edit_flag || !(field.key in record)) return; var value = record[field.key]; if (value === null || value === undefined) out[field.name] = null; else if (field.field_type === 'enum') out[field.name] = labelOfText(field, value); else if (field.field_type === 'set') out[field.name] = value.split(',').map((id) => labelOfText(field, id)); else out[field.name] = value; delete out[field.key]; }); return out; };\nvar lead = call({method: 'GET', url: '/v1/leads/' + response.data.id});\nreturn [namedV1(fieldsOf('/v1/dealFields'), lead.data)];"
+    },
+    "new-organization": {
+      "label": "New Organization",
+      "description": "Triggers when a new organization is created.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://{{credential.companyDomain}}.pipedrive.com/api/v1/webhooks",
+          "body": {
+            "event_object": "organization",
+            "event_action": "create",
+            "subscription_url": "{{webhookUrl}}",
+            "version": "2.0"
+          }
+        },
+        "id": "$.data.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://{{credential.companyDomain}}.pipedrive.com/api/v1/webhooks/{{webhookId}}"
+        }
+      },
+      "afterResponse": "var encode = (text) => encodeURIComponent(text).replace(/%20/g, '+').replace(/[!'()~]/g, (character) => '%' + character.charCodeAt(0).toString(16).toUpperCase());\nvar withQuery = (path, params) => { var pairs = Object.keys(params).filter((key) => params[key] !== undefined && params[key] !== null).map((key) => encode(key) + '=' + encode(Array.isArray(params[key]) ? params[key].map(String).join(',') : String(params[key]))); return pairs.length ? path + (path.indexOf('?') < 0 ? '?' : '&') + pairs.join('&') : path; };\nvar pagesV1 = (path, params, page) => { var items = []; while (page.data !== null && page.data !== undefined) { items = items.concat(page.data); var paging = page.additional_data.pagination; if (!paging.more_items_in_collection) break; page = call({method: 'GET', url: withQuery(path, Object.assign({}, params, {start: paging.next_start, limit: 500}))}); } return items; };\nvar fieldsOf = (path) => pagesV1(path, {}, call({method: 'GET', url: withQuery(path, {start: 0, limit: 500})}));\nvar labelOf = (field, id) => { var option = (field.options || []).find((choice) => choice.id === id); return (option && option.label) || null; };\nvar named = (fields, record) => { var out = Object.assign({}, record); var raw = record.custom_fields || {}; fields.forEach((field) => { if (!field.edit_flag || !(field.key in raw)) return; var value = raw[field.key]; if (value === null || value === undefined) out[field.name] = null; else if (field.field_type === 'enum') out[field.name] = labelOf(field, value); else if (field.field_type === 'set' && Array.isArray(value)) out[field.name] = value.map((id) => labelOf(field, id)); else out[field.name] = value; }); delete out.custom_fields; return out; };\nvar record = call({method: 'GET', url: withQuery('/v2/organizations/' + response.data.id, {include_fields: 'next_activity_id,last_activity_id,open_deals_count,related_open_deals_count,closed_deals_count,related_closed_deals_count,email_messages_count,people_count,activities_count,done_activities_count,undone_activities_count,files_count,notes_count,followers_count,won_deals_count,related_won_deals_count,lost_deals_count,related_lost_deals_count'})});\nreturn [named(fieldsOf('/v1/organizationFields'), record.data)];"
+    },
+    "updated-organization": {
+      "label": "Updated Organization",
+      "description": "Triggers when an existing organization is updated.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://{{credential.companyDomain}}.pipedrive.com/api/v1/webhooks",
+          "body": {
+            "event_object": "organization",
+            "event_action": "change",
+            "subscription_url": "{{webhookUrl}}",
+            "version": "2.0"
+          }
+        },
+        "id": "$.data.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://{{credential.companyDomain}}.pipedrive.com/api/v1/webhooks/{{webhookId}}"
+        }
+      },
+      "afterResponse": "var encode = (text) => encodeURIComponent(text).replace(/%20/g, '+').replace(/[!'()~]/g, (character) => '%' + character.charCodeAt(0).toString(16).toUpperCase());\nvar withQuery = (path, params) => { var pairs = Object.keys(params).filter((key) => params[key] !== undefined && params[key] !== null).map((key) => encode(key) + '=' + encode(Array.isArray(params[key]) ? params[key].map(String).join(',') : String(params[key]))); return pairs.length ? path + (path.indexOf('?') < 0 ? '?' : '&') + pairs.join('&') : path; };\nvar pagesV1 = (path, params, page) => { var items = []; while (page.data !== null && page.data !== undefined) { items = items.concat(page.data); var paging = page.additional_data.pagination; if (!paging.more_items_in_collection) break; page = call({method: 'GET', url: withQuery(path, Object.assign({}, params, {start: paging.next_start, limit: 500}))}); } return items; };\nvar fieldsOf = (path) => pagesV1(path, {}, call({method: 'GET', url: withQuery(path, {start: 0, limit: 500})}));\nvar labelOf = (field, id) => { var option = (field.options || []).find((choice) => choice.id === id); return (option && option.label) || null; };\nvar named = (fields, record) => { var out = Object.assign({}, record); var raw = record.custom_fields || {}; fields.forEach((field) => { if (!field.edit_flag || !(field.key in raw)) return; var value = raw[field.key]; if (value === null || value === undefined) out[field.name] = null; else if (field.field_type === 'enum') out[field.name] = labelOf(field, value); else if (field.field_type === 'set' && Array.isArray(value)) out[field.name] = value.map((id) => labelOf(field, id)); else out[field.name] = value; }); delete out.custom_fields; return out; };\nvar record = call({method: 'GET', url: withQuery('/v2/organizations/' + response.data.id, {include_fields: 'next_activity_id,last_activity_id,open_deals_count,related_open_deals_count,closed_deals_count,related_closed_deals_count,email_messages_count,people_count,activities_count,done_activities_count,undone_activities_count,files_count,notes_count,followers_count,won_deals_count,related_won_deals_count,lost_deals_count,related_lost_deals_count'})});\nreturn [named(fieldsOf('/v1/organizationFields'), record.data)];"
     }
   }
 }

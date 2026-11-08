@@ -795,6 +795,45 @@
         "warning": "$.warning"
       }
     },
+    "delete_rows": {
+      "label": "Delete Rows",
+      "description": "Permanently deletes rows from a table by row ID.",
+      "inputs": {
+        "docId": {
+          "label": "Doc ID or Link",
+          "description": "The doc ID, for example AbC123xyZ. Use List Docs to find it.",
+          "required": true
+        },
+        "tableIdOrName": {
+          "label": "Table ID or Name",
+          "description": "The table ID (starts with \"grid-\" or \"table-\") or its exact name. IDs are safer: names can change or repeat. Use List Tables to find it.",
+          "required": true
+        },
+        "rowIds": {
+          "label": "Row IDs",
+          "description": "IDs of the rows to delete (they start with \"i-\"). Several are separated by commas or given as a JSON list.",
+          "required": true
+        },
+        "waitForCompletion": {
+          "label": "Wait for Coda to Apply",
+          "description": "Coda applies changes in the background. When on, the step waits up to 30 seconds until the change is applied; if it takes longer, the step still succeeds with Completed = false and you can check later with Get Mutation Status.",
+          "type": "boolean",
+          "defaultValue": "true"
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://coda.io/apis/v1/docs/{{docId}}/tables/{{tableIdOrName}}/rows"
+      },
+      "beforeRequest": "var docIdOf = (raw) => {\n  var text = String(raw).trim();\n  if (!/^https?:\\/\\//i.test(text)) {\n    if (!/^[A-Za-z0-9_-]+$/.test(text)) throw new Error('\"' + text + '\" is not a valid Coda doc ID. Pass the ID (for example AbC123xyZ) or the doc\\'s browser link.');\n    return text;\n  }\n  var link = /^https?:\\/\\/(?:[^@\\/?#]*@)?([^:\\/?#]*)(?::\\d*)?([^?#]*)/i.exec(text);\n  var host = link ? link[1].toLowerCase().replace(/^www\\./, '') : '';\n  if (host !== 'coda.io' && host !== 'docs.superhuman.com') throw new Error('\"' + text + '\" is not a Coda doc link (expected coda.io or docs.superhuman.com).');\n  var segments = link[2].split('/').filter((segment) => segment.length > 0);\n  var slug = segments[0] === 'd' ? segments[1] : undefined;\n  var cut = slug ? slug.lastIndexOf('_d') : -1;\n  var id = slug && cut >= 0 ? slug.slice(cut + 2) : undefined;\n  if (!id || !/^[A-Za-z0-9_-]+$/.test(id)) throw new Error('Could not find a doc ID in \"' + text + '\". Paste a link like https://coda.io/d/My-Doc_dAbC123 or the doc ID itself.');\n  return id;\n};\nvar start = request.url.indexOf('/apis/v1/') + '/apis/v1/'.length;\nvar parts = request.url.slice(start).split('/').map((part) => decodeURIComponent(part).trim());\nparts.forEach((part) => { if (part === '.' || part === '..') throw new Error('\"' + part + '\" is not a valid Coda ID or name.'); });\nif (parts[0] === 'docs' && parts.length > 1) parts[1] = docIdOf(parts[1]);\nrequest.url = request.url.slice(0, start) + parts.map(encodeURIComponent).join('/');\nvar toStringList = (text, label) => {\n  var raw = text.trim().startsWith('[') ? JSON.parse(text) : text.split(',');\n  var list = (Array.isArray(raw) ? raw : []).filter((item) => item != null).map((item) => String(item).trim()).filter((item) => item.length > 0);\n  return [...new Set(list)];\n};\nvar rowIds = toStringList(inputs.rowIds, 'Row IDs');\nif (rowIds.length === 0) throw new Error('Give at least one row ID to delete.');\nif (rowIds.length > 500) throw new Error('At most 500 rows can be deleted per call.');\nrequest.body = {rowIds: rowIds};\nreturn request;",
+      "afterResponse": "var settle = (requestId) => {\n  if (!requestId) throw new Error('Coda accepted the request but returned no request ID, so its outcome cannot be checked.');\n  var id = String(requestId).trim();\n  if (id === '') throw new Error('Request ID is required.');\n  if (id === '.' || id === '..') throw new Error('Request ID \"' + id + '\" is not a valid Coda ID or name.');\n  if (inputs.waitForCompletion === 'false') return {requestId: requestId, completed: false, warning: null};\n  for (var attempt = 0; attempt < 10; attempt++) {\n    try {\n      var status = call({method: 'GET', url: '/mutationStatus/' + encodeURIComponent(id)});\n      if (status.completed) return {requestId: requestId, completed: true, warning: status.warning ?? null};\n    } catch (error) {\n      var failure = /answered with status (\\d+)(?:: ([\\s\\S]*))?$/.exec(String(error && error.message || error));\n      var code = failure ? Number(failure[1]) : undefined;\n      var transient = code === undefined || code === 404 || code === 408 || code === 409 || code === 429 || code >= 500;\n      if (!transient) {\n        var said = failure[2] ? failure[2].replace(/\\.$/, '').slice(0, 500) : 'no details returned';\n        var meaning = code === 401 ? 'the API token is invalid or was revoked. ' + said\n          : code === 403 ? 'Coda refused the request (no access to this doc, or not allowed on this workspace plan). ' + said\n          : code === 410 ? 'the object was deleted. ' + said\n          : said;\n        return {requestId: requestId, completed: false, warning: 'Coda accepted the change, but checking its status failed, so do not repeat it. Check it later with Get Mutation Status. Coda get mutation status failed (' + code + '): ' + meaning};\n      }\n    }\n  }\n  return {requestId: requestId, completed: false, warning: null};\n};\nvar toStringList = (text, label) => {\n  var raw = text.trim().startsWith('[') ? JSON.parse(text) : text.split(',');\n  var list = (Array.isArray(raw) ? raw : []).filter((item) => item != null).map((item) => String(item).trim()).filter((item) => item.length > 0);\n  return [...new Set(list)];\n};\nreturn Object.assign({rowIds: response.rowIds ?? toStringList(inputs.rowIds, 'Row IDs')}, settle(response.requestId));",
+      "outputs": {
+        "rowIds": "$.rowIds",
+        "requestId": "$.requestId",
+        "completed": "$.completed",
+        "warning": "$.warning"
+      }
+    },
     "push_button": {
       "label": "Push Button",
       "description": "Presses a button in a table row, running whatever action the button is set up to do. If the button is disabled for that row, Coda accepts the press but nothing happens.",

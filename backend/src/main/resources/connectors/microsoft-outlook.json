@@ -960,6 +960,42 @@
       },
       "beforeRequest": "const H = {SdkVersion: 'graph-js/3.0.7 (featureUsage=7)'};\nconst list = (v) => { if (v === undefined || v === null || v === '') return []; try { const p = JSON.parse(v); return Array.isArray(p) ? p : [p]; } catch (e) { return String(v).split(',').map((s) => s.trim()).filter((s) => s); } };\nconst current = call({method: 'GET', url: request.url + '?$select=id,categories', headers: H}).categories || [];\nconst wanted = list(inputs.categories);\nrequest.body = {categories: current.filter((c) => !wanted.includes(c))};\nreturn request;"
     },
+    "outlook_add_message_attachment": {
+      "label": "Add Attachment to Draft",
+      "description": "Attaches a file to a draft message.",
+      "inputs": {
+        "messageId": {
+          "label": "Draft Message ID",
+          "description": "ID of the draft to attach the file to. Obtain it from Create Draft.",
+          "required": true,
+          "list": "draft_messages"
+        },
+        "file": {
+          "label": "File",
+          "description": "File to attach. Must be smaller than 3 MB.",
+          "type": "file",
+          "required": true
+        },
+        "fileName": {
+          "label": "File Name",
+          "description": "Name shown on the attachment. Defaults to the uploaded file name."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/attachments",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        },
+        "body": {
+          "@odata.type": "#microsoft.graph.fileAttachment",
+          "name": "{{fileName}}",
+          "contentBytes": "{{file}}"
+        }
+      },
+      "beforeRequest": "request.body.name = inputs.fileName || inputs.file;\nreturn request;",
+      "afterResponse": "const attachment = (a) => ({id: a.id ?? null, name: a.name ?? null, contentType: a.contentType ?? null, size: a.size ?? null, isInline: a.isInline ?? null, lastModifiedDateTime: a.lastModifiedDateTime ?? null, attachmentType: a['@odata.type'] ?? null});\nreturn {messageId: inputs.messageId, ...attachment(response || {})};"
+    },
     "outlook_list_message_attachments": {
       "label": "List Message Attachments",
       "description": "Lists the attachments of a message without downloading them.",
@@ -1407,6 +1443,58 @@
         }
       },
       "afterResponse": "const timeZones = response.value || [];\nreturn {timeZones, count: timeZones.length};"
+    }
+  },
+  "triggers": {
+    "newEmail": {
+      "label": "New Email",
+      "description": "Triggers when a new email arrives in your Inbox.",
+      "inputs": {
+        "sender": {
+          "label": "From",
+          "description": "Only emails sent from this address."
+        },
+        "recipient": {
+          "label": "To",
+          "description": "Only emails sent to this address."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "items": "$",
+      "newBy": "time",
+      "key": "$.receivedDateTime",
+      "beforeRequest": "const since = inputs.lastPollTime ? '$filter=receivedDateTime%20gt%20' + new Date(Number(inputs.lastPollTime)).toISOString() : '$top=10';\nrequest.url = '/me/mailFolders/inbox/messages?' + since + '&$orderby=receivedDateTime%20desc';\nreturn request;",
+      "afterResponse": "const items = [];\nlet page = response;\nwhile ((page.value || []).length > 0) {\n  items.push(...page.value);\n  if (!inputs.lastPollTime || !page['@odata.nextLink']) break;\n  page = call({method: 'GET', url: page['@odata.nextLink'], headers: {SdkVersion: 'graph-js/3.0.7 (featureUsage=7)'}});\n}\nconst lower = (v) => v == null ? v : String(v).toLowerCase();\nreturn items.filter((m) => !inputs.sender || lower(m.from?.emailAddress?.address) === lower(inputs.sender))\n  .filter((m) => !inputs.recipient || (m.toRecipients || []).some((r) => lower(r.emailAddress?.address) === lower(inputs.recipient)));"
+    },
+    "newEmailInFolder": {
+      "label": "New Email in Folder",
+      "description": "Triggers when a new email lands in the folder you pick.",
+      "inputs": {
+        "folderId": {
+          "label": "Folder",
+          "description": "New emails in this folder start the flow.",
+          "required": true,
+          "list": "folders"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/mailFolders/{{folderId}}/messages",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "items": "$",
+      "newBy": "time",
+      "key": "$.createdDateTime",
+      "beforeRequest": "const since = inputs.lastPollTime ? '$filter=createdDateTime%20gt%20' + new Date(Number(inputs.lastPollTime)).toISOString() : '$top=10';\n// The original puts the folder ID in the path as given.\nrequest.url = '/me/mailFolders/' + inputs.folderId + '/messages?' + since + '&$orderby=createdDateTime%20desc';\nreturn request;",
+      "afterResponse": "const items = [];\nlet page = response;\nwhile ((page.value || []).length > 0) {\n  items.push(...page.value);\n  if (!inputs.lastPollTime || !page['@odata.nextLink']) break;\n  page = call({method: 'GET', url: page['@odata.nextLink'], headers: {SdkVersion: 'graph-js/3.0.7 (featureUsage=7)'}});\n}\nreturn items;"
     }
   }
 }

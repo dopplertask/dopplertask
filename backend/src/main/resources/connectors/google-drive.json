@@ -966,5 +966,75 @@
         }
       }
     }
+  },
+  "triggers": {
+    "new_file": {
+      "label": "New File",
+      "description": "Triggers when a new file is added to Drive or the chosen folder.",
+      "inputs": {
+        "parentFolder": {
+          "label": "Folder",
+          "description": "Leave empty to watch all of My Drive. Type to search by folder name.",
+          "list": "parent_folders"
+        },
+        "include_team_drives": {
+          "label": "Include Team Drives",
+          "description": "Also include shared drives, not only My Drive.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/drive/v3/files",
+        "query": {
+          "fields": "nextPageToken, files(id, name, mimeType, webViewLink, kind, createdTime, modifiedTime)",
+          "orderBy": "createdTime desc",
+          "supportsAllDrives": "true",
+          "includeItemsFromAllDrives": "{{include_team_drives}}"
+        },
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "newBy": "time",
+      "key": "$.createdTime",
+      "beforeRequest": "const literal = (text) => String(text).replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"\\\\'\");\nconst pad = (number) => String(number).padStart(2, '0');\nconst local = (ms) => { const date = new Date(ms), offset = -date.getTimezoneOffset(), minutes = Math.abs(offset);\n  return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + 'T' + pad(date.getHours()) + ':' + pad(date.getMinutes()) + ':' + pad(date.getSeconds()) +\n    (offset < 0 ? '-' : '+') + pad(Math.floor(minutes / 60)) + ':' + pad(minutes % 60); };\nconst q = [];\nif (inputs.parentFolder) q.push(\"'\" + literal(inputs.parentFolder) + \"' in parents\");\nif (Number(inputs.lastPollTime)) q.push(\"createdTime > '\" + local(Number(inputs.lastPollTime)) + \"'\");\nq.push('trashed = false', \"mimeType!='application/vnd.google-apps.folder'\");\nconst corpora = inputs.include_team_drives === 'true' ? 'allDrives' : 'user';\nrequest.query.q = q.join(' and ');\nrequest.query.corpora = corpora;\nreturn request;",
+      "afterResponse": "const literal = (text) => String(text).replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"\\\\'\");\nconst pad = (number) => String(number).padStart(2, '0');\nconst local = (ms) => { const date = new Date(ms), offset = -date.getTimezoneOffset(), minutes = Math.abs(offset);\n  return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + 'T' + pad(date.getHours()) + ':' + pad(date.getMinutes()) + ':' + pad(date.getSeconds()) +\n    (offset < 0 ? '-' : '+') + pad(Math.floor(minutes / 60)) + ':' + pad(minutes % 60); };\nconst q = [];\nif (inputs.parentFolder) q.push(\"'\" + literal(inputs.parentFolder) + \"' in parents\");\nif (Number(inputs.lastPollTime)) q.push(\"createdTime > '\" + local(Number(inputs.lastPollTime)) + \"'\");\nq.push('trashed = false', \"mimeType!='application/vnd.google-apps.folder'\");\nconst corpora = inputs.include_team_drives === 'true' ? 'allDrives' : 'user';\nconst query = {q: q.join(' and '), fields: 'nextPageToken, files(id, name, mimeType, webViewLink, kind, createdTime, modifiedTime)', orderBy: 'createdTime desc', supportsAllDrives: 'true', corpora};\nif (inputs.include_team_drives) query.includeItemsFromAllDrives = inputs.include_team_drives;\nlet files = response.files || [];\nlet pageToken = response.nextPageToken;\nwhile (pageToken) {\n  const page = call({headers: {'x-goog-api-client': 'gdcl/8.0.2 gl-node/26.4.0'}, method: 'GET', url: '/files', query: Object.assign(query, {pageToken})});\n  files = files.concat(page.files || []);\n  pageToken = page.nextPageToken;\n}\nreturn files;"
+    },
+    "new_folder": {
+      "label": "New Folder",
+      "description": "Triggers when a new folder is created in Drive or the chosen folder.",
+      "inputs": {
+        "parentFolder": {
+          "label": "Folder",
+          "description": "Leave empty to watch all of My Drive. Type to search by folder name.",
+          "list": "parent_folders"
+        },
+        "include_team_drives": {
+          "label": "Include Team Drives",
+          "description": "Also include shared drives, not only My Drive.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/drive/v3/files",
+        "query": {
+          "fields": "nextPageToken, files(id, name, createdTime)",
+          "orderBy": "createdTime desc",
+          "supportsAllDrives": "true",
+          "includeItemsFromAllDrives": "{{include_team_drives}}"
+        },
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "newBy": "time",
+      "key": "$.createdTime",
+      "beforeRequest": "const literal = (text) => String(text).replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"\\\\'\");\nconst pad = (number) => String(number).padStart(2, '0');\nconst local = (ms) => { const date = new Date(ms), offset = -date.getTimezoneOffset(), minutes = Math.abs(offset);\n  return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + 'T' + pad(date.getHours()) + ':' + pad(date.getMinutes()) + ':' + pad(date.getSeconds()) +\n    (offset < 0 ? '-' : '+') + pad(Math.floor(minutes / 60)) + ':' + pad(minutes % 60); };\nconst q = [\"mimeType='application/vnd.google-apps.folder'\"];\nif (inputs.parentFolder) q.push(\"'\" + literal(inputs.parentFolder) + \"' in parents\");\nif (Number(inputs.lastPollTime)) q.push(\"createdTime > '\" + local(Number(inputs.lastPollTime)) + \"'\");\nq.push('trashed = false');\nconst corpora = inputs.include_team_drives === 'true' ? 'allDrives' : 'user';\nrequest.query.q = q.join(' and ');\nrequest.query.corpora = corpora;\nreturn request;",
+      "afterResponse": "const literal = (text) => String(text).replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"\\\\'\");\nconst pad = (number) => String(number).padStart(2, '0');\nconst local = (ms) => { const date = new Date(ms), offset = -date.getTimezoneOffset(), minutes = Math.abs(offset);\n  return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + 'T' + pad(date.getHours()) + ':' + pad(date.getMinutes()) + ':' + pad(date.getSeconds()) +\n    (offset < 0 ? '-' : '+') + pad(Math.floor(minutes / 60)) + ':' + pad(minutes % 60); };\nconst q = [\"mimeType='application/vnd.google-apps.folder'\"];\nif (inputs.parentFolder) q.push(\"'\" + literal(inputs.parentFolder) + \"' in parents\");\nif (Number(inputs.lastPollTime)) q.push(\"createdTime > '\" + local(Number(inputs.lastPollTime)) + \"'\");\nq.push('trashed = false');\nconst corpora = inputs.include_team_drives === 'true' ? 'allDrives' : 'user';\nconst query = {q: q.join(' and '), fields: 'nextPageToken, files(id, name, createdTime)', orderBy: 'createdTime desc', supportsAllDrives: 'true', corpora};\nif (inputs.include_team_drives) query.includeItemsFromAllDrives = inputs.include_team_drives;\nlet files = response.files || [];\nlet pageToken = response.nextPageToken;\nwhile (pageToken) {\n  const page = call({headers: {'x-goog-api-client': 'gdcl/8.0.2 gl-node/26.4.0'}, method: 'GET', url: '/files', query: Object.assign(query, {pageToken})});\n  files = files.concat(page.files || []);\n  pageToken = page.nextPageToken;\n}\nreturn files;"
+    }
   }
 }

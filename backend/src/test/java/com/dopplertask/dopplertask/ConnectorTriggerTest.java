@@ -165,6 +165,18 @@ public class ConnectorTriggerTest {
     }
 
     @Test
+    public void testAnAnswerScriptSeesWhatWasSentButNotTheCredentialSuccess() {
+        ConnectorAction step = ConnectorAction.of("poll-test");
+        step.setOperation("echo");
+        step.setSetting("note", "hello");
+        step.useCredentialValues(Map.of("key", "poll-key"));
+        String output = step.perform(new TaskExecution(), new VariableExtractorUtil(Application.lockedTemplateEngine(-1))).getOutput();
+        Assert.assertTrue(output, output.contains("\"sent\":{\"note\":\"hello\"}"));
+        Assert.assertFalse(output, output.contains("poll-key"));
+        Assert.assertEquals("Bearer poll-key", signedInWith.get());
+    }
+
+    @Test
     public void testAWebhookTriggerNeedsThePublicAddressFail() {
         Assert.assertTrue(trigger("new_event").problem().contains("DOPPLERTASK_PUBLIC_URL"));
     }

@@ -112,6 +112,95 @@
       "beforeRequest": "const temperature = inputs.temperature === '' ? undefined : Number(inputs.temperature);\nif (temperature !== undefined && !(temperature >= 0 && temperature <= 2)) throw new Error('Temperature should be from 0 to 2.');\nconst roles = (inputs.roles ? JSON.parse(inputs.roles) : []).map((role) => {\n  if (!['system', 'user', 'assistant'].includes(role.role)) throw new Error('The only available roles are: [system, user, assistant]');\n  return { role: role.role, content: role.content };\n});\nrequest.body.messages = [...roles, { role: 'user', content: inputs.prompt }];\nreturn request;",
       "result": "$.choices[0].message.content"
     },
+    "vision_prompt": {
+      "label": "Vision Prompt",
+      "description": "Ask a question about an image and get a text reply.",
+      "inputs": {
+        "image": {
+          "label": "Image",
+          "description": "The picture to ask about.",
+          "type": "file",
+          "required": true
+        },
+        "prompt": {
+          "label": "Question",
+          "description": "What you want to know about the image.",
+          "type": "multiline",
+          "required": true
+        },
+        "maxTokens": {
+          "label": "Maximum Tokens",
+          "description": "Longest reply in tokens, about 4 characters each.",
+          "type": "number",
+          "defaultValue": "2048"
+        },
+        "detail": {
+          "label": "Detail",
+          "description": "Low is faster and cheaper. High reads small details better.",
+          "type": "select",
+          "defaultValue": "auto",
+          "options": [
+            {
+              "value": "auto",
+              "label": "Auto"
+            },
+            {
+              "value": "low",
+              "label": "Low"
+            },
+            {
+              "value": "high",
+              "label": "High"
+            }
+          ]
+        },
+        "temperature": {
+          "label": "Temperature",
+          "description": "From 0 to 2. Lower is more focused, higher is more varied.",
+          "type": "number",
+          "defaultValue": "0.9"
+        },
+        "topP": {
+          "label": "Top P",
+          "description": "From 0 to 1. Adjust this or Temperature, not both.",
+          "type": "number",
+          "defaultValue": "1"
+        },
+        "frequencyPenalty": {
+          "label": "Frequency Penalty",
+          "description": "From -2 to 2. Higher values make the model repeat itself less.",
+          "type": "number",
+          "defaultValue": "0"
+        },
+        "presencePenalty": {
+          "label": "Presence Penalty",
+          "description": "From -2 to 2. Higher values push the model toward new topics.",
+          "type": "number",
+          "defaultValue": "0.6"
+        },
+        "roles": {
+          "label": "Roles",
+          "description": "Messages sent before the question, such as a system instruction.",
+          "type": "json",
+          "defaultValue": "[{\"role\":\"system\",\"content\":\"You are a helpful assistant.\"}]"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "body": {
+          "model": "gpt-4o",
+          "image": "{{image}}",
+          "temperature": "{{temperature}}",
+          "max_tokens": "{{maxTokens}}",
+          "top_p": "{{topP}}",
+          "frequency_penalty": "{{frequencyPenalty}}",
+          "presence_penalty": "{{presencePenalty}}"
+        }
+      },
+      "beforeRequest": "const temperature = inputs.temperature === '' ? undefined : Number(inputs.temperature);\nif (temperature !== undefined && !(temperature >= 0 && temperature <= 2)) throw new Error('Temperature should be from 0 to 2.');\nconst roles = (inputs.roles ? JSON.parse(inputs.roles) : []).map((role) => {\n  if (!['system', 'user', 'assistant'].includes(role.role)) throw new Error('The only available roles are: [system, user, assistant]');\n  return { role: role.role, content: role.content };\n});\n// The image's type by its extension, as the original's mime-types table gives it.\nconst types = {'application/json': 'json map', 'application/xml': 'xml', 'application/javascript': 'js mjs', 'application/pdf': 'pdf', 'application/zip': 'zip', 'application/gzip': 'gz', 'application/octet-stream': 'bin dat', 'application/msword': 'doc', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx', 'application/vnd.ms-excel': 'xls', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx', 'application/vnd.ms-powerpoint': 'ppt', 'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx', 'text/csv': 'csv', 'application/rtf': 'rtf', 'application/x-tar': 'tar', 'application/x-7z-compressed': '7z', 'application/wasm': 'wasm', 'text/plain': 'txt text log', 'text/html': 'html htm', 'text/css': 'css', 'text/markdown': 'md markdown', 'text/yaml': 'yaml yml', 'image/png': 'png', 'image/jpeg': 'jpeg jpg jpe', 'image/gif': 'gif', 'image/webp': 'webp', 'image/svg+xml': 'svg svgz', 'image/bmp': 'bmp', 'image/tiff': 'tiff tif', 'image/x-icon': 'ico', 'image/heic': 'heic', 'image/avif': 'avif', 'audio/mpeg': 'mp3 mpga', 'audio/wav': 'wav', 'audio/ogg': 'ogg oga', 'audio/webm': 'weba', 'audio/mp4': 'm4a', 'video/mp4': 'mp4 m4v', 'video/mpeg': 'mpeg mpg', 'video/webm': 'webm', 'video/quicktime': 'mov qt', 'video/x-msvideo': 'avi', 'font/woff': 'woff', 'font/woff2': 'woff2', 'font/ttf': 'ttf', 'font/otf': 'otf', 'application/ld+json': 'jsonld', 'application/manifest+json': 'webmanifest', 'text/calendar': 'ics ifb', 'application/x-ndjson': 'ndjson'};\nconst extension = inputs.image.split('.').pop();\nconst type = Object.keys(types).find((known) => types[known].split(' ').includes(extension.toLowerCase())) ?? `image/${extension}`;\nconst detail = ['auto', 'low', 'high'].includes(inputs.detail) ? inputs.detail : 'auto';\nrequest.body.messages = [...roles, { role: 'user', content: [{ type: 'text', text: inputs.prompt }, { type: 'image_url', image_url: { url: `data:${type};base64,${request.body.image}`, detail } }] }];\ndelete request.body.image;\nreturn request;",
+      "result": "$.choices[0].message.content"
+    },
     "extract-structured-data": {
       "label": "Extract Structured Data",
       "description": "Pull the fields you define out of a block of text.",

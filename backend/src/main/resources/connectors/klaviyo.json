@@ -51,6 +51,14 @@
       "items": "$.data",
       "label": "$.attributes.email",
       "value": "$.id"
+    },
+    "segments": {
+      "request": {
+        "url": "https://a.klaviyo.com/api/segments"
+      },
+      "items": "$.data",
+      "label": "$.attributes.name",
+      "value": "$.id"
     }
   },
   "actions": {
@@ -460,6 +468,85 @@
       },
       "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',B=k=>v[k]==='true';\nconst ids=(x=>{x=String(x==null?'':x).trim();if(x.startsWith('[')){try{const p=JSON.parse(x);if(Array.isArray(p))return p.filter(Boolean)}catch(e){}}return [x].filter(Boolean)})(v.profile_ids);\nif(ids.length===0)throw new Error('At least one profile must be selected.');\nif(ids.length>100)throw new Error('Maximum of 100 profiles can be unsubscribed at once.');\nconst t=B('unsubscribe_email'),o=B('unsubscribe_sms'),a=B('unsubscribe_sms_transactional');\nif(!t&&!o&&!a)throw new Error('At least one unsubscribe channel must be selected.');\nconst found=ids.map(id=>call({method:'GET',url:'/profiles/'+encodeURIComponent(id)}));\nconst profiles=ids.map((id,l)=>{const y=(found[l]&&found[l].data&&found[l].data.attributes)||{},S={};\nif(t)S.email={marketing:{consent:'UNSUBSCRIBED'}};if(o){S.sms=S.sms||{};S.sms.marketing={consent:'UNSUBSCRIBED'}}\nif(a){S.sms=S.sms||{};S.sms.transactional={consent:'UNSUBSCRIBED'}}\nconst P={subscriptions:S};if(t&&y.email)P.email=y.email;if((o||a)&&y.phone_number)P.phone_number=y.phone_number;\nreturn {type:'profile',id,attributes:P}});\nconst m={data:{type:'profile-subscription-bulk-delete-job',attributes:{profiles:{data:profiles}}}};\nif(h('list_id'))m.data.relationships={list:{data:{type:'list',id:v.list_id}}};\nrequest.body=m;\nreturn request;",
       "afterResponse": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',B=k=>v[k]==='true';\nconst ids=(x=>{x=String(x==null?'':x).trim();if(x.startsWith('[')){try{const p=JSON.parse(x);if(Array.isArray(p))return p.filter(Boolean)}catch(e){}}return [x].filter(Boolean)})(v.profile_ids);\nreturn {success:true,job_id:response?.data?.id,profiles_count:ids.length,list_id:h('list_id')?v.list_id:null,unsubscribed_email:B('unsubscribe_email'),unsubscribed_sms:B('unsubscribe_sms'),unsubscribed_sms_transactional:B('unsubscribe_sms_transactional')};"
+    },
+    "removeProfileFromList": {
+      "label": "Remove Profile from List",
+      "description": "Remove profiles from a specific list.",
+      "inputs": {
+        "list_id": {
+          "label": "List Id",
+          "required": true,
+          "list": "lists"
+        },
+        "profile_ids": {
+          "label": "Profile Ids",
+          "description": "Select one or more Klaviyo profiles. Several IDs go in as a JSON array, such as [\"01H...\",\"01J...\"].",
+          "required": true,
+          "list": "list_members"
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://a.klaviyo.com/api/lists/{{list_id}}/relationships/profiles"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',B=k=>v[k]==='true';\nconst ids=(x=>{x=String(x==null?'':x).trim();if(x.startsWith('[')){try{const p=JSON.parse(x);if(Array.isArray(p))return p.filter(Boolean)}catch(e){}}return [x].filter(Boolean)})(v.profile_ids);\nif(ids.length===0)throw new Error('At least one profile must be selected');\nif(ids.length>1000)throw new Error('Maximum of 1000 profiles can be removed at once');\nrequest.body={data:ids.map(id=>({type:'profile',id}))};\nreturn request;",
+      "afterResponse": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',B=k=>v[k]==='true';\nconst ids=(x=>{x=String(x==null?'':x).trim();if(x.startsWith('[')){try{const p=JSON.parse(x);if(Array.isArray(p))return p.filter(Boolean)}catch(e){}}return [x].filter(Boolean)})(v.profile_ids);\nreturn !response||Object.keys(response).length===0?{success:true,message:'Successfully removed '+ids.length+' profile(s) from the list',profiles_removed:ids.length}:response;"
+    }
+  },
+  "triggers": {
+    "newProfile": {
+      "label": "New Profile",
+      "description": "Triggers when a new profile is created in Klaviyo.",
+      "request": {
+        "method": "GET",
+        "url": "https://a.klaviyo.com/api/profiles"
+      },
+      "items": "$",
+      "newBy": "time",
+      "key": "$.created",
+      "beforeRequest": "const q=x=>{const s=Object.entries(x).map(y=>encodeURIComponent(y[0])+'='+encodeURIComponent(y[1])).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''};\nconst path='/profiles';\nconst since=inputs.lastPollTime?new Date(Number(inputs.lastPollTime)).toISOString():new Date(Date.now()-86400000).toISOString();\nconst query=cursor=>{const x={filter:'greater-than(created,'+since+')','page[size]':'100'};if(cursor)x['page[cursor]']=cursor;x.sort='created';return q(x)};\nrequest.url+=query();\nreturn request;",
+      "afterResponse": "const q=x=>{const s=Object.entries(x).map(y=>encodeURIComponent(y[0])+'='+encodeURIComponent(y[1])).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''};\nconst path='/profiles';\nconst since=inputs.lastPollTime?new Date(Number(inputs.lastPollTime)).toISOString():new Date(Date.now()-86400000).toISOString();\nconst query=cursor=>{const x={filter:'greater-than(created,'+since+')','page[size]':'100'};if(cursor)x['page[cursor]']=cursor;x.sort='created';return q(x)};\nconst all=[...(response.data||[])];let r=response;\nwhile(r.links&&r.links.next&&all.length<500){const m=String(r.links.next).match(/page%5Bcursor%5D=([^&]+)/);if(!m)break;r=call({method:'GET',url:path+query(decodeURIComponent(m[1]))});all.push(...(r.data||[]))}\nreturn all.map(p=>{const a=p.attributes,l=a.location??{};return {id:p.id,email:a.email??null,phone_number:a.phone_number??null,external_id:a.external_id??null,first_name:a.first_name??null,last_name:a.last_name??null,full_name:[a.first_name,a.last_name].filter(Boolean).join(' ')||null,organization:a.organization??null,locale:a.locale??null,title:a.title??null,image:a.image??null,created:a.created,updated:a.updated,last_event_date:a.last_event_date??null,address1:l.address1??null,address2:l.address2??null,city:l.city??null,country:l.country??null,region:l.region??null,zip:l.zip??null,timezone:l.timezone??null,ip:l.ip??null,latitude:l.latitude??null,longitude:l.longitude??null}});"
+    },
+    "profile_added_to_list_or_segment": {
+      "label": "Profile Added to List/Segment",
+      "description": "Triggers when a profile is added to a specific list or segment.",
+      "inputs": {
+        "targetType": {
+          "label": "Target Type",
+          "description": "Monitor a list or segment for new profile additions.",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "list",
+              "label": "List"
+            },
+            {
+              "value": "segment",
+              "label": "Segment"
+            }
+          ]
+        },
+        "listId": {
+          "label": "List",
+          "description": "Select the list to monitor for new profile additions.",
+          "list": "lists"
+        },
+        "segmentId": {
+          "label": "Segment",
+          "description": "Select the segment to monitor for new profile additions.",
+          "list": "segments"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://a.klaviyo.com/api/lists"
+      },
+      "items": "$",
+      "newBy": "time",
+      "key": "$.joined_group_at",
+      "beforeRequest": "const q=x=>{const s=Object.entries(x).map(y=>encodeURIComponent(y[0])+'='+encodeURIComponent(y[1])).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''};\nconst v=inputs;\nif(v.targetType==='list'&&!v.listId)throw new Error('Please select a list to monitor.');\nif(v.targetType==='segment'&&!v.segmentId)throw new Error('Please select a segment to monitor.');\nconst id=v.targetType==='list'?v.listId:v.segmentId,path=(v.targetType==='list'?'/lists/':'/segments/')+id+'/profiles';\nconst since=inputs.lastPollTime?new Date(Number(inputs.lastPollTime)).toISOString():new Date(Date.now()-86400000).toISOString();\nconst query=cursor=>{const x={filter:'greater-than(joined_group_at,'+since+')','page[size]':'100'};if(cursor)x['page[cursor]']=cursor;x.sort='joined_group_at';return q(x)};\nrequest.url=request.url.slice(0,-'/lists'.length)+path+query();\nreturn request;",
+      "afterResponse": "const q=x=>{const s=Object.entries(x).map(y=>encodeURIComponent(y[0])+'='+encodeURIComponent(y[1])).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''};\nconst v=inputs;\nif(v.targetType==='list'&&!v.listId)throw new Error('Please select a list to monitor.');\nif(v.targetType==='segment'&&!v.segmentId)throw new Error('Please select a segment to monitor.');\nconst id=v.targetType==='list'?v.listId:v.segmentId,path=(v.targetType==='list'?'/lists/':'/segments/')+id+'/profiles';\nconst since=inputs.lastPollTime?new Date(Number(inputs.lastPollTime)).toISOString():new Date(Date.now()-86400000).toISOString();\nconst query=cursor=>{const x={filter:'greater-than(joined_group_at,'+since+')','page[size]':'100'};if(cursor)x['page[cursor]']=cursor;x.sort='joined_group_at';return q(x)};\nconst all=[...(response.data||[])];let r=response;\nwhile(r.links&&r.links.next&&all.length<1000){const m=String(r.links.next).match(/page%5Bcursor%5D=([^&]+)/);if(!m)break;r=call({method:'GET',url:path+query(decodeURIComponent(m[1]))});all.push(...(r.data||[]))}\nreturn all.map(p=>{const a=p.attributes,l=a.location??{};return {id:p.id,email:a.email??null,phone_number:a.phone_number??null,external_id:a.external_id??null,first_name:a.first_name??null,last_name:a.last_name??null,full_name:[a.first_name,a.last_name].filter(Boolean).join(' ')||null,organization:a.organization??null,locale:a.locale??null,title:a.title??null,image:a.image??null,created:a.created,updated:a.updated,joined_group_at:a.joined_group_at??null,last_event_date:a.last_event_date??null,address1:l.address1??null,address2:l.address2??null,city:l.city??null,country:l.country??null,region:l.region??null,zip:l.zip??null,timezone:l.timezone??null,ip:l.ip??null,latitude:l.latitude??null,longitude:l.longitude??null,target_type:v.targetType,target_id:id}});"
     }
   }
 }

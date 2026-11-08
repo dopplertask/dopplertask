@@ -1481,5 +1481,26 @@
         "documentId": "$.documentId"
       }
     }
+  },
+  "triggers": {
+    "new-document": {
+      "label": "New Document",
+      "description": "Triggers when a new document is created in Drive or a chosen folder.",
+      "inputs": {
+        "folderId": {
+          "label": "Folder",
+          "description": "Leave empty to include all of Drive.",
+          "list": "folders"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/drive/v3/files"
+      },
+      "newBy": "time",
+      "key": "$.createdTime",
+      "beforeRequest": "const encode = (value) => encodeURIComponent(value).replace(/[!'()*]/g, (character) => '%' + character.charCodeAt(0).toString(16).toUpperCase());\nconst q = [\"mimeType='application/vnd.google-apps.document'\", 'trashed = false'];\nif (Number(inputs.lastPollTime)) q.push(\"createdTime > '\" + new Date(Number(inputs.lastPollTime)).toISOString() + \"'\");\nif (inputs.folderId) q.push(\"'\" + inputs.folderId + \"' in parents\");\nconst address = 'https://www.googleapis.com/drive/v3/files?q=' + encode(q.join(' and ')) + '&fields=' + encode('*') + '&orderBy=' + encode('createdTime desc') + '&supportsAllDrives=true&includeItemsFromAllDrives=true&corpora=allDrives';\nrequest.url = address;\nreturn request;",
+      "afterResponse": "const encode = (value) => encodeURIComponent(value).replace(/[!'()*]/g, (character) => '%' + character.charCodeAt(0).toString(16).toUpperCase());\nconst q = [\"mimeType='application/vnd.google-apps.document'\", 'trashed = false'];\nif (Number(inputs.lastPollTime)) q.push(\"createdTime > '\" + new Date(Number(inputs.lastPollTime)).toISOString() + \"'\");\nif (inputs.folderId) q.push(\"'\" + inputs.folderId + \"' in parents\");\nconst address = 'https://www.googleapis.com/drive/v3/files?q=' + encode(q.join(' and ')) + '&fields=' + encode('*') + '&orderBy=' + encode('createdTime desc') + '&supportsAllDrives=true&includeItemsFromAllDrives=true&corpora=allDrives';\nlet files = response.files || [];\nlet pageToken = Number(inputs.lastPollTime) ? response.nextPageToken : undefined;\nwhile (pageToken) {\n  const page = call({method: 'GET', url: address + '&pageToken=' + encode(pageToken)});\n  files = files.concat(page.files || []);\n  pageToken = page.nextPageToken;\n}\nreturn files;"
+    }
   }
 }

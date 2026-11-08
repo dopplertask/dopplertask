@@ -2824,6 +2824,42 @@
       "beforeRequest": "const i=inputs;const text=v=>String(v).trim();const has=v=>v!=null&&v!=='';const query=o=>{const r={};for(const k in o){const v=o[k];if(v!=null&&v!=='')r[k]=String(v)}return r};const form=v=>encodeURIComponent(v).replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g,'+');const req=(method,url,q,data)=>{const s=Object.entries(query(q||{})).map(([k,v])=>form(k)+'='+form(v)).join('&');return{method,url:s?url+'?'+s:url,body:data===undefined?null:{data}}};const limit=v=>{if(!has(v))return 50;const n=Number(v);if(!Number.isInteger(n)||n<1||n>100)throw new Error('Limit must be a whole number between 1 and 100, got '+v+'.');return n};\nreturn req('GET','/attachments',{parent:text(i.parent),opt_fields:'name,resource_subtype,created_at,size,host,download_url,permanent_url,view_url,connected_to_app,parent.name,parent.resource_subtype',limit:limit(i.limit),offset:i.offset});",
       "afterResponse": "return {data:Array.isArray(response.data)?response.data:[],next_offset:response.next_page&&typeof response.next_page.offset==='string'&&response.next_page.offset!==''?response.next_page.offset:null};"
     },
+    "upload_attachment": {
+      "label": "Upload Attachment",
+      "description": "Upload a file, or attach a link, to an Asana task, project or project brief.",
+      "inputs": {
+        "parent": {
+          "label": "Parent GID",
+          "description": "Gid of the task, project or project brief to attach to. Obtain a task gid from List Project Tasks or Get Task, a project gid from List Projects.",
+          "required": true
+        },
+        "file": {
+          "label": "File",
+          "type": "file",
+          "description": "The file to upload (up to 100 MB), sent with its own name. Leave empty when attaching an External URL."
+        },
+        "url": {
+          "label": "External URL",
+          "description": "An http(s) link to attach instead of a file. Requires Name. Leave empty when uploading a File."
+        },
+        "name": {
+          "label": "Name",
+          "description": "Display name of the link. Required with External URL."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://app.asana.com/api/1.0/attachments",
+        "headers": {
+          "Content-Type": "multipart/form-data"
+        },
+        "body": {
+          "file": "{{file}}"
+        }
+      },
+      "beforeRequest": "const i=inputs;const has=v=>v!=null&&v!=='';const text=v=>has(v)?String(v).trim():'';const form=v=>encodeURIComponent(v).replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g,'+');\nconst url=text(i.url),name=text(i.name),parent=text(i.parent),hasFile=text(i.file)!=='';if(hasFile===(url!==''))throw new Error('Set exactly one of File or External URL: File uploads the file itself, External URL attaches a link.');let body;if(hasFile){if(name!=='')throw new Error('Name is for an External URL: an uploaded file keeps the name of the file.');if(/[^\\x20-\\x7E]/.test(i.file))throw new Error('The file name may only hold ASCII letters, digits and signs; rename the file first.');if(/[\"\\/]/.test(i.file))throw new Error('The file name may not hold a double quote or a slash; rename the file first.');body={parent}}else{if(!/^https?:\\/\\//i.test(url))throw new Error('External URL must start with http:// or https://, got \"'+url+'\".');if(name==='')throw new Error('Name is required with External URL: Asana needs a display name for the link.');body={parent,resource_subtype:'external',url,name}}\nreturn {method:'POST',url:'/attachments?opt_fields='+form('name,resource_subtype,created_at,size,host,download_url,permanent_url,view_url,connected_to_app,parent.name,parent.resource_subtype'),headers:{'Content-Type':'multipart/form-data'},body};",
+      "result": "$.data"
+    },
     "delete_attachment": {
       "label": "Delete Attachment",
       "description": "Permanently delete an attachment from Asana.",

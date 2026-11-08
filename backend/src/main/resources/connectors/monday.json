@@ -1350,6 +1350,60 @@
       "beforeRequest": "const Q=[\"query ($ids: [ID!]!) {\\n        assets(ids: $ids) {\\n          id\\n          name\\n          url\\n          public_url\\n          url_thumbnail\\n          file_extension\\n          file_size\\n          created_at\\n          uploaded_by { id name }\\n        }\\n      }\"];\nconst has=v=>v!=null&&String(v).trim()!=='';\nconst js=v=>{if(!has(v))return undefined;try{return JSON.parse(v)}catch(e){return v}};\nconst list=v=>{const a=js(v);return Array.isArray(a)?a:typeof a==='string'?a.split(','):[]};\nconst ids=v=>list(v).filter(x=>x!=null&&String(x).trim()!=='').map(x=>String(x).trim());\nconst fail=m=>{throw new Error(m)};\nconst send=(query,variables)=>{request.body={query,variables};return request};\nconst t=ids(inputs.asset_ids);if(!t.length)fail('Provide at least one asset ID.');return send(Q[0],{ids:t});",
       "afterResponse": "const fail=m=>{throw new Error(m)};\nconst data=r=>{const e=r&&Array.isArray(r.errors)&&r.errors.length?r.errors.map(x=>x!==null&&typeof x==='object'&&'message' in x?String(x.message):JSON.stringify(x)).join('; '):r&&r.error_message!=null?String(r.error_message):null;if(e!=null)fail('monday.com API error: '+e);if(r.data==null)fail('monday.com API returned no data.');return r.data};\nconst o=data(response).assets.map(r=>({id:r.id,name:r.name,url:r.url,public_url:r.public_url,thumbnail_url:r.url_thumbnail??null,file_extension:r.file_extension,file_size:r.file_size,created_at:r.created_at??null,uploaded_by_id:r.uploaded_by?.id??null,uploaded_by_name:r.uploaded_by?.name??null}));return{assets:o,count:o.length};"
     },
+    "monday_upload_file": {
+      "label": "Upload File",
+      "description": "Uploads a file to an item's file column or to an update.",
+      "inputs": {
+        "target": {
+          "label": "Target",
+          "description": "Where to attach the file.",
+          "type": "select",
+          "required": true,
+          "defaultValue": "column",
+          "options": [
+            {
+              "value": "column",
+              "label": "Item file column"
+            },
+            {
+              "value": "update",
+              "label": "Update"
+            }
+          ]
+        },
+        "item_id": {
+          "label": "Item ID",
+          "description": "The numeric item ID. Resolve it with List Board Items or Search Items by Column Values."
+        },
+        "column_id": {
+          "label": "File Column ID",
+          "description": "ID of a file-type column (required when Target is \"column\"). Resolve it with List Columns."
+        },
+        "update_id": {
+          "label": "Update ID",
+          "description": "The update ID. Resolve it with List Item Updates."
+        },
+        "file": {
+          "label": "File",
+          "description": "The file to upload. It is stored under its own name.",
+          "type": "file",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.monday.com/v2/file",
+        "headers": {
+          "API-Version": "2026-07",
+          "Content-Type": "multipart/form-data"
+        },
+        "body": {
+          "file": "{{file}}"
+        }
+      },
+      "beforeRequest": "const Q=[\"mutation ($updateId: ID!, $file: File!) {\\n          add_file_to_update(update_id: $updateId, file: $file) { id name url file_extension file_size created_at }\\n        }\",\"mutation ($itemId: ID!, $columnId: String!, $file: File!) {\\n        add_file_to_column(item_id: $itemId, column_id: $columnId, file: $file) { id name url file_extension file_size created_at }\\n      }\"];\nconst has=v=>v!=null&&String(v).trim()!=='';\nconst fail=m=>{throw new Error(m)};\nconst send=(query,variables)=>{request.body={query,variables,map:{file:'variables.file'}};return request};\nif(inputs.target==='update'){if(!has(inputs.update_id))fail('Update ID is required when Target is \"update\".');return send(Q[0],{updateId:inputs.update_id})}\nif(!has(inputs.item_id)||!has(inputs.column_id))fail('Item ID and File Column ID are required when Target is \"column\".');return send(Q[1],{itemId:inputs.item_id,columnId:inputs.column_id});",
+      "afterResponse": "const fail=m=>{throw new Error(m)};\nconst data=r=>{const e=r&&Array.isArray(r.errors)&&r.errors.length?r.errors.map(x=>x!==null&&typeof x==='object'&&'message' in x?String(x.message):JSON.stringify(x)).join('; '):r&&r.error_message!=null?String(r.error_message):null;if(e!=null)fail('monday.com API error: '+e);if(r.data==null)fail('monday.com API returned no data.');return r.data};\nconst row=(e,target,id)=>({id:e.id,name:e.name,url:e.url,file_extension:e.file_extension,file_size:e.file_size,created_at:e.created_at??null,target,target_id:id});\nreturn inputs.target==='update'?row(data(response).add_file_to_update,'update',inputs.update_id):row(data(response).add_file_to_column,'column',inputs.item_id);"
+    },
     "monday_create_folder": {
       "label": "Create Folder",
       "description": "Creates a folder in a workspace.",

@@ -748,5 +748,100 @@
       },
       "afterResponse": "const items = response.items ?? [], settings = {};\nfor (const item of items) settings[item.id] = item.value;\nreturn {settings, items, count: items.length};"
     }
+  },
+  "triggers": {
+    "new_or_updated_event": {
+      "label": "New or Updated Event",
+      "description": "Triggers when an event is added or updated",
+      "inputs": {
+        "calendar_id": {
+          "label": "Calendar",
+          "required": true,
+          "list": "all_calendars"
+        },
+        "expandRecurringEvent": {
+          "label": "Expand Recurring Events",
+          "description": "Fires once per occurrence of a recurring event.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/calendar/v3/calendars/{{calendar_id}}/events"
+      },
+      "newBy": "time",
+      "key": "$.updated",
+      "beforeRequest": "const form = (query) => Object.keys(query).filter((key) => query[key] !== undefined).map((key) => key + '=' +\n  encodeURIComponent(query[key]).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+')).join('&');\nconst since = Number(inputs.lastPollTime) ? new Date(Number(inputs.lastPollTime)) : new Date(Date.now() - 7 * 86400000);\nconst eventsUrl = (pageToken) => '/calendars/' + inputs.calendar_id + '/events?' + form({updatedMin: since.toISOString(), maxResults: '2500', orderBy: 'updated',\n  singleEvents: inputs.expandRecurringEvent === 'true' ? 'true' : 'false', showDeleted: 'true', pageToken});\nrequest.url = eventsUrl('');\nreturn request;",
+      "afterResponse": "const form = (query) => Object.keys(query).filter((key) => query[key] !== undefined).map((key) => key + '=' +\n  encodeURIComponent(query[key]).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+')).join('&');\nconst since = Number(inputs.lastPollTime) ? new Date(Number(inputs.lastPollTime)) : new Date(Date.now() - 7 * 86400000);\nconst eventsUrl = (pageToken) => '/calendars/' + inputs.calendar_id + '/events?' + form({updatedMin: since.toISOString(), maxResults: '2500', orderBy: 'updated',\n  singleEvents: inputs.expandRecurringEvent === 'true' ? 'true' : 'false', showDeleted: 'true', pageToken});\nconst events = [...response.items];\nfor (let page = response; page.nextPageToken;) {\n  page = call({method: 'GET', url: eventsUrl(page.nextPageToken)});\n  events.push(...page.items);\n}\nreturn events;"
+    },
+    "new_event_matching_search": {
+      "label": "New Event Matching Search",
+      "description": "Fires when a new event is created that matches a specified search term.",
+      "inputs": {
+        "calendar_id": {
+          "label": "Calendar",
+          "required": true,
+          "list": "writable_calendars"
+        },
+        "search_term": {
+          "label": "Search Term",
+          "description": "Matched against title, description, location and guests.",
+          "required": true
+        },
+        "event_types": {
+          "label": "Event Types",
+          "description": "Leave empty to include every type. A JSON list of \"default\", \"birthday\", \"focusTime\", \"outOfOffice\", \"workingLocation\", \"fromGmail\".",
+          "type": "json"
+        },
+        "search_fields": {
+          "label": "Search In",
+          "description": "Leave empty to search every field. A JSON list of \"summary\", \"description\", \"location\", \"attendees\".",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/calendar/v3/calendars/{{calendar_id}}/events"
+      },
+      "newBy": "time",
+      "key": "$.updated",
+      "beforeRequest": "const form = (query) => Object.keys(query).filter((key) => query[key] !== undefined).map((key) => key + '=' +\n  encodeURIComponent(query[key]).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+')).join('&');\nconst since = Number(inputs.lastPollTime) ? new Date(Number(inputs.lastPollTime)) : new Date(Date.now() - 1 * 86400000);\nconst types = JSON.parse(inputs.event_types || '[]');\nrequest.url = '/calendars/' + inputs.calendar_id + '/events?' + types.map((type) => 'eventTypes=' + encodeURIComponent(type))\n  .concat(form({singleEvents: 'true', orderBy: 'updated', updatedMin: since.toISOString(), q: inputs.search_term})).join('&');\nreturn request;",
+      "afterResponse": "const term = inputs.search_term.toLowerCase(), fields = JSON.parse(inputs.search_fields || '[]');\nconst has = (text) => (text || '').toLowerCase().includes(term);\nconst matches = (event) => fields.length === 0 || fields.some((field) => field === 'attendees'\n  ? (event.attendees || []).some((attendee) => has(attendee.email) || has(attendee.displayName))\n  : ['summary', 'description', 'location'].includes(field) && has(event[field]));\n// Only events whose last change came within five seconds of their creation are new.\nreturn response.items.filter((event) => new Date(event.updated || 0).getTime() - new Date(event.created || 0).getTime() < 5000 && matches(event));"
+    },
+    "event_cancelled": {
+      "label": "Event Cancelled",
+      "description": "Fires when an event is canceled or deleted.",
+      "inputs": {
+        "calendar_id": {
+          "label": "Calendar",
+          "required": true,
+          "list": "writable_calendars"
+        },
+        "specific_event": {
+          "label": "Target Specific Event",
+          "description": "Watch one event instead of the whole calendar.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "event_id": {
+          "label": "Event ID",
+          "description": "The event to watch with Target Specific Event. Paste the ID from the event URL or a previous step."
+        },
+        "cancellation_reason": {
+          "label": "Cancellation Reasons",
+          "description": "Leave empty to fire on every cancellation. A JSON list of \"deleted\", \"declined\", \"rescheduled\", \"other\".",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/calendar/v3/calendars/{{calendar_id}}/events"
+      },
+      "newBy": "time",
+      "key": "$.updated",
+      "beforeRequest": "const form = (query) => Object.keys(query).filter((key) => query[key] !== undefined).map((key) => key + '=' +\n  encodeURIComponent(query[key]).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+')).join('&');\nconst since = Number(inputs.lastPollTime) ? new Date(Number(inputs.lastPollTime)) : new Date(Date.now() - 1 * 86400000);\nconst eventsUrl = (pageToken) => '/calendars/' + inputs.calendar_id + '/events?' + form({updatedMin: since.toISOString(), maxResults: '2500', orderBy: 'updated',\n  singleEvents: 'true', showDeleted: 'true', pageToken});\nif (inputs.specific_event !== 'true') request.url = eventsUrl('');\nelse if (inputs.event_id) request.url = '/calendars/' + inputs.calendar_id + '/events/' + inputs.event_id;\nelse throw new Error('Choose the event to watch, or turn off Target Specific Event.');\nreturn request;",
+      "afterResponse": "const form = (query) => Object.keys(query).filter((key) => query[key] !== undefined).map((key) => key + '=' +\n  encodeURIComponent(query[key]).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+')).join('&');\nconst since = Number(inputs.lastPollTime) ? new Date(Number(inputs.lastPollTime)) : new Date(Date.now() - 1 * 86400000);\nconst eventsUrl = (pageToken) => '/calendars/' + inputs.calendar_id + '/events?' + form({updatedMin: since.toISOString(), maxResults: '2500', orderBy: 'updated',\n  singleEvents: 'true', showDeleted: 'true', pageToken});\nlet cancelled;\nif (inputs.specific_event === 'true') {\n  cancelled = new Date(response.updated || 0).getTime() > (Number(inputs.lastPollTime) || 0) && response.status === 'cancelled' ? [response] : [];\n} else {\n  const events = [...response.items];\n  for (let page = response; page.nextPageToken;) {\n    page = call({method: 'GET', url: eventsUrl(page.nextPageToken)});\n    events.push(...page.items);\n  }\n  cancelled = events.filter((event) => event.status === 'cancelled');\n}\nconst reasons = JSON.parse(inputs.cancellation_reason || '[]');\nconst lower = (text) => (text || '').toLowerCase();\nconst because = {\n  deleted: (event) => !event.summary || event.summary.includes('Deleted'),\n  declined: (event) => (event.attendees || []).some((attendee) => attendee.responseStatus === 'declined'),\n  rescheduled: (event) => lower(event.summary).includes('rescheduled') || lower(event.description).includes('rescheduled')\n};\nreturn reasons.length === 0 ? cancelled : cancelled.filter((event) => reasons.some((reason) => (because[reason] || (() => true))(event)));"
+    }
   }
 }

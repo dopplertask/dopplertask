@@ -163,7 +163,7 @@ class ConnectorAction : Action() {
             result.output = if (answer.isValueNode) answer.asText() else answer.toString()
         }
         chosen.afterResponse?.let { script ->
-            answer = ConnectorScripts.run(script, values, null, answer, sender::answerFor)
+            answer = ConnectorScripts.run(script, values, request.unsigned, answer, sender::answerFor)
             result.output = if (answer.isValueNode) answer.asText() else answer.toString()
         }
         chosen.outputs.forEach { (name, path) -> JsonPaths.read(answer, path)?.let { result.outputVariables[name] = if (it.isValueNode) it.asText() else it.toString() } }

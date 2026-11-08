@@ -1821,5 +1821,31 @@
       "beforeRequest": "const API = 'https://sheets.googleapis.com/v4/spreadsheets/';\nconst enc = (text) => encodeURIComponent(String(text)).replace(/[!'()*]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase());\nrequest.url = API + enc(inputs.spreadsheet_id) + '/values/' + enc(`'${inputs.worksheet_title.replace(/'/g, \"''\")}'!${inputs.range}`) + '';\nrequest.body.majorDimension = inputs.major_dimension || 'ROWS';\nreturn request;",
       "afterResponse": "return {updatedRange: response?.updatedRange, updatedRows: response?.updatedRows, updatedColumns: response?.updatedColumns, updatedCells: response?.updatedCells};"
     }
+  },
+  "triggers": {
+    "new-spreadsheet": {
+      "label": "New Spreadsheet",
+      "description": "Triggers when a new spreadsheet is created.",
+      "inputs": {
+        "includeTeamDrives": {
+          "label": "Include Shared Drives",
+          "description": "Also include spreadsheets stored in shared drives.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/drive/v3/files",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "items": "$.files",
+      "newBy": "time",
+      "key": "$.createdTime",
+      "beforeRequest": "const G = {'x-goog-api-client': 'gdcl/8.0.2 gl-node/26.4.0'};\nconst enc = (text) => encodeURIComponent(String(text)).replace(/[!'()*]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase());\nconst isNil = (value) => value === undefined || value === null;\nconst given = (value) => !isNil(value) && value !== '';\nconst flag = (value) => (given(value) ? String(value) === 'true' : undefined);\nconst newSpreadsheetsUrl = (since, shared, pageToken) => {\n  const q = [\"mimeType='application/vnd.google-apps.spreadsheet'\", 'trashed = false'];\n  if (since) q.push(`createdTime > '${new Date(Number(since)).toISOString()}'`);\n  const query = [['q', q.join(' and ')], ['fields', '*'], ['orderBy', 'createdTime desc'], ['supportsAllDrives', 'true']];\n  if (!isNil(shared)) query.push(['includeItemsFromAllDrives', String(shared)]);\n  query.push(['corpora', shared ? 'allDrives' : 'user']);\n  if (pageToken) query.push(['pageToken', pageToken]);\n  return 'https://www.googleapis.com/drive/v3/files?' + query.map(([key, value]) => key + '=' + enc(value)).join('&');\n};\nrequest.url = newSpreadsheetsUrl(inputs.lastPollTime, flag(inputs.includeTeamDrives));\nreturn request;",
+      "afterResponse": "const G = {'x-goog-api-client': 'gdcl/8.0.2 gl-node/26.4.0'};\nconst enc = (text) => encodeURIComponent(String(text)).replace(/[!'()*]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase());\nconst isNil = (value) => value === undefined || value === null;\nconst given = (value) => !isNil(value) && value !== '';\nconst flag = (value) => (given(value) ? String(value) === 'true' : undefined);\nconst newSpreadsheetsUrl = (since, shared, pageToken) => {\n  const q = [\"mimeType='application/vnd.google-apps.spreadsheet'\", 'trashed = false'];\n  if (since) q.push(`createdTime > '${new Date(Number(since)).toISOString()}'`);\n  const query = [['q', q.join(' and ')], ['fields', '*'], ['orderBy', 'createdTime desc'], ['supportsAllDrives', 'true']];\n  if (!isNil(shared)) query.push(['includeItemsFromAllDrives', String(shared)]);\n  query.push(['corpora', shared ? 'allDrives' : 'user']);\n  if (pageToken) query.push(['pageToken', pageToken]);\n  return 'https://www.googleapis.com/drive/v3/files?' + query.map(([key, value]) => key + '=' + enc(value)).join('&');\n};\nconst files = [...(response.files ?? [])];\n// The first check only notes the time, as the original's onEnable does, so only later checks read every page.\nfor (let pageToken = inputs.lastPollTime ? response.nextPageToken : undefined; pageToken;) {\n  const page = call({method: 'GET', url: newSpreadsheetsUrl(inputs.lastPollTime, flag(inputs.includeTeamDrives), pageToken), headers: G});\n  files.push(...(page.files ?? []));\n  pageToken = page.nextPageToken;\n}\nreturn {files};"
+    }
   }
 }

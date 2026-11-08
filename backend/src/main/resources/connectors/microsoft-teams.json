@@ -1610,5 +1610,47 @@
       "beforeRequest": "request.body={requests:[{entityTypes:['chatMessage'],query:{queryString:inputs.query},from:inputs.offset?Number(inputs.offset):0,size:Math.min(Math.max(Math.trunc(Number(inputs.limit||25)),1),25)}]};return request;"
     }
   },
-  "triggers": {}
+  "triggers": {
+    "new-channel": {
+      "label": "New Channel",
+      "description": "Starts when a new channel is created in a team.",
+      "inputs": {
+        "teamId": {
+          "label": "Team ID",
+          "description": "The team ID, from List Joined Teams.",
+          "required": true,
+          "list": "teams"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/teams/{{teamId}}/channels",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "items": "$.value",
+      "newBy": "time",
+      "key": "$.createdDateTime",
+      "beforeRequest": "request.url=request.url.replace(/%3A/g,':').replace(/%40/g,'@');if(inputs.lastPollTime)request.url+='?$filter=createdDateTime%20gt%20'+new Date(Number(inputs.lastPollTime)).toISOString();return request;",
+      "afterResponse": "const H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'},value=[];let page=response;\nwhile(page.value&&page.value.length>0){value.push(...page.value);if(inputs.lastPollTime&&page['@odata.nextLink'])page=call({method:'GET',url:page['@odata.nextLink'],headers:H});else break;}\nreturn {value};"
+    },
+    "new-chat": {
+      "label": "New Chat",
+      "description": "Starts when a new chat with the signed-in user is created.",
+      "inputs": {},
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/chats",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "items": "$.value",
+      "newBy": "time",
+      "key": "$.createdDateTime",
+      "beforeRequest": "request.url+=inputs.lastPollTime?'?$filter=createdDateTime%20gt%20'+new Date(Number(inputs.lastPollTime)).toISOString():'?$top=10';return request;",
+      "afterResponse": "const H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'},value=[];let page=response;\nwhile(page.value&&page.value.length>0){value.push(...page.value);if(inputs.lastPollTime&&page['@odata.nextLink'])page=call({method:'GET',url:page['@odata.nextLink'],headers:H});else break;}\nreturn {value};"
+    }
+  }
 }

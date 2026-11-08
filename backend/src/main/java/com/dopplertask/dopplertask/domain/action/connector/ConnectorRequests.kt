@@ -13,8 +13,11 @@ import java.util.Base64
  */
 object ConnectorRequests {
 
-    /** A request ready to send, with the files of a multipart body by the part they go in. */
-    class Built(val method: String, val url: String, val headers: Map<String, String>, val body: JsonNode?, val files: Map<String, RunFile> = emptyMap())
+    /**
+     * A request ready to send, with the files of a multipart body by the part they go in, and the request as the
+     * connector made it before the credential was added, which is all a script may see of it.
+     */
+    class Built(val method: String, val url: String, val headers: Map<String, String>, val body: JsonNode?, val files: Map<String, RunFile>, val unsigned: JsonNode)
 
     private val NODES = JsonNodeFactory.instance
 
@@ -22,6 +25,7 @@ object ConnectorRequests {
     private val HOST_PART = Regex("[A-Za-z0-9.-]+")
 
     private const val CREDENTIAL = "credential."
+    private val METHODS_WITH_BODY = setOf("POST", "PUT", "PATCH")
 
     @JvmOverloads
     fun build(connector: Connector, operation: ConnectorOperation, values: Map<String, String>, credential: Map<String, String>,
@@ -74,11 +78,13 @@ object ConnectorRequests {
                 "Authorization" to "Basic " + Base64.getEncoder().encodeToString(pair.toByteArray())
             })
         headers.forEach { (name, value) -> require('\r' !in value && '\n' !in value) { "The header $name may not hold a line break." } }
+        val method = draft.path("method").asText("GET")
         val body = draft.path("body").takeUnless { it.isNull || it.isMissingNode }.let { body ->
             val fields = signIn?.body.orEmpty().mapValues { Connectors.fill(it.value, credentialValue) }
-            if (fields.isEmpty()) body else ((body as? ObjectNode)?.deepCopy() ?: NODES.objectNode()).also { filled -> fields.forEach { (key, value) -> filled.put(key, value) } }
+            // A credential in the body goes only where a body goes, never into a GET or a DELETE that has none.
+            if (fields.isEmpty() || (body == null && method !in METHODS_WITH_BODY)) body else ((body as? ObjectNode)?.deepCopy() ?: NODES.objectNode()).also { filled -> fields.forEach { (key, value) -> filled.put(key, value) } }
         }
-        return Built(draft.path("method").asText("GET"), url, headers, body, files)
+        return Built(method, url, headers, body, files, draft.deepCopy())
     }
 
     /** The address with its host from the credential, checked as a host name, and every other value percent-encoded. */

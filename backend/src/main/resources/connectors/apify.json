@@ -552,6 +552,70 @@
       "beforeRequest": "const PATH_ESCAPED = '\"#<>?`{}^';\nconst QUERY_ESCAPED = '\"#<>\\'';\nconst escaped = (text, extra) => Array.from(text).map((character) => {\n  const code = character.codePointAt(0);\n  if (code > 0x20 && code < 0x7f && !extra.includes(character)) return character;\n  if (code < 0x80) return '%' + code.toString(16).toUpperCase().padStart(2, '0');\n  try { return encodeURIComponent(character); } catch (error) { return '%EF%BF%BD'; }\n}).join('');\nconst addressOf = (url) => {\n  const base = url.indexOf('/v2/');\n  const raw = decodeURIComponent(url.slice(base + 4).replace('%2F', '~')).replace(/[\\t\\n\\r]/g, '').replace(/[\\u0000- ]+$/, '');\n  const fragmentAt = raw.indexOf('#');\n  const target = fragmentAt < 0 ? raw : raw.slice(0, fragmentAt);\n  const queryAt = target.indexOf('?');\n  const segments = ('v2/' + (queryAt < 0 ? target : target.slice(0, queryAt)).replace(/\\\\/g, '/')).split('/');\n  const path = [];\n  segments.forEach((segment, index) => {\n    const last = index === segments.length - 1;\n    const dots = segment.toLowerCase().replace(/%2e/g, '.');\n    if (dots === '..') { path.pop(); if (last) path.push(''); }\n    else if (dots === '.') { if (last) path.push(''); }\n    else path.push(escaped(segment, PATH_ESCAPED));\n  });\n  const query = queryAt < 0 ? '' : escaped(target.slice(queryAt + 1), QUERY_ESCAPED);\n  const address = '/' + path.join('/') + (query ? '?' + query : '');\n  if (/[\\[\\]|\\\\^`{}]|%(?![0-9A-Fa-f]{2})/.test(address)) throw new Error('Apify IDs cannot hold [, ], |, ^, `, {, }, \\\\ in a query, or a % that does not start an escape such as %20.');\n  return url.slice(0, base) + address;\n};\nrequest.url = addressOf(request.url);\nreturn request;",
       "afterResponse": "const dated = (value, depth = 0) => depth > 3 ? value : Array.isArray(value) ? value.map((item) => dated(item, depth + 1)) : !value || typeof value !== 'object' ? value : Object.entries(value).reduce((out, [key, item]) => {\n  if (key.endsWith('At')) {\n    if (item) { const date = new Date(item); out[key] = Number.isNaN(date.getTime()) ? item : date.toISOString(); } else out[key] = item;\n  } else out[key] = item && typeof item === 'object' ? dated(item, depth + 1) : item;\n  return out;\n}, {});\nconst data = (answer) => {\n  if (answer === null || typeof answer !== 'object' || answer.data === undefined) throw new Error('Expected response object with a \"data\" property, but received: ' + answer);\n  return dated(answer.data);\n};\nconst found = data(response);\nif (!found) throw new Error(\"Task not found. Resolve the task ID via List Tasks.\");\nreturn found;"
     },
+    "apify_get_task_input": {
+      "label": "Get Task Input",
+      "description": "Retrieves the stored input body of a saved Actor task by task ID.",
+      "inputs": {
+        "taskId": {
+          "label": "Task ID",
+          "list": "taskids",
+          "description": "The ID of the saved task. Obtain it from List Tasks.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.apify.com/v2/actor-tasks/{{taskId}}/input"
+      },
+      "beforeRequest": "const PATH_ESCAPED = '\"#<>?`{}^';\nconst QUERY_ESCAPED = '\"#<>\\'';\nconst escaped = (text, extra) => Array.from(text).map((character) => {\n  const code = character.codePointAt(0);\n  if (code > 0x20 && code < 0x7f && !extra.includes(character)) return character;\n  if (code < 0x80) return '%' + code.toString(16).toUpperCase().padStart(2, '0');\n  try { return encodeURIComponent(character); } catch (error) { return '%EF%BF%BD'; }\n}).join('');\nconst addressOf = (url) => {\n  const base = url.indexOf('/v2/');\n  const raw = decodeURIComponent(url.slice(base + 4).replace('%2F', '~')).replace(/[\\t\\n\\r]/g, '').replace(/[\\u0000- ]+$/, '');\n  const fragmentAt = raw.indexOf('#');\n  const target = fragmentAt < 0 ? raw : raw.slice(0, fragmentAt);\n  const queryAt = target.indexOf('?');\n  const segments = ('v2/' + (queryAt < 0 ? target : target.slice(0, queryAt)).replace(/\\\\/g, '/')).split('/');\n  const path = [];\n  segments.forEach((segment, index) => {\n    const last = index === segments.length - 1;\n    const dots = segment.toLowerCase().replace(/%2e/g, '.');\n    if (dots === '..') { path.pop(); if (last) path.push(''); }\n    else if (dots === '.') { if (last) path.push(''); }\n    else path.push(escaped(segment, PATH_ESCAPED));\n  });\n  const query = queryAt < 0 ? '' : escaped(target.slice(queryAt + 1), QUERY_ESCAPED);\n  const address = '/' + path.join('/') + (query ? '?' + query : '');\n  if (/[\\[\\]|\\\\^`{}]|%(?![0-9A-Fa-f]{2})/.test(address)) throw new Error('Apify IDs cannot hold [, ], |, ^, `, {, }, \\\\ in a query, or a % that does not start an escape such as %20.');\n  return url.slice(0, base) + address;\n};\nrequest.url = addressOf(request.url);\nreturn request;",
+      "afterResponse": "return { taskId: inputs.taskId, input: response ?? null };"
+    },
+    "apify_run_task": {
+      "label": "Run Task",
+      "description": "Runs a saved Apify Actor task by ID and optionally waits for it to finish.",
+      "inputs": {
+        "taskId": {
+          "label": "Task ID",
+          "list": "taskids",
+          "description": "The ID of the saved task to run. Obtain it from List Tasks.",
+          "required": true
+        },
+        "input": {
+          "label": "Override Input JSON",
+          "description": "Optional JSON to override the task's stored input for this run only. If omitted, the task runs with its saved input (see Get Task Input).",
+          "type": "json"
+        },
+        "build": {
+          "label": "Build",
+          "description": "Build to run — a build tag or build number. Defaults to the build in the task settings."
+        },
+        "memory": {
+          "label": "Memory (MB)",
+          "description": "Memory limit for the run in megabytes. Defaults to the task settings.",
+          "type": "number"
+        },
+        "timeout": {
+          "label": "Timeout (seconds)",
+          "description": "Optional timeout for the run in seconds. Defaults to the task settings.",
+          "type": "number"
+        },
+        "waitForFinish": {
+          "label": "Wait for finish",
+          "description": "If true, block until the run finishes (server-side, capped ~60s) and return its dataset items. For long runs leave false and poll with Get Actor Run.",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/actor-tasks/{{taskId}}/runs",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": "{{input}}"
+      },
+      "beforeRequest": "const PATH_ESCAPED = '\"#<>?`{}^';\nconst QUERY_ESCAPED = '\"#<>\\'';\nconst escaped = (text, extra) => Array.from(text).map((character) => {\n  const code = character.codePointAt(0);\n  if (code > 0x20 && code < 0x7f && !extra.includes(character)) return character;\n  if (code < 0x80) return '%' + code.toString(16).toUpperCase().padStart(2, '0');\n  try { return encodeURIComponent(character); } catch (error) { return '%EF%BF%BD'; }\n}).join('');\nconst addressOf = (url) => {\n  const base = url.indexOf('/v2/');\n  const raw = decodeURIComponent(url.slice(base + 4).replace('%2F', '~')).replace(/[\\t\\n\\r]/g, '').replace(/[\\u0000- ]+$/, '');\n  const fragmentAt = raw.indexOf('#');\n  const target = fragmentAt < 0 ? raw : raw.slice(0, fragmentAt);\n  const queryAt = target.indexOf('?');\n  const segments = ('v2/' + (queryAt < 0 ? target : target.slice(0, queryAt)).replace(/\\\\/g, '/')).split('/');\n  const path = [];\n  segments.forEach((segment, index) => {\n    const last = index === segments.length - 1;\n    const dots = segment.toLowerCase().replace(/%2e/g, '.');\n    if (dots === '..') { path.pop(); if (last) path.push(''); }\n    else if (dots === '.') { if (last) path.push(''); }\n    else path.push(escaped(segment, PATH_ESCAPED));\n  });\n  const query = queryAt < 0 ? '' : escaped(target.slice(queryAt + 1), QUERY_ESCAPED);\n  const address = '/' + path.join('/') + (query ? '?' + query : '');\n  if (/[\\[\\]|\\\\^`{}]|%(?![0-9A-Fa-f]{2})/.test(address)) throw new Error('Apify IDs cannot hold [, ], |, ^, `, {, }, \\\\ in a query, or a % that does not start an escape such as %20.');\n  return url.slice(0, base) + address;\n};\nconst form = (text) => Array.from(text).map((character) => {\n  try { return encodeURIComponent(character); } catch (error) { return '%EF%BF%BD'; }\n}).join('').replace(/[!'()~]/g, (character) => '%' + character.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst withQuery = (url, params) => {\n  const pairs = Object.keys(params).filter((key) => params[key] !== undefined).map((key) => key + '=' + form(String(params[key])));\n  return pairs.length === 0 ? url : url + (url.includes('?') ? '&' : '?') + pairs.join('&');\n};\nconst numberOf = (label, text) => {\n  if (text === undefined || text === '') return undefined;\n  const value = Number(text);\n  if (Number.isNaN(value)) throw new Error(label + ' should be a number.');\n  return value;\n};\nrequest.url = withQuery(addressOf(request.url), { timeout: numberOf('Timeout', inputs.timeout), memory: numberOf('Memory', inputs.memory), build: inputs.build || undefined });\nreturn request;",
+      "afterResponse": "const PATH_ESCAPED = '\"#<>?`{}^';\nconst QUERY_ESCAPED = '\"#<>\\'';\nconst escaped = (text, extra) => Array.from(text).map((character) => {\n  const code = character.codePointAt(0);\n  if (code > 0x20 && code < 0x7f && !extra.includes(character)) return character;\n  if (code < 0x80) return '%' + code.toString(16).toUpperCase().padStart(2, '0');\n  try { return encodeURIComponent(character); } catch (error) { return '%EF%BF%BD'; }\n}).join('');\nconst addressOf = (url) => {\n  const base = url.indexOf('/v2/');\n  const raw = decodeURIComponent(url.slice(base + 4).replace('%2F', '~')).replace(/[\\t\\n\\r]/g, '').replace(/[\\u0000- ]+$/, '');\n  const fragmentAt = raw.indexOf('#');\n  const target = fragmentAt < 0 ? raw : raw.slice(0, fragmentAt);\n  const queryAt = target.indexOf('?');\n  const segments = ('v2/' + (queryAt < 0 ? target : target.slice(0, queryAt)).replace(/\\\\/g, '/')).split('/');\n  const path = [];\n  segments.forEach((segment, index) => {\n    const last = index === segments.length - 1;\n    const dots = segment.toLowerCase().replace(/%2e/g, '.');\n    if (dots === '..') { path.pop(); if (last) path.push(''); }\n    else if (dots === '.') { if (last) path.push(''); }\n    else path.push(escaped(segment, PATH_ESCAPED));\n  });\n  const query = queryAt < 0 ? '' : escaped(target.slice(queryAt + 1), QUERY_ESCAPED);\n  const address = '/' + path.join('/') + (query ? '?' + query : '');\n  if (/[\\[\\]|\\\\^`{}]|%(?![0-9A-Fa-f]{2})/.test(address)) throw new Error('Apify IDs cannot hold [, ], |, ^, `, {, }, \\\\ in a query, or a % that does not start an escape such as %20.');\n  return url.slice(0, base) + address;\n};\nconst dated = (value, depth = 0) => depth > 3 ? value : Array.isArray(value) ? value.map((item) => dated(item, depth + 1)) : !value || typeof value !== 'object' ? value : Object.entries(value).reduce((out, [key, item]) => {\n  if (key.endsWith('At')) {\n    if (item) { const date = new Date(item); out[key] = Number.isNaN(date.getTime()) ? item : date.toISOString(); } else out[key] = item;\n  } else out[key] = item && typeof item === 'object' ? dated(item, depth + 1) : item;\n  return out;\n}, {});\nconst data = (answer) => {\n  if (answer === null || typeof answer !== 'object' || answer.data === undefined) throw new Error('Expected response object with a \"data\" property, but received: ' + answer);\n  return dated(answer.data);\n};\nconst started = data(response);\nif (inputs.waitForFinish !== 'true') return { run: started, datasetItems: null };\n// As the Apify client waits: ask again until the run ends, with the seconds left of 999999.\nconst WAIT_MILLIS = 999999 * 1000;\nconst TERMINAL = ['SUCCEEDED', 'FAILED', 'TIMED-OUT', 'ABORTED'];\nconst runAddress = addressOf('/v2/actor-runs/' + encodeURIComponent(started.id)).slice(3);\nconst since = Date.now();\nlet run;\ndo {\n  const secondsLeft = Math.max(0, Math.round((WAIT_MILLIS - (Date.now() - since)) / 1000));\n  run = data(call({ method: 'GET', url: runAddress, query: { waitForFinish: String(secondsLeft) } }));\n  if (!run) { const until = Date.now() + 250; while (Date.now() < until); }\n} while (Date.now() - since < WAIT_MILLIS && !(run && TERMINAL.includes(run.status)));\nif (!run) throw new Error('Waiting for run to finish failed. Cannot fetch actor run details from the server.');\nif (!run.defaultDatasetId) return { run, datasetItems: null };\nconst items = call({ method: 'GET', url: addressOf('/v2/datasets/' + encodeURIComponent(run.defaultDatasetId) + '/items').slice(3) });\nreturn { run, datasetItems: items };"
+    },
     "apify_get_task_last_run": {
       "label": "Get Task Last Run",
       "description": "Retrieves the most recent run of a saved Actor task, optionally filtered by status.",

@@ -348,6 +348,23 @@
       },
       "afterResponse": "return {buckets: (Array.isArray(response) ? response : []).map((b) => ({id: b.id, name: b.name, public: b.public, created_at: b.created_at, updated_at: b.updated_at}))};"
     },
+    "delete_bucket": {
+      "label": "Delete Storage Bucket",
+      "description": "Permanently deletes a Storage bucket. The bucket must be empty first.",
+      "inputs": {
+        "name": {
+          "label": "Bucket",
+          "description": "The bucket's name, as shown in Storage.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.url}}/storage/v1/bucket/{{name}}",
+        "body": {}
+      },
+      "afterResponse": "return {success: true};"
+    },
     "list_files": {
       "label": "List Files in Bucket",
       "description": "Lists files and folders inside a Storage bucket, optionally under a specific folder path.",
@@ -376,6 +393,31 @@
       },
       "beforeRequest": "request.body.prefix = inputs.path || '';\nreturn request;",
       "afterResponse": "const files = new Map();\nlet page = response, offset = 0;\nwhile (true) {\n  const items = Array.isArray(page) ? page : [];\n  for (const file of items) if (!files.has(file.name)) files.set(file.name, file);\n  if (items.length !== 100) break;\n  offset += 90;\n  page = call({method: 'POST', url: '/storage/v1/object/list/' + encodeURIComponent(inputs.bucket), body: {limit: 100, offset, sortBy: {column: 'name', order: 'asc'}, prefix: inputs.path || ''}});\n}\nreturn {files: [...files.values()].map((p) => ({name: p.name, id: p.id, updated_at: p.updated_at, created_at: p.created_at, last_accessed_at: p.last_accessed_at, size: p.metadata?.size ?? null, mimetype: p.metadata?.mimetype ?? null}))};"
+    },
+    "delete_file": {
+      "label": "Delete Files",
+      "description": "Permanently deletes one or more files from a Storage bucket.",
+      "inputs": {
+        "bucket": {
+          "label": "Bucket",
+          "description": "The bucket's name, as shown in Storage.",
+          "required": true
+        },
+        "paths": {
+          "label": "File Paths",
+          "description": "A JSON list with one path per file, such as [\"folder/report.pdf\"].",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.url}}/storage/v1/object/{{bucket}}",
+        "body": {
+          "prefixes": "{{paths}}"
+        }
+      },
+      "afterResponse": "return {deleted_files: (Array.isArray(response) ? response : []).map((file) => ({name: file.name}))};"
     },
     "list_users": {
       "label": "List Users",
@@ -511,6 +553,29 @@
         }
       },
       "afterResponse": "const user = response.user ?? response;\nreturn {id: user.id, email: user.email ?? null, phone: user.phone ?? null, updated_at: user.updated_at ?? null};"
+    },
+    "delete_user": {
+      "label": "Delete User",
+      "description": "Permanently deletes a user from the project's Auth system. Requires the Service Role Key.",
+      "inputs": {
+        "userId": {
+          "label": "User ID",
+          "description": "Find it under Authentication, Users in Supabase.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.url}}/auth/v1/admin/users/{{userId}}",
+        "headers": {
+          "Content-Type": "application/json;charset=UTF-8",
+          "X-Supabase-Api-Version": "2024-01-01"
+        },
+        "body": {
+          "should_soft_delete": false
+        }
+      },
+      "afterResponse": "return {success: true};"
     },
     "invite_user": {
       "label": "Invite User by Email",

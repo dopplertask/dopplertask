@@ -176,7 +176,7 @@ public class ConnectorCheck {
             check(differences, where + "body", withoutBoundary(withoutRandomMailParts(original.path("body"))), withoutBoundary(withoutRandomMailParts(ours.path("body"))));
         }
         if (fixture.has("output") && !fixture.path("output").has("error")) {
-            check(differences, name + ": output", fixture.has("trigger") ? sorted(fixture.path("output")) : fixture.path("output"), result.output());
+            check(differences, name + ": output", withoutRandomMailParts(fixture.has("trigger") ? sorted(fixture.path("output")) : fixture.path("output")), withoutRandomMailParts(result.output()));
         }
         return differences;
     }
@@ -220,6 +220,13 @@ public class ConnectorCheck {
             return body;
         }
         String text = body.asText();
+        // A body written out as JSON text, as an original may give it back in its output, is compared as that JSON.
+        if (text.startsWith("{") || text.startsWith("[")) {
+            JsonNode json = parsed(text);
+            if (!json.isTextual()) {
+                return MAPPER.getNodeFactory().textNode(withoutRandomMailParts(json).toString());
+            }
+        }
         String email = text.contains("MIME-Version:") ? text : decodedEmail(text);
         return email == null ? body : MAPPER.getNodeFactory().textNode(sameEveryTime(email));
     }
