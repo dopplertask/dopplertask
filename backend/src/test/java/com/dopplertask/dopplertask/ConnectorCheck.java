@@ -48,6 +48,7 @@ public class ConnectorCheck {
     private final VariableExtractorUtil variables = new VariableExtractorUtil(Application.lockedTemplateEngine(-1));
     private final List<JsonNode> sent = new CopyOnWriteArrayList<>();
     private Iterator<JsonNode> answers;
+    private String memoryDifference;
 
     public static void main(String[] arguments) throws IOException {
         List<String> differences = new ConnectorCheck().differences(arguments.length > 0 ? arguments[0] : "");
@@ -128,6 +129,8 @@ public class ConnectorCheck {
     private Outcome check(String connector, JsonNode fixture, JsonNode settings, Map<String, String> credential) {
         ConnectorTrigger trigger = ConnectorTrigger.of(connector);
         trigger.setOperation(fixture.path("trigger").asText());
+        trigger.setMemory(memoryOf(fixture.path("store")).toString());
+        memoryDifference = null;
         settings.properties().forEach(setting -> trigger.setSetting(setting.getKey(), setting.getValue().isString() ? setting.getValue().asString() : setting.getValue()));
         trigger.useCredentialValues(credential);
         if (fixture.path("webhook").asBoolean()) {
@@ -135,17 +138,31 @@ public class ConnectorCheck {
             ConnectorWebhooks.INSTANCE.setPublicUrl("https://tasks.example.com");
             trigger.setHookKey("test-key");
             trigger.subscribe(Connectors.INSTANCE.find(connector).getTriggers().get(fixture.path("trigger").asText()).getWebhook());
-            trigger.takeItemsOf(ConnectorWebhooks.INSTANCE.eventOf("application/json", fixture.path("event").toString(), Map.of(), Map.of()));
+            trigger.takeItemsOf(ConnectorWebhooks.INSTANCE.eventOf("application/json", fixture.path("event").toString(),
+                    fixture.has("eventHeaders") ? MAPPER.convertValue(fixture.path("eventHeaders"), Map.class) : Map.of(), Map.of()));
         } else {
             JsonNode place = fixture.path("store");
-            trigger.setPollState(place.has("lastPoll") ? place.path("lastPoll").asText() : place.path("lastItem").asText(null));
+            trigger.setPollState(place.has("lastPoll") ? place.path("lastPoll").asText()
+                    : place.has("seen") ? place.path("seen").toString() : place.path("lastItem").asText(null));
             trigger.lookForNewItems();
+        }
+        if (fixture.has("storeAfter")) {
+            memoryDifference = java.util.Objects.equals(memoryOf(fixture.path("storeAfter")), MAPPER.readTree(trigger.getMemory()))
+                    ? null : "memory differs. Original: " + memoryOf(fixture.path("storeAfter")) + ". Ours: " + trigger.getMemory() + ".";
         }
         List<JsonNode> items = new ArrayList<>();
         for (String item = trigger.nextWaiting(); item != null; item = trigger.nextWaiting()) {
             items.add(parsed(item));
         }
         return new Outcome(sorted(items), "");
+    }
+
+    /** The keys of the original's store that are the trigger's own memory: not its place, which the trigger keeps itself. */
+    private static JsonNode memoryOf(JsonNode store) {
+        Map<String, JsonNode> memory = new LinkedHashMap<>();
+        store.properties().forEach(entry -> memory.put(entry.getKey(), entry.getValue()));
+        List.of("lastPoll", "lastItem", "seen").forEach(memory::remove);
+        return MAPPER.valueToTree(memory);
     }
 
     /** New items in one order, since the original lists them newest first and ours start the task oldest first. */
@@ -174,6 +191,9 @@ public class ConnectorCheck {
             original.path("headers").properties().forEach(header ->
                     check(differences, where + "header " + header.getKey(), withoutBoundary(header.getValue().asText()), withoutBoundary(ours.path("headers").path(header.getKey()).asText(null))));
             check(differences, where + "body", withoutBoundary(withoutRandomMailParts(original.path("body"))), withoutBoundary(withoutRandomMailParts(ours.path("body"))));
+        }
+        if (memoryDifference != null) {
+            differences.add(name + ": " + memoryDifference);
         }
         if (fixture.has("output") && !fixture.path("output").has("error")) {
             check(differences, name + ": output", withoutRandomMailParts(fixture.has("trigger") ? sorted(fixture.path("output")) : fixture.path("output")), withoutRandomMailParts(result.output()));

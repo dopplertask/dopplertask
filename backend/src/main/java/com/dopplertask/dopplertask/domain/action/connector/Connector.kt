@@ -106,12 +106,16 @@ class ConnectorPoll {
 
     /**
      * What makes an item new. "time": its time at key is later than the last check. "lastItem": it comes before the
-     * newest item already seen, by its id at key, in a list that starts with the newest.
+     * newest item already seen, by its id at key, in a list that starts with the newest. "unseen": its key at key was
+     * not in the list before, for a list in no order.
      */
     var newBy: String = "time"
     var key: String = "$.id"
 
-    /** Scripts as on an action, such as afterResponse asking for every page with call(...) and returning the items. */
+    /**
+     * Scripts as on an action, such as afterResponse asking for every page with call(...) and returning the items. They
+     * also have memory, an object kept from one check or event to the next, such as the cursor a service gives.
+     */
     var beforeRequest: String? = null
     var afterResponse: String? = null
 

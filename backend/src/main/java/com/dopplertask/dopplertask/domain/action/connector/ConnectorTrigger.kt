@@ -21,6 +21,7 @@ import jakarta.persistence.Lob
 import jakarta.persistence.Table
 import jakarta.persistence.Transient
 import tools.jackson.databind.JsonNode
+import tools.jackson.databind.node.ObjectNode
 import java.time.Duration
 import java.time.Instant
 import java.time.OffsetDateTime
@@ -59,13 +60,19 @@ class ConnectorTrigger : Trigger() {
     var hookKey: String? = null
 
     /**
-     * Where the last check left off: a time in milliseconds, or the id of the newest item. For a webhook, the id of the
-     * subscription. Kept with the trigger.
+     * Where the last check left off: a time in milliseconds, the id of the newest item, or the keys of the items seen.
+     * For a webhook, the id of the subscription. Kept with the trigger.
      */
     @Lob
     @Column(columnDefinition = "TEXT")
     @JsonIgnore
     var pollState: String? = null
+
+    /** What the trigger's scripts remember from one check or event to the next, as a JSON object. Kept with the trigger. */
+    @Lob
+    @Column(columnDefinition = "TEXT")
+    @JsonIgnore
+    var memory: String = "{}"
 
     @Transient
     @JsonIgnore
@@ -192,8 +199,10 @@ class ConnectorTrigger : Trigger() {
         val connector = spec!!
         val values = settingValues() + ("webhookUrl" to ConnectorWebhooks.addressOf(addressKey(webhook)))
         val sender = ConnectorSender(this, connector, credentialValues)
-        val answer = JsonApi.parsed(send(connector, webhook.subscribe!!, values, webhook.beforeRequest))
-        pollState = (webhook.afterResponse?.let { ConnectorScripts.run(it, values, null, answer, sender::answerFor) } ?: JsonPaths.read(answer, webhook.id))?.asText() ?: ""
+        val remembered = remembered()
+        val answer = JsonApi.parsed(send(connector, webhook.subscribe!!, values, webhook.beforeRequest, remembered))
+        pollState = (webhook.afterResponse?.let { ConnectorScripts.run(it, values, null, answer, sender::answerFor, memory = remembered) } ?: JsonPaths.read(answer, webhook.id))?.asText() ?: ""
+        memory = remembered.toString()
         keepPlace()
     }
 
@@ -211,19 +220,25 @@ class ConnectorTrigger : Trigger() {
         val poll = spec!!.triggers[operation]!!
         // An event often names what changed, so its script may ask the service for the rest, as the original does.
         val sender = ConnectorSender(this, spec!!, credentialValues)
-        val reply = poll.afterResponse?.let { ConnectorScripts.run(it, settingValues(), null, event.body, sender::answerFor, event.received) } ?: event.body
+        val remembered = remembered()
+        val reply = poll.afterResponse?.let { ConnectorScripts.run(it, settingValues(), null, event.body, sender::answerFor, event.received, remembered) } ?: event.body
+        memory = remembered.toString()
         waiting.addAll(JsonPaths.read(reply, poll.items)?.let { if (it.isArray) it.toList() else listOf(it) }.orEmpty().filterNot { it.isNull }.take(MOST_ITEMS_PER_CHECK))
     }
 
     /** What the address answers to an event, such as the challenge back. It may not send requests, since the service waits. */
     private fun replyTo(event: ConnectorWebhooks.Event): JsonNode? = spec?.triggers?.get(operation)?.webhook?.reply?.let { script ->
-        ConnectorScripts.run(script, settingValues(), null, event.body, { throw IllegalArgumentException("A reply cannot send requests.") }, event.received)
+        ConnectorScripts.run(script, settingValues(), null, event.body, { throw IllegalArgumentException("A reply cannot send requests.") }, event.received, remembered())
     }?.takeUnless { it.isNull }
 
-    private fun send(connector: Connector, request: ConnectorRequest, values: Map<String, String>, beforeRequest: String? = null): ActionResult {
+    /** The memory of the trigger's scripts, as an object they may change. */
+    private fun remembered(): ObjectNode = JsonApi.mapper.readTree(memory) as ObjectNode
+
+    private fun send(connector: Connector, request: ConnectorRequest, values: Map<String, String>, beforeRequest: String? = null,
+                     remembered: ObjectNode? = null): ActionResult {
         val operation = ConnectorOperation().also { it.request = request; it.inputs = linkedMapOf(); it.beforeRequest = beforeRequest }
         val sender = ConnectorSender(this, connector, credentialValues)
-        val answer = sender.send(ConnectorRequests.build(connector, operation, values, credentialValues, sender::answerFor))
+        val answer = sender.send(ConnectorRequests.build(connector, operation, values, credentialValues, sender::answerFor, memory = remembered))
         check(answer.statusCode == StatusCode.SUCCESS) { answer.errorMsg }
         return answer
     }
@@ -240,15 +255,24 @@ class ConnectorTrigger : Trigger() {
         val sender = ConnectorSender(this, connector, credentialValues)
         // A check by time may ask only for what changed since the last one, which is empty before the first.
         val values = settingValues() + (LAST_POLL_TIME to if (poll.newBy == "lastItem") "" else pollState.orEmpty())
-        val answer = sender.send(ConnectorRequests.build(connector, lookup, values, credentialValues, sender::answerFor))
+        val remembered = remembered()
+        val answer = sender.send(ConnectorRequests.build(connector, lookup, values, credentialValues, sender::answerFor, memory = remembered))
         check(answer.statusCode == StatusCode.SUCCESS) { answer.errorMsg }
-        val reply = poll.afterResponse?.let { ConnectorScripts.run(it, values, null, JsonApi.parsed(answer), sender::answerFor) } ?: JsonApi.parsed(answer)
+        val reply = poll.afterResponse?.let { ConnectorScripts.run(it, values, null, JsonApi.parsed(answer), sender::answerFor, memory = remembered) } ?: JsonApi.parsed(answer)
+        memory = remembered.toString()
         val items = JsonPaths.read(reply, poll.items)?.toList().orEmpty()
         val fresh = when (poll.newBy) {
             "lastItem" -> {
                 val seen = pollState
                 pollState = items.firstOrNull()?.let { JsonPaths.read(it, poll.key)?.asText() } ?: seen
                 if (seen == null) emptyList() else items.takeWhile { JsonPaths.read(it, poll.key)?.asText() != seen }.reversed()
+            }
+            // For a list in no order, such as labels: what has a key not seen before is new.
+            "unseen" -> {
+                val seen = pollState?.let { JsonApi.mapper.readValue(it, Array<String>::class.java).toSet() }
+                val keys = items.mapNotNull { JsonPaths.read(it, poll.key)?.asText() }
+                pollState = JsonApi.mapper.writeValueAsString((keys + seen.orEmpty()).distinct().take(MOST_KEYS_SEEN))
+                if (seen == null) emptyList() else items.filter { JsonPaths.read(it, poll.key)?.asText() !in seen }
             }
             else -> {
                 val since = pollState?.toLongOrNull()
@@ -277,6 +301,9 @@ class ConnectorTrigger : Trigger() {
 
         // Enough for a busy service between two checks, without starting thousands of runs when one is turned on late.
         private const val MOST_ITEMS_PER_CHECK = 100
+
+        /** How many keys a trigger that finds new items by unseen keys remembers, the newest first. */
+        private const val MOST_KEYS_SEEN = 10000
 
         /** A time in an item, as milliseconds: a number of seconds or milliseconds, or a date and time. */
         fun timeOf(value: JsonNode?): Long? = when {

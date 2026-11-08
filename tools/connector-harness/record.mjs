@@ -53,7 +53,7 @@ try {
   if (fixture.webhook) {
     context.webhookUrl = WEBHOOK_URL;
     await step.onEnable(context);
-    context.payload = { body: fixture.event, headers: {}, queryParams: {} };
+    context.payload = { body: fixture.event, headers: fixture.eventHeaders || {}, queryParams: {} };
   }
   output = await step.run(context);
 } catch (error) {
@@ -61,7 +61,9 @@ try {
 } finally {
   interceptor.dispose();
 }
-writeFileSync(fixturePath, `${JSON.stringify({ ...fixture, exchanges, output }, null, 2)}\n`);
+// What the original keeps in its store after the run, which our trigger's memory must match.
+const storeAfter = fixture.store || memory.size ? { storeAfter: Object.fromEntries(memory) } : {};
+writeFileSync(fixturePath, `${JSON.stringify({ ...fixture, exchanges, output, ...storeAfter }, null, 2)}\n`);
 console.log(`${fixture.package} ${fixture.trigger || fixture.action}: ${exchanges.length} request(s) recorded.`);
 
 /** Each piece gets its own folder, so that several pieces can be recorded at the same time. */

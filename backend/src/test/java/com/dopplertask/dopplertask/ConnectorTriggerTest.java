@@ -196,6 +196,26 @@ public class ConnectorTriggerTest {
         }
     }
 
+    @Test
+    public void testNewByUnseenStartsForKeysNotSeenBeforeSuccess() {
+        ConnectorTrigger trigger = trigger("new_label");
+        answer.set("{\"labels\": [{\"id\": \"b\"}, {\"id\": \"a\"}]}");
+        Assert.assertEquals(List.of(), newItems(trigger));
+        answer.set("{\"labels\": [{\"id\": \"a\"}, {\"id\": \"c\"}, {\"id\": \"b\"}]}");
+        Assert.assertEquals(List.of("c"), newItems(trigger));
+        Assert.assertEquals(List.of(), newItems(trigger));
+    }
+
+    @Test
+    public void testATriggerRemembersWhatItsScriptsKeepSuccess() {
+        ConnectorTrigger trigger = trigger("new_change");
+        answer.set("{\"next\": \"c2\", \"changes\": [{\"id\": \"x1\"}]}");
+        newItems(trigger);
+        newItems(trigger);
+        Assert.assertEquals(List.of("", "cursor=c2"), queries);
+        Assert.assertEquals("{\"cursor\":\"c2\"}", trigger.getMemory());
+    }
+
     private static ConnectorWebhooks.Event event(String json) {
         return ConnectorWebhooks.INSTANCE.eventOf("application/json", json, Map.of(), Map.of());
     }

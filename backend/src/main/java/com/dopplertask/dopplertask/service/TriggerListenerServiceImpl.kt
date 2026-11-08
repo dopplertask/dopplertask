@@ -127,7 +127,7 @@ open class TriggerListenerServiceImpl {
         // A trigger that asks a service signs in as its credential, and remembers where it left off across restarts.
         signIn(trigger)
         if (trigger is ConnectorTrigger) {
-            trigger.keepPlace = { database.update("UPDATE connector_trigger SET poll_state = ?, hook_key = ? WHERE id = ?", trigger.pollState, trigger.hookKey, trigger.id) }
+            trigger.keepPlace = { database.update("UPDATE connector_trigger SET poll_state = ?, hook_key = ?, memory = ? WHERE id = ?", trigger.pollState, trigger.hookKey, trigger.memory, trigger.id) }
         }
         val triggerResult = trigger.trigger()
 

@@ -30,7 +30,7 @@ object ConnectorRequests {
     @JvmOverloads
     fun build(connector: Connector, operation: ConnectorOperation, values: Map<String, String>, credential: Map<String, String>,
               send: (JsonNode) -> JsonNode = { throw IllegalArgumentException("This action cannot send more requests.") },
-              files: Map<String, RunFile> = emptyMap()): Built {
+              files: Map<String, RunFile> = emptyMap(), memory: ObjectNode? = null): Built {
         val request = operation.request
         val draft = NODES.objectNode()
         draft.put("method", request.method)
@@ -38,7 +38,7 @@ object ConnectorRequests {
         draft.set("query", JsonApi.mapper.valueToTree(request.query.mapValues { Connectors.fill(it.value) { name -> values[name].orEmpty() } }.filterValues { it.isNotEmpty() }))
         draft.set("headers", JsonApi.mapper.valueToTree(request.headers.mapValues { Connectors.fill(it.value) { name -> values[name].orEmpty() } }))
         draft.set("body", request.body?.let { bodyOf(it, operation, values, files) } ?: NODES.nullNode())
-        val ready = operation.beforeRequest?.let { ConnectorScripts.run(it, values, draft, null, send) } ?: draft
+        val ready = operation.beforeRequest?.let { ConnectorScripts.run(it, values, draft, null, send, memory = memory) } ?: draft
         // In a multipart body a file goes in its own part, so the part is named by the body's field.
         val parts = request.body?.properties()?.filter { it.value.isTextual }?.mapNotNull { (part, template) ->
             Connectors.placeholdersIn(template.asText()).singleOrNull()?.let { files[it] }?.let { part to it }

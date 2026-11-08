@@ -108,7 +108,7 @@ object Connectors {
             val known = poll.inputs.keys + fields.map { CREDENTIAL + it } + setOf("webhookUrl", "webhookId", ConnectorTrigger.LAST_POLL_TIME)
             requests.flatMap(::templatesOf).flatMap(::placeholdersIn)
                 .filter { it !in known }.forEach { problems += "$where refers to {{$it}}, which is not one of its inputs." }
-            if (webhook == null && poll.newBy !in setOf("time", "lastItem")) problems += "$where should find new items by time or lastItem, not ${poll.newBy}."
+            if (webhook == null && poll.newBy !in setOf("time", "lastItem", "unseen")) problems += "$where should find new items by time, lastItem or unseen, not ${poll.newBy}."
             listOf(poll.items, poll.key).filter { !it.startsWith("$") }.forEach { problems += "$where reads $it, which should start with $." }
         }
         return problems
