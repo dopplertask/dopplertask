@@ -80,6 +80,27 @@ public class AccessFilterTest {
         Assert.assertEquals(Caller.AGENT, AccessFilter.callerOf(request));
     }
 
+    @Test
+    public void testAnAgentNamedByAnEarlierFilterHasTheSameLimitsFail() throws Exception {
+        AccessFilter open = new AccessFilter("", "", NO_SSO);
+        for (String[] attempt : new String[][]{{"DELETE", "/task/x", "403"}, {"POST", "/task/action/test", "403"}, {"POST", "/task", "200"}}) {
+            MockHttpServletRequest request = new MockHttpServletRequest(attempt[0], attempt[1]);
+            AccessFilter.signIn(request, Caller.AGENT, null);
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            open.doFilter(request, response, new MockFilterChain());
+            Assert.assertEquals(attempt[0] + " " + attempt[1], Integer.parseInt(attempt[2]), response.getStatus());
+        }
+    }
+
+    @Test
+    public void testAPersonNamedByAnEarlierFilterIsKnownSuccess() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/task/abc/approve");
+        AccessFilter.signIn(request, Caller.PERSON, "alice@example.com");
+        new AccessFilter("", "", NO_SSO).doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
+        Assert.assertEquals(Caller.PERSON, AccessFilter.callerOf(request));
+        Assert.assertEquals("alice@example.com", AccessFilter.personOf(request).orElse(null));
+    }
+
     @Test(expected = IllegalStateException.class)
     public void testAnAgentTokenAloneIsRefusedFail() {
         new AccessFilter("", "agent-token", NO_SSO);

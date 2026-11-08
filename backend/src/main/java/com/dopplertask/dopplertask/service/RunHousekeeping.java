@@ -9,13 +9,14 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionOperations;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -33,6 +34,8 @@ public class RunHousekeeping {
     private final long maxRunMinutes;
     private final ExecutionService executionService;
     private final CustomerScope customerScope;
+    private final ObjectProvider<RunQueue> runQueue;
+    private final TransactionOperations transactions;
     private final Map<RunOfCustomer, GoingRun> going = new ConcurrentHashMap<>();
 
     /** Two customers can have a run with the same number. */
@@ -51,12 +54,15 @@ public class RunHousekeeping {
 
     public RunHousekeeping(TaskExecutionDao taskExecutionDao, @Value("${dopplertask.keepRunsDays:0}") int keepRunsDays,
                            @Value("${dopplertask.maxRunMinutes:1440}") long maxRunMinutes,
-                           ExecutionService executionService, ObjectProvider<CustomerScope> customers) {
+                           ExecutionService executionService, ObjectProvider<CustomerScope> customers, ObjectProvider<RunQueue> runQueue,
+                           TransactionOperations transactions) {
         this.taskExecutionDao = taskExecutionDao;
         this.keepRunsDays = keepRunsDays;
         this.maxRunMinutes = maxRunMinutes;
         this.executionService = executionService;
         this.customerScope = customers.getIfAvailable(() -> CustomerScope.ONE_CUSTOMER);
+        this.runQueue = runQueue;
+        this.transactions = transactions;
     }
 
     /** From here on a run counts against the time limit. */
@@ -108,16 +114,22 @@ public class RunHousekeeping {
     }
 
     /**
-     * Runs live in this one process and its queue in memory, so at startup nothing can still be going. A run that says
-     * so was stopped by a crash or a restart, and whoever waits for it would otherwise wait forever.
+     * Runs live in this one process, so at startup nothing can still be going. A run that says so was stopped by a crash
+     * or a restart, and whoever waits for it would otherwise wait forever. The built-in queue is in memory and loses its
+     * runs, but a queue that keeps them starts them later, so those are not interrupted.
      */
-    @Transactional
     public void failInterruptedRuns() {
-        List<TaskExecution> interrupted = taskExecutionDao.findByStatusIn(List.of(TaskExecutionStatus.CREATED, TaskExecutionStatus.STARTED));
-        interrupted.forEach(execution -> execution.fail(INTERRUPTED));
-        if (!interrupted.isEmpty()) {
-            LOG.warn("Marked {} runs as failed, since the server stopped during them.", interrupted.size());
-        }
+        forEachCustomer(() -> {
+            RunQueue queue = runQueue.getIfAvailable();
+            Set<Long> waiting = queue == null ? Set.of() : queue.waiting();
+            List<TaskExecution> interrupted = taskExecutionDao.findByStatusIn(List.of(TaskExecutionStatus.CREATED, TaskExecutionStatus.STARTED)).stream()
+                    .filter(execution -> !waiting.contains(execution.getId()))
+                    .toList();
+            interrupted.forEach(execution -> execution.fail(INTERRUPTED));
+            if (!interrupted.isEmpty()) {
+                LOG.warn("Marked {} runs as failed, since the server stopped during them.", interrupted.size());
+            }
+        });
     }
 
     /**
@@ -125,12 +137,22 @@ public class RunHousekeeping {
      * grows with every run. One batch at a time, so that a large first cleaning does not get in the way of running work.
      */
     @Scheduled(fixedDelay = CHECK_MILLISECONDS, initialDelay = CHECK_MILLISECONDS)
-    @Transactional
     public void deleteOldRuns() {
         if (keepRunsDays <= 0) {
             return;
         }
         Date cutoff = Date.from(Instant.now().minus(Duration.ofDays(keepRunsDays)));
-        taskExecutionDao.deleteAll(taskExecutionDao.findTop1000ByEnddateBefore(cutoff));
+        forEachCustomer(() -> taskExecutionDao.deleteAll(taskExecutionDao.findTop1000ByEnddateBefore(cutoff)));
+    }
+
+    /** Each customer's runs are its own, so each gets a transaction of its own, and a failure in one stops no other. */
+    private void forEachCustomer(Runnable work) {
+        customerScope.forEachCustomer(() -> {
+            try {
+                transactions.executeWithoutResult(status -> work.run());
+            } catch (RuntimeException e) {
+                LOG.error("Housekeeping failed for customer scope '{}', and goes on with the others.", customerScope.current(), e);
+            }
+        });
     }
 }

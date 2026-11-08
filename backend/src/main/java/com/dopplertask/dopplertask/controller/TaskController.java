@@ -34,7 +34,6 @@ import com.dopplertask.dopplertask.filter.AccessFilter;
 import com.dopplertask.dopplertask.filter.Caller;
 import com.dopplertask.dopplertask.service.ApprovalRequiredException;
 import com.dopplertask.dopplertask.service.CredentialService;
-import com.dopplertask.dopplertask.service.SsoService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -68,11 +67,9 @@ public class TaskController {
     private final TaskService taskService;
     private final ExecutionService executionService;
     private final CredentialService credentialService;
-    private final SsoService ssoService;
 
-    public TaskController(@Autowired TaskService taskService, @Autowired ExecutionService executionService, @Autowired CredentialService credentialService, @Autowired SsoService ssoService) {
+    public TaskController(@Autowired TaskService taskService, @Autowired ExecutionService executionService, @Autowired CredentialService credentialService) {
         this.credentialService = credentialService;
-        this.ssoService = ssoService;
         this.taskService = taskService;
         this.executionService = executionService;
     }
@@ -277,7 +274,7 @@ public class TaskController {
 
     @PostMapping(path = "/task/{checksum}/approve")
     public ResponseEntity<SimpleChecksumResponseDto> approveTask(@PathVariable("checksum") String checksum, HttpServletRequest request) {
-        String approvedBy = ssoService.personOf(AccessFilter.sessionIdOf(request)).map(SsoService.Person::email).orElse(null);
+        String approvedBy = AccessFilter.personOf(request).orElse(null);
         if (!taskService.approveTask(checksum, approvedBy)) {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }

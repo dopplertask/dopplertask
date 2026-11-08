@@ -4,23 +4,29 @@ import com.dopplertask.dopplertask.dao.TaskExecutionDao;
 import com.dopplertask.dopplertask.domain.TaskExecution;
 import com.dopplertask.dopplertask.domain.TaskExecutionLog;
 import com.dopplertask.dopplertask.domain.TaskExecutionStatus;
+import com.dopplertask.dopplertask.service.CustomerScope;
 import com.dopplertask.dopplertask.service.RunHousekeeping;
+import com.dopplertask.dopplertask.service.RunQueue;
+import com.dopplertask.dopplertask.service.TaskExecutionRequest;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.persistence.autoconfigure.EntityScan;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.boot.persistence.autoconfigure.EntityScan;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.test.context.ContextConfiguration;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringRunner;
+import org.springframework.transaction.support.TransactionOperations;
 
 import jakarta.persistence.EntityManager;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
+import java.util.Set;
 
 @RunWith(SpringRunner.class)
 @DataJpaTest(properties = "spring.datasource.url=jdbc:h2:mem:runhousekeeping")
@@ -65,7 +71,7 @@ public class RunHousekeepingTest {
         Long queued = saveRun(TaskExecutionStatus.CREATED, null);
         Long finished = saveRun(TaskExecutionStatus.FINISHED, new Date());
 
-        new RunHousekeeping(taskExecutionDao, 0, 0, null, new org.springframework.beans.factory.support.StaticListableBeanFactory().getBeanProvider(com.dopplertask.dopplertask.service.CustomerScope.class)).failInterruptedRuns();
+        housekeeping(0).failInterruptedRuns();
         entityManager.flush();
         entityManager.clear();
 
@@ -80,12 +86,37 @@ public class RunHousekeepingTest {
     }
 
     @Test
+    public void testRunsThatStillWaitInAQueueThatKeepsThemAreNotFailedSuccess() {
+        Long going = saveRun(TaskExecutionStatus.STARTED, null);
+        Long waiting = saveRun(TaskExecutionStatus.CREATED, null);
+        StaticListableBeanFactory beans = new StaticListableBeanFactory();
+        beans.addBean("runQueue", new RunQueue() {
+            @Override
+            public void submit(TaskExecutionRequest request) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Set<Long> waiting() {
+                return Set.of(waiting);
+            }
+        });
+
+        housekeeping(0, beans).failInterruptedRuns();
+        entityManager.flush();
+        entityManager.clear();
+
+        Assert.assertEquals(TaskExecutionStatus.FAILED, taskExecutionDao.findById(going).orElseThrow().getStatus());
+        Assert.assertEquals(TaskExecutionStatus.CREATED, taskExecutionDao.findById(waiting).orElseThrow().getStatus());
+    }
+
+    @Test
     public void testOldRunsAreDeletedWithTheirOutputWhenAskedForSuccess() {
         Long old = saveRun(TaskExecutionStatus.FINISHED, daysAgo(40));
         Long recent = saveRun(TaskExecutionStatus.FINISHED, daysAgo(5));
         Long going = saveRun(TaskExecutionStatus.STARTED, null);
 
-        new RunHousekeeping(taskExecutionDao, 30, 0, null, new org.springframework.beans.factory.support.StaticListableBeanFactory().getBeanProvider(com.dopplertask.dopplertask.service.CustomerScope.class)).deleteOldRuns();
+        housekeeping(30).deleteOldRuns();
         entityManager.flush();
         entityManager.clear();
 
@@ -98,8 +129,17 @@ public class RunHousekeepingTest {
     @Test
     public void testAllRunsAreKeptUnlessAskedForSuccess() {
         Long old = saveRun(TaskExecutionStatus.FINISHED, daysAgo(4000));
-        new RunHousekeeping(taskExecutionDao, 0, 0, null, new org.springframework.beans.factory.support.StaticListableBeanFactory().getBeanProvider(com.dopplertask.dopplertask.service.CustomerScope.class)).deleteOldRuns();
+        housekeeping(0).deleteOldRuns();
         entityManager.flush();
         Assert.assertTrue(taskExecutionDao.existsById(old));
+    }
+
+    private RunHousekeeping housekeeping(int keepRunsDays) {
+        return housekeeping(keepRunsDays, new StaticListableBeanFactory());
+    }
+
+    private RunHousekeeping housekeeping(int keepRunsDays, StaticListableBeanFactory beans) {
+        return new RunHousekeeping(taskExecutionDao, keepRunsDays, 0, null, beans.getBeanProvider(CustomerScope.class), beans.getBeanProvider(RunQueue.class),
+                TransactionOperations.withoutTransaction());
     }
 }
