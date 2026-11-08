@@ -1,0 +1,110 @@
+{
+  "name": "google-forms",
+  "label": "Google Forms",
+  "description": "Receive form responses from Google Forms",
+  "icon": "",
+  "hosts": [
+    "forms.googleapis.com"
+  ],
+  "baseUrl": "https://forms.googleapis.com/v1",
+  "upstream": {
+    "package": "@activepieces/piece-google-forms",
+    "version": "0.7.5"
+  },
+  "credential": {
+    "oauth2": {
+      "authUrl": "https://accounts.google.com/o/oauth2/auth",
+      "tokenUrl": "https://oauth2.googleapis.com/token",
+      "scope": "https://www.googleapis.com/auth/forms.responses.readonly https://www.googleapis.com/auth/drive.readonly email",
+      "authParameters": "access_type=offline&prompt=consent"
+    }
+  },
+  "actions": {
+    "forms_get_form": {
+      "label": "Get Form",
+      "description": "Fetch a form's full structure: title, settings, items with their indices and itemIds, question IDs, and current revisionId.",
+      "audience": "ai",
+      "inputs": {
+        "form_id": {
+          "label": "Form ID",
+          "description": "The ID of the form to fetch. Obtain it from forms_list_responses or the New Response trigger.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://forms.googleapis.com/v1/forms/{{form_id}}"
+      },
+      "outputs": {
+        "formId": "$.formId",
+        "title": "$.info.title",
+        "revisionId": "$.revisionId"
+      }
+    },
+    "forms_list_responses": {
+      "label": "List Form Responses",
+      "description": "List submitted responses for a form, with each response's responseId, timestamps, and answers keyed by questionId.",
+      "audience": "ai",
+      "inputs": {
+        "form_id": {
+          "label": "Form ID",
+          "description": "The ID of the form whose responses to list. Obtain it from forms_get_form or the New Response trigger.",
+          "required": true
+        },
+        "filter": {
+          "label": "Filter",
+          "description": "Optional filter on submission time, e.g. \"timestamp > 2026-01-01T00:00:00Z\" or \"timestamp < 2026-06-01T00:00:00Z\". Only the timestamp field is supported."
+        },
+        "page_size": {
+          "label": "Page Size",
+          "description": "Maximum number of responses to return per page (default 5000).",
+          "type": "number"
+        },
+        "page_token": {
+          "label": "Page Token",
+          "description": "Token from a previous call's nextPageToken to fetch the next page of responses."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://forms.googleapis.com/v1/forms/{{form_id}}/responses",
+        "query": {
+          "filter": "{{filter}}",
+          "pageSize": "{{page_size}}",
+          "pageToken": "{{page_token}}"
+        }
+      },
+      "beforeRequest": "// Encoded as the original's URLSearchParams query sends it: spaces as +, and ! ' ( ) ~ escaped.\nvar formEncoded = (text) => encodeURIComponent(String(text)).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar pairs = Object.keys(request.query).map((key) => formEncoded(key) + '=' + formEncoded(request.query[key]));\nif (pairs.length > 0) request.url = request.url + '?' + pairs.join('&');\nrequest.query = {};\nreturn request;",
+      "afterResponse": "var responses = response.responses || [];\nreturn { responses: responses, count: responses.length, nextPageToken: response.nextPageToken };",
+      "outputs": {
+        "count": "$.count",
+        "nextPageToken": "$.nextPageToken"
+      }
+    },
+    "forms_get_response": {
+      "label": "Get Form Response",
+      "description": "Fetch one submission by its responseId, including all answers keyed by questionId and submission timestamps.",
+      "audience": "ai",
+      "inputs": {
+        "form_id": {
+          "label": "Form ID",
+          "description": "The ID of the form the response belongs to. Obtain it from forms_list_responses or the New Response trigger.",
+          "required": true
+        },
+        "response_id": {
+          "label": "Response ID",
+          "description": "The ID of the response to fetch. Obtain it from forms_list_responses or the New Response trigger.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://forms.googleapis.com/v1/forms/{{form_id}}/responses/{{response_id}}"
+      },
+      "outputs": {
+        "responseId": "$.responseId",
+        "lastSubmittedTime": "$.lastSubmittedTime"
+      }
+    }
+  }
+}

@@ -892,5 +892,67 @@
       },
       "afterResponse": "var raw = response && response.result && response.result.stats && response.result.stats.count != null ? response.result.stats.count : 0;\nreturn { table: inputs.table, query: inputs.query || null, count: typeof raw === 'number' ? raw : (parseInt(String(raw), 10) || 0) };"
     }
+  },
+  "triggers": {
+    "new_comment": {
+      "label": "New Comment or Work Note",
+      "description": "Triggers when a new comment or work note is added to a record in the selected table",
+      "inputs": {
+        "table": {
+          "label": "Table",
+          "description": "ServiceNow table to work with",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://{{credential.instanceUrl}}/api/now/table/sys_db_object",
+              "query": {
+                "sysparm_query": "nameNOT LIKEts_^nameNOT LIKEv_^nameNOT LIKEpa_^super_class.nameISEMPTY",
+                "sysparm_fields": "name,label",
+                "sysparm_limit": "1000"
+              }
+            },
+            "list": "$.result",
+            "label": "$.label",
+            "value": "$.name"
+          }
+        },
+        "entry_type": {
+          "label": "Entry Type",
+          "description": "Which journal entries to watch",
+          "type": "select",
+          "required": true,
+          "defaultValue": "both",
+          "options": [
+            {
+              "value": "both",
+              "label": "Comments and Work Notes"
+            },
+            {
+              "value": "comments",
+              "label": "Customer-visible Comments only"
+            },
+            {
+              "value": "work_notes",
+              "label": "Internal Work Notes only"
+            }
+          ]
+        },
+        "record_sys_id": {
+          "label": "Record Sys ID Filter (optional)",
+          "description": "If set, only fire for comments on this specific record sys_id"
+        }
+      },
+      "request": {
+        "url": "https://{{credential.instanceUrl}}/api/now/table/sys_journal_field",
+        "query": {
+          "sysparm_limit": "100"
+        }
+      },
+      "beforeRequest": "var elements = !inputs.entry_type || inputs.entry_type === 'both' ? ['comments', 'work_notes'] : [inputs.entry_type];\nvar filters = ['name=' + inputs.table, elements.map(function (element) { return 'element=' + element; }).join('^OR')];\nif (inputs.record_sys_id) filters.push('element_id=' + inputs.record_sys_id);\nrequest.query.sysparm_query = filters.join('^') + '^ORDERBYDESCsys_created_on';\nreturn request;",
+      "afterResponse": "return response.result || [];",
+      "items": "$",
+      "newBy": "lastItem",
+      "key": "$.sys_id"
+    }
   }
 }

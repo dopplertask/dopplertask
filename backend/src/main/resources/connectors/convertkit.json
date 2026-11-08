@@ -189,6 +189,26 @@
       },
       "result": "$.subscriber"
     },
+    "subscribers_list_tags_by_email": {
+      "label": "List Tags By Email",
+      "description": "Returns a list of all subscribed tags",
+      "audience": "human",
+      "inputs": {
+        "email_address": {
+          "label": "Email",
+          "description": "The email of the subscriber",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.convertkit.com/v3/subscribers",
+        "query": {
+          "email_address": "{{email_address}}"
+        }
+      },
+      "afterResponse": "const subscriber = (response.subscribers ?? [])[0];\nif (!subscriber) throw new Error('Failed to fetch subscriber that match the provided email.');\nconst tags = call({method: 'GET', url: `/subscribers/${subscriber.id}/tags`}).tags;\nif (!tags) throw new Error('Failed to fetch tags.');\nreturn tags;"
+    },
     "subscribers_list_tags_by_subscriber_id": {
       "label": "List Tags By Subscriber Id",
       "description": "Returns a list of all subscribed tags",
@@ -1607,6 +1627,24 @@
       },
       "afterResponse": "const list = response.tags ?? [];\nreturn { tags: list, count: list.length };"
     },
+    "kit_create_tag": {
+      "label": "Create Tag",
+      "description": "Create a tag, or return the existing tag with the same name.",
+      "audience": "ai",
+      "inputs": {
+        "name": {
+          "label": "Name",
+          "description": "The tag name.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.convertkit.com/v3/tags"
+      },
+      "beforeRequest": "if (!String(inputs.name ?? '').trim()) throw new Error('Tag name cannot be empty.');\nreturn request;",
+      "afterResponse": "const name = inputs.name.trim();\nconst found = (response.tags ?? []).find((tag) => tag.name.trim().toLowerCase() === name.toLowerCase());\nif (found) return { ...found, created: false };\nreturn { ...call({method: 'POST', url: '/tags', body: { tag: { name } }}), created: true };"
+    },
     "kit_tag_subscriber": {
       "label": "Tag Subscriber",
       "description": "Apply a tag to a subscriber by email, creating the subscriber if needed.",
@@ -2065,6 +2103,32 @@
       },
       "beforeRequest": "request.body.label = request.body.label.trim();\nreturn request;"
     },
+    "kit_update_custom_field": {
+      "label": "Update Custom Field",
+      "description": "Rename a custom subscriber field.",
+      "audience": "ai",
+      "inputs": {
+        "custom_field_id": {
+          "label": "Custom Field ID",
+          "description": "The field ID, from List Custom Fields.",
+          "required": true
+        },
+        "label": {
+          "label": "New Label",
+          "description": "The new label. Must be unique on the account.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.convertkit.com/v3/custom_fields/{{custom_field_id}}",
+        "body": {
+          "label": "{{label}}"
+        }
+      },
+      "beforeRequest": "const id = String(inputs.custom_field_id ?? '').trim();\nif (!/^\\d+$/.test(id)) throw new Error(`Custom Field ID must be a numeric Kit ID, got \"${inputs.custom_field_id ?? ''}\".`);\nconst label = String(inputs.label ?? '').trim();\nif (!label) throw new Error('New Label cannot be empty.');\nconst parts = request.url.split('/'); parts[5] = id; request.url = parts.join('/');\nrequest.body = { label };\nreturn request;",
+      "afterResponse": "const id = inputs.custom_field_id.trim();\nconst label = inputs.label.trim();\ntry {\n  const field = (call({method: 'GET', url: '/custom_fields'}).custom_fields ?? []).find((f) => String(f.id) === id);\n  return field ? { ...field, refreshed: true } : { id: Number(id), label, refreshed: false, refresh_error: 'The rename succeeded, but the field was not in the refreshed custom field list.' };\n} catch (e) {\n  return { id: Number(id), label, refreshed: false, refresh_error: `The rename succeeded, but reading the field back failed: ${e instanceof Error ? e.message : 'unknown error'}` };\n}"
+    },
     "kit_delete_custom_field": {
       "label": "Delete Custom Field",
       "description": "Permanently delete a custom subscriber field and its values.",
@@ -2453,6 +2517,383 @@
         "url": "https://api.convertkit.com/v3/purchases/{{purchase_id}}"
       },
       "beforeRequest": "const id = (v, label) => { const t = String(v ?? '').trim(); if (!/^\\d+$/.test(t)) throw new Error(`${label} must be a numeric Kit ID, got \"${v ?? ''}\".`); return t; };\nconst seg = (index, value) => { const parts = request.url.split('/'); parts[index] = value; request.url = parts.join('/'); };\nseg(5, id(inputs.purchase_id, 'Purchase ID'));\nreturn request;"
+    }
+  },
+  "triggers": {
+    "webhook_subscriber_tag_add": {
+      "label": "Tag added to subscriber",
+      "description": "Trigger when a tag is added to a subscriber",
+      "inputs": {
+        "tagId": {
+          "label": "Tag",
+          "description": "Choose a Tag",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "method": "GET",
+              "url": "https://api.convertkit.com/v3/tags"
+            },
+            "list": "$.tags",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        }
+      },
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.convertkit.com/v3/automations/hooks",
+          "body": {
+            "event": {
+              "name": "subscriber.tag_add"
+            },
+            "target_url": "{{webhookUrl}}"
+          }
+        },
+        "id": "$.rule.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.convertkit.com/v3/automations/hooks/{{webhookId}}"
+        },
+        "beforeRequest": "request.body.event.tag_id = Number(inputs.tagId);\nreturn request;"
+      },
+      "afterResponse": "return [response.subscriber];",
+      "items": "$"
+    },
+    "webhook_subscriber_tag_remove": {
+      "label": "Tag removed from subscriber",
+      "description": "Trigger when a tag is removed from a subscriber",
+      "inputs": {
+        "tagId": {
+          "label": "Tag",
+          "description": "Choose a Tag",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "method": "GET",
+              "url": "https://api.convertkit.com/v3/tags"
+            },
+            "list": "$.tags",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        }
+      },
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.convertkit.com/v3/automations/hooks",
+          "body": {
+            "event": {
+              "name": "subscriber.tag_remove"
+            },
+            "target_url": "{{webhookUrl}}"
+          }
+        },
+        "id": "$.rule.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.convertkit.com/v3/automations/hooks/{{webhookId}}"
+        },
+        "beforeRequest": "request.body.event.tag_id = Number(inputs.tagId);\nreturn request;"
+      },
+      "afterResponse": "return [response.subscriber];",
+      "items": "$"
+    },
+    "webhook_subscriber_activated": {
+      "label": "Subscriber activated",
+      "description": "Trigger when a subscriber is activated. This happens when a subscriber confirms their subscription.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.convertkit.com/v3/automations/hooks",
+          "body": {
+            "event": {
+              "name": "subscriber.subscriber_activate"
+            },
+            "target_url": "{{webhookUrl}}"
+          }
+        },
+        "id": "$.rule.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.convertkit.com/v3/automations/hooks/{{webhookId}}"
+        }
+      },
+      "afterResponse": "return [response.subscriber];",
+      "items": "$"
+    },
+    "webhook_subscriber_unsubscribed": {
+      "label": "Subscriber unsubscribed",
+      "description": "Trigger when a subscriber is unsubscribed",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.convertkit.com/v3/automations/hooks",
+          "body": {
+            "event": {
+              "name": "subscriber.subscriber_unsubscribe"
+            },
+            "target_url": "{{webhookUrl}}"
+          }
+        },
+        "id": "$.rule.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.convertkit.com/v3/automations/hooks/{{webhookId}}"
+        }
+      },
+      "afterResponse": "return [response.subscriber];",
+      "items": "$"
+    },
+    "webhook_subscriber_bounced": {
+      "label": "Subscriber bounced",
+      "description": "Trigger when a subscriber bounced. This happens when an email is sent to a subscriber and the email bounces.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.convertkit.com/v3/automations/hooks",
+          "body": {
+            "event": {
+              "name": "subscriber.subscriber_bounce"
+            },
+            "target_url": "{{webhookUrl}}"
+          }
+        },
+        "id": "$.rule.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.convertkit.com/v3/automations/hooks/{{webhookId}}"
+        }
+      },
+      "afterResponse": "return [response.subscriber];",
+      "items": "$"
+    },
+    "webhook_subscriber_complained": {
+      "label": "Subscriber complained",
+      "description": "Trigger when a subscriber complained. This happens when a subscriber marks an email as spam.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.convertkit.com/v3/automations/hooks",
+          "body": {
+            "event": {
+              "name": "subscriber.subscriber_complain"
+            },
+            "target_url": "{{webhookUrl}}"
+          }
+        },
+        "id": "$.rule.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.convertkit.com/v3/automations/hooks/{{webhookId}}"
+        }
+      },
+      "afterResponse": "return [response.subscriber];",
+      "items": "$"
+    },
+    "webhook_form_subscribed": {
+      "label": "Form subscribed",
+      "description": "Trigger when a form is subscribed",
+      "inputs": {
+        "formId": {
+          "label": "Form",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "method": "GET",
+              "url": "https://api.convertkit.com/v3/forms"
+            },
+            "list": "$.forms",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        }
+      },
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.convertkit.com/v3/automations/hooks",
+          "body": {
+            "event": {
+              "name": "subscriber.form_subscribe"
+            },
+            "target_url": "{{webhookUrl}}"
+          }
+        },
+        "id": "$.rule.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.convertkit.com/v3/automations/hooks/{{webhookId}}"
+        },
+        "beforeRequest": "request.body.event.form_id = Number(inputs.formId);\nreturn request;"
+      },
+      "afterResponse": "return [response.subscriber];",
+      "items": "$"
+    },
+    "webhook_sequence_subscribed": {
+      "label": "Sequence subscribed",
+      "description": "Trigger when a sequence is subscribed",
+      "inputs": {
+        "sequenceIdChoice": {
+          "label": "Sequence",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "method": "GET",
+              "url": "https://api.convertkit.com/v3/sequences"
+            },
+            "list": "$.courses",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        }
+      },
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.convertkit.com/v3/automations/hooks",
+          "body": {
+            "event": {
+              "name": "subscriber.course_subscribe"
+            },
+            "target_url": "{{webhookUrl}}"
+          }
+        },
+        "id": "$.rule.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.convertkit.com/v3/automations/hooks/{{webhookId}}"
+        },
+        "beforeRequest": "request.body.event.sequence_id = Number(inputs.sequenceIdChoice);\nreturn request;"
+      },
+      "afterResponse": "return [response.subscriber];",
+      "items": "$"
+    },
+    "webhook_sequence_completed": {
+      "label": "Sequence completed",
+      "description": "Trigger when a sequence is completed",
+      "inputs": {
+        "sequenceIdChoice": {
+          "label": "Sequence",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "method": "GET",
+              "url": "https://api.convertkit.com/v3/sequences"
+            },
+            "list": "$.courses",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        }
+      },
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.convertkit.com/v3/automations/hooks",
+          "body": {
+            "event": {
+              "name": "subscriber.course_complete"
+            },
+            "target_url": "{{webhookUrl}}"
+          }
+        },
+        "id": "$.rule.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.convertkit.com/v3/automations/hooks/{{webhookId}}"
+        },
+        "beforeRequest": "request.body.event.sequence_id = Number(inputs.sequenceIdChoice);\nreturn request;"
+      },
+      "afterResponse": "return [response.subscriber];",
+      "items": "$"
+    },
+    "webhook_link_clicked": {
+      "label": "Link clicked",
+      "description": "Trigger when a link is clicked",
+      "inputs": {
+        "initiatorValue": {
+          "label": "Initiator Value URL",
+          "description": "The initiator value URL that will trigger the webhook",
+          "required": true
+        }
+      },
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.convertkit.com/v3/automations/hooks",
+          "body": {
+            "event": {
+              "name": "subscriber.link_click",
+              "initiator_value": "{{initiatorValue}}"
+            },
+            "target_url": "{{webhookUrl}}"
+          }
+        },
+        "id": "$.rule.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.convertkit.com/v3/automations/hooks/{{webhookId}}"
+        }
+      },
+      "afterResponse": "return [response.subscriber, inputs.initiatorValue];",
+      "items": "$"
+    },
+    "webhook_product_purchased": {
+      "label": "Product purchased",
+      "description": "Trigger when a product is purchased",
+      "inputs": {
+        "productId": {
+          "label": "Product ID",
+          "description": "The product ID",
+          "type": "number",
+          "required": true
+        }
+      },
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.convertkit.com/v3/automations/hooks",
+          "body": {
+            "event": {
+              "name": "subscriber.product_purchase"
+            },
+            "target_url": "{{webhookUrl}}"
+          }
+        },
+        "id": "$.rule.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.convertkit.com/v3/automations/hooks/{{webhookId}}"
+        },
+        "beforeRequest": "request.body.event.product_id = Number(inputs.productId);\nreturn request;"
+      },
+      "afterResponse": "return [response.subscriber, Number(inputs.productId)];",
+      "items": "$"
+    },
+    "webhook_purchase_created": {
+      "label": "Purchase created",
+      "description": "Trigger when a purchase is created",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.convertkit.com/v3/automations/hooks",
+          "body": {
+            "event": {
+              "name": "purchase.purchase_create"
+            },
+            "target_url": "{{webhookUrl}}"
+          }
+        },
+        "id": "$.rule.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.convertkit.com/v3/automations/hooks/{{webhookId}}"
+        }
+      },
+      "afterResponse": "return [response.purchase.subscriber];",
+      "items": "$"
     }
   }
 }

@@ -26,6 +26,188 @@
     }
   },
   "actions": {
+    "airtable_create_record": {
+      "label": "Create Airtable Record",
+      "description": "Adds a new record to a table.",
+      "audience": "human",
+      "inputs": {
+        "base": {
+          "label": "Base",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.airtable.com/v0/meta/bases"
+            },
+            "list": "$.bases"
+          }
+        },
+        "tableId": {
+          "label": "Table",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.airtable.com/v0/meta/bases/{{base}}/tables"
+            },
+            "list": "$.tables"
+          }
+        },
+        "fields": {
+          "label": "Fields",
+          "description": "Field values by field ID, such as {\"fldXXXXXXXXXXXXXX\": \"Acme\"}. An attachment field takes a file URL; select and linked-record fields take arrays.",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.airtable.com/v0/{{base}}/{{tableId}}",
+        "body": {
+          "fields": "{{fields}}",
+          "typecast": true
+        }
+      },
+      "beforeRequest": "const given = request.body.fields || {};\nObject.keys(given).forEach((key) => { const value = given[key]; if (value === null || value === undefined || value === '' || (Array.isArray(value) && value.length === 0)) delete given[key]; });\nconst table = call({method: 'GET', url: '/meta/bases/' + inputs.base + '/tables'}).tables.find((t) => t.id === inputs.tableId);\nconst empty = (value) => !value || (Array.isArray(value) && value.length === 0);\nconst fields = {};\ntable.fields.forEach((field) => {\n  if (['singleCollaborator', 'multipleCollaborators', 'aiText'].includes(field.type) || !(field.id in given)) return;\n  const value = given[field.id];\n  if (field.type === 'multipleAttachments') { if (false && empty(value)) fields[field.id] = []; else if (!empty(value)) fields[field.id] = [{url: value}]; }\n  else if (['multipleRecordLinks', 'multipleSelects'].includes(field.type)) { if (false) fields[field.id] = Array.isArray(value) ? value : []; else if (Array.isArray(value) && value.length > 0) fields[field.id] = value; }\n  else if (false) fields[field.id] = value === '' || value === undefined ? null : value;\n  else if (value !== undefined && value !== '' && value !== null) fields[field.id] = value;\n});\nrequest.body = {fields, typecast: true};\nreturn request;"
+    },
+    "airtable_find_record": {
+      "label": "Find Airtable Record",
+      "description": "Returns up to 1000 records whose field contains a value.",
+      "audience": "human",
+      "inputs": {
+        "base": {
+          "label": "Base",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.airtable.com/v0/meta/bases"
+            },
+            "list": "$.bases"
+          }
+        },
+        "tableId": {
+          "label": "Table",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.airtable.com/v0/meta/bases/{{base}}/tables"
+            },
+            "list": "$.tables"
+          }
+        },
+        "searchField": {
+          "label": "Search Field",
+          "description": "The name of the field to search.",
+          "required": true
+        },
+        "searchValue": {
+          "label": "Search Value",
+          "description": "Case-sensitive. Records whose field contains this text are returned.",
+          "required": true
+        },
+        "limitToView": {
+          "label": "View",
+          "description": "Only records in this view are used. Empty: the whole table."
+        }
+      },
+      "request": {
+        "url": "https://api.airtable.com/v0/{{base}}/{{tableId}}"
+      },
+      "beforeRequest": "const enc = (text) => encodeURIComponent(text).replace(/%20/g, '+').replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase());\nconst qs = (params) => Object.entries(params).map(([key, value]) => enc(key) + '=' + enc(String(value))).join('&');\nif (/[{}]/.test(inputs.searchField)) throw new Error('Search Field must not contain \"{\" or \"}\" because Airtable cannot escape braces inside a field reference.');\nconst value = inputs.searchValue.replace(/\\\\/g, '\\\\\\\\').replace(/\"/g, '\\\\\"');\nconst params = {filterByFormula: 'FIND(\"' + value + '\",{' + inputs.searchField + '})', pageSize: '100'};\nif (inputs.limitToView) params.view = inputs.limitToView;\nrequest.url += '?' + qs(params);\nreturn request;",
+      "afterResponse": "const enc = (text) => encodeURIComponent(text).replace(/%20/g, '+').replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase());\nconst qs = (params) => Object.entries(params).map(([key, value]) => enc(key) + '=' + enc(String(value))).join('&');\nconst value = inputs.searchValue.replace(/\\\\/g, '\\\\\\\\').replace(/\"/g, '\\\\\"');\nconst params = {filterByFormula: 'FIND(\"' + value + '\",{' + inputs.searchField + '})', pageSize: '100'};\nif (inputs.limitToView) params.view = inputs.limitToView;\nlet records = response.records;\nlet offset = response.offset;\nwhile (offset && records.length < 1000) {\n  const page = call({method: 'GET', url: '/' + inputs.base + '/' + inputs.tableId + '?' + qs({...params, offset})});\n  records = records.concat(page.records);\n  offset = page.offset;\n}\nreturn records.slice(0, 1000);"
+    },
+    "airtable_update_record": {
+      "label": "Update Airtable Record",
+      "description": "Changes the fields you fill in on an existing record.",
+      "audience": "human",
+      "inputs": {
+        "base": {
+          "label": "Base",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.airtable.com/v0/meta/bases"
+            },
+            "list": "$.bases"
+          }
+        },
+        "tableId": {
+          "label": "Table",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.airtable.com/v0/meta/bases/{{base}}/tables"
+            },
+            "list": "$.tables"
+          }
+        },
+        "recordId": {
+          "label": "Record ID",
+          "description": "Starts with rec. Copy it from the record URL or an earlier step.",
+          "required": true
+        },
+        "fields": {
+          "label": "Fields",
+          "description": "Field values by field ID, such as {\"fldXXXXXXXXXXXXXX\": \"Acme\"}. An attachment field takes a file URL; select and linked-record fields take arrays.",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://api.airtable.com/v0/{{base}}/{{tableId}}/{{recordId}}",
+        "body": {
+          "fields": "{{fields}}",
+          "typecast": true
+        }
+      },
+      "beforeRequest": "const given = request.body.fields || {};\nObject.keys(given).forEach((key) => { const value = given[key]; if (value === null || value === undefined || value === '' || (Array.isArray(value) && value.length === 0)) delete given[key]; });\nconst table = call({method: 'GET', url: '/meta/bases/' + inputs.base + '/tables'}).tables.find((t) => t.id === inputs.tableId);\nconst empty = (value) => !value || (Array.isArray(value) && value.length === 0);\nconst fields = {};\ntable.fields.forEach((field) => {\n  if (['singleCollaborator', 'multipleCollaborators', 'aiText'].includes(field.type) || !(field.id in given)) return;\n  const value = given[field.id];\n  if (field.type === 'multipleAttachments') { if (false && empty(value)) fields[field.id] = []; else if (!empty(value)) fields[field.id] = [{url: value}]; }\n  else if (['multipleRecordLinks', 'multipleSelects'].includes(field.type)) { if (false) fields[field.id] = Array.isArray(value) ? value : []; else if (Array.isArray(value) && value.length > 0) fields[field.id] = value; }\n  else if (false) fields[field.id] = value === '' || value === undefined ? null : value;\n  else if (value !== undefined && value !== '' && value !== null) fields[field.id] = value;\n});\nrequest.body = {fields, typecast: true};\nreturn request;"
+    },
+    "airtable_clean_record": {
+      "label": "Clean Record",
+      "description": "Updates a record and empties every field you leave blank.",
+      "audience": "both",
+      "inputs": {
+        "base": {
+          "label": "Base",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.airtable.com/v0/meta/bases"
+            },
+            "list": "$.bases"
+          }
+        },
+        "tableId": {
+          "label": "Table",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.airtable.com/v0/meta/bases/{{base}}/tables"
+            },
+            "list": "$.tables"
+          }
+        },
+        "recordId": {
+          "label": "Record ID",
+          "description": "Starts with rec. Copy it from the record URL or an earlier step.",
+          "required": true
+        },
+        "fields": {
+          "label": "Fields",
+          "description": "Field values by field ID, such as {\"fldXXXXXXXXXXXXXX\": \"Acme\"}. A field given as empty is cleared.",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://api.airtable.com/v0/{{base}}/{{tableId}}/{{recordId}}",
+        "body": {
+          "fields": "{{fields}}",
+          "typecast": true
+        }
+      },
+      "beforeRequest": "const given = request.body.fields || {};\nconst table = call({method: 'GET', url: '/meta/bases/' + inputs.base + '/tables'}).tables.find((t) => t.id === inputs.tableId);\nconst empty = (value) => !value || (Array.isArray(value) && value.length === 0);\nconst fields = {};\ntable.fields.forEach((field) => {\n  if (['singleCollaborator', 'multipleCollaborators', 'aiText'].includes(field.type) || !(field.id in given)) return;\n  const value = given[field.id];\n  if (field.type === 'multipleAttachments') { if (true && empty(value)) fields[field.id] = []; else if (!empty(value)) fields[field.id] = [{url: value}]; }\n  else if (['multipleRecordLinks', 'multipleSelects'].includes(field.type)) { if (true) fields[field.id] = Array.isArray(value) ? value : []; else if (Array.isArray(value) && value.length > 0) fields[field.id] = value; }\n  else if (true) fields[field.id] = value === '' || value === undefined ? null : value;\n  else if (value !== undefined && value !== '' && value !== null) fields[field.id] = value;\n});\nrequest.body = {fields, typecast: true};\nreturn request;"
+    },
     "airtable_delete_record": {
       "label": "Delete Airtable Record",
       "description": "Deletes a record from a table.",
@@ -185,6 +367,22 @@
           "description": "{{description}}"
         }
       }
+    },
+    "airtable_find_base": {
+      "label": "Find Base",
+      "description": "Find a base by its name or a keyword.",
+      "audience": "human",
+      "inputs": {
+        "baseName": {
+          "label": "Base Name",
+          "description": "Bases whose name contains this text are returned.",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://api.airtable.com/v0/meta/bases"
+      },
+      "afterResponse": "let bases = response.bases;\nlet offset = response.offset;\nwhile (offset) {\n  const page = call({method: 'GET', url: '/meta/bases', query: {offset}});\n  bases = bases.concat(page.bases);\n  offset = page.offset;\n}\nconst term = inputs.baseName.toLowerCase();\nreturn bases.filter((base) => base.name.toLowerCase().includes(term));"
     },
     "airtable_find_table_by_id": {
       "label": "Find Table by ID",
@@ -423,6 +621,65 @@
         "url": "https://api.airtable.com/v0/{{base_id}}/{{table_id_or_name}}/{{record_id}}"
       }
     },
+    "list_records": {
+      "label": "List Records (Agent)",
+      "description": "List or query records in an Airtable table.",
+      "audience": "ai",
+      "inputs": {
+        "base_id": {
+          "label": "Base ID",
+          "description": "The Airtable base ID (e.g. \"appXXXXXXXXXXXXXX\"). Resolve it with List Bases (Agent).",
+          "required": true
+        },
+        "table_id_or_name": {
+          "label": "Table ID or Name",
+          "description": "The table ID (e.g. \"tblXXXXXXXXXXXXXX\") or its exact name. Resolve it with Get Base Schema (Agent).",
+          "required": true
+        },
+        "filter_by_formula": {
+          "label": "Filter By Formula",
+          "description": "Optional Airtable formula to filter rows, e.g. {Status}=\"Done\" or AND({Score}>5, FIND(\"ace\", LOWER({Name}))). Field names go in {curly braces}."
+        },
+        "view": {
+          "label": "View",
+          "description": "Optional view ID or name to restrict and order results to that view."
+        },
+        "max_records": {
+          "label": "Max Records",
+          "description": "Optional maximum total number of records to return; the action paginates across pages up to this number. Omit to return just the first page (with an offset cursor to continue).",
+          "type": "number"
+        },
+        "page_size": {
+          "label": "Page Size",
+          "description": "Optional number of records per page (1-100, default 100).",
+          "type": "number"
+        },
+        "sort": {
+          "label": "Sort",
+          "description": "Optional JSON array of sort directives, e.g. [{\"field\": \"Name\", \"direction\": \"asc\"}]. Direction is \"asc\" or \"desc\".",
+          "type": "json"
+        },
+        "fields": {
+          "label": "Fields",
+          "description": "Optional list of field names to return; omit to return all fields.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "url": "https://api.airtable.com/v0/{{base_id}}/{{table_id_or_name}}"
+      },
+      "beforeRequest": "const enc = (text) => encodeURIComponent(text).replace(/%20/g, '+').replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase());\nconst qs = (params) => Object.entries(params).map(([key, value]) => enc(key) + '=' + enc(String(value))).join('&');\nconst params = {};\nif (inputs.filter_by_formula) params.filterByFormula = inputs.filter_by_formula;\nif (inputs.view) params.view = inputs.view;\nif (inputs.max_records !== undefined && inputs.max_records !== null && inputs.max_records !== '') params.maxRecords = inputs.max_records;\nif (inputs.page_size !== undefined && inputs.page_size !== null && inputs.page_size !== '') params.pageSize = inputs.page_size;\nif (inputs.sort) { const sort = JSON.parse(inputs.sort); (Array.isArray(sort) ? sort : [sort]).forEach((entry, index) => { params['sort[' + index + '][field]'] = entry.field; if (entry.direction) params['sort[' + index + '][direction]'] = entry.direction; }); }\nif (inputs.fields) JSON.parse(inputs.fields).forEach((field, index) => { params['fields[' + index + ']'] = field; });\nrequest.url += '?' + qs(params);\nreturn request;",
+      "afterResponse": "const enc = (text) => encodeURIComponent(text).replace(/%20/g, '+').replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase());\nconst qs = (params) => Object.entries(params).map(([key, value]) => enc(key) + '=' + enc(String(value))).join('&');\nconst params = {};\nif (inputs.filter_by_formula) params.filterByFormula = inputs.filter_by_formula;\nif (inputs.view) params.view = inputs.view;\nif (inputs.max_records !== undefined && inputs.max_records !== null && inputs.max_records !== '') params.maxRecords = inputs.max_records;\nif (inputs.page_size !== undefined && inputs.page_size !== null && inputs.page_size !== '') params.pageSize = inputs.page_size;\nif (inputs.sort) { const sort = JSON.parse(inputs.sort); (Array.isArray(sort) ? sort : [sort]).forEach((entry, index) => { params['sort[' + index + '][field]'] = entry.field; if (entry.direction) params['sort[' + index + '][direction]'] = entry.direction; }); }\nif (inputs.fields) JSON.parse(inputs.fields).forEach((field, index) => { params['fields[' + index + ']'] = field; });\nconst hasCap = inputs.max_records !== undefined && inputs.max_records !== null && inputs.max_records !== '';\nlet records = response.records;\nlet offset = response.offset;\nwhile (hasCap && offset && records.length < Number(inputs.max_records)) {\n  const page = call({method: 'GET', url: '/' + encodeURIComponent(inputs.base_id) + '/' + encodeURIComponent(inputs.table_id_or_name) + '?' + qs({...params, offset})});\n  records = records.concat(page.records);\n  offset = page.offset;\n}\nif (hasCap) records = records.slice(0, Number(inputs.max_records));\nreturn {records, count: records.length, offset: offset ?? null};"
+    },
+    "list_bases": {
+      "label": "List Bases (Agent)",
+      "description": "List all Airtable bases the token can access.",
+      "audience": "ai",
+      "request": {
+        "url": "https://api.airtable.com/v0/meta/bases"
+      },
+      "afterResponse": "let bases = response.bases;\nlet offset = response.offset;\nwhile (offset) {\n  const page = call({method: 'GET', url: '/meta/bases', query: {offset}});\n  bases = bases.concat(page.bases);\n  offset = page.offset;\n}\nreturn {bases: bases.map((base) => ({id: base.id, name: base.name, permissionLevel: base.permissionLevel})), count: bases.length};"
+    },
     "get_base_schema_ai": {
       "label": "Get Base Schema (Agent)",
       "description": "Get every table and field in a base.",
@@ -567,6 +824,63 @@
       "request": {
         "url": "https://api.airtable.com/v0/meta/whoami"
       }
+    },
+    "search_records": {
+      "label": "Search Records (Agent)",
+      "description": "Find records where a field matches a value.",
+      "audience": "ai",
+      "inputs": {
+        "base_id": {
+          "label": "Base ID",
+          "description": "The Airtable base ID (e.g. \"appXXXXXXXXXXXXXX\"). Resolve it with List Bases (Agent).",
+          "required": true
+        },
+        "table_id_or_name": {
+          "label": "Table ID or Name",
+          "description": "The table ID (e.g. \"tblXXXXXXXXXXXXXX\") or its exact name. Resolve it with Get Base Schema (Agent).",
+          "required": true
+        },
+        "search_field": {
+          "label": "Search Field",
+          "description": "The exact name of the field to match against. Resolve names with Get Base Schema (Agent).",
+          "required": true
+        },
+        "search_value": {
+          "label": "Search Value",
+          "description": "The value to look for in the search field.",
+          "required": true
+        },
+        "match_mode": {
+          "label": "Match Mode",
+          "description": "\"contains\" (default) does a case-sensitive substring match; \"exact\" requires the whole field to equal the value. Exact compares the field as text, so it also matches number and checkbox fields by their text value.",
+          "type": "select",
+          "defaultValue": "contains",
+          "options": [
+            {
+              "value": "contains",
+              "label": "Contains"
+            },
+            {
+              "value": "exact",
+              "label": "Exact"
+            }
+          ]
+        },
+        "view": {
+          "label": "View",
+          "description": "Optional view ID or name to restrict the search to."
+        },
+        "max_records": {
+          "label": "Max Records",
+          "description": "Optional maximum number of matching records to return.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "url": "https://api.airtable.com/v0/{{base_id}}/{{table_id_or_name}}"
+      },
+      "beforeRequest": "const enc = (text) => encodeURIComponent(text).replace(/%20/g, '+').replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase());\nconst qs = (params) => Object.entries(params).map(([key, value]) => enc(key) + '=' + enc(String(value))).join('&');\nif (/[{}]/.test(inputs.search_field)) throw new Error('search_field must not contain \"{\" or \"}\" — Airtable cannot escape braces inside a field reference.');\nconst value = String(inputs.search_value).replace(/\\\\/g, '\\\\\\\\').replace(/\"/g, '\\\\\"');\nconst params = {filterByFormula: inputs.match_mode === 'exact' ? '{' + inputs.search_field + '}&\"\"=\"' + value + '\"' : 'FIND(\"' + value + '\",{' + inputs.search_field + '})'};\nif (inputs.view) params.view = inputs.view;\nif (inputs.max_records !== undefined && inputs.max_records !== null && inputs.max_records !== '') params.maxRecords = inputs.max_records;\nrequest.url += '?' + qs(params);\nreturn request;",
+      "afterResponse": "const enc = (text) => encodeURIComponent(text).replace(/%20/g, '+').replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase());\nconst qs = (params) => Object.entries(params).map(([key, value]) => enc(key) + '=' + enc(String(value))).join('&');\nif (/[{}]/.test(inputs.search_field)) throw new Error('search_field must not contain \"{\" or \"}\" — Airtable cannot escape braces inside a field reference.');\nconst value = String(inputs.search_value).replace(/\\\\/g, '\\\\\\\\').replace(/\"/g, '\\\\\"');\nconst params = {filterByFormula: inputs.match_mode === 'exact' ? '{' + inputs.search_field + '}&\"\"=\"' + value + '\"' : 'FIND(\"' + value + '\",{' + inputs.search_field + '})'};\nif (inputs.view) params.view = inputs.view;\nif (inputs.max_records !== undefined && inputs.max_records !== null && inputs.max_records !== '') params.maxRecords = inputs.max_records;\nconst hasCap = inputs.max_records !== undefined && inputs.max_records !== null && inputs.max_records !== '';\nlet records = response.records;\nlet offset = response.offset;\nwhile (hasCap && offset && records.length < Number(inputs.max_records)) {\n  const page = call({method: 'GET', url: '/' + encodeURIComponent(inputs.base_id) + '/' + encodeURIComponent(inputs.table_id_or_name) + '?' + qs({...params, offset})});\n  records = records.concat(page.records);\n  offset = page.offset;\n}\nif (hasCap) records = records.slice(0, Number(inputs.max_records));\nreturn {records, count: records.length};"
     },
     "add_comment_to_record_ai": {
       "label": "Add Comment to Record (Agent)",
@@ -839,6 +1153,52 @@
         }
       },
       "afterResponse": "return {comments: response.comments, count: response.comments.length, offset: response.offset ?? null};"
+    }
+  },
+  "triggers": {
+    "new_record": {
+      "label": "New Record",
+      "description": "Triggers when a new record is added to the selected table.",
+      "inputs": {
+        "base": {
+          "label": "Base",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.airtable.com/v0/meta/bases"
+            },
+            "list": "$.bases"
+          }
+        },
+        "tableId": {
+          "label": "Table",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.airtable.com/v0/meta/bases/{{base}}/tables"
+            },
+            "list": "$.tables"
+          }
+        },
+        "viewId": {
+          "label": "View",
+          "description": "Only records in this view are used. Empty: the whole table."
+        }
+      },
+      "request": {
+        "url": "https://api.airtable.com/v0/{{base}}/{{tableId}}",
+        "headers": {
+          "x-airtable-application-id": "{{base}}",
+          "x-api-version": "0.1.0"
+        },
+        "query": {
+          "view": "{{viewId}}"
+        }
+      },
+      "afterResponse": "let records = response.records;\nlet offset = response.offset;\nwhile (offset) {\n  const query = inputs.viewId ? {view: inputs.viewId, offset} : {offset};\n  const page = call({method: 'GET', url: '/' + encodeURIComponent(inputs.base) + '/' + encodeURIComponent(inputs.tableId), query, headers: {'x-airtable-application-id': inputs.base, 'x-api-version': '0.1.0'}});\n  records = records.concat(page.records);\n  offset = page.offset;\n}\nreturn records;",
+      "items": "$",
+      "newBy": "time",
+      "key": "$.createdTime"
     }
   }
 }

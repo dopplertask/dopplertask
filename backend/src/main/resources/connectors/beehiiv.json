@@ -303,6 +303,349 @@
         "status": "$.data.status"
       },
       "beforeRequest": "if (!inputs.email && !inputs.subscription_id) throw new Error('Either Subscription Email or Subscription ID must be provided.');\nreturn request;"
+    },
+    "list_subscriptions": {
+      "label": "List Subscriptions",
+      "description": "Retrieves all subscriptions for a Beehiiv publication.",
+      "inputs": {
+        "publicationId": {
+          "label": "Publication",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.beehiiv.com/v2/publications?limit=100&page=1"
+            },
+            "list": "$.data"
+          }
+        },
+        "status": {
+          "label": "Status",
+          "description": "Filter subscriptions by status.",
+          "type": "select",
+          "options": [
+            {
+              "value": "all",
+              "label": "All"
+            },
+            {
+              "value": "active",
+              "label": "Active"
+            },
+            {
+              "value": "inactive",
+              "label": "Inactive"
+            },
+            {
+              "value": "pending",
+              "label": "Pending"
+            },
+            {
+              "value": "validating",
+              "label": "Validating"
+            },
+            {
+              "value": "invalid",
+              "label": "Invalid"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "type": "number",
+          "description": "Number of subscriptions to return per page (1-100)."
+        },
+        "cursor": {
+          "label": "Cursor",
+          "description": "Cursor token for fetching the next page of results. Leave empty to start from the beginning."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.beehiiv.com/v2/publications/{{publicationId}}/subscriptions"
+      },
+      "beforeRequest": "function given(value) { return value !== undefined && value !== null && value !== ''; }\nvar query = { order_by: 'created', direction: 'desc' };\nif (inputs.status && inputs.status !== 'all') query.status = inputs.status;\nif (given(inputs.limit) || given(inputs.cursor)) {\n  if (given(inputs.limit)) query.limit = inputs.limit;\n  if (given(inputs.cursor)) query.cursor = inputs.cursor;\n} else query.limit = '100';\nrequest.query = query;\nreturn request;",
+      "afterResponse": "function given(value) { return value !== undefined && value !== null && value !== ''; }\nif (given(inputs.limit) || given(inputs.cursor)) return response;\nvar all = [];\nvar page = response;\nwhile (true) {\n  if (!page.data || page.data.length === 0) break;\n  all = all.concat(page.data);\n  if (!page.next_cursor) break;\n  var query = { order_by: 'created', direction: 'desc' };\n  if (inputs.status && inputs.status !== 'all') query.status = inputs.status;\n  query.limit = '100';\n  query.cursor = page.next_cursor;\n  page = call({ method: 'GET', url: '/publications/' + encodeURIComponent(inputs.publicationId) + '/subscriptions', query: query });\n}\nreturn all;"
+    },
+    "list_automations": {
+      "label": "List Automations",
+      "description": "Retrieves a list of automations for a publication.",
+      "inputs": {
+        "publicationId": {
+          "label": "Publication",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.beehiiv.com/v2/publications?limit=100&page=1"
+            },
+            "list": "$.data"
+          }
+        },
+        "limit": {
+          "label": "Limit",
+          "type": "number",
+          "description": "A limit on the number of automations to be returned (1-100, default 10)."
+        },
+        "page": {
+          "label": "Page",
+          "type": "number",
+          "description": "The page number for pagination (default 1)."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.beehiiv.com/v2/publications/{{publicationId}}/automations"
+      },
+      "beforeRequest": "function given(value) { return value !== undefined && value !== null && value !== ''; }\nvar single = given(inputs.page) || given(inputs.limit);\nrequest.query = single ? {} : { limit: '100', page: '1' };\nif (given(inputs.page)) request.query.page = inputs.page;\nif (given(inputs.limit)) request.query.limit = inputs.limit;\nreturn request;",
+      "afterResponse": "function given(value) { return value !== undefined && value !== null && value !== ''; }\nif (given(inputs.page) || given(inputs.limit)) return response.data;\nvar all = [];\nvar page = 1;\nvar answer = response;\nwhile (true) {\n  if (!answer.data || answer.data.length === 0) break;\n  all = all.concat(answer.data);\n  page += 1;\n  if (!(page <= answer.total_pages)) break;\n  answer = call({ method: 'GET', url: '/publications/' + encodeURIComponent(inputs.publicationId) + '/automations', query: { limit: '100', page: String(page) } });\n}\nreturn all;"
+    },
+    "list_posts": {
+      "label": "List Posts",
+      "description": "Retrieves all posts belonging to a specific publication.",
+      "inputs": {
+        "publicationId": {
+          "label": "Publication",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.beehiiv.com/v2/publications?limit=100&page=1"
+            },
+            "list": "$.data"
+          }
+        },
+        "expand": {
+          "label": "Expand Results",
+          "type": "json",
+          "description": "Optionally expand the results by adding additional information: a list of stats, free_web_content, free_email_content, free_rss_content, premium_web_content, premium_email_content."
+        },
+        "audience": {
+          "label": "Audience",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "all",
+              "label": "All"
+            },
+            {
+              "value": "free",
+              "label": "Free"
+            },
+            {
+              "value": "premium",
+              "label": "Premium"
+            }
+          ]
+        },
+        "platform": {
+          "label": "Platform",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "all",
+              "label": "All"
+            },
+            {
+              "value": "web",
+              "label": "Web"
+            },
+            {
+              "value": "email",
+              "label": "Email"
+            },
+            {
+              "value": "both",
+              "label": "Both"
+            }
+          ]
+        },
+        "status": {
+          "label": "Status",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "all",
+              "label": "All"
+            },
+            {
+              "value": "draft",
+              "label": "Draft"
+            },
+            {
+              "value": "confirmed",
+              "label": "Confirmed"
+            },
+            {
+              "value": "archived",
+              "label": "Archived"
+            }
+          ]
+        },
+        "content_tags": {
+          "label": "Content Tags",
+          "type": "json",
+          "description": "Filter posts by content tags. Returns posts with ANY of the specified tags."
+        },
+        "limit": {
+          "label": "Limit",
+          "type": "number",
+          "description": "Number of posts to return (1-100, default 10)."
+        },
+        "page": {
+          "label": "Page",
+          "type": "number",
+          "description": "Page number for pagination (default 1)."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.beehiiv.com/v2/publications/{{publicationId}}/automations"
+      },
+      "beforeRequest": "function given(value) { return value !== undefined && value !== null && value !== ''; }\nvar expand = inputs.expand ? JSON.parse(inputs.expand) : [];\nvar tags = inputs.content_tags ? JSON.parse(inputs.content_tags) : [];\nvar filters = { audience: inputs.audience, platform: inputs.platform, status: inputs.status, order_by: 'created', direction: 'desc', expand: expand.join(',') };\nif (tags.length > 0) filters.content_tags = tags.join(',');\nvar query = {};\nif (given(inputs.page) || given(inputs.limit)) {\n  if (given(inputs.page)) query.page = inputs.page;\n  if (given(inputs.limit)) query.limit = inputs.limit;\n}\nObject.keys(filters).forEach(function (key) { query[key] = filters[key]; });\nif (!given(inputs.page) && !given(inputs.limit)) { query.limit = '100'; query.page = '1'; }\nrequest.query = query;\nreturn request;",
+      "afterResponse": "function given(value) { return value !== undefined && value !== null && value !== ''; }\nif (given(inputs.page) || given(inputs.limit)) return response.data;\nvar all = [];\nvar page = 1;\nvar answer = response;\nwhile (true) {\n  if (!answer.data || answer.data.length === 0) break;\n  all = all.concat(answer.data);\n  page += 1;\n  if (!(page <= answer.total_pages)) break;\n  var expand = inputs.expand ? JSON.parse(inputs.expand) : [];\n  var tags = inputs.content_tags ? JSON.parse(inputs.content_tags) : [];\n  var query = { audience: inputs.audience, platform: inputs.platform, status: inputs.status, order_by: 'created', direction: 'desc', expand: expand.join(',') };\n  if (tags.length > 0) query.content_tags = tags.join(',');\n  query.limit = '100';\n  query.page = String(page);\n  answer = call({ method: 'GET', url: '/publications/' + encodeURIComponent(inputs.publicationId) + '/automations', query: query });\n}\nreturn all;"
+    }
+  },
+  "triggers": {
+    "beehiiv_new_post_sent": {
+      "label": "New Post Sent",
+      "description": "Triggers when a new post is sent.",
+      "inputs": {
+        "publicationId": {
+          "label": "Publication",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.beehiiv.com/v2/publications?limit=100&page=1"
+            },
+            "list": "$.data"
+          }
+        }
+      },
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.beehiiv.com/v2/publications/{{publicationId}}/webhooks",
+          "body": {
+            "url": "{{webhookUrl}}",
+            "event_types": [
+              "post.sent"
+            ]
+          }
+        },
+        "id": "$.data.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.beehiiv.com/v2/publications/{{publicationId}}/webhooks/{{webhookId}}"
+        }
+      },
+      "afterResponse": "return [response.data];",
+      "items": "$"
+    },
+    "beehiiv_user_unsubscribes": {
+      "label": "User Unsubscribes",
+      "description": "Triggers when a user unsubscribes.",
+      "inputs": {
+        "publicationId": {
+          "label": "Publication",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.beehiiv.com/v2/publications?limit=100&page=1"
+            },
+            "list": "$.data"
+          }
+        }
+      },
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.beehiiv.com/v2/publications/{{publicationId}}/webhooks",
+          "body": {
+            "url": "{{webhookUrl}}",
+            "event_types": [
+              "subscription.deleted"
+            ]
+          }
+        },
+        "id": "$.data.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.beehiiv.com/v2/publications/{{publicationId}}/webhooks/{{webhookId}}"
+        }
+      },
+      "afterResponse": "return [response.data];",
+      "items": "$"
+    },
+    "beehiiv_new_subscription_confirmed": {
+      "label": "New Subscription Confirmation",
+      "description": "Triggers when a new subscriber confirms their subscription.",
+      "inputs": {
+        "publicationId": {
+          "label": "Publication",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.beehiiv.com/v2/publications?limit=100&page=1"
+            },
+            "list": "$.data"
+          }
+        }
+      },
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.beehiiv.com/v2/publications/{{publicationId}}/webhooks",
+          "body": {
+            "url": "{{webhookUrl}}",
+            "event_types": [
+              "subscription.confirmed"
+            ]
+          }
+        },
+        "id": "$.data.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.beehiiv.com/v2/publications/{{publicationId}}/webhooks/{{webhookId}}"
+        }
+      },
+      "afterResponse": "return [response.data];",
+      "items": "$"
+    },
+    "beehiiv_new_subscriber_created": {
+      "label": "New Subscriber Created",
+      "description": "Triggers when a new subscriber is created (before email confirmation).",
+      "inputs": {
+        "publicationId": {
+          "label": "Publication",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.beehiiv.com/v2/publications?limit=100&page=1"
+            },
+            "list": "$.data"
+          }
+        }
+      },
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.beehiiv.com/v2/publications/{{publicationId}}/webhooks",
+          "body": {
+            "url": "{{webhookUrl}}",
+            "event_types": [
+              "subscription.created"
+            ]
+          }
+        },
+        "id": "$.data.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.beehiiv.com/v2/publications/{{publicationId}}/webhooks/{{webhookId}}"
+        }
+      },
+      "afterResponse": "return [response.data];",
+      "items": "$"
     }
   }
 }

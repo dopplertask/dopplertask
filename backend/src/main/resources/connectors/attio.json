@@ -3,9 +3,14 @@
   "label": "Attio",
   "description": "Modern, collaborative CRM platform built to be fully customizable and real-time.",
   "icon": "",
-  "hosts": ["api.attio.com"],
+  "hosts": [
+    "api.attio.com"
+  ],
   "baseUrl": "https://api.attio.com/v2",
-  "upstream": {"package": "@activepieces/piece-attio", "version": "0.3.3"},
+  "upstream": {
+    "package": "@activepieces/piece-attio",
+    "version": "0.3.3"
+  },
   "credential": {
     "fields": {
       "accessToken": {
@@ -15,176 +20,679 @@
         "required": true
       }
     },
-    "headers": {"Authorization": "Bearer {{credential.accessToken}}"}
+    "headers": {
+      "Authorization": "Bearer {{credential.accessToken}}"
+    }
   },
   "actions": {
+    "create_record": {
+      "label": "Create Record",
+      "description": "Creates a new record such as peron,company or deal.",
+      "audience": "human",
+      "inputs": {
+        "objectTypeId": {
+          "label": "Object",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.attio.com/v2/objects"
+            },
+            "list": "$.data",
+            "label": "$.singular_noun",
+            "value": "$.id.object_id"
+          }
+        },
+        "attributes": {
+          "label": "Object Attributes",
+          "description": "The record's attribute values as JSON, by attribute slug, such as {\"name\": \"Ada Lovelace\"}.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.attio.com/v2/objects/{{objectTypeId}}/records"
+      },
+      "beforeRequest": "const pages = (method, url, body, first) => { const all = []; for (let offset = 0; ; offset += 500) { const page = offset === 0 && first !== undefined ? first : call({method, url, query: {limit: 500, offset}, body}).data; if (!page || page.length === 0) break; all.push(...page); if (page.length !== 500) break; } return all; }; const format = (attributes, isSearch) => { const values = JSON.parse(inputs.attributes || '{}'); const types = {}; attributes.forEach(a => { types[a.api_slug] = {type: a.type, slug: a.relationship ? a.relationship.object_slug : null}; }); const out = {}; for (const [key, value] of Object.entries(values)) { if (value === null || value === undefined || value === '' || (Array.isArray(value) && value.length === 0)) continue; const type = types[key] && types[key].type; if (type === 'record-reference') { const ids = Array.isArray(value) ? value : [value]; out[key] = isSearch ? (ids.length === 1 ? {target_record_id: {$eq: ids[0]}} : {target_record_id: {$in: ids}}) : ids.map(target => types[key].slug ? {target_record_id: target, target_object: types[key].slug} : {target_record_id: target}); } else if (type === 'phone-number') out[key] = isSearch ? value : [value]; else if (type === 'email-address' || type === 'domain' || type === 'select') out[key] = isSearch ? (Array.isArray(value) ? value[0] : value) : (typeof value === 'string' ? [value] : value); else out[key] = value; } return out; }; request.body = {data: {values: format(pages('GET', `/objects/${inputs.objectTypeId}/attributes`), false)}}; return request;",
+      "result": "$.data",
+      "outputs": {
+        "recordId": "$.id.record_id"
+      }
+    },
+    "update_record": {
+      "label": "Update Record",
+      "description": "Update an existing record with new attribute values.",
+      "audience": "human",
+      "inputs": {
+        "objectTypeId": {
+          "label": "Object",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.attio.com/v2/objects"
+            },
+            "list": "$.data",
+            "label": "$.singular_noun",
+            "value": "$.id.object_id"
+          }
+        },
+        "recordId": {
+          "label": "Record ID",
+          "description": "The unique identifier of the record to update.",
+          "required": true
+        },
+        "attributes": {
+          "label": "Object Attributes",
+          "description": "The record's attribute values as JSON, by attribute slug, such as {\"name\": \"Ada Lovelace\"}.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://api.attio.com/v2/objects/{{objectTypeId}}/records/{{recordId}}"
+      },
+      "beforeRequest": "const pages = (method, url, body, first) => { const all = []; for (let offset = 0; ; offset += 500) { const page = offset === 0 && first !== undefined ? first : call({method, url, query: {limit: 500, offset}, body}).data; if (!page || page.length === 0) break; all.push(...page); if (page.length !== 500) break; } return all; }; const format = (attributes, isSearch) => { const values = JSON.parse(inputs.attributes || '{}'); const types = {}; attributes.forEach(a => { types[a.api_slug] = {type: a.type, slug: a.relationship ? a.relationship.object_slug : null}; }); const out = {}; for (const [key, value] of Object.entries(values)) { if (value === null || value === undefined || value === '' || (Array.isArray(value) && value.length === 0)) continue; const type = types[key] && types[key].type; if (type === 'record-reference') { const ids = Array.isArray(value) ? value : [value]; out[key] = isSearch ? (ids.length === 1 ? {target_record_id: {$eq: ids[0]}} : {target_record_id: {$in: ids}}) : ids.map(target => types[key].slug ? {target_record_id: target, target_object: types[key].slug} : {target_record_id: target}); } else if (type === 'phone-number') out[key] = isSearch ? value : [value]; else if (type === 'email-address' || type === 'domain' || type === 'select') out[key] = isSearch ? (Array.isArray(value) ? value[0] : value) : (typeof value === 'string' ? [value] : value); else out[key] = value; } return out; }; request.body = {data: {values: format(pages('GET', `/objects/${inputs.objectTypeId}/attributes`), false)}}; return request;",
+      "result": "$.data",
+      "outputs": {
+        "recordId": "$.id.record_id"
+      }
+    },
+    "find_record": {
+      "label": "Find Record",
+      "description": "Search for records in Attio using filters and return matching results.",
+      "audience": "human",
+      "inputs": {
+        "objectTypeId": {
+          "label": "Object",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.attio.com/v2/objects"
+            },
+            "list": "$.data",
+            "label": "$.singular_noun",
+            "value": "$.id.object_id"
+          }
+        },
+        "recordId": {
+          "label": "Record ID",
+          "description": "Look up a record by its exact ID. When provided, all attribute filters are ignored."
+        },
+        "attributes": {
+          "label": "Object Attributes",
+          "description": "The filter's attribute values as JSON, by attribute slug, such as {\"name\": \"Ada Lovelace\"}.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "url": "https://api.attio.com/v2/objects/{{objectTypeId}}/attributes",
+        "query": {
+          "limit": "500",
+          "offset": "0"
+        }
+      },
+      "beforeRequest": "if (inputs.recordId) { request.url = request.url.replace(/attributes$/, 'records/' + encodeURIComponent(inputs.recordId)); request.query = {}; } return request;",
+      "afterResponse": "const pages = (method, url, body, first) => { const all = []; for (let offset = 0; ; offset += 500) { const page = offset === 0 && first !== undefined ? first : call({method, url, query: {limit: 500, offset}, body}).data; if (!page || page.length === 0) break; all.push(...page); if (page.length !== 500) break; } return all; }; const format = (attributes, isSearch) => { const values = JSON.parse(inputs.attributes || '{}'); const types = {}; attributes.forEach(a => { types[a.api_slug] = {type: a.type, slug: a.relationship ? a.relationship.object_slug : null}; }); const out = {}; for (const [key, value] of Object.entries(values)) { if (value === null || value === undefined || value === '' || (Array.isArray(value) && value.length === 0)) continue; const type = types[key] && types[key].type; if (type === 'record-reference') { const ids = Array.isArray(value) ? value : [value]; out[key] = isSearch ? (ids.length === 1 ? {target_record_id: {$eq: ids[0]}} : {target_record_id: {$in: ids}}) : ids.map(target => types[key].slug ? {target_record_id: target, target_object: types[key].slug} : {target_record_id: target}); } else if (type === 'phone-number') out[key] = isSearch ? value : [value]; else if (type === 'email-address' || type === 'domain' || type === 'select') out[key] = isSearch ? (Array.isArray(value) ? value[0] : value) : (typeof value === 'string' ? [value] : value); else out[key] = value; } return out; }; const normalize = (records) => { const ids = new Set(); records.forEach(r => Object.values(r.values).forEach(list => list.forEach(item => { if (item.attribute_type === 'actor-reference' && item.referenced_actor_type === 'workspace-member' && item.referenced_actor_id) ids.add(item.referenced_actor_id); }))); const members = {}; [...ids].forEach(id => { const m = call({method: 'GET', url: `/workspace_members/${id}`}).data; members[m.id.workspace_member_id] = m; }); const pick = (item) => { switch (item.attribute_type) { case 'text': case 'number': case 'checkbox': case 'rating': case 'date': case 'timestamp': return item.value ?? null; case 'currency': return {value: item.currency_value, currency_code: item.currency_code}; case 'email-address': return item.email_address; case 'personal-name': return item.full_name; case 'phone-number': return item.phone_number; case 'domain': return item.domain; case 'location': { const loc = {}; for (const f of ['line_1', 'line_2', 'line_3', 'line_4', 'locality', 'region', 'postcode', 'country_code', 'latitude', 'longitude']) if (item[f] !== null && item[f] !== undefined) loc[f] = item[f]; return Object.keys(loc).length > 0 ? loc : null; } case 'select': return item.option?.title ?? null; case 'status': return item.status?.title ?? null; case 'record-reference': return item.target_record_id; case 'actor-reference': return item.referenced_actor_id ? (members[item.referenced_actor_id] ?? item.referenced_actor_id) : null; case 'interaction': return item.interacted_at; } }; return records.map(r => { const flat = {}; for (const [key, list] of Object.entries(r.values)) { if (list.length === 0) { flat[key] = null; continue; } const got = list.map(pick).filter(v => v !== null && v !== undefined); flat[key] = got.length === 0 ? null : got.length === 1 ? got[0] : got; } return {...r, values: flat}; }); }; if (inputs.recordId) return {found: true, result: normalize([response.data])}; const filter = format(pages('GET', `/objects/${inputs.objectTypeId}/attributes`, undefined, response.data), true); if (Object.keys(filter).length === 0) throw new Error('Provide a Record ID or at least one attribute filter.'); const records = pages('POST', `/objects/${inputs.objectTypeId}/records/query`, {filter}); return {found: records.length > 0, result: normalize(records)};",
+      "outputs": {
+        "found": "$.found",
+        "result": "$.result"
+      }
+    },
+    "get_record": {
+      "label": "Get Record",
+      "description": "Retrieve a single record by ID and return its normalized attribute values.",
+      "audience": "human",
+      "inputs": {
+        "objectTypeId": {
+          "label": "Object",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.attio.com/v2/objects"
+            },
+            "list": "$.data",
+            "label": "$.singular_noun",
+            "value": "$.id.object_id"
+          }
+        },
+        "recordId": {
+          "label": "Record ID",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://api.attio.com/v2/objects/{{objectTypeId}}/records/{{recordId}}"
+      },
+      "afterResponse": "const normalize = (records) => { const ids = new Set(); records.forEach(r => Object.values(r.values).forEach(list => list.forEach(item => { if (item.attribute_type === 'actor-reference' && item.referenced_actor_type === 'workspace-member' && item.referenced_actor_id) ids.add(item.referenced_actor_id); }))); const members = {}; [...ids].forEach(id => { const m = call({method: 'GET', url: `/workspace_members/${id}`}).data; members[m.id.workspace_member_id] = m; }); const pick = (item) => { switch (item.attribute_type) { case 'text': case 'number': case 'checkbox': case 'rating': case 'date': case 'timestamp': return item.value ?? null; case 'currency': return {value: item.currency_value, currency_code: item.currency_code}; case 'email-address': return item.email_address; case 'personal-name': return item.full_name; case 'phone-number': return item.phone_number; case 'domain': return item.domain; case 'location': { const loc = {}; for (const f of ['line_1', 'line_2', 'line_3', 'line_4', 'locality', 'region', 'postcode', 'country_code', 'latitude', 'longitude']) if (item[f] !== null && item[f] !== undefined) loc[f] = item[f]; return Object.keys(loc).length > 0 ? loc : null; } case 'select': return item.option?.title ?? null; case 'status': return item.status?.title ?? null; case 'record-reference': return item.target_record_id; case 'actor-reference': return item.referenced_actor_id ? (members[item.referenced_actor_id] ?? item.referenced_actor_id) : null; case 'interaction': return item.interacted_at; } }; return records.map(r => { const flat = {}; for (const [key, list] of Object.entries(r.values)) { if (list.length === 0) { flat[key] = null; continue; } const got = list.map(pick).filter(v => v !== null && v !== undefined); flat[key] = got.length === 0 ? null : got.length === 1 ? got[0] : got; } return {...r, values: flat}; }); }; return normalize([response.data])[0];",
+      "outputs": {
+        "recordId": "$.id.record_id"
+      }
+    },
+    "create_entry": {
+      "label": "Create List Entry",
+      "description": "Add a record to a specified list.",
+      "audience": "human",
+      "inputs": {
+        "listId": {
+          "label": "List",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.attio.com/v2/lists"
+            },
+            "list": "$.data",
+            "label": "$.name",
+            "value": "$.id.list_id"
+          }
+        },
+        "parentObjectId": {
+          "label": "Parent Object",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.attio.com/v2/lists/{{listId}}"
+            },
+            "list": "$.data.parent_object",
+            "label": "$",
+            "value": "$"
+          }
+        },
+        "parentRecordId": {
+          "label": "Parent Record ID",
+          "required": true
+        },
+        "attributes": {
+          "label": "List Attributes",
+          "description": "The entry's attribute values as JSON, by attribute slug, such as {\"name\": \"Ada Lovelace\"}.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.attio.com/v2/lists/{{listId}}/entries"
+      },
+      "beforeRequest": "const pages = (method, url, body, first) => { const all = []; for (let offset = 0; ; offset += 500) { const page = offset === 0 && first !== undefined ? first : call({method, url, query: {limit: 500, offset}, body}).data; if (!page || page.length === 0) break; all.push(...page); if (page.length !== 500) break; } return all; }; const format = (attributes, isSearch) => { const values = JSON.parse(inputs.attributes || '{}'); const types = {}; attributes.forEach(a => { types[a.api_slug] = {type: a.type, slug: a.relationship ? a.relationship.object_slug : null}; }); const out = {}; for (const [key, value] of Object.entries(values)) { if (value === null || value === undefined || value === '' || (Array.isArray(value) && value.length === 0)) continue; const type = types[key] && types[key].type; if (type === 'record-reference') { const ids = Array.isArray(value) ? value : [value]; out[key] = isSearch ? (ids.length === 1 ? {target_record_id: {$eq: ids[0]}} : {target_record_id: {$in: ids}}) : ids.map(target => types[key].slug ? {target_record_id: target, target_object: types[key].slug} : {target_record_id: target}); } else if (type === 'phone-number') out[key] = isSearch ? value : [value]; else if (type === 'email-address' || type === 'domain' || type === 'select') out[key] = isSearch ? (Array.isArray(value) ? value[0] : value) : (typeof value === 'string' ? [value] : value); else out[key] = value; } return out; }; request.body = {data: {parent_record_id: inputs.parentRecordId, parent_object: inputs.parentObjectId, entry_values: format(pages('GET', `/lists/${inputs.listId}/attributes`), false)}}; return request;",
+      "result": "$.data",
+      "outputs": {
+        "entryId": "$.id.entry_id"
+      }
+    },
+    "update_entry": {
+      "label": "Update List Entry",
+      "description": "Update the attributes of an existing entry in a list.",
+      "audience": "human",
+      "inputs": {
+        "listId": {
+          "label": "List",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.attio.com/v2/lists"
+            },
+            "list": "$.data",
+            "label": "$.name",
+            "value": "$.id.list_id"
+          }
+        },
+        "entryId": {
+          "label": "Entry ID",
+          "description": "The unique identifier of the entry to update.",
+          "required": true
+        },
+        "attributes": {
+          "label": "List Attributes",
+          "description": "The entry's attribute values as JSON, by attribute slug, such as {\"name\": \"Ada Lovelace\"}.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://api.attio.com/v2/lists/{{listId}}/entries/{{entryId}}"
+      },
+      "beforeRequest": "const pages = (method, url, body, first) => { const all = []; for (let offset = 0; ; offset += 500) { const page = offset === 0 && first !== undefined ? first : call({method, url, query: {limit: 500, offset}, body}).data; if (!page || page.length === 0) break; all.push(...page); if (page.length !== 500) break; } return all; }; const format = (attributes, isSearch) => { const values = JSON.parse(inputs.attributes || '{}'); const types = {}; attributes.forEach(a => { types[a.api_slug] = {type: a.type, slug: a.relationship ? a.relationship.object_slug : null}; }); const out = {}; for (const [key, value] of Object.entries(values)) { if (value === null || value === undefined || value === '' || (Array.isArray(value) && value.length === 0)) continue; const type = types[key] && types[key].type; if (type === 'record-reference') { const ids = Array.isArray(value) ? value : [value]; out[key] = isSearch ? (ids.length === 1 ? {target_record_id: {$eq: ids[0]}} : {target_record_id: {$in: ids}}) : ids.map(target => types[key].slug ? {target_record_id: target, target_object: types[key].slug} : {target_record_id: target}); } else if (type === 'phone-number') out[key] = isSearch ? value : [value]; else if (type === 'email-address' || type === 'domain' || type === 'select') out[key] = isSearch ? (Array.isArray(value) ? value[0] : value) : (typeof value === 'string' ? [value] : value); else out[key] = value; } return out; }; request.body = {data: {entry_values: format(pages('GET', `/lists/${inputs.listId}/attributes`), false)}}; return request;",
+      "result": "$.data",
+      "outputs": {
+        "entryId": "$.id.entry_id"
+      }
+    },
+    "find_list_entry": {
+      "label": "Find List Entry",
+      "description": "Search for entries in a specific list in Attio using filters and return matching results.",
+      "audience": "human",
+      "inputs": {
+        "listId": {
+          "label": "List",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.attio.com/v2/lists"
+            },
+            "list": "$.data",
+            "label": "$.name",
+            "value": "$.id.list_id"
+          }
+        },
+        "attributes": {
+          "label": "List Attributes",
+          "description": "The filter's attribute values as JSON, by attribute slug, such as {\"name\": \"Ada Lovelace\"}.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "url": "https://api.attio.com/v2/lists/{{listId}}/attributes",
+        "query": {
+          "limit": "500",
+          "offset": "0"
+        }
+      },
+      "afterResponse": "const pages = (method, url, body, first) => { const all = []; for (let offset = 0; ; offset += 500) { const page = offset === 0 && first !== undefined ? first : call({method, url, query: {limit: 500, offset}, body}).data; if (!page || page.length === 0) break; all.push(...page); if (page.length !== 500) break; } return all; }; const format = (attributes, isSearch) => { const values = JSON.parse(inputs.attributes || '{}'); const types = {}; attributes.forEach(a => { types[a.api_slug] = {type: a.type, slug: a.relationship ? a.relationship.object_slug : null}; }); const out = {}; for (const [key, value] of Object.entries(values)) { if (value === null || value === undefined || value === '' || (Array.isArray(value) && value.length === 0)) continue; const type = types[key] && types[key].type; if (type === 'record-reference') { const ids = Array.isArray(value) ? value : [value]; out[key] = isSearch ? (ids.length === 1 ? {target_record_id: {$eq: ids[0]}} : {target_record_id: {$in: ids}}) : ids.map(target => types[key].slug ? {target_record_id: target, target_object: types[key].slug} : {target_record_id: target}); } else if (type === 'phone-number') out[key] = isSearch ? value : [value]; else if (type === 'email-address' || type === 'domain' || type === 'select') out[key] = isSearch ? (Array.isArray(value) ? value[0] : value) : (typeof value === 'string' ? [value] : value); else out[key] = value; } return out; }; const normalize = (records) => { const ids = new Set(); records.forEach(r => Object.values(r.values).forEach(list => list.forEach(item => { if (item.attribute_type === 'actor-reference' && item.referenced_actor_type === 'workspace-member' && item.referenced_actor_id) ids.add(item.referenced_actor_id); }))); const members = {}; [...ids].forEach(id => { const m = call({method: 'GET', url: `/workspace_members/${id}`}).data; members[m.id.workspace_member_id] = m; }); const pick = (item) => { switch (item.attribute_type) { case 'text': case 'number': case 'checkbox': case 'rating': case 'date': case 'timestamp': return item.value ?? null; case 'currency': return {value: item.currency_value, currency_code: item.currency_code}; case 'email-address': return item.email_address; case 'personal-name': return item.full_name; case 'phone-number': return item.phone_number; case 'domain': return item.domain; case 'location': { const loc = {}; for (const f of ['line_1', 'line_2', 'line_3', 'line_4', 'locality', 'region', 'postcode', 'country_code', 'latitude', 'longitude']) if (item[f] !== null && item[f] !== undefined) loc[f] = item[f]; return Object.keys(loc).length > 0 ? loc : null; } case 'select': return item.option?.title ?? null; case 'status': return item.status?.title ?? null; case 'record-reference': return item.target_record_id; case 'actor-reference': return item.referenced_actor_id ? (members[item.referenced_actor_id] ?? item.referenced_actor_id) : null; case 'interaction': return item.interacted_at; } }; return records.map(r => { const flat = {}; for (const [key, list] of Object.entries(r.values)) { if (list.length === 0) { flat[key] = null; continue; } const got = list.map(pick).filter(v => v !== null && v !== undefined); flat[key] = got.length === 0 ? null : got.length === 1 ? got[0] : got; } return {...r, values: flat}; }); }; const filter = format(pages('GET', `/lists/${inputs.listId}/attributes`, undefined, response.data), true); if (Object.keys(filter).length === 0) throw new Error('Provide at least one attribute filter.'); const records = pages('POST', `/lists/${inputs.listId}/entries/query`, {filter}).map(({entry_values, ...rest}) => ({...rest, values: entry_values})); return {found: records.length > 0, result: normalize(records)};",
+      "outputs": {
+        "found": "$.found",
+        "result": "$.result"
+      }
+    },
     "create_note": {
       "label": "Create Note",
       "description": "Creates a new note on a record.",
+      "audience": "human",
       "inputs": {
         "parentObject": {
           "label": "Parent Object",
           "description": "The object type the record belongs to (e.g. person, company).",
           "required": true,
-          "optionsFrom": {"request": {"url": "https://api.attio.com/v2/objects"}, "list": "$.data", "label": "$.singular_noun", "value": "$.id.object_id"}
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.attio.com/v2/objects"
+            },
+            "list": "$.data",
+            "label": "$.singular_noun",
+            "value": "$.id.object_id"
+          }
         },
-        "parentRecordId": {"label": "Parent Record ID", "description": "The ID of the record to attach this note to.", "required": true},
-        "title": {"label": "Title", "description": "The plaintext title of the note.", "required": true},
+        "parentRecordId": {
+          "label": "Parent Record ID",
+          "description": "The ID of the record to attach this note to.",
+          "required": true
+        },
+        "title": {
+          "label": "Title",
+          "description": "The plaintext title of the note.",
+          "required": true
+        },
         "format": {
           "label": "Format",
           "description": "How the note content should be interpreted.",
           "type": "select",
           "required": true,
           "defaultValue": "plaintext",
-          "options": [{"value": "plaintext", "label": "Plaintext"}, {"value": "markdown", "label": "Markdown"}]
+          "options": [
+            {
+              "value": "plaintext",
+              "label": "Plaintext"
+            },
+            {
+              "value": "markdown",
+              "label": "Markdown"
+            }
+          ]
         },
-        "content": {"label": "Content", "description": "The body of the note.", "type": "multiline", "required": true}
+        "content": {
+          "label": "Content",
+          "description": "The body of the note.",
+          "type": "multiline",
+          "required": true
+        }
       },
       "request": {
         "method": "POST",
         "url": "https://api.attio.com/v2/notes",
-        "body": {"data": {"parent_object": "{{parentObject}}", "parent_record_id": "{{parentRecordId}}", "title": "{{title}}", "format": "{{format}}", "content": "{{content}}"}}
+        "body": {
+          "data": {
+            "parent_object": "{{parentObject}}",
+            "parent_record_id": "{{parentRecordId}}",
+            "title": "{{title}}",
+            "format": "{{format}}",
+            "content": "{{content}}"
+          }
+        }
       },
       "result": "$.data",
-      "outputs": {"noteId": "$.id.note_id"}
+      "outputs": {
+        "noteId": "$.id.note_id"
+      }
     },
     "get_call_transcript": {
       "label": "Get Call Transcript",
       "description": "Fetches the full transcript for a given call recording.",
+      "audience": "human",
       "inputs": {
         "meeting_id": {
           "label": "Meeting",
           "description": "The meeting that contains the call recording.",
           "required": true,
-          "optionsFrom": {"request": {"url": "https://api.attio.com/v2/meetings", "query": {"limit": "200", "sort": "start_desc"}}, "list": "$.data", "label": "$.title", "value": "$.id.meeting_id"}
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.attio.com/v2/meetings",
+              "query": {
+                "limit": "200",
+                "sort": "start_desc"
+              }
+            },
+            "list": "$.data",
+            "label": "$.title",
+            "value": "$.id.meeting_id"
+          }
         },
         "call_recording_id": {
           "label": "Call Recording",
           "description": "The call recording to fetch the transcript for.",
           "required": true,
-          "optionsFrom": {"request": {"url": "https://api.attio.com/v2/meetings/{{meeting_id}}/call_recordings", "query": {"limit": "200"}}, "list": "$.data", "label": "$.created_at", "value": "$.id.call_recording_id"}
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.attio.com/v2/meetings/{{meeting_id}}/call_recordings",
+              "query": {
+                "limit": "200"
+              }
+            },
+            "list": "$.data",
+            "label": "$.created_at",
+            "value": "$.id.call_recording_id"
+          }
         }
       },
-      "request": {"url": "https://api.attio.com/v2/meetings/{{meeting_id}}/call_recordings/{{call_recording_id}}/transcript"},
-      "outputs": {"transcript": "$.data.raw_transcript"}
+      "request": {
+        "url": "https://api.attio.com/v2/meetings/{{meeting_id}}/call_recordings/{{call_recording_id}}/transcript"
+      },
+      "outputs": {
+        "transcript": "$.data.raw_transcript"
+      }
     },
     "create_task": {
       "label": "Create Task",
       "description": "Create a new task in Attio, optionally linked to a record and assigned to a member.",
+      "audience": "human",
       "inputs": {
-        "content": {"label": "Task Content", "description": "The text content of the task.", "type": "multiline", "required": true},
-        "deadline_at": {"label": "Deadline"},
-        "is_completed": {"label": "Mark as Completed", "type": "boolean"},
+        "content": {
+          "label": "Task Content",
+          "description": "The text content of the task.",
+          "type": "multiline",
+          "required": true
+        },
+        "deadline_at": {
+          "label": "Deadline"
+        },
+        "is_completed": {
+          "label": "Mark as Completed",
+          "type": "boolean"
+        },
         "linked_object": {
           "label": "Linked Object",
           "description": "The object type of the record to link this task to.",
-          "optionsFrom": {"request": {"url": "https://api.attio.com/v2/objects"}, "list": "$.data", "label": "$.singular_noun", "value": "$.id.object_id"}
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.attio.com/v2/objects"
+            },
+            "list": "$.data",
+            "label": "$.singular_noun",
+            "value": "$.id.object_id"
+          }
         },
         "linked_record_id": {
           "label": "Linked Record",
           "description": "The record to link this task to.",
-          "optionsFrom": {"request": {"method": "POST", "url": "https://api.attio.com/v2/objects/{{linked_object}}/records/query", "body": {"limit": 200, "offset": 0}}, "list": "$.data", "label": "$.id.record_id", "value": "$.id.record_id"}
+          "optionsFrom": {
+            "request": {
+              "method": "POST",
+              "url": "https://api.attio.com/v2/objects/{{linked_object}}/records/query",
+              "body": {
+                "limit": 200,
+                "offset": 0
+              }
+            },
+            "list": "$.data",
+            "label": "$.id.record_id",
+            "value": "$.id.record_id"
+          }
         },
-        "assignee_email": {"label": "Assignee Email", "description": "Email address of the workspace member to assign this task to."}
+        "assignee_email": {
+          "label": "Assignee Email",
+          "description": "Email address of the workspace member to assign this task to."
+        }
       },
-      "request": {"method": "POST", "url": "https://api.attio.com/v2/tasks"},
+      "request": {
+        "method": "POST",
+        "url": "https://api.attio.com/v2/tasks"
+      },
       "beforeRequest": "request.body = {data: {content: inputs.content, format: 'plaintext', deadline_at: inputs.deadline_at || null, is_completed: inputs.is_completed === 'true', linked_records: inputs.linked_object && inputs.linked_record_id ? [{target_object: inputs.linked_object, target_record_id: inputs.linked_record_id}] : [], assignees: inputs.assignee_email ? [{workspace_member_email_address: inputs.assignee_email}] : []}}; return request;",
       "result": "$.data",
-      "outputs": {"taskId": "$.id.task_id"}
+      "outputs": {
+        "taskId": "$.id.task_id"
+      }
     },
     "list_tasks": {
       "label": "List Tasks",
       "description": "List tasks with optional filters by linked record, assignee, or completion status.",
+      "audience": "human",
       "inputs": {
         "linked_object": {
           "label": "Linked Object",
           "description": "Filter tasks linked to records of this object type.",
-          "optionsFrom": {"request": {"url": "https://api.attio.com/v2/objects"}, "list": "$.data", "label": "$.singular_noun", "value": "$.id.object_id"}
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.attio.com/v2/objects"
+            },
+            "list": "$.data",
+            "label": "$.singular_noun",
+            "value": "$.id.object_id"
+          }
         },
         "linked_record_id": {
           "label": "Linked Record",
           "description": "Filter tasks linked to this specific record.",
-          "optionsFrom": {"request": {"method": "POST", "url": "https://api.attio.com/v2/objects/{{linked_object}}/records/query", "body": {"limit": 200, "offset": 0}}, "list": "$.data", "label": "$.id.record_id", "value": "$.id.record_id"}
+          "optionsFrom": {
+            "request": {
+              "method": "POST",
+              "url": "https://api.attio.com/v2/objects/{{linked_object}}/records/query",
+              "body": {
+                "limit": 200,
+                "offset": 0
+              }
+            },
+            "list": "$.data",
+            "label": "$.id.record_id",
+            "value": "$.id.record_id"
+          }
         },
-        "assignee": {"label": "Assignee", "description": "Filter by workspace member email or ID. Enter \"null\" to find unassigned tasks."},
+        "assignee": {
+          "label": "Assignee",
+          "description": "Filter by workspace member email or ID. Enter \"null\" to find unassigned tasks."
+        },
         "is_completed": {
           "label": "Completion Status",
           "type": "select",
-          "options": [{"value": "all", "label": "All"}, {"value": "true", "label": "Completed"}, {"value": "false", "label": "Incomplete"}]
+          "options": [
+            {
+              "value": "all",
+              "label": "All"
+            },
+            {
+              "value": "true",
+              "label": "Completed"
+            },
+            {
+              "value": "false",
+              "label": "Incomplete"
+            }
+          ]
         }
       },
       "request": {
         "url": "https://api.attio.com/v2/tasks",
-        "query": {"limit": "500", "offset": "0", "linked_object": "{{linked_object}}", "linked_record_id": "{{linked_record_id}}", "assignee": "{{assignee}}", "is_completed": "{{is_completed}}"}
+        "query": {
+          "limit": "500",
+          "offset": "0",
+          "linked_object": "{{linked_object}}",
+          "linked_record_id": "{{linked_record_id}}",
+          "assignee": "{{assignee}}",
+          "is_completed": "{{is_completed}}"
+        }
       },
       "beforeRequest": "if (request.query.is_completed === 'all') delete request.query.is_completed; return request;",
       "afterResponse": "return {found: response.data.length > 0, result: response.data};",
-      "outputs": {"found": "$.found", "result": "$.result"}
+      "outputs": {
+        "found": "$.found",
+        "result": "$.result"
+      }
     },
     "get_task": {
       "label": "Get Task",
       "description": "Fetch a single task by its ID.",
+      "audience": "human",
       "inputs": {
         "task_id": {
           "label": "Task",
           "description": "The task to retrieve.",
           "required": true,
-          "optionsFrom": {"request": {"url": "https://api.attio.com/v2/tasks", "query": {"limit": "200"}}, "list": "$.data", "label": "$.content_plaintext", "value": "$.id.task_id"}
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.attio.com/v2/tasks",
+              "query": {
+                "limit": "200"
+              }
+            },
+            "list": "$.data",
+            "label": "$.content_plaintext",
+            "value": "$.id.task_id"
+          }
         }
       },
-      "request": {"url": "https://api.attio.com/v2/tasks/{{task_id}}"},
+      "request": {
+        "url": "https://api.attio.com/v2/tasks/{{task_id}}"
+      },
       "result": "$.data",
-      "outputs": {"content": "$.content_plaintext", "isCompleted": "$.is_completed"}
+      "outputs": {
+        "content": "$.content_plaintext",
+        "isCompleted": "$.is_completed"
+      }
     },
     "delete_task": {
       "label": "Delete Task",
       "description": "Permanently delete a task by its ID.",
+      "audience": "human",
       "inputs": {
         "task_id": {
           "label": "Task",
           "description": "The task to delete.",
           "required": true,
-          "optionsFrom": {"request": {"url": "https://api.attio.com/v2/tasks", "query": {"limit": "200"}}, "list": "$.data", "label": "$.content_plaintext", "value": "$.id.task_id"}
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.attio.com/v2/tasks",
+              "query": {
+                "limit": "200"
+              }
+            },
+            "list": "$.data",
+            "label": "$.content_plaintext",
+            "value": "$.id.task_id"
+          }
         }
       },
-      "request": {"method": "DELETE", "url": "https://api.attio.com/v2/tasks/{{task_id}}"},
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.attio.com/v2/tasks/{{task_id}}"
+      },
       "afterResponse": "return {success: true};",
-      "outputs": {"success": "$.success"}
+      "outputs": {
+        "success": "$.success"
+      }
     },
     "update_task": {
       "label": "Update Task",
       "description": "Update an existing task in Attio.",
+      "audience": "human",
       "inputs": {
         "task_id": {
           "label": "Task",
           "description": "The task to update.",
           "required": true,
-          "optionsFrom": {"request": {"url": "https://api.attio.com/v2/tasks", "query": {"limit": "200"}}, "list": "$.data", "label": "$.content_plaintext", "value": "$.id.task_id"}
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.attio.com/v2/tasks",
+              "query": {
+                "limit": "200"
+              }
+            },
+            "list": "$.data",
+            "label": "$.content_plaintext",
+            "value": "$.id.task_id"
+          }
         },
-        "content": {"label": "Task Content", "description": "Update the text content of the task.", "type": "multiline"},
-        "deadline_at": {"label": "Deadline", "description": "Update the task deadline. Leave empty to keep existing value."},
+        "content": {
+          "label": "Task Content",
+          "description": "Update the text content of the task.",
+          "type": "multiline"
+        },
+        "deadline_at": {
+          "label": "Deadline",
+          "description": "Update the task deadline. Leave empty to keep existing value."
+        },
         "is_completed": {
           "label": "Completion Status",
           "description": "Update the completion status of the task.",
           "type": "select",
-          "options": [{"value": "true", "label": "Mark as Completed"}, {"value": "false", "label": "Mark as Incomplete"}]
+          "options": [
+            {
+              "value": "true",
+              "label": "Mark as Completed"
+            },
+            {
+              "value": "false",
+              "label": "Mark as Incomplete"
+            }
+          ]
         },
         "linked_object": {
           "label": "Linked Object",
           "description": "The object type of the record to link this task to.",
-          "optionsFrom": {"request": {"url": "https://api.attio.com/v2/objects"}, "list": "$.data", "label": "$.singular_noun", "value": "$.id.object_id"}
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.attio.com/v2/objects"
+            },
+            "list": "$.data",
+            "label": "$.singular_noun",
+            "value": "$.id.object_id"
+          }
         },
         "linked_record_id": {
           "label": "Linked Record",
           "description": "The record to link this task to.",
-          "optionsFrom": {"request": {"method": "POST", "url": "https://api.attio.com/v2/objects/{{linked_object}}/records/query", "body": {"limit": 200, "offset": 0}}, "list": "$.data", "label": "$.id.record_id", "value": "$.id.record_id"}
+          "optionsFrom": {
+            "request": {
+              "method": "POST",
+              "url": "https://api.attio.com/v2/objects/{{linked_object}}/records/query",
+              "body": {
+                "limit": 200,
+                "offset": 0
+              }
+            },
+            "list": "$.data",
+            "label": "$.id.record_id",
+            "value": "$.id.record_id"
+          }
         },
-        "assignee_email": {"label": "Assignee Email", "description": "Email address of the workspace member to assign this task to."}
+        "assignee_email": {
+          "label": "Assignee Email",
+          "description": "Email address of the workspace member to assign this task to."
+        }
       },
-      "request": {"method": "PATCH", "url": "https://api.attio.com/v2/tasks/{{task_id}}"},
+      "request": {
+        "method": "PATCH",
+        "url": "https://api.attio.com/v2/tasks/{{task_id}}"
+      },
       "beforeRequest": "const data = {}; if (inputs.content) { data.content = inputs.content; data.format = 'plaintext'; } if (inputs.deadline_at) data.deadline_at = inputs.deadline_at; if (inputs.is_completed) data.is_completed = inputs.is_completed === 'true'; if (inputs.linked_object && inputs.linked_record_id) data.linked_records = [{target_object: inputs.linked_object, target_record_id: inputs.linked_record_id}]; if (inputs.assignee_email) data.assignees = [{workspace_member_email_address: inputs.assignee_email}]; if (Object.keys(data).length === 0) throw new Error('At least one field must be provided to update the task.'); request.body = {data}; return request;",
       "result": "$.data",
-      "outputs": {"taskId": "$.id.task_id"}
+      "outputs": {
+        "taskId": "$.id.task_id"
+      }
     }
   }
 }

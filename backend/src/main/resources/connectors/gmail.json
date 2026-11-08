@@ -1,0 +1,644 @@
+{
+  "name": "gmail",
+  "label": "Gmail",
+  "description": "Email service by Google",
+  "icon": "",
+  "hosts": [
+    "gmail.googleapis.com"
+  ],
+  "baseUrl": "https://gmail.googleapis.com/gmail/v1",
+  "upstream": {
+    "package": "@activepieces/piece-gmail",
+    "version": "0.18.6"
+  },
+  "credential": {
+    "oauth2": {
+      "authUrl": "https://accounts.google.com/o/oauth2/auth",
+      "tokenUrl": "https://oauth2.googleapis.com/token",
+      "scope": "https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.compose https://www.googleapis.com/auth/gmail.modify email",
+      "authParameters": "access_type=offline&prompt=consent"
+    }
+  },
+  "actions": {
+    "gmail_get_thread": {
+      "label": "Get Thread",
+      "description": "Get a thread from your Gmail account via Id",
+      "audience": "ai",
+      "inputs": {
+        "thread_id": {
+          "label": "Thread ID",
+          "description": "The thread Id of the mail to read",
+          "required": true
+        },
+        "format": {
+          "label": "Format",
+          "description": "Format of the mail",
+          "type": "select",
+          "defaultValue": "full",
+          "options": [
+            {
+              "value": "minimal",
+              "label": "Minimal"
+            },
+            {
+              "value": "full",
+              "label": "Full"
+            },
+            {
+              "value": "raw",
+              "label": "Raw"
+            },
+            {
+              "value": "metadata",
+              "label": "Metadata"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/threads/{{thread_id}}"
+      },
+      "beforeRequest": "request.query.format = inputs.format || 'full';\nreturn request;"
+    },
+    "gmail_send_draft": {
+      "label": "Send Draft",
+      "description": "Send an existing draft email by its ID.",
+      "audience": "ai",
+      "inputs": {
+        "draft_id": {
+          "label": "Draft ID",
+          "description": "The ID of the draft to send (obtain from List Drafts).",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/drafts/send",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        },
+        "body": {
+          "id": "{{draft_id}}"
+        }
+      }
+    },
+    "gmail_get_draft": {
+      "label": "Get Draft",
+      "description": "Get a single draft email by its ID.",
+      "audience": "ai",
+      "inputs": {
+        "draft_id": {
+          "label": "Draft ID",
+          "description": "The ID of the draft to read (obtain from List Drafts).",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/drafts/{{draft_id}}",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        },
+        "query": {
+          "format": "full"
+        }
+      }
+    },
+    "gmail_list_drafts": {
+      "label": "List Drafts",
+      "description": "List draft emails in the mailbox.",
+      "audience": "ai",
+      "inputs": {
+        "query": {
+          "label": "Search Query",
+          "description": "Optional Gmail search query to filter drafts (e.g. \"subject:invoice\")."
+        },
+        "max_results": {
+          "label": "Max Results",
+          "description": "Maximum number of drafts to return (1-500).",
+          "type": "number",
+          "defaultValue": "20"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/drafts",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "beforeRequest": "var clamp = (value, fallback) => Math.min(Math.max(Number(value) || fallback, 1), 500);\nrequest.query.maxResults = clamp(inputs.max_results, 20);\nif (inputs.query && inputs.query.trim()) request.query.q = inputs.query.trim();\nreturn request;",
+      "afterResponse": "var drafts = response.drafts || [];\nreturn Object.assign({drafts: drafts, count: drafts.length, resultSizeEstimate: response.resultSizeEstimate}, response.nextPageToken ? {nextPageToken: response.nextPageToken} : {});"
+    },
+    "gmail_list_threads": {
+      "label": "List Threads",
+      "description": "List email conversation threads in the mailbox.",
+      "audience": "ai",
+      "inputs": {
+        "query": {
+          "label": "Search Query",
+          "description": "Optional Gmail search query to filter threads (e.g. \"from:boss@example.com is:unread\")."
+        },
+        "label_ids": {
+          "label": "Label IDs",
+          "description": "Optional list of label IDs to filter by (resolve via List Labels; system labels like INBOX, UNREAD are valid). A JSON list, such as [\"INBOX\"].",
+          "type": "json"
+        },
+        "include_spam_trash": {
+          "label": "Include Spam & Trash",
+          "description": "Include threads from Spam and Trash in the results.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "max_results": {
+          "label": "Max Results",
+          "description": "Maximum number of threads to return (1-500).",
+          "type": "number",
+          "defaultValue": "20"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/threads",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "beforeRequest": "var list = (text) => { var value = text ? JSON.parse(text) : []; return Array.isArray(value) ? value : [value]; };\nvar clamp = (value, fallback) => Math.min(Math.max(Number(value) || fallback, 1), 500);\nrequest.query.maxResults = clamp(inputs.max_results, 20);\nrequest.query.includeSpamTrash = String(inputs.include_spam_trash) === 'true';\nif (inputs.query && inputs.query.trim()) request.query.q = inputs.query.trim();\nvar labelIds = list(inputs.label_ids).filter((id) => id !== '');\nif (labelIds.length > 0) request.url += '?' + labelIds.map((id) => 'labelIds=' + encodeURIComponent(id)).join('&');\nreturn request;",
+      "afterResponse": "var threads = response.threads || [];\nreturn Object.assign({threads: threads, count: threads.length, resultSizeEstimate: response.resultSizeEstimate}, response.nextPageToken ? {nextPageToken: response.nextPageToken} : {});"
+    },
+    "gmail_list_labels": {
+      "label": "List Labels",
+      "description": "List all labels in the mailbox.",
+      "audience": "ai",
+      "request": {
+        "method": "GET",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/labels",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "afterResponse": "var labels = response.labels || [];\nreturn {labels: labels, count: labels.length};"
+    },
+    "gmail_get_label": {
+      "label": "Get Label",
+      "description": "Get a single label by its ID, including message and thread counts.",
+      "audience": "ai",
+      "inputs": {
+        "label_id": {
+          "label": "Label ID",
+          "description": "The ID of the label to read (obtain from List Labels).",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/labels/{{label_id}}",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      }
+    },
+    "gmail_get_profile": {
+      "label": "Get Profile",
+      "description": "Get the connected mailbox profile.",
+      "audience": "ai",
+      "request": {
+        "method": "GET",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/profile",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "outputs": {
+        "emailAddress": "$.emailAddress",
+        "historyId": "$.historyId"
+      }
+    },
+    "gmail_list_history": {
+      "label": "List History",
+      "description": "List mailbox changes since a given history ID.",
+      "audience": "ai",
+      "inputs": {
+        "start_history_id": {
+          "label": "Start History ID",
+          "description": "Return changes after this history ID (obtain from Get Profile or a previous history result).",
+          "required": true
+        },
+        "history_types": {
+          "label": "History Types",
+          "description": "Limit results to these change types (leave empty for all). A list of: messageAdded, messageDeleted, labelAdded, labelRemoved.",
+          "type": "json"
+        },
+        "max_results": {
+          "label": "Max Results",
+          "description": "Maximum number of history records to return (1-500).",
+          "type": "number",
+          "defaultValue": "100"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/history",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        },
+        "query": {
+          "startHistoryId": "{{start_history_id}}"
+        }
+      },
+      "beforeRequest": "var list = (text) => { var value = text ? JSON.parse(text) : []; return Array.isArray(value) ? value : [value]; };\nvar clamp = (value, fallback) => Math.min(Math.max(Number(value) || fallback, 1), 500);\nrequest.query.maxResults = clamp(inputs.max_results, 100);\nvar historyTypes = list(inputs.history_types);\nif (historyTypes.length > 0) request.url += '?' + historyTypes.map((type) => 'historyTypes=' + encodeURIComponent(type)).join('&');\nreturn request;"
+    },
+    "gmail_stop_watch": {
+      "label": "Stop Watch",
+      "description": "Stop push notifications on the mailbox.",
+      "audience": "ai",
+      "request": {
+        "method": "POST",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/stop",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "afterResponse": "return {success: true};"
+    },
+    "gmail_create_label": {
+      "label": "Create Label",
+      "description": "Create a new label in the mailbox.",
+      "audience": "human",
+      "inputs": {
+        "name": {
+          "label": "Label Name",
+          "description": "Appears in your Gmail label list.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/labels",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        },
+        "body": {
+          "name": "{{name}}"
+        }
+      },
+      "outputs": {
+        "id": "$.id"
+      }
+    },
+    "gmail_add_label_to_email": {
+      "label": "Add Label to Email",
+      "description": "Apply a label to an email message.",
+      "audience": "human",
+      "inputs": {
+        "message_id": {
+          "label": "Message",
+          "description": "Pick a recent message, or map its ID from a trigger or Find Email.",
+          "optionsFrom": {
+            "request": {
+              "method": "GET",
+              "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages",
+              "query": {
+                "maxResults": "20",
+                "q": "in:inbox OR in:sent"
+              }
+            },
+            "list": "$.messages",
+            "label": "$.id",
+            "value": "$.id"
+          },
+          "required": true
+        },
+        "label": {
+          "label": "Label",
+          "description": "Label to add.",
+          "optionsFrom": {
+            "request": {
+              "method": "GET",
+              "url": "https://gmail.googleapis.com/gmail/v1/users/me/labels"
+            },
+            "list": "$.labels",
+            "label": "$.name",
+            "value": "$.id"
+          },
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages/{{message_id}}/modify",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        },
+        "body": {
+          "addLabelIds": [
+            "{{label}}"
+          ]
+        }
+      }
+    },
+    "gmail_remove_label_from_email": {
+      "label": "Remove Label From Email",
+      "description": "Remove a label from an email message.",
+      "audience": "human",
+      "inputs": {
+        "message_id": {
+          "label": "Message",
+          "description": "Pick a recent message, or map its ID from a trigger or Find Email.",
+          "optionsFrom": {
+            "request": {
+              "method": "GET",
+              "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages",
+              "query": {
+                "maxResults": "20",
+                "q": "in:inbox OR in:sent"
+              }
+            },
+            "list": "$.messages",
+            "label": "$.id",
+            "value": "$.id"
+          },
+          "required": true
+        },
+        "label": {
+          "label": "Label",
+          "description": "Label to remove.",
+          "optionsFrom": {
+            "request": {
+              "method": "GET",
+              "url": "https://gmail.googleapis.com/gmail/v1/users/me/labels"
+            },
+            "list": "$.labels",
+            "label": "$.name",
+            "value": "$.id"
+          },
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages/{{message_id}}/modify",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        },
+        "body": {
+          "removeLabelIds": [
+            "{{label}}"
+          ]
+        }
+      }
+    },
+    "gmail_archive_email": {
+      "label": "Archive Email",
+      "description": "Archive an email message by removing it from the inbox.",
+      "audience": "human",
+      "inputs": {
+        "message_id": {
+          "label": "Message",
+          "description": "Pick a recent message, or map its ID from a trigger or Find Email.",
+          "optionsFrom": {
+            "request": {
+              "method": "GET",
+              "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages",
+              "query": {
+                "maxResults": "20",
+                "q": "in:inbox OR in:sent"
+              }
+            },
+            "list": "$.messages",
+            "label": "$.id",
+            "value": "$.id"
+          },
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages/{{message_id}}/modify",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        },
+        "body": {
+          "removeLabelIds": [
+            "INBOX"
+          ]
+        }
+      }
+    },
+    "gmail_archive_message": {
+      "label": "Archive Message",
+      "description": "Archive an email message by removing it from the inbox.",
+      "audience": "ai",
+      "inputs": {
+        "message_id": {
+          "label": "Message",
+          "description": "Message ID from a Find Email step or a Gmail trigger.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages/{{message_id}}/modify",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        },
+        "body": {
+          "removeLabelIds": [
+            "INBOX"
+          ]
+        }
+      }
+    },
+    "gmail_get_or_create_label": {
+      "label": "Get or Create Label",
+      "description": "Get an existing label by name, creating it first if it does not exist.",
+      "audience": "ai",
+      "inputs": {
+        "name": {
+          "label": "Label Name",
+          "description": "The exact display name of the label, e.g. \"Follow Up\". Matching is case-sensitive.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/labels",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "afterResponse": "var headers = {'x-goog-api-client': 'gdcl/8.0.2 gl-node/26.4.0'};\nvar named = (labels) => (labels || []).find((label) => label.name === inputs.name);\nvar match = named(response.labels);\nif (match) return Object.assign({}, match, {created: false});\ntry {\n  return Object.assign(call({method: 'POST', url: '/users/me/labels', headers: headers, body: {name: inputs.name}}), {created: true});\n} catch (error) {\n  if (!/status (400|409)\\b/.test(String(error && error.message || error))) throw error;\n  var raced = named(call({method: 'GET', url: '/users/me/labels', headers: headers}).labels);\n  if (raced) return Object.assign({}, raced, {created: false});\n  throw error;\n}",
+      "outputs": {
+        "id": "$.id"
+      }
+    },
+    "gmail_modify_labels": {
+      "label": "Modify Labels",
+      "description": "Add and/or remove labels across one or more email messages in a single call.",
+      "audience": "ai",
+      "inputs": {
+        "message_ids": {
+          "label": "Message IDs",
+          "description": "The Gmail message IDs to modify (obtain from Search Email or Get Message). Up to 1000 per call. A JSON list, such as [\"18c2f0a1b2c3d4e5\"].",
+          "type": "json",
+          "required": true
+        },
+        "add_label_ids": {
+          "label": "Label IDs to Add",
+          "description": "Label IDs to add to every message listed above (obtain from List Labels or Get or Create Label). A JSON list, such as [\"INBOX\"].",
+          "type": "json"
+        },
+        "remove_label_ids": {
+          "label": "Label IDs to Remove",
+          "description": "Label IDs to remove from every message listed above (obtain from List Labels). A JSON list, such as [\"INBOX\"].",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages/batchModify",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "beforeRequest": "var list = (text) => { var value = text ? JSON.parse(text) : []; return Array.isArray(value) ? value : [value]; };\nvar strings = (text, label) => list(text).map((item, index) => { if (typeof item !== 'string' || item.trim() === '') throw new Error(label + ' contains an invalid entry at position ' + (index + 1) + ': expected a non-empty string.'); return item; });\nvar ids = strings(inputs.message_ids, 'Message IDs');\nvar add = strings(inputs.add_label_ids, 'Label IDs to Add');\nvar remove = strings(inputs.remove_label_ids, 'Label IDs to Remove');\nif (ids.length === 0) throw new Error('At least one message ID is required.');\nif (ids.length > 1000) throw new Error(\"Gmail's batch modify accepts at most 1000 message IDs per call; received \" + ids.length + '.');\nif (add.length === 0 && remove.length === 0) throw new Error('At least one of Label IDs to Add or Label IDs to Remove is required.');\nrequest.body = {ids: ids, addLabelIds: add.length > 0 ? add : undefined, removeLabelIds: remove.length > 0 ? remove : undefined};\nreturn request;",
+      "afterResponse": "var list = (text) => { var value = text ? JSON.parse(text) : []; return Array.isArray(value) ? value : [value]; };\nvar strings = (text, label) => list(text).map((item, index) => { if (typeof item !== 'string' || item.trim() === '') throw new Error(label + ' contains an invalid entry at position ' + (index + 1) + ': expected a non-empty string.'); return item; });\nvar ids = strings(inputs.message_ids, 'Message IDs');\nreturn {success: true, messageCount: ids.length, messageIds: ids, addedLabelIds: strings(inputs.add_label_ids, 'Label IDs to Add'), removedLabelIds: strings(inputs.remove_label_ids, 'Label IDs to Remove')};"
+    },
+    "gmail_trash_message": {
+      "label": "Trash Message",
+      "description": "Move an email message to Trash.",
+      "audience": "ai",
+      "inputs": {
+        "message_id": {
+          "label": "Message ID",
+          "description": "The Gmail message ID to move to Trash (obtain from Search Email or Get Message).",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages/{{message_id}}/trash",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      }
+    },
+    "gmail_untrash_message": {
+      "label": "Untrash Message",
+      "description": "Restore an email message from Trash.",
+      "audience": "ai",
+      "inputs": {
+        "message_id": {
+          "label": "Message ID",
+          "description": "The Gmail message ID to restore from Trash (obtain from Search Email or Get Message).",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages/{{message_id}}/untrash",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      }
+    },
+    "gmail_update_label": {
+      "label": "Update Label",
+      "description": "Rename, recolor, or change the visibility of a user label.",
+      "audience": "ai",
+      "inputs": {
+        "label_id": {
+          "label": "Label ID",
+          "description": "The ID of the user label to update (obtain from List Labels).",
+          "required": true
+        },
+        "name": {
+          "label": "New Name",
+          "description": "Leave empty to keep the current name."
+        },
+        "label_list_visibility": {
+          "label": "Label List Visibility",
+          "description": "Leave unselected to keep the current setting.",
+          "type": "select",
+          "options": [
+            {
+              "value": "labelShow",
+              "label": "Show"
+            },
+            {
+              "value": "labelShowIfUnread",
+              "label": "Show if unread"
+            },
+            {
+              "value": "labelHide",
+              "label": "Hide"
+            }
+          ]
+        },
+        "message_list_visibility": {
+          "label": "Message List Visibility",
+          "description": "Leave unselected to keep the current setting.",
+          "type": "select",
+          "options": [
+            {
+              "value": "show",
+              "label": "Show"
+            },
+            {
+              "value": "hide",
+              "label": "Hide"
+            }
+          ]
+        },
+        "background_color": {
+          "label": "Background Color (hex)",
+          "description": "Leave empty to keep the current background color."
+        },
+        "text_color": {
+          "label": "Text Color (hex)",
+          "description": "Leave empty to keep the current text color."
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/labels/{{label_id}}",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "beforeRequest": "var given = (value) => value === undefined || value === null || value.trim() === '' ? undefined : value;\nvar name = given(inputs.name);\nvar backgroundColor = given(inputs.background_color);\nvar textColor = given(inputs.text_color);\nvar body = {};\nif (name !== undefined) body.name = name;\nif (inputs.label_list_visibility) body.labelListVisibility = inputs.label_list_visibility;\nif (inputs.message_list_visibility) body.messageListVisibility = inputs.message_list_visibility;\nif (backgroundColor !== undefined || textColor !== undefined) {\n  var current = call({method: 'GET', url: '/users/me/labels/' + encodeURIComponent(inputs.label_id), headers: request.headers}).color || {};\n  body.color = {backgroundColor: backgroundColor ?? current.backgroundColor ?? undefined, textColor: textColor ?? current.textColor ?? undefined};\n}\nrequest.body = body;\nreturn request;"
+    },
+    "gmail_modify_thread_labels": {
+      "label": "Modify Thread Labels",
+      "description": "Add and/or remove labels across every message in a thread in a single call.",
+      "audience": "ai",
+      "inputs": {
+        "thread_id": {
+          "label": "Thread ID",
+          "description": "The Gmail thread ID to modify (obtain from Search Email or Get Thread).",
+          "required": true
+        },
+        "add_label_ids": {
+          "label": "Label IDs to Add",
+          "description": "Label IDs to add to every message in the thread (obtain from List Labels or Get or Create Label). A JSON list, such as [\"INBOX\"].",
+          "type": "json"
+        },
+        "remove_label_ids": {
+          "label": "Label IDs to Remove",
+          "description": "Label IDs to remove from every message in the thread (obtain from List Labels). A JSON list, such as [\"INBOX\"].",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/threads/{{thread_id}}/modify",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "beforeRequest": "var list = (text) => { var value = text ? JSON.parse(text) : []; return Array.isArray(value) ? value : [value]; };\nvar strings = (text, label) => list(text).map((item, index) => { if (typeof item !== 'string' || item.trim() === '') throw new Error(label + ' contains an invalid entry at position ' + (index + 1) + ': expected a non-empty string.'); return item; });\nvar add = strings(inputs.add_label_ids, 'Label IDs to Add');\nvar remove = strings(inputs.remove_label_ids, 'Label IDs to Remove');\nif (add.length === 0 && remove.length === 0) throw new Error('At least one of Label IDs to Add or Label IDs to Remove is required.');\nrequest.body = {addLabelIds: add.length > 0 ? add : undefined, removeLabelIds: remove.length > 0 ? remove : undefined};\nreturn request;"
+    }
+  }
+}

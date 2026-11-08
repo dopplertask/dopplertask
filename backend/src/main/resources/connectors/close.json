@@ -74,80 +74,56 @@
         "id": "$.id"
       }
     },
-    "create_contact": {
-      "label": "Create Contact",
-      "description": "Creates a new contact.",
+    "find_lead": {
+      "label": "Find Lead",
+      "description": "Search for leads with advanced filtering options",
       "audience": "human",
       "inputs": {
-        "lead_id": {
-          "label": "Lead",
-          "optionsFrom": {
-            "request": {
-              "url": "https://api.close.com/api/v1/lead/",
-              "query": {
-                "_fields": "id,name"
-              }
+        "search_type": {
+          "label": "Search Type",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "name",
+              "label": "By Name"
             },
-            "list": "$.data",
-            "label": "$.name",
-            "value": "$.id"
-          }
+            {
+              "value": "contact_email",
+              "label": "By Contact Email"
+            },
+            {
+              "value": "status",
+              "label": "By Status"
+            }
+          ]
         },
-        "name": {
-          "label": "Name",
+        "search_query": {
+          "label": "Search Query",
           "required": true
         },
-        "title": {
-          "label": "Title"
-        },
-        "officePhone": {
-          "label": "Office Phone"
-        },
-        "mobilePhone": {
-          "label": "Mobile Phone"
-        },
-        "homePhone": {
-          "label": "Home Phone"
-        },
-        "directPhone": {
-          "label": "Direct Phone"
-        },
-        "faxPhone": {
-          "label": "Fax Phone"
-        },
-        "otherPhone": {
-          "label": "Other Phone"
-        },
-        "officeEmail": {
-          "label": "Office Email"
-        },
-        "homeEmail": {
-          "label": "Home Email"
-        },
-        "directEmail": {
-          "label": "Direct Email"
-        },
-        "otherEmail": {
-          "label": "Other Email"
-        },
-        "url": {
-          "label": "URL"
-        },
-        "customFields": {
-          "label": "Custom Fields",
-          "description": "Object of custom field ID (cf_...) to value.",
-          "type": "json"
+        "match_type": {
+          "label": "Match Type",
+          "type": "select",
+          "defaultValue": "contains",
+          "options": [
+            {
+              "value": "contains",
+              "label": "All Words (any order)"
+            },
+            {
+              "value": "exact",
+              "label": "Exact Phrase"
+            }
+          ]
         }
       },
       "request": {
         "method": "POST",
-        "url": "https://api.close.com/api/v1/contact/"
+        "url": "https://api.close.com/api/v1/data/search/"
       },
-      "beforeRequest": "const filledCustomFields = (value) => Object.fromEntries(Object.entries(String(value).trim() ? JSON.parse(value) : {}).filter(([, item]) => item !== '' && item != null && !(Array.isArray(item) && item.length === 0)).map(([key, item]) => ['custom.' + key, item]));\nconst emails = [['officeEmail', 'office'], ['otherEmail', 'other'], ['homeEmail', 'home'], ['directEmail', 'direct']].filter(([key]) => inputs[key]).map(([key, type]) => ({ email: inputs[key].trim(), type }));\nconst phones = [['officePhone', 'office'], ['otherPhone', 'other'], ['mobilePhone', 'mobile'], ['homePhone', 'home'], ['directPhone', 'direct'], ['faxPhone', 'fax']].filter(([key]) => inputs[key]).map(([key, type]) => ({ phone: inputs[key].trim(), type }));\nrequest.body = { lead_id: inputs.lead_id || undefined, title: inputs.title || undefined, name: inputs.name, ...filledCustomFields(inputs.customFields), phones, emails, urls: inputs.url ? [{ url: inputs.url, type: 'url' }] : [] };\nreturn request;",
-      "afterResponse": "return response !== null && typeof response === 'object' && !Array.isArray(response) ? { ...response, custom: Object.fromEntries(Object.entries(response).filter(([key]) => key.startsWith('custom.')).map(([key, value]) => [key.slice(7), value])) } : response;",
-      "outputs": {
-        "id": "$.id"
-      }
+      "beforeRequest": "const searchBody = (statusIds) => { const mode = (inputs.match_type || 'contains') === 'exact' ? 'phrase' : 'full_words'; let condition; switch (inputs.search_type) { case 'name': condition = { type: 'field_condition', field: { type: 'regular_field', object_type: 'lead', field_name: 'name' }, condition: { type: 'text', mode: mode, value: inputs.search_query } }; break; case 'contact_email': condition = { type: 'has_related', this_object_type: 'lead', related_object_type: 'contact', related_query: { type: 'has_related', this_object_type: 'contact', related_object_type: 'contact_email', related_query: { type: 'field_condition', field: { type: 'regular_field', object_type: 'contact_email', field_name: 'email' }, condition: { type: 'text', mode: 'phrase', value: inputs.search_query } } } }; break; case 'status': condition = { type: 'field_condition', field: { type: 'regular_field', object_type: 'lead', field_name: 'status_id' }, condition: { type: 'reference', reference_type: 'status.lead', object_ids: statusIds ?? [] } }; break; default: throw new Error(`Unsupported search type: ${inputs.search_type}`); } return { query: { type: 'and', queries: [{ type: 'object_type', object_type: 'lead' }, condition] }, _fields: { lead: ['id', 'name', 'status_label', 'contacts'], contact: ['id', 'name', 'emails', 'phones'] } }; };\nif (inputs.search_type === 'status') { request.method = 'GET'; request.url = '/status/lead/'; request.body = null; return request; }\nrequest.body = { _limit: 100, ...searchBody([]) };\nreturn request;",
+      "afterResponse": "const searchBody = (statusIds) => { const mode = (inputs.match_type || 'contains') === 'exact' ? 'phrase' : 'full_words'; let condition; switch (inputs.search_type) { case 'name': condition = { type: 'field_condition', field: { type: 'regular_field', object_type: 'lead', field_name: 'name' }, condition: { type: 'text', mode: mode, value: inputs.search_query } }; break; case 'contact_email': condition = { type: 'has_related', this_object_type: 'lead', related_object_type: 'contact', related_query: { type: 'has_related', this_object_type: 'contact', related_object_type: 'contact_email', related_query: { type: 'field_condition', field: { type: 'regular_field', object_type: 'contact_email', field_name: 'email' }, condition: { type: 'text', mode: 'phrase', value: inputs.search_query } } } }; break; case 'status': condition = { type: 'field_condition', field: { type: 'regular_field', object_type: 'lead', field_name: 'status_id' }, condition: { type: 'reference', reference_type: 'status.lead', object_ids: statusIds ?? [] } }; break; default: throw new Error(`Unsupported search type: ${inputs.search_type}`); } return { query: { type: 'and', queries: [{ type: 'object_type', object_type: 'lead' }, condition] }, _fields: { lead: ['id', 'name', 'status_label', 'contacts'], contact: ['id', 'name', 'emails', 'phones'] } }; };\nconst searchAll = (first, body) => { const result = []; let answer = first; for (;;) { const data = answer?.data; if (!data || data.length === 0) break; result.push(...data); const cursor = answer.cursor; if (!cursor) break; answer = call({ method: 'POST', url: '/data/search/', body: { _limit: 100, cursor, ...body } }); } return { found: result.length > 0, result }; };\nif (inputs.search_type !== 'status') return searchAll(response, searchBody([]));\nconst label = inputs.search_query.trim().toLowerCase(), exact = inputs.match_type === 'exact';\nconst ids = (response.data ?? []).filter((item) => { const own = item.label.toLowerCase(); return exact ? own === label : own.includes(label); }).map((item) => item.id);\nif (ids.length === 0) return { found: false, result: [] };\nconst body = searchBody(ids);\nreturn searchAll(call({ method: 'POST', url: '/data/search/', body: { _limit: 100, ...body } }), body);"
     },
     "create_opportunity": {
       "label": "Create Opportunity",
@@ -263,6 +239,136 @@
       "outputs": {
         "id": "$.id"
       }
+    },
+    "create_contact": {
+      "label": "Create Contact",
+      "description": "Creates a new contact.",
+      "audience": "human",
+      "inputs": {
+        "lead_id": {
+          "label": "Lead",
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.close.com/api/v1/lead/",
+              "query": {
+                "_fields": "id,name"
+              }
+            },
+            "list": "$.data",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "name": {
+          "label": "Name",
+          "required": true
+        },
+        "title": {
+          "label": "Title"
+        },
+        "officePhone": {
+          "label": "Office Phone"
+        },
+        "mobilePhone": {
+          "label": "Mobile Phone"
+        },
+        "homePhone": {
+          "label": "Home Phone"
+        },
+        "directPhone": {
+          "label": "Direct Phone"
+        },
+        "faxPhone": {
+          "label": "Fax Phone"
+        },
+        "otherPhone": {
+          "label": "Other Phone"
+        },
+        "officeEmail": {
+          "label": "Office Email"
+        },
+        "homeEmail": {
+          "label": "Home Email"
+        },
+        "directEmail": {
+          "label": "Direct Email"
+        },
+        "otherEmail": {
+          "label": "Other Email"
+        },
+        "url": {
+          "label": "URL"
+        },
+        "customFields": {
+          "label": "Custom Fields",
+          "description": "Object of custom field ID (cf_...) to value.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.close.com/api/v1/contact/"
+      },
+      "beforeRequest": "const filledCustomFields = (value) => Object.fromEntries(Object.entries(String(value).trim() ? JSON.parse(value) : {}).filter(([, item]) => item !== '' && item != null && !(Array.isArray(item) && item.length === 0)).map(([key, item]) => ['custom.' + key, item]));\nconst emails = [['officeEmail', 'office'], ['otherEmail', 'other'], ['homeEmail', 'home'], ['directEmail', 'direct']].filter(([key]) => inputs[key]).map(([key, type]) => ({ email: inputs[key].trim(), type }));\nconst phones = [['officePhone', 'office'], ['otherPhone', 'other'], ['mobilePhone', 'mobile'], ['homePhone', 'home'], ['directPhone', 'direct'], ['faxPhone', 'fax']].filter(([key]) => inputs[key]).map(([key, type]) => ({ phone: inputs[key].trim(), type }));\nrequest.body = { lead_id: inputs.lead_id || undefined, title: inputs.title || undefined, name: inputs.name, ...filledCustomFields(inputs.customFields), phones, emails, urls: inputs.url ? [{ url: inputs.url, type: 'url' }] : [] };\nreturn request;",
+      "afterResponse": "return response !== null && typeof response === 'object' && !Array.isArray(response) ? { ...response, custom: Object.fromEntries(Object.entries(response).filter(([key]) => key.startsWith('custom.')).map(([key, value]) => [key.slice(7), value])) } : response;",
+      "outputs": {
+        "id": "$.id"
+      }
+    },
+    "find_contact": {
+      "label": "Find Contact",
+      "description": "Search for contacts by name, email, or other criteria with advanced filtering",
+      "audience": "human",
+      "inputs": {
+        "search_type": {
+          "label": "Search Type",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "name",
+              "label": "By Name"
+            },
+            {
+              "value": "email",
+              "label": "By Email"
+            },
+            {
+              "value": "phone",
+              "label": "By Phone"
+            },
+            {
+              "value": "lead_id",
+              "label": "By Lead ID"
+            }
+          ]
+        },
+        "search_query": {
+          "label": "Search Query",
+          "required": true
+        },
+        "match_type": {
+          "label": "Match Type",
+          "type": "select",
+          "defaultValue": "contains",
+          "options": [
+            {
+              "value": "contains",
+              "label": "All Words (any order)"
+            },
+            {
+              "value": "exact",
+              "label": "Exact Phrase"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.close.com/api/v1/data/search/"
+      },
+      "beforeRequest": "const searchBody = () => { const mode = (inputs.match_type || 'contains') === 'exact' ? 'phrase' : 'full_words'; let condition; switch (inputs.search_type) { case 'name': condition = { type: 'field_condition', field: { type: 'regular_field', object_type: 'contact', field_name: 'name' }, condition: { type: 'text', mode: mode, value: inputs.search_query } }; break; case 'email': condition = { type: 'has_related', this_object_type: 'contact', related_object_type: 'contact_email', related_query: { type: 'field_condition', field: { type: 'regular_field', object_type: 'contact_email', field_name: 'email' }, condition: { type: 'text', mode: 'phrase', value: inputs.search_query } } }; break; case 'phone': condition = { type: 'has_related', this_object_type: 'contact', related_object_type: 'contact_phone', related_query: { type: 'field_condition', field: { type: 'regular_field', object_type: 'contact_phone', field_name: 'phone' }, condition: { type: 'text', mode: 'phrase', value: inputs.search_query } } }; break; case 'lead_id': condition = { type: 'field_condition', field: { type: 'regular_field', object_type: 'contact', field_name: 'lead_id' }, condition: { type: 'reference', reference_type: 'lead', object_ids: [inputs.search_query.trim()] } }; break; default: throw new Error(`Unsupported search type: ${inputs.search_type}`); } return { query: { type: 'and', queries: [{ type: 'object_type', object_type: 'contact' }, condition] }, _fields: { lead: ['id', 'name', 'status_label', 'contacts'], contact: ['title', 'id', 'name', 'emails', 'lead_id', 'phones'] } }; };\nrequest.body = { _limit: 100, ...searchBody() };\nreturn request;",
+      "afterResponse": "const searchBody = () => { const mode = (inputs.match_type || 'contains') === 'exact' ? 'phrase' : 'full_words'; let condition; switch (inputs.search_type) { case 'name': condition = { type: 'field_condition', field: { type: 'regular_field', object_type: 'contact', field_name: 'name' }, condition: { type: 'text', mode: mode, value: inputs.search_query } }; break; case 'email': condition = { type: 'has_related', this_object_type: 'contact', related_object_type: 'contact_email', related_query: { type: 'field_condition', field: { type: 'regular_field', object_type: 'contact_email', field_name: 'email' }, condition: { type: 'text', mode: 'phrase', value: inputs.search_query } } }; break; case 'phone': condition = { type: 'has_related', this_object_type: 'contact', related_object_type: 'contact_phone', related_query: { type: 'field_condition', field: { type: 'regular_field', object_type: 'contact_phone', field_name: 'phone' }, condition: { type: 'text', mode: 'phrase', value: inputs.search_query } } }; break; case 'lead_id': condition = { type: 'field_condition', field: { type: 'regular_field', object_type: 'contact', field_name: 'lead_id' }, condition: { type: 'reference', reference_type: 'lead', object_ids: [inputs.search_query.trim()] } }; break; default: throw new Error(`Unsupported search type: ${inputs.search_type}`); } return { query: { type: 'and', queries: [{ type: 'object_type', object_type: 'contact' }, condition] }, _fields: { lead: ['id', 'name', 'status_label', 'contacts'], contact: ['title', 'id', 'name', 'emails', 'lead_id', 'phones'] } }; };\nconst searchAll = (first, body) => { const result = []; let answer = first; for (;;) { const data = answer?.data; if (!data || data.length === 0) break; result.push(...data); const cursor = answer.cursor; if (!cursor) break; answer = call({ method: 'POST', url: '/data/search/', body: { _limit: 100, cursor, ...body } }); } return { found: result.length > 0, result }; };\nreturn searchAll(response, searchBody());"
     },
     "create_contact_ai": {
       "label": "Create Contact",
@@ -1545,6 +1651,118 @@
       },
       "beforeRequest": "const optionalText = (value) => { if (typeof value === 'number' && Number.isFinite(value)) return String(value); if (typeof value !== 'string') return undefined; const trimmed = value.trim(); return trimmed === '' ? undefined : trimmed; };\nconst requiredText = (value, label) => { const text = optionalText(value); if (text === undefined) throw new Error(`${label} is required.`); return text; };\nconst closeId = (value, label, prefix) => { const id = requiredText(value, label); if (!/^[A-Za-z0-9_-]+$/.test(id) || (prefix !== undefined && !id.startsWith(`${prefix}_`))) throw new Error(`${label} must be a Close ID${prefix ? ` starting with \"${prefix}_\"` : ''}, e.g. ${prefix ?? 'lead'}_abc123.`); return id; };\nconst optionalCloseId = (value, label, prefix) => optionalText(value) === undefined ? undefined : closeId(value, label, prefix);\nconst parseBoolean = (value, label) => { if (value == null || value === '') return undefined; if (value === true || value === 'true') return true; if (value === false || value === 'false') return false; throw new Error(`${label} must be true or false.`); };\nconst isoDate = (value, label) => { const text = optionalText(value); if (text === undefined) return undefined; if (/^\\d{4}-\\d{2}-\\d{2}$/.test(text) && !Number.isNaN(Date.parse(`${text}T00:00:00Z`))) return text; const time = Date.parse(text); if (Number.isNaN(time)) throw new Error(`${label} must be a date like 2026-10-18 or an ISO 8601 date-time.`); return new Date(time).toISOString(); };\nconst defined = (fields) => Object.fromEntries(Object.entries(fields).filter(([, item]) => item !== undefined));\nconst lastSegment = (url, value) => url.replace(/[^/]*\\/$/, `${value}/`);\nconst id = closeId(inputs.taskId, 'Task ID', 'task');\nconst body = defined({ text: optionalText(inputs.text), assigned_to: optionalCloseId(inputs.assignedTo, 'Assigned To', 'user'), date: isoDate(inputs.date, 'Due'), is_complete: parseBoolean(inputs.isComplete, 'Complete') });\nif (Object.keys(body).length === 0) throw new Error('Pass at least one field to update.');\nrequest.url = lastSegment(request.url, id);\nrequest.body = body;\nreturn request;",
       "afterResponse": "const text = (value) => typeof value === 'string' ? value : null;\nconst flag = (value) => typeof value === 'boolean' ? value : null;\nconst record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};\nconst task = (raw) => { const item = record(raw); return { id: text(item.id), type: text(item._type), leadId: text(item.lead_id), leadName: text(item.lead_name), contactId: text(item.contact_id), assignedTo: text(item.assigned_to), assignedToName: text(item.assigned_to_name), text: text(item.text), date: text(item.date), isComplete: flag(item.is_complete), isDateless: flag(item.is_dateless), dateCreated: text(item.date_created), dateUpdated: text(item.date_updated) }; };\nreturn task(response);",
+      "outputs": {
+        "id": "$.id"
+      }
+    },
+    "list_custom_activity_types": {
+      "label": "List Custom Activity Types",
+      "description": "List the custom activity types defined in Close.",
+      "audience": "ai",
+      "inputs": {},
+      "request": {
+        "url": "https://api.close.com/api/v1/custom_activity/",
+        "query": {
+          "_limit": "100",
+          "_skip": "0"
+        }
+      },
+      "afterResponse": "const text = (value) => typeof value === 'string' ? value : null;\nconst record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};\nconst list = (value) => Array.isArray(value) ? value : [];\nconst customField = (raw) => { const item = record(raw); return { id: text(item.id), name: text(item.name), type: text(item.type), description: text(item.description), acceptsMultipleValues: item.accepts_multiple_values === true, choices: list(item.choices).filter((entry) => typeof entry === 'string') }; };\nconst activityType = (raw) => { const item = record(raw); return { id: text(item.id), name: text(item.name), description: text(item.description), apiCreateOnly: item.api_create_only === true, isArchived: item.is_archived === true, fields: list(item.fields).map((entry) => ({ ...customField(entry), required: record(entry).required === true })) }; };\nconst listAll = (first, path) => { const items = []; let answer = first, skip = 0; for (;;) { const page = Array.isArray(answer?.data) ? answer.data : [], hasMore = answer?.has_more === true && page.length > 0; for (const item of page) { if (items.length >= 1000) return { items, truncated: true }; items.push(item); } if (!hasMore) return { items, truncated: false }; if (items.length >= 1000) return { items, truncated: true }; skip += page.length; answer = call({ method: 'GET', url: path, query: { _limit: '100', _skip: String(skip) } }); } };\nconst offsetPage = (all, map) => { const mapped = all.items.map((item) => map(item)); return { items: mapped, count: mapped.length, hasMore: all.truncated, nextSkip: null }; };\nreturn offsetPage(listAll(response, '/custom_activity/'), activityType);"
+    },
+    "list_custom_fields": {
+      "label": "List Custom Fields",
+      "description": "List the custom fields for leads, contacts, opportunities or activities.",
+      "audience": "ai",
+      "inputs": {
+        "objectType": {
+          "label": "Object Type",
+          "type": "select",
+          "required": true,
+          "defaultValue": "lead",
+          "options": [
+            {
+              "value": "lead",
+              "label": "lead"
+            },
+            {
+              "value": "contact",
+              "label": "contact"
+            },
+            {
+              "value": "opportunity",
+              "label": "opportunity"
+            },
+            {
+              "value": "activity",
+              "label": "activity"
+            },
+            {
+              "value": "shared",
+              "label": "shared"
+            }
+          ]
+        }
+      },
+      "request": {
+        "url": "https://api.close.com/api/v1/custom_field/{{objectType}}/",
+        "query": {
+          "_limit": "100",
+          "_skip": "0"
+        }
+      },
+      "afterResponse": "const text = (value) => typeof value === 'string' ? value : null;\nconst record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};\nconst list = (value) => Array.isArray(value) ? value : [];\nconst customField = (raw) => { const item = record(raw); return { id: text(item.id), name: text(item.name), type: text(item.type), description: text(item.description), acceptsMultipleValues: item.accepts_multiple_values === true, choices: list(item.choices).filter((entry) => typeof entry === 'string') }; };\nconst listAll = (first, path) => { const items = []; let answer = first, skip = 0; for (;;) { const page = Array.isArray(answer?.data) ? answer.data : [], hasMore = answer?.has_more === true && page.length > 0; for (const item of page) { if (items.length >= 1000) return { items, truncated: true }; items.push(item); } if (!hasMore) return { items, truncated: false }; if (items.length >= 1000) return { items, truncated: true }; skip += page.length; answer = call({ method: 'GET', url: path, query: { _limit: '100', _skip: String(skip) } }); } };\nconst offsetPage = (all, map) => { const mapped = all.items.map((item) => map(item)); return { items: mapped, count: mapped.length, hasMore: all.truncated, nextSkip: null }; };\nreturn offsetPage(listAll(response, '/custom_field/' + String(inputs.objectType).trim() + '/'), customField);",
+      "beforeRequest": "const optionalText = (value) => { if (typeof value === 'number' && Number.isFinite(value)) return String(value); if (typeof value !== 'string') return undefined; const trimmed = value.trim(); return trimmed === '' ? undefined : trimmed; };\nconst requiredText = (value, label) => { const text = optionalText(value); if (text === undefined) throw new Error(`${label} is required.`); return text; };\nconst closeId = (value, label, prefix) => { const id = requiredText(value, label); if (!/^[A-Za-z0-9_-]+$/.test(id) || (prefix !== undefined && !id.startsWith(`${prefix}_`))) throw new Error(`${label} must be a Close ID${prefix ? ` starting with \"${prefix}_\"` : ''}, e.g. ${prefix ?? 'lead'}_abc123.`); return id; };\nconst objectType = requiredText(inputs.objectType, 'Object Type');\nif (!['lead', 'contact', 'opportunity', 'activity', 'shared'].includes(objectType)) throw new Error('Object Type must be one of: lead, contact, opportunity, activity, shared.');\nrequest.url = '/custom_field/' + objectType + '/';\nreturn request;"
+    },
+    "list_lead_statuses": {
+      "label": "List Lead Statuses",
+      "description": "List the lead statuses defined in Close.",
+      "audience": "ai",
+      "inputs": {},
+      "request": {
+        "url": "https://api.close.com/api/v1/status/lead/",
+        "query": {
+          "_limit": "100",
+          "_skip": "0"
+        }
+      },
+      "afterResponse": "const text = (value) => typeof value === 'string' ? value : null;\nconst record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};\nconst list = (value) => Array.isArray(value) ? value : [];\nconst status = (raw) => { const item = record(raw); return { id: text(item.id), label: text(item.label), type: text(item.type), pipelineId: text(item.pipeline_id) }; };\nconst listAll = (first, path) => { const items = []; let answer = first, skip = 0; for (;;) { const page = Array.isArray(answer?.data) ? answer.data : [], hasMore = answer?.has_more === true && page.length > 0; for (const item of page) { if (items.length >= 1000) return { items, truncated: true }; items.push(item); } if (!hasMore) return { items, truncated: false }; if (items.length >= 1000) return { items, truncated: true }; skip += page.length; answer = call({ method: 'GET', url: path, query: { _limit: '100', _skip: String(skip) } }); } };\nconst offsetPage = (all, map) => { const mapped = all.items.map((item) => map(item)); return { items: mapped, count: mapped.length, hasMore: all.truncated, nextSkip: null }; };\nreturn offsetPage(listAll(response, '/status/lead/'), status);"
+    },
+    "list_pipelines": {
+      "label": "List Pipelines",
+      "description": "List opportunity pipelines and their statuses.",
+      "audience": "ai",
+      "inputs": {},
+      "request": {
+        "url": "https://api.close.com/api/v1/pipeline/",
+        "query": {
+          "_limit": "100",
+          "_skip": "0"
+        }
+      },
+      "afterResponse": "const text = (value) => typeof value === 'string' ? value : null;\nconst record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};\nconst list = (value) => Array.isArray(value) ? value : [];\nconst status = (raw) => { const item = record(raw); return { id: text(item.id), label: text(item.label), type: text(item.type), pipelineId: text(item.pipeline_id) }; };\nconst pipeline = (raw) => { const item = record(raw); return { id: text(item.id), name: text(item.name), statuses: list(item.statuses).map(status) }; };\nconst listAll = (first, path) => { const items = []; let answer = first, skip = 0; for (;;) { const page = Array.isArray(answer?.data) ? answer.data : [], hasMore = answer?.has_more === true && page.length > 0; for (const item of page) { if (items.length >= 1000) return { items, truncated: true }; items.push(item); } if (!hasMore) return { items, truncated: false }; if (items.length >= 1000) return { items, truncated: true }; skip += page.length; answer = call({ method: 'GET', url: path, query: { _limit: '100', _skip: String(skip) } }); } };\nconst offsetPage = (all, map) => { const mapped = all.items.map((item) => map(item)); return { items: mapped, count: mapped.length, hasMore: all.truncated, nextSkip: null }; };\nreturn offsetPage(listAll(response, '/pipeline/'), pipeline);"
+    },
+    "merge_leads": {
+      "label": "Merge Leads",
+      "description": "Merge a duplicate lead into another lead.",
+      "audience": "ai",
+      "inputs": {
+        "sourceLeadId": {
+          "label": "Source Lead ID",
+          "description": "lead_... to merge away (it is deleted).",
+          "required": true
+        },
+        "destinationLeadId": {
+          "label": "Destination Lead ID",
+          "description": "lead_... that is kept.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.close.com/api/v1/lead/merge/"
+      },
+      "beforeRequest": "const optionalText = (value) => { if (typeof value === 'number' && Number.isFinite(value)) return String(value); if (typeof value !== 'string') return undefined; const trimmed = value.trim(); return trimmed === '' ? undefined : trimmed; };\nconst requiredText = (value, label) => { const text = optionalText(value); if (text === undefined) throw new Error(`${label} is required.`); return text; };\nconst closeId = (value, label, prefix) => { const id = requiredText(value, label); if (!/^[A-Za-z0-9_-]+$/.test(id) || (prefix !== undefined && !id.startsWith(`${prefix}_`))) throw new Error(`${label} must be a Close ID${prefix ? ` starting with \"${prefix}_\"` : ''}, e.g. ${prefix ?? 'lead'}_abc123.`); return id; };\nconst source = closeId(inputs.sourceLeadId, 'Source Lead ID', 'lead'), destination = closeId(inputs.destinationLeadId, 'Destination Lead ID', 'lead');\nif (source === destination) throw new Error('Source and destination must be different leads.');\nrequest.body = { source, destination };\nreturn request;",
+      "afterResponse": "const text = (value) => typeof value === 'string' ? value : null;\nconst record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};\nconst list = (value) => Array.isArray(value) ? value : [];\nconst customOf = (item) => Object.fromEntries(Object.entries(item).filter(([key]) => key.startsWith('custom.')).map(([key, value]) => [key.slice(7), value]));\nconst contact = (raw) => { const item = record(raw); return { id: text(item.id), leadId: text(item.lead_id), name: text(item.name), title: text(item.title), emails: list(item.emails).map((entry) => ({ email: text(record(entry).email), type: text(record(entry).type) })), phones: list(item.phones).map((entry) => ({ phone: text(record(entry).phone), phoneFormatted: text(record(entry).phone_formatted), type: text(record(entry).type) })), urls: list(item.urls).map((entry) => ({ url: text(record(entry).url), type: text(record(entry).type) })), primaryEmail: text(record(list(item.emails)[0]).email), primaryPhone: text(record(list(item.phones)[0]).phone), custom: customOf(item), dateCreated: text(item.date_created), dateUpdated: text(item.date_updated) }; };\nconst lead = (raw) => { const item = record(raw), id = text(item.id); return { id, name: text(item.display_name) ?? text(item.name), description: text(item.description), url: text(item.url), statusId: text(item.status_id), statusLabel: text(item.status_label), contacts: list(item.contacts).map((entry) => contact(entry)), opportunityIds: list(item.opportunities).map((entry) => text(record(entry).id)).filter((entry) => entry !== null), addresses: list(item.addresses).map((entry) => record(entry)), custom: { ...record(item.custom), ...customOf(item) }, createdBy: text(item.created_by), dateCreated: text(item.date_created), dateUpdated: text(item.date_updated), appUrl: id ? 'https://app.close.com/lead/' + encodeURIComponent(id) + '/' : null }; };\nconst destination = String(inputs.destinationLeadId).trim();\nconst merged = call({ method: 'GET', url: '/lead/' + encodeURIComponent(destination) + '/' });\nreturn { mergedSourceId: String(inputs.sourceLeadId).trim(), ...lead(merged) };",
       "outputs": {
         "id": "$.id"
       }

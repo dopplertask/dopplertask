@@ -25,6 +25,60 @@
     }
   },
   "actions": {
+    "create_or_update_contact": {
+      "label": "Create or Update Contact",
+      "description": "Create a contact, or update it if the email already exists.",
+      "audience": "both",
+      "inputs": {
+        "email": {
+          "label": "Email",
+          "description": "The contact is matched by this address.",
+          "required": true
+        },
+        "ext_id": {
+          "label": "External ID",
+          "description": "Your own ID for this contact."
+        },
+        "attributes": {
+          "label": "Attributes",
+          "description": "Use attribute names from your Brevo account, such as FIRSTNAME.",
+          "type": "json"
+        },
+        "list_ids": {
+          "label": "Add to Lists",
+          "description": "The contact stays on lists it is already in.",
+          "type": "json",
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.brevo.com/v3/contacts/lists?limit=50&offset=0"
+            },
+            "list": "$.lists"
+          }
+        },
+        "email_blacklisted": {
+          "label": "Unsubscribe From Email",
+          "description": "Unticked keeps the current setting.",
+          "type": "boolean"
+        },
+        "sms_blacklisted": {
+          "label": "Unsubscribe From SMS",
+          "description": "Unticked keeps the current setting.",
+          "type": "boolean"
+        },
+        "blocked_sender_addresses": {
+          "label": "Blocked Sender Addresses",
+          "description": "Senders whose transactional emails this contact will not get.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.brevo.com/v3/contacts",
+        "body": {}
+      },
+      "beforeRequest": "function ids(name) { return JSON.parse(inputs[name] || '[]').map(Number).filter(Number.isFinite); }\nfunction texts(name) { return JSON.parse(inputs[name] || '[]').map(function (v) { return String(v).trim(); }).filter(function (v) { return v.length > 0; }); }\nfunction some(list) { return list.length > 0 ? list : undefined; }\nfunction obj(name) { var v = inputs[name] ? JSON.parse(inputs[name]) : undefined; return v && Object.keys(v).length > 0 ? v : undefined; }\nrequest.body = {email: inputs.email, ext_id: inputs.ext_id || undefined, attributes: obj('attributes'), emailBlacklisted: inputs.email_blacklisted === 'true' || undefined,\n  smsBlacklisted: inputs.sms_blacklisted === 'true' || undefined, listIds: some(ids('list_ids')), smtpBlacklistSender: some(texts('blocked_sender_addresses')), updateEnabled: true};\nreturn request;",
+      "afterResponse": "return call({method: 'GET', url: '/contacts/' + encodeURIComponent(inputs.email)});"
+    },
     "find_contact": {
       "label": "Find Contact",
       "description": "Check whether a contact exists in Brevo and fetch its details.",
@@ -1982,6 +2036,217 @@
         "method": "GET",
         "url": "https://api.brevo.com/v3/account"
       }
+    }
+  },
+  "triggers": {
+    "contact_added_to_list": {
+      "label": "Contact Added to List",
+      "description": "Triggers when a contact is added to one of your lists. Fires for every list. To act on one list only, check list_id in a later step.",
+      "inputs": {},
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.brevo.com/v3/webhooks",
+          "body": {
+            "url": "{{webhookUrl}}",
+            "description": "Activepieces - Contact Added to List",
+            "events": [
+              "listAddition"
+            ],
+            "type": "marketing"
+          }
+        },
+        "id": "$.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.brevo.com/v3/webhooks/{{webhookId}}"
+        }
+      },
+      "afterResponse": "return [response];",
+      "items": "$"
+    },
+    "contact_updated": {
+      "label": "Contact Updated",
+      "description": "Triggers when the attributes of a contact are updated.",
+      "inputs": {},
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.brevo.com/v3/webhooks",
+          "body": {
+            "url": "{{webhookUrl}}",
+            "description": "Activepieces - Contact Updated",
+            "events": [
+              "contactUpdated"
+            ],
+            "type": "marketing"
+          }
+        },
+        "id": "$.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.brevo.com/v3/webhooks/{{webhookId}}"
+        }
+      },
+      "afterResponse": "return [response];",
+      "items": "$"
+    },
+    "contact_deleted": {
+      "label": "Contact Deleted",
+      "description": "Triggers when a contact is deleted.",
+      "inputs": {},
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.brevo.com/v3/webhooks",
+          "body": {
+            "url": "{{webhookUrl}}",
+            "description": "Activepieces - Contact Deleted",
+            "events": [
+              "contactDeleted"
+            ],
+            "type": "marketing"
+          }
+        },
+        "id": "$.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.brevo.com/v3/webhooks/{{webhookId}}"
+        }
+      },
+      "afterResponse": "return [response];",
+      "items": "$"
+    },
+    "contact_unsubscribed": {
+      "label": "Contact Unsubscribed",
+      "description": "Triggers when a contact unsubscribes from a campaign.",
+      "inputs": {},
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.brevo.com/v3/webhooks",
+          "body": {
+            "url": "{{webhookUrl}}",
+            "description": "Activepieces - Contact Unsubscribed",
+            "events": [
+              "unsubscribed"
+            ],
+            "type": "marketing"
+          }
+        },
+        "id": "$.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.brevo.com/v3/webhooks/{{webhookId}}"
+        }
+      },
+      "afterResponse": "return [response];",
+      "items": "$"
+    },
+    "email_delivered": {
+      "label": "Transactional Email Delivered",
+      "description": "Triggers when a transactional email is delivered to the recipient.",
+      "inputs": {},
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.brevo.com/v3/webhooks",
+          "body": {
+            "url": "{{webhookUrl}}",
+            "description": "Activepieces - Transactional Email Delivered",
+            "events": [
+              "delivered"
+            ],
+            "type": "transactional"
+          }
+        },
+        "id": "$.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.brevo.com/v3/webhooks/{{webhookId}}"
+        }
+      },
+      "afterResponse": "return [response];",
+      "items": "$"
+    },
+    "email_opened": {
+      "label": "Transactional Email Opened",
+      "description": "Triggers when a recipient opens a transactional email.",
+      "inputs": {},
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.brevo.com/v3/webhooks",
+          "body": {
+            "url": "{{webhookUrl}}",
+            "description": "Activepieces - Transactional Email Opened",
+            "events": [
+              "opened"
+            ],
+            "type": "transactional"
+          }
+        },
+        "id": "$.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.brevo.com/v3/webhooks/{{webhookId}}"
+        }
+      },
+      "afterResponse": "return [response];",
+      "items": "$"
+    },
+    "email_clicked": {
+      "label": "Transactional Email Link Clicked",
+      "description": "Triggers when a recipient clicks a link in a transactional email.",
+      "inputs": {},
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.brevo.com/v3/webhooks",
+          "body": {
+            "url": "{{webhookUrl}}",
+            "description": "Activepieces - Transactional Email Link Clicked",
+            "events": [
+              "click"
+            ],
+            "type": "transactional"
+          }
+        },
+        "id": "$.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.brevo.com/v3/webhooks/{{webhookId}}"
+        }
+      },
+      "afterResponse": "return [response];",
+      "items": "$"
+    },
+    "email_bounced": {
+      "label": "Transactional Email Bounced",
+      "description": "Triggers when a transactional email hard or soft bounces.",
+      "inputs": {},
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.brevo.com/v3/webhooks",
+          "body": {
+            "url": "{{webhookUrl}}",
+            "description": "Activepieces - Transactional Email Bounced",
+            "events": [
+              "hardBounce",
+              "softBounce"
+            ],
+            "type": "transactional"
+          }
+        },
+        "id": "$.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.brevo.com/v3/webhooks/{{webhookId}}"
+        }
+      },
+      "afterResponse": "return [response];",
+      "items": "$"
     }
   }
 }

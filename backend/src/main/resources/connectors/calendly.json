@@ -15,7 +15,7 @@
     "fields": {
       "token": {
         "label": "Personal Token",
-        "description": "Create a token at https://calendly.com/integrations/api_webhooks with the scopes users:read, organizations:read, event_types:read, event_types:write, availability:read, availability:write, scheduled_events:read, scheduled_events:write, scheduling_links:write, shares:write and locations:read.",
+        "description": "Create a token at https://calendly.com/integrations/api_webhooks with the scopes users:read, organizations:read, event_types:read, event_types:write, availability:read, availability:write, scheduled_events:read, scheduled_events:write, scheduling_links:write, shares:write, locations:read, webhooks:read and webhooks:write.",
         "secret": true,
         "required": true
       }
@@ -62,8 +62,7 @@
       "inputs": {
         "owner": {
           "label": "Owner",
-          "description": "User URI or UUID of the host.",
-          "required": true
+          "description": "User URI or UUID of the host. Leave empty for the connected user."
         },
         "name": {
           "label": "Name",
@@ -105,7 +104,7 @@
         "method": "POST",
         "url": "https://api.calendly.com/event_types"
       },
-      "beforeRequest": "const B='https://api.calendly.com',has=v=>v!=null&&v.trim()!=='',id=v=>encodeURIComponent(v.trim().replace(/\\/+$/,'').split('/').pop()),uri=(r,v)=>{v=v.trim();return v.startsWith('https://')?v:B+'/'+r+'/'+encodeURIComponent(v)};\nconst o={};if(has(inputs.duration))o.duration=Number(inputs.duration);if(has(inputs.description))o.description=inputs.description;if(has(inputs.color))o.color=inputs.color.trim();if(has(inputs.active))o.active=inputs.active==='true';\nconst l=(has(inputs.locations)?JSON.parse(inputs.locations):[]).filter(x=>x&&typeof x==='object'&&!Array.isArray(x)).map(x=>Object.fromEntries(Object.entries(x).filter(e=>typeof e[1]==='string'&&e[1].trim()!=='')));if(l.length)o.locations=l;\nrequest.body=Object.assign({owner:uri('users',inputs.owner),name:inputs.name},o);return request;",
+      "beforeRequest": "const B='https://api.calendly.com',has=v=>v!=null&&v.trim()!=='',id=v=>encodeURIComponent(v.trim().replace(/\\/+$/,'').split('/').pop()),uri=(r,v)=>{v=v.trim();return v.startsWith('https://')?v:B+'/'+r+'/'+encodeURIComponent(v)};\nconst o={};if(has(inputs.duration))o.duration=Number(inputs.duration);if(has(inputs.description))o.description=inputs.description;if(has(inputs.color))o.color=inputs.color.trim();if(has(inputs.active))o.active=inputs.active==='true';\nconst l=(has(inputs.locations)?JSON.parse(inputs.locations):[]).filter(x=>x&&typeof x==='object'&&!Array.isArray(x)).map(x=>Object.fromEntries(Object.entries(x).filter(e=>typeof e[1]==='string'&&e[1].trim()!=='')));if(l.length)o.locations=l;\nrequest.body=Object.assign({owner:has(inputs.owner)?uri('users',inputs.owner):call({method:'GET',url:'/users/me'}).resource.uri,name:inputs.name},o);return request;",
       "result": "$.resource",
       "outputs": {
         "uri": "$.uri",
@@ -145,8 +144,7 @@
         },
         "host": {
           "label": "Host",
-          "description": "User URI or ID.",
-          "required": true
+          "description": "User URI or UUID of the host. Leave empty for the connected user."
         },
         "locationKind": {
           "label": "Type",
@@ -203,7 +201,7 @@
         "method": "POST",
         "url": "https://api.calendly.com/one_off_event_types"
       },
-      "beforeRequest": "const B='https://api.calendly.com',has=v=>v!=null&&v.trim()!=='',id=v=>encodeURIComponent(v.trim().replace(/\\/+$/,'').split('/').pop()),uri=(r,v)=>{v=v.trim();return v.startsWith('https://')?v:B+'/'+r+'/'+encodeURIComponent(v)};\nconst b={name:inputs.name,host:uri('users',inputs.host),duration:Number(inputs.duration)};if(has(inputs.timezone))b.timezone=inputs.timezone.trim();b.date_setting={type:'date_range',start_date:inputs.startDate.trim(),end_date:inputs.endDate.trim()};\nif(has(inputs.locationKind)){const k=inputs.locationKind,d=(inputs.location||'').trim();b.location=d?(k==='inbound_call'?{kind:k,phone_number:d}:{kind:k,location:d}):{kind:k};}request.body=b;return request;",
+      "beforeRequest": "const B='https://api.calendly.com',has=v=>v!=null&&v.trim()!=='',id=v=>encodeURIComponent(v.trim().replace(/\\/+$/,'').split('/').pop()),uri=(r,v)=>{v=v.trim();return v.startsWith('https://')?v:B+'/'+r+'/'+encodeURIComponent(v)};\nconst b={name:inputs.name,host:has(inputs.host)?uri('users',inputs.host):call({method:'GET',url:'/users/me'}).resource.uri,duration:Number(inputs.duration)};if(has(inputs.timezone))b.timezone=inputs.timezone.trim();b.date_setting={type:'date_range',start_date:inputs.startDate.trim(),end_date:inputs.endDate.trim()};\nif(has(inputs.locationKind)){const k=inputs.locationKind,d=(inputs.location||'').trim();b.location=d?(k==='inbound_call'?{kind:k,phone_number:d}:{kind:k,location:d}):{kind:k};}request.body=b;return request;",
       "result": "$.resource",
       "outputs": {
         "uri": "$.uri",
@@ -272,6 +270,64 @@
         "booking_url": "$.scheduling_links[0].booking_url"
       }
     },
+    "find_invitee_bookings": {
+      "label": "Find Invitee by Email",
+      "description": "Finds the meetings an invitee booked with you, by the invitee's email.",
+      "audience": "both",
+      "inputs": {
+        "email": {
+          "label": "Invitee Email",
+          "required": true
+        },
+        "status": {
+          "label": "Status",
+          "type": "select",
+          "options": [
+            {
+              "value": "active",
+              "label": "Active"
+            },
+            {
+              "value": "canceled",
+              "label": "Canceled"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.calendly.com/scheduled_events"
+      },
+      "beforeRequest": "const me=call({method:'GET',url:'/users/me'}).resource;const q={user:me.uri,invitee_email:inputs.email.trim(),status:inputs.status,sort:'start_time:desc',count:'100'};request.query=Object.fromEntries(Object.entries(q).filter(e=>e[1]!=null&&e[1]!==''));return request;",
+      "afterResponse": "return {found:response.collection.length>0,count:response.collection.length,events:response.collection};",
+      "outputs": {
+        "found": "$.found",
+        "count": "$.count"
+      }
+    },
+    "find_user": {
+      "label": "Find User",
+      "description": "Finds a user in your Calendly organization by email.",
+      "audience": "both",
+      "inputs": {
+        "email": {
+          "label": "Email",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.calendly.com/organization_memberships"
+      },
+      "beforeRequest": "const me=call({method:'GET',url:'/users/me'}).resource;const q={organization:me.current_organization,email:inputs.email.trim(),count:'1'};request.query=Object.fromEntries(Object.entries(q).filter(e=>e[1]!=null&&e[1]!==''));return request;",
+      "afterResponse": "const m=response.collection[0];return m?{found:true,user:m.user,role:m.role,membership_uri:m.uri}:{found:false,user:null,role:null,membership_uri:null};",
+      "outputs": {
+        "found": "$.found",
+        "role": "$.role",
+        "membership_uri": "$.membership_uri",
+        "email": "$.user.email"
+      }
+    },
     "get_event_invitee": {
       "label": "Get Event Invitee",
       "description": "Gets one invitee of a booked meeting.",
@@ -300,27 +356,6 @@
         "status": "$.status"
       }
     },
-    "get_event_type_availability": {
-      "label": "Get Event Type Availability",
-      "description": "Gets the availability schedule of an event type.",
-      "audience": "ai",
-      "inputs": {
-        "eventType": {
-          "label": "Event Type",
-          "description": "Event type URI (https://api.calendly.com/event_types/...) or UUID, from List Event Types.",
-          "required": true
-        }
-      },
-      "request": {
-        "method": "GET",
-        "url": "https://api.calendly.com/event_type_availability_schedules"
-      },
-      "beforeRequest": "const B='https://api.calendly.com',has=v=>v!=null&&v.trim()!=='',id=v=>encodeURIComponent(v.trim().replace(/\\/+$/,'').split('/').pop()),uri=(r,v)=>{v=v.trim();return v.startsWith('https://')?v:B+'/'+r+'/'+encodeURIComponent(v)};\nrequest.query={event_type:uri('event_types',inputs.eventType)};return request;",
-      "afterResponse": "return {items:response.collection,count:response.collection.length};",
-      "outputs": {
-        "count": "$.count"
-      }
-    },
     "get_event_type": {
       "label": "Get Event Type",
       "description": "Gets one event type.",
@@ -344,6 +379,49 @@
         "scheduling_url": "$.scheduling_url"
       }
     },
+    "get_event_type_availability": {
+      "label": "Get Event Type Availability",
+      "description": "Gets the availability schedule of an event type.",
+      "audience": "ai",
+      "inputs": {
+        "eventType": {
+          "label": "Event Type",
+          "description": "Event type URI (https://api.calendly.com/event_types/...) or UUID, from List Event Types.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.calendly.com/event_type_availability_schedules"
+      },
+      "beforeRequest": "const B='https://api.calendly.com',has=v=>v!=null&&v.trim()!=='',id=v=>encodeURIComponent(v.trim().replace(/\\/+$/,'').split('/').pop()),uri=(r,v)=>{v=v.trim();return v.startsWith('https://')?v:B+'/'+r+'/'+encodeURIComponent(v)};\nrequest.query={event_type:uri('event_types',inputs.eventType)};return request;",
+      "afterResponse": "return {items:response.collection,count:response.collection.length};",
+      "outputs": {
+        "count": "$.count"
+      }
+    },
+    "get_organization": {
+      "label": "Get Organization",
+      "description": "Gets a Calendly organization, including its plan.",
+      "audience": "ai",
+      "inputs": {
+        "organization": {
+          "label": "Organization",
+          "description": "Organization URI (https://api.calendly.com/organizations/...) or UUID. Leave empty to use the connected user's organization."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.calendly.com/organizations"
+      },
+      "beforeRequest": "const B='https://api.calendly.com',has=v=>v!=null&&v.trim()!=='',id=v=>encodeURIComponent(v.trim().replace(/\\/+$/,'').split('/').pop()),uri=(r,v)=>{v=v.trim();return v.startsWith('https://')?v:B+'/'+r+'/'+encodeURIComponent(v)};\nrequest.url=B+'/organizations/'+id(has(inputs.organization)?uri('organizations',inputs.organization):call({method:'GET',url:'/users/me'}).resource.current_organization);return request;",
+      "result": "$.resource",
+      "outputs": {
+        "uri": "$.uri",
+        "name": "$.name",
+        "plan": "$.plan"
+      }
+    },
     "get_organization_membership": {
       "label": "Get Organization Membership",
       "description": "Gets one organization membership.",
@@ -365,29 +443,6 @@
         "uri": "$.uri",
         "role": "$.role",
         "email": "$.user.email"
-      }
-    },
-    "get_organization": {
-      "label": "Get Organization",
-      "description": "Gets a Calendly organization, including its plan.",
-      "audience": "ai",
-      "inputs": {
-        "organization": {
-          "label": "Organization",
-          "description": "Organization URI (https://api.calendly.com/organizations/...) or UUID.",
-          "required": true
-        }
-      },
-      "request": {
-        "method": "GET",
-        "url": "https://api.calendly.com/organizations"
-      },
-      "beforeRequest": "const B='https://api.calendly.com',has=v=>v!=null&&v.trim()!=='',id=v=>encodeURIComponent(v.trim().replace(/\\/+$/,'').split('/').pop()),uri=(r,v)=>{v=v.trim();return v.startsWith('https://')?v:B+'/'+r+'/'+encodeURIComponent(v)};\nrequest.url=B+'/organizations/'+id(uri('organizations',inputs.organization));return request;",
-      "result": "$.resource",
-      "outputs": {
-        "uri": "$.uri",
-        "name": "$.name",
-        "plan": "$.plan"
       }
     },
     "get_scheduled_event": {
@@ -414,28 +469,6 @@
         "start_time": "$.start_time"
       }
     },
-    "get_user_availability_schedule": {
-      "label": "Get User Availability Schedule",
-      "description": "Gets one user availability schedule.",
-      "audience": "ai",
-      "inputs": {
-        "schedule": {
-          "label": "Availability Schedule",
-          "description": "Availability schedule URI or UUID.",
-          "required": true
-        }
-      },
-      "request": {
-        "method": "GET",
-        "url": "https://api.calendly.com/user_availability_schedules"
-      },
-      "beforeRequest": "const B='https://api.calendly.com',has=v=>v!=null&&v.trim()!=='',id=v=>encodeURIComponent(v.trim().replace(/\\/+$/,'').split('/').pop()),uri=(r,v)=>{v=v.trim();return v.startsWith('https://')?v:B+'/'+r+'/'+encodeURIComponent(v)};\nrequest.url=B+'/user_availability_schedules/'+id(inputs.schedule);return request;",
-      "result": "$.resource",
-      "outputs": {
-        "uri": "$.uri",
-        "name": "$.name"
-      }
-    },
     "get_user": {
       "label": "Get User",
       "description": "Gets a Calendly user, or the connected user.",
@@ -456,6 +489,28 @@
         "uri": "$.uri",
         "name": "$.name",
         "email": "$.email"
+      }
+    },
+    "get_user_availability_schedule": {
+      "label": "Get User Availability Schedule",
+      "description": "Gets one user availability schedule.",
+      "audience": "ai",
+      "inputs": {
+        "schedule": {
+          "label": "Availability Schedule",
+          "description": "Availability schedule URI or UUID.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.calendly.com/user_availability_schedules"
+      },
+      "beforeRequest": "const B='https://api.calendly.com',has=v=>v!=null&&v.trim()!=='',id=v=>encodeURIComponent(v.trim().replace(/\\/+$/,'').split('/').pop()),uri=(r,v)=>{v=v.trim();return v.startsWith('https://')?v:B+'/'+r+'/'+encodeURIComponent(v)};\nrequest.url=B+'/user_availability_schedules/'+id(inputs.schedule);return request;",
+      "result": "$.resource",
+      "outputs": {
+        "uri": "$.uri",
+        "name": "$.name"
       }
     },
     "list_available_times": {
@@ -577,7 +632,7 @@
       "inputs": {
         "user": {
           "label": "User",
-          "description": "User URI (https://api.calendly.com/users/...) or UUID. Set User or Organization."
+          "description": "User URI (https://api.calendly.com/users/...) or UUID. Leave empty to use the connected user."
         },
         "organization": {
           "label": "Organization",
@@ -612,7 +667,7 @@
         "method": "GET",
         "url": "https://api.calendly.com/event_types"
       },
-      "beforeRequest": "const B='https://api.calendly.com',has=v=>v!=null&&v.trim()!=='',id=v=>encodeURIComponent(v.trim().replace(/\\/+$/,'').split('/').pop()),uri=(r,v)=>{v=v.trim();return v.startsWith('https://')?v:B+'/'+r+'/'+encodeURIComponent(v)};\nconst q={};if(has(inputs.organization))q.organization=uri('organizations',inputs.organization);else if(has(inputs.user))q.user=uri('users',inputs.user);else throw new Error('Set User or Organization.');q.active=inputs.active;const c=has(inputs.count)?Number(inputs.count):20;q.count=String(Math.min(100,Math.max(1,Math.floor(c))));if(has(inputs.pageToken))q.page_token=inputs.pageToken.trim();\nrequest.query=Object.fromEntries(Object.entries(q).filter(e=>e[1]!=null&&e[1]!==''));return request;",
+      "beforeRequest": "const B='https://api.calendly.com',has=v=>v!=null&&v.trim()!=='',id=v=>encodeURIComponent(v.trim().replace(/\\/+$/,'').split('/').pop()),uri=(r,v)=>{v=v.trim();return v.startsWith('https://')?v:B+'/'+r+'/'+encodeURIComponent(v)};\nconst q={};if(has(inputs.organization))q.organization=uri('organizations',inputs.organization);else q.user=has(inputs.user)?uri('users',inputs.user):call({method:'GET',url:'/users/me'}).resource.uri;q.active=inputs.active;const c=has(inputs.count)?Number(inputs.count):20;q.count=String(Math.min(100,Math.max(1,Math.floor(c))));if(has(inputs.pageToken))q.page_token=inputs.pageToken.trim();\nrequest.query=Object.fromEntries(Object.entries(q).filter(e=>e[1]!=null&&e[1]!==''));return request;",
       "afterResponse": "return {items:response.collection,count:response.collection.length,next_page_token:(response.pagination&&response.pagination.next_page_token)??null};",
       "outputs": {
         "count": "$.count",
@@ -626,8 +681,7 @@
       "inputs": {
         "organization": {
           "label": "Organization",
-          "description": "Organization URI (https://api.calendly.com/organizations/...) or UUID.",
-          "required": true
+          "description": "Organization URI (https://api.calendly.com/organizations/...) or UUID. Leave empty to use the connected user's organization."
         },
         "email": {
           "label": "Email",
@@ -666,7 +720,7 @@
         "method": "GET",
         "url": "https://api.calendly.com/organization_memberships"
       },
-      "beforeRequest": "const B='https://api.calendly.com',has=v=>v!=null&&v.trim()!=='',id=v=>encodeURIComponent(v.trim().replace(/\\/+$/,'').split('/').pop()),uri=(r,v)=>{v=v.trim();return v.startsWith('https://')?v:B+'/'+r+'/'+encodeURIComponent(v)};\nconst q={organization:uri('organizations',inputs.organization),email:(inputs.email||'').trim(),role:inputs.role};const c=has(inputs.count)?Number(inputs.count):20;q.count=String(Math.min(100,Math.max(1,Math.floor(c))));if(has(inputs.pageToken))q.page_token=inputs.pageToken.trim();\nrequest.query=Object.fromEntries(Object.entries(q).filter(e=>e[1]!=null&&e[1]!==''));return request;",
+      "beforeRequest": "const B='https://api.calendly.com',has=v=>v!=null&&v.trim()!=='',id=v=>encodeURIComponent(v.trim().replace(/\\/+$/,'').split('/').pop()),uri=(r,v)=>{v=v.trim();return v.startsWith('https://')?v:B+'/'+r+'/'+encodeURIComponent(v)};\nconst q={organization:has(inputs.organization)?uri('organizations',inputs.organization):call({method:'GET',url:'/users/me'}).resource.current_organization,email:(inputs.email||'').trim(),role:inputs.role};const c=has(inputs.count)?Number(inputs.count):20;q.count=String(Math.min(100,Math.max(1,Math.floor(c))));if(has(inputs.pageToken))q.page_token=inputs.pageToken.trim();\nrequest.query=Object.fromEntries(Object.entries(q).filter(e=>e[1]!=null&&e[1]!==''));return request;",
       "afterResponse": "return {items:response.collection,count:response.collection.length,next_page_token:(response.pagination&&response.pagination.next_page_token)??null};",
       "outputs": {
         "count": "$.count",
@@ -680,7 +734,7 @@
       "inputs": {
         "user": {
           "label": "User",
-          "description": "User URI (https://api.calendly.com/users/...) or UUID. Set User or Organization."
+          "description": "User URI (https://api.calendly.com/users/...) or UUID. Leave empty to use the connected user."
         },
         "organization": {
           "label": "Organization",
@@ -741,7 +795,7 @@
         "method": "GET",
         "url": "https://api.calendly.com/scheduled_events"
       },
-      "beforeRequest": "const B='https://api.calendly.com',has=v=>v!=null&&v.trim()!=='',id=v=>encodeURIComponent(v.trim().replace(/\\/+$/,'').split('/').pop()),uri=(r,v)=>{v=v.trim();return v.startsWith('https://')?v:B+'/'+r+'/'+encodeURIComponent(v)};\nconst q={};if(has(inputs.organization))q.organization=uri('organizations',inputs.organization);else if(has(inputs.user))q.user=uri('users',inputs.user);else throw new Error('Set User or Organization.');\nObject.assign(q,{invitee_email:(inputs.inviteeEmail||'').trim(),status:inputs.status,min_start_time:inputs.minStartTime,max_start_time:inputs.maxStartTime,sort:inputs.sort});const c=has(inputs.count)?Number(inputs.count):20;q.count=String(Math.min(100,Math.max(1,Math.floor(c))));if(has(inputs.pageToken))q.page_token=inputs.pageToken.trim();\nrequest.query=Object.fromEntries(Object.entries(q).filter(e=>e[1]!=null&&e[1]!==''));return request;",
+      "beforeRequest": "const B='https://api.calendly.com',has=v=>v!=null&&v.trim()!=='',id=v=>encodeURIComponent(v.trim().replace(/\\/+$/,'').split('/').pop()),uri=(r,v)=>{v=v.trim();return v.startsWith('https://')?v:B+'/'+r+'/'+encodeURIComponent(v)};\nconst q={};if(has(inputs.organization))q.organization=uri('organizations',inputs.organization);else q.user=has(inputs.user)?uri('users',inputs.user):call({method:'GET',url:'/users/me'}).resource.uri;\nObject.assign(q,{invitee_email:(inputs.inviteeEmail||'').trim(),status:inputs.status,min_start_time:inputs.minStartTime,max_start_time:inputs.maxStartTime,sort:inputs.sort});const c=has(inputs.count)?Number(inputs.count):20;q.count=String(Math.min(100,Math.max(1,Math.floor(c))));if(has(inputs.pageToken))q.page_token=inputs.pageToken.trim();\nrequest.query=Object.fromEntries(Object.entries(q).filter(e=>e[1]!=null&&e[1]!==''));return request;",
       "afterResponse": "return {items:response.collection,count:response.collection.length,next_page_token:(response.pagination&&response.pagination.next_page_token)??null};",
       "outputs": {
         "count": "$.count",
@@ -755,15 +809,14 @@
       "inputs": {
         "user": {
           "label": "User",
-          "description": "User URI (https://api.calendly.com/users/...) or UUID.",
-          "required": true
+          "description": "User URI (https://api.calendly.com/users/...) or UUID. Leave empty to use the connected user."
         }
       },
       "request": {
         "method": "GET",
         "url": "https://api.calendly.com/user_availability_schedules"
       },
-      "beforeRequest": "const B='https://api.calendly.com',has=v=>v!=null&&v.trim()!=='',id=v=>encodeURIComponent(v.trim().replace(/\\/+$/,'').split('/').pop()),uri=(r,v)=>{v=v.trim();return v.startsWith('https://')?v:B+'/'+r+'/'+encodeURIComponent(v)};\nrequest.query={user:uri('users',inputs.user)};return request;",
+      "beforeRequest": "const B='https://api.calendly.com',has=v=>v!=null&&v.trim()!=='',id=v=>encodeURIComponent(v.trim().replace(/\\/+$/,'').split('/').pop()),uri=(r,v)=>{v=v.trim();return v.startsWith('https://')?v:B+'/'+r+'/'+encodeURIComponent(v)};\nrequest.query={user:has(inputs.user)?uri('users',inputs.user):call({method:'GET',url:'/users/me'}).resource.uri};return request;",
       "afterResponse": "return {items:response.collection,count:response.collection.length};",
       "outputs": {
         "count": "$.count"
@@ -776,8 +829,7 @@
       "inputs": {
         "user": {
           "label": "User",
-          "description": "User URI (https://api.calendly.com/users/...) or UUID.",
-          "required": true
+          "description": "User URI (https://api.calendly.com/users/...) or UUID. Leave empty to use the connected user."
         },
         "startTime": {
           "label": "Start Time",
@@ -794,7 +846,7 @@
         "method": "GET",
         "url": "https://api.calendly.com/user_busy_times"
       },
-      "beforeRequest": "const B='https://api.calendly.com',has=v=>v!=null&&v.trim()!=='',id=v=>encodeURIComponent(v.trim().replace(/\\/+$/,'').split('/').pop()),uri=(r,v)=>{v=v.trim();return v.startsWith('https://')?v:B+'/'+r+'/'+encodeURIComponent(v)};\nconst q={};const a=Date.parse(inputs.startTime),b=Date.parse(inputs.endTime);if(isNaN(a)||isNaN(b))throw new Error('Start Time and End Time must be valid ISO 8601 date-times.');const s=Math.max(a,Date.now()+60000);if(b<=s)throw new Error('End Time must be after Start Time and in the future.');if(b-s>7*86400000)throw new Error('The range between Start Time and End Time can be at most 7 days.');q.start_time=new Date(s).toISOString();q.end_time=new Date(b).toISOString();\nrequest.query={user:uri('users',inputs.user),start_time:q.start_time,end_time:q.end_time};return request;",
+      "beforeRequest": "const B='https://api.calendly.com',has=v=>v!=null&&v.trim()!=='',id=v=>encodeURIComponent(v.trim().replace(/\\/+$/,'').split('/').pop()),uri=(r,v)=>{v=v.trim();return v.startsWith('https://')?v:B+'/'+r+'/'+encodeURIComponent(v)};\nconst q={};const a=Date.parse(inputs.startTime),b=Date.parse(inputs.endTime);if(isNaN(a)||isNaN(b))throw new Error('Start Time and End Time must be valid ISO 8601 date-times.');const s=Math.max(a,Date.now()+60000);if(b<=s)throw new Error('End Time must be after Start Time and in the future.');if(b-s>7*86400000)throw new Error('The range between Start Time and End Time can be at most 7 days.');q.start_time=new Date(s).toISOString();q.end_time=new Date(b).toISOString();\nrequest.query={user:has(inputs.user)?uri('users',inputs.user):call({method:'GET',url:'/users/me'}).resource.uri,start_time:q.start_time,end_time:q.end_time};return request;",
       "afterResponse": "return {items:response.collection,count:response.collection.length};",
       "outputs": {
         "count": "$.count"
@@ -807,51 +859,17 @@
       "inputs": {
         "user": {
           "label": "User",
-          "description": "User URI (https://api.calendly.com/users/...) or UUID.",
-          "required": true
+          "description": "User URI (https://api.calendly.com/users/...) or UUID. Leave empty to use the connected user."
         }
       },
       "request": {
         "method": "GET",
         "url": "https://api.calendly.com/locations"
       },
-      "beforeRequest": "const B='https://api.calendly.com',has=v=>v!=null&&v.trim()!=='',id=v=>encodeURIComponent(v.trim().replace(/\\/+$/,'').split('/').pop()),uri=(r,v)=>{v=v.trim();return v.startsWith('https://')?v:B+'/'+r+'/'+encodeURIComponent(v)};\nrequest.query={user:uri('users',inputs.user)};return request;",
+      "beforeRequest": "const B='https://api.calendly.com',has=v=>v!=null&&v.trim()!=='',id=v=>encodeURIComponent(v.trim().replace(/\\/+$/,'').split('/').pop()),uri=(r,v)=>{v=v.trim();return v.startsWith('https://')?v:B+'/'+r+'/'+encodeURIComponent(v)};\nrequest.query={user:has(inputs.user)?uri('users',inputs.user):call({method:'GET',url:'/users/me'}).resource.uri};return request;",
       "afterResponse": "return {items:response.collection,count:response.collection.length};",
       "outputs": {
         "count": "$.count"
-      }
-    },
-    "update_event_type_availability": {
-      "label": "Update Event Type Availability",
-      "description": "Replaces the availability schedule of an event type.",
-      "audience": "ai",
-      "inputs": {
-        "eventType": {
-          "label": "Event Type",
-          "description": "Event type URI (https://api.calendly.com/event_types/...) or UUID, from List Event Types.",
-          "required": true
-        },
-        "timezone": {
-          "label": "Timezone",
-          "description": "IANA timezone such as America/New_York.",
-          "required": true
-        },
-        "rules": {
-          "label": "Rules",
-          "description": "Full list of rules, replacing the current ones. Example: [{\"type\":\"wday\",\"wday\":\"monday\",\"intervals\":[{\"from\":\"09:00\",\"to\":\"17:00\"}]}]",
-          "type": "json",
-          "required": true
-        }
-      },
-      "request": {
-        "method": "PATCH",
-        "url": "https://api.calendly.com/event_type_availability_schedules"
-      },
-      "beforeRequest": "const B='https://api.calendly.com',has=v=>v!=null&&v.trim()!=='',id=v=>encodeURIComponent(v.trim().replace(/\\/+$/,'').split('/').pop()),uri=(r,v)=>{v=v.trim();return v.startsWith('https://')?v:B+'/'+r+'/'+encodeURIComponent(v)};\nconst r=JSON.parse(inputs.rules);if(!Array.isArray(r))throw new Error('Rules must be a JSON array of availability rules.');request.query={event_type:uri('event_types',inputs.eventType)};request.body={availability_rule:{timezone:inputs.timezone.trim(),rules:r}};return request;",
-      "result": "$.resource",
-      "outputs": {
-        "event_type": "$.event_type",
-        "availability_setting": "$.availability_setting"
       }
     },
     "update_event_type": {
@@ -910,9 +928,85 @@
         "name": "$.name",
         "scheduling_url": "$.scheduling_url"
       }
+    },
+    "update_event_type_availability": {
+      "label": "Update Event Type Availability",
+      "description": "Replaces the availability schedule of an event type.",
+      "audience": "ai",
+      "inputs": {
+        "eventType": {
+          "label": "Event Type",
+          "description": "Event type URI (https://api.calendly.com/event_types/...) or UUID, from List Event Types.",
+          "required": true
+        },
+        "timezone": {
+          "label": "Timezone",
+          "description": "IANA timezone such as America/New_York.",
+          "required": true
+        },
+        "rules": {
+          "label": "Rules",
+          "description": "Full list of rules, replacing the current ones. Example: [{\"type\":\"wday\",\"wday\":\"monday\",\"intervals\":[{\"from\":\"09:00\",\"to\":\"17:00\"}]}]",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://api.calendly.com/event_type_availability_schedules"
+      },
+      "beforeRequest": "const B='https://api.calendly.com',has=v=>v!=null&&v.trim()!=='',id=v=>encodeURIComponent(v.trim().replace(/\\/+$/,'').split('/').pop()),uri=(r,v)=>{v=v.trim();return v.startsWith('https://')?v:B+'/'+r+'/'+encodeURIComponent(v)};\nconst r=JSON.parse(inputs.rules);if(!Array.isArray(r))throw new Error('Rules must be a JSON array of availability rules.');request.query={event_type:uri('event_types',inputs.eventType)};request.body={availability_rule:{timezone:inputs.timezone.trim(),rules:r}};return request;",
+      "result": "$.resource",
+      "outputs": {
+        "event_type": "$.event_type",
+        "availability_setting": "$.availability_setting"
+      }
     }
   },
   "triggers": {
+    "invitee_canceled": {
+      "label": "Event Canceled",
+      "description": "Triggers when a new Calendly event is canceled",
+      "inputs": {
+        "scope": {
+          "label": "Scope",
+          "type": "select",
+          "required": true,
+          "defaultValue": "user",
+          "options": [
+            {
+              "value": "user",
+              "label": "User"
+            },
+            {
+              "value": "organization",
+              "label": "Organization"
+            }
+          ]
+        }
+      },
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.calendly.com/webhook_subscriptions",
+          "body": {
+            "url": "{{webhookUrl}}",
+            "scope": "{{scope}}",
+            "events": [
+              "invitee.canceled"
+            ]
+          }
+        },
+        "beforeRequest": "const me = call({method: 'GET', url: '/users/me'}).resource;\nrequest.body.organization = me.current_organization;\nrequest.body.user = me.uri;\nreturn request;",
+        "afterResponse": "return response.resource.uri.split('/').pop();",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.calendly.com/webhook_subscriptions/{{webhookId}}"
+        }
+      },
+      "afterResponse": "return [response];",
+      "items": "$"
+    },
     "invitee_created": {
       "label": "Event Scheduled",
       "description": "Triggers when a new Calendly event is scheduled",

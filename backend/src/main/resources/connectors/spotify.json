@@ -1,0 +1,465 @@
+{
+  "name": "spotify",
+  "label": "Spotify",
+  "description": "Music for everyone",
+  "icon": "",
+  "hosts": [
+    "api.spotify.com"
+  ],
+  "baseUrl": "https://api.spotify.com/v1",
+  "upstream": {
+    "package": "@activepieces/piece-spotify",
+    "version": "0.6.3"
+  },
+  "credential": {
+    "oauth2": {
+      "authUrl": "https://accounts.spotify.com/authorize",
+      "tokenUrl": "https://accounts.spotify.com/api/token",
+      "scope": "user-read-playback-state user-modify-playback-state user-read-currently-playing user-read-playback-position user-read-recently-played playlist-read-private playlist-read-collaborative playlist-modify-private playlist-modify-public user-library-read user-library-modify user-follow-read user-follow-modify"
+    }
+  },
+  "actions": {
+    "search": {
+      "label": "Search",
+      "description": "Searches for tracks, artists, albums, etc.",
+      "inputs": {
+        "search_text": {
+          "label": "Search Text",
+          "description": "The word or phrase you are searching for",
+          "required": true
+        },
+        "types": {
+          "label": "Object Types",
+          "description": "A JSON list of artist, playlist and track. Albums is sent as an empty type, as the original does.",
+          "type": "json",
+          "required": true
+        },
+        "limit": {
+          "label": "Limit",
+          "type": "number"
+        },
+        "offset": {
+          "label": "Offset",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.spotify.com/v1/search",
+        "query": {
+          "limit": "{{limit}}",
+          "offset": "{{offset}}"
+        }
+      },
+      "beforeRequest": "// Sent as a form value, with a space as +, as the original sends it.\nconst form = (text) => encodeURIComponent(text).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nrequest.url += '?q=' + form(inputs.search_text);\nconst type = JSON.parse(inputs.types).join(',');\nif (type !== '') request.query.type = type;\nreturn request;",
+      "afterResponse": "return {tracks: response.tracks?.items, artists: response.artists?.items, albums: response.albums?.items, playlists: response.playlists?.items};"
+    },
+    "get_playback_state": {
+      "label": "Get Playback State",
+      "description": "Retrieves the current playback state of the player",
+      "request": {
+        "method": "GET",
+        "url": "https://api.spotify.com/v1/me/player"
+      }
+    },
+    "play": {
+      "label": "Play / Resume",
+      "description": "Resumes or starts playback",
+      "inputs": {
+        "device_id": {
+          "label": "Device",
+          "optionsFrom": {
+            "request": {
+              "method": "GET",
+              "url": "https://api.spotify.com/v1/me/player/devices"
+            },
+            "list": "$.devices",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "context_uri": {
+          "label": "Context URI",
+          "description": "Spotify URI of the context to play (album, artist, playlist)"
+        },
+        "tracks": {
+          "label": "Tracks",
+          "description": "List of spotify track uris to play (a JSON list).",
+          "type": "json"
+        },
+        "position_ms": {
+          "label": "Position",
+          "description": "Position in milliseconds",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.spotify.com/v1/me/player/play",
+        "query": {
+          "device_id": "{{device_id}}"
+        },
+        "body": {
+          "context_uri": "{{context_uri}}",
+          "uris": "{{tracks}}",
+          "position_ms": "{{position_ms}}"
+        }
+      },
+      "afterResponse": "return null;"
+    },
+    "pause": {
+      "label": "Pause",
+      "description": "Pauses the playback",
+      "inputs": {
+        "device_id": {
+          "label": "Device",
+          "optionsFrom": {
+            "request": {
+              "method": "GET",
+              "url": "https://api.spotify.com/v1/me/player/devices"
+            },
+            "list": "$.devices",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.spotify.com/v1/me/player/pause",
+        "query": {
+          "device_id": "{{device_id}}"
+        }
+      },
+      "afterResponse": "return null;"
+    },
+    "set_volume": {
+      "label": "Set Volume",
+      "description": "Sets the volume of the player",
+      "inputs": {
+        "volume": {
+          "label": "Volume",
+          "description": "Volume from 0 to 100",
+          "type": "number",
+          "required": true
+        },
+        "device_id": {
+          "label": "Device",
+          "optionsFrom": {
+            "request": {
+              "method": "GET",
+              "url": "https://api.spotify.com/v1/me/player/devices"
+            },
+            "list": "$.devices",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.spotify.com/v1/me/player/volume",
+        "query": {
+          "volume_percent": "{{volume}}",
+          "device_id": "{{device_id}}"
+        }
+      },
+      "afterResponse": "return null;"
+    },
+    "get_playlists": {
+      "label": "Get Playlists",
+      "description": "Retrieves the list of playlists that you created or followed",
+      "inputs": {
+        "offset": {
+          "label": "Offset",
+          "type": "number"
+        },
+        "limit": {
+          "label": "Limit",
+          "type": "number"
+        },
+        "all": {
+          "label": "All",
+          "description": "Fetches all playlists in a single request",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.spotify.com/v1/me/playlists",
+        "query": {
+          "limit": "{{limit}}",
+          "offset": "{{offset}}"
+        }
+      },
+      "beforeRequest": "if (inputs.all === 'true') request.query = {limit: '50', offset: '0'};\nreturn request;",
+      "afterResponse": "if (inputs.all !== 'true') return response;\nconst items = response.items.slice();\nlet total = response.total;\nwhile (items.length < total) {\n  const page = call({method: 'GET', url: '/me/playlists', query: {limit: '50', offset: String(items.length)}});\n  total = page.total;\n  items.push(...page.items);\n}\nreturn {total: items.length, items};"
+    },
+    "get_playlist_info": {
+      "label": "Get Playlist Info",
+      "description": "Retrieves details of a playlist",
+      "inputs": {
+        "playlist_id": {
+          "label": "Playlist",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "method": "GET",
+              "url": "https://api.spotify.com/v1/me/playlists",
+              "query": {
+                "limit": "50"
+              }
+            },
+            "list": "$.items",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.spotify.com/v1/playlists/{{playlist_id}}"
+      }
+    },
+    "get_playlist_items": {
+      "label": "Get Playlist Items",
+      "description": "Retrieves the list of items in the playlist",
+      "inputs": {
+        "playlist_id": {
+          "label": "Playlist",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "method": "GET",
+              "url": "https://api.spotify.com/v1/me/playlists",
+              "query": {
+                "limit": "50"
+              }
+            },
+            "list": "$.items",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "offset": {
+          "label": "Offset",
+          "type": "number"
+        },
+        "limit": {
+          "label": "Limit",
+          "type": "number"
+        },
+        "all": {
+          "label": "All",
+          "description": "Fetches all items in a single request",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.spotify.com/v1/playlists/{{playlist_id}}/tracks",
+        "query": {
+          "limit": "{{limit}}",
+          "offset": "{{offset}}"
+        }
+      },
+      "beforeRequest": "if (inputs.all === 'true') request.query = {limit: '50', offset: '0'};\nreturn request;",
+      "afterResponse": "if (inputs.all !== 'true') return response;\nconst items = response.items.slice();\nlet total = response.total;\nwhile (items.length < total) {\n  const page = call({method: 'GET', url: '/playlists/' + encodeURIComponent(inputs.playlist_id) + '/tracks', query: {limit: '50', offset: String(items.length)}});\n  total = page.total;\n  items.push(...page.items);\n}\nreturn {total: items.length, items};"
+    },
+    "get_saved_tracks": {
+      "label": "Get Saved Tracks",
+      "description": "Retrieves the list of saved tracks for the current user",
+      "inputs": {
+        "offset": {
+          "label": "Offset",
+          "type": "number"
+        },
+        "limit": {
+          "label": "Limit",
+          "type": "number"
+        },
+        "all": {
+          "label": "All",
+          "description": "Fetches all items in a single request",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.spotify.com/v1/me/tracks",
+        "query": {
+          "limit": "{{limit}}",
+          "offset": "{{offset}}"
+        }
+      },
+      "beforeRequest": "if (inputs.all === 'true') request.query = {limit: '50', offset: '0'};\nreturn request;",
+      "afterResponse": "if (inputs.all !== 'true') return response;\nconst items = response.items.slice();\nlet total = response.total;\nwhile (items.length < total) {\n  const page = call({method: 'GET', url: '/me/tracks', query: {limit: '50', offset: String(items.length)}});\n  total = page.total;\n  items.push(...page.items);\n}\nreturn {total: items.length, items};"
+    },
+    "create_playlist": {
+      "label": "Create Playlist",
+      "description": "Creates a new playlist for the current user",
+      "inputs": {
+        "name": {
+          "label": "Name",
+          "required": true
+        },
+        "description": {
+          "label": "Description"
+        },
+        "public": {
+          "label": "Public",
+          "type": "boolean"
+        },
+        "collaborative": {
+          "label": "Collaborative",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.spotify.com/v1/me/playlists",
+        "body": {
+          "name": "{{name}}",
+          "description": "{{description}}",
+          "public": "{{public}}",
+          "collaborative": "{{collaborative}}"
+        }
+      },
+      "beforeRequest": "const me = call({method: 'GET', url: '/me'});\nrequest.url = '/users/' + encodeURIComponent(me.id) + '/playlists';\nreturn request;"
+    },
+    "update_playlist": {
+      "label": "Update Playlist",
+      "description": "Updates details of the playlist",
+      "inputs": {
+        "playlist_id": {
+          "label": "Playlist",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "method": "GET",
+              "url": "https://api.spotify.com/v1/me/playlists",
+              "query": {
+                "limit": "50"
+              }
+            },
+            "list": "$.items",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "name": {
+          "label": "Name"
+        },
+        "description": {
+          "label": "Description"
+        },
+        "public": {
+          "label": "Public",
+          "type": "boolean"
+        },
+        "collaborative": {
+          "label": "Collaborative",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.spotify.com/v1/playlists/{{playlist_id}}",
+        "body": {
+          "name": "{{name}}",
+          "description": "{{description}}",
+          "public": "{{public}}",
+          "collaborative": "{{collaborative}}"
+        }
+      },
+      "afterResponse": "return null;"
+    },
+    "add_playlist_items": {
+      "label": "Add items to playlist",
+      "description": "Adds tracks or episodes to the playlist",
+      "inputs": {
+        "playlist_id": {
+          "label": "Playlist",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "method": "GET",
+              "url": "https://api.spotify.com/v1/me/playlists",
+              "query": {
+                "limit": "50"
+              }
+            },
+            "list": "$.items",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "items": {
+          "label": "Items",
+          "description": "URI's of the items to add (a JSON list).",
+          "type": "json",
+          "required": true
+        },
+        "position": {
+          "label": "Position",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.spotify.com/v1/playlists/{{playlist_id}}/items",
+        "body": {
+          "uris": "{{items}}",
+          "position": "{{position}}"
+        }
+      },
+      "afterResponse": "return null;"
+    },
+    "reorder_playlist": {
+      "label": "Reorder playlist",
+      "description": "Reorders items in the playlist",
+      "inputs": {
+        "playlist_id": {
+          "label": "Playlist",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "method": "GET",
+              "url": "https://api.spotify.com/v1/me/playlists",
+              "query": {
+                "limit": "50"
+              }
+            },
+            "list": "$.items",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "from_position": {
+          "label": "From Position",
+          "type": "number",
+          "required": true
+        },
+        "to_position": {
+          "label": "To Position",
+          "type": "number",
+          "required": true
+        },
+        "amount": {
+          "label": "Amount of Items",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.spotify.com/v1/playlists/{{playlist_id}}/items",
+        "body": {
+          "range_start": "{{from_position}}",
+          "range_length": "{{amount}}",
+          "insert_before": "{{to_position}}"
+        }
+      },
+      "afterResponse": "return null;"
+    }
+  }
+}

@@ -3,7 +3,9 @@
   "label": "Crisp",
   "description": "Customer messaging platform for chat, notes and contacts.",
   "icon": "",
-  "hosts": ["api.crisp.chat"],
+  "hosts": [
+    "api.crisp.chat"
+  ],
   "baseUrl": "https://api.crisp.chat/v1",
   "upstream": {
     "package": "@activepieces/piece-crisp",
@@ -67,6 +69,97 @@
         "fingerprint": "$.data.fingerprint"
       }
     },
+    "create_conversation": {
+      "label": "Create Conversation",
+      "description": "Creates a new conversation.",
+      "inputs": {
+        "websiteId": {
+          "label": "Website ID",
+          "description": "You can obtain website ID by navigating to Settings -> Workspace Settings -> Setup & Integrations.",
+          "required": true
+        },
+        "email": {
+          "label": "Customer Email",
+          "required": true
+        },
+        "username": {
+          "label": "Customer Username",
+          "required": true
+        },
+        "messageFrom": {
+          "label": "Message From",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "user",
+              "label": "User"
+            },
+            {
+              "value": "operator",
+              "label": "Operator"
+            }
+          ]
+        },
+        "message": {
+          "label": "Message",
+          "type": "multiline",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.crisp.chat/v1/website/{{websiteId}}/conversation"
+      },
+      "beforeRequest": "const upsert = (body) => {\n  try {\n    call({method: 'PUT', url: '/website/' + inputs.websiteId + '/people/profile/' + inputs.email, body});\n  } catch (e) {\n    if (String(e && e.message || e).includes('status 404')) call({method: 'POST', url: '/website/' + inputs.websiteId + '/people/profile', body});\n  }\n};\nupsert({email: inputs.email, person: {nickname: inputs.username}});\nconst site = '/website/' + inputs.websiteId + '/conversation';\nconst session = call({method: 'POST', url: site, body: {}}).data.session_id;\ncall({method: 'POST', url: site + '/' + session + '/message', body: {type: 'text', from: inputs.messageFrom, origin: 'chat', content: inputs.message}});\ncall({method: 'PATCH', url: site + '/' + session + '/meta', body: {email: inputs.email, nickname: inputs.username}});\nrequest.url = site + '/' + session;\nreturn request;",
+      "outputs": {
+        "sessionId": "$.data.session_id"
+      }
+    },
+    "create_update_contact": {
+      "label": "Create/Update Contact",
+      "description": "Creates a new contact or updates an existing contact.",
+      "inputs": {
+        "websiteId": {
+          "label": "Website ID",
+          "description": "You can obtain website ID by navigating to Settings -> Workspace Settings -> Setup & Integrations.",
+          "required": true
+        },
+        "email": {
+          "label": "Email",
+          "required": true
+        },
+        "name": {
+          "label": "Name",
+          "required": true
+        },
+        "phone": {
+          "label": "Phone Number"
+        },
+        "address": {
+          "label": "Address",
+          "type": "multiline"
+        },
+        "company": {
+          "label": "Company"
+        },
+        "website": {
+          "label": "Contact Website"
+        },
+        "notepad": {
+          "label": "Notepad",
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.crisp.chat/v1/website/{{websiteId}}/people/profile/{{email}}"
+      },
+      "beforeRequest": "const upsert = (body) => {\n  try {\n    call({method: 'PUT', url: '/website/' + inputs.websiteId + '/people/profile/' + inputs.email, body});\n  } catch (e) {\n    if (String(e && e.message || e).includes('status 404')) call({method: 'POST', url: '/website/' + inputs.websiteId + '/people/profile', body});\n  }\n};\nconst contact = {email: inputs.email, person: {nickname: inputs.name}};\nif (inputs.notepad) contact.notepad = inputs.notepad;\nif (inputs.phone) contact.person.phone = inputs.phone;\nif (inputs.address) contact.person.address = inputs.address;\nif (inputs.website) contact.person.website = inputs.website;\nif (inputs.company) contact.company = {name: inputs.company};\nupsert(contact);\nrequest.url = '/website/' + inputs.websiteId + '/people/profile/' + inputs.email;\nreturn request;",
+      "outputs": {
+        "peopleId": "$.data.people_id"
+      }
+    },
     "change_state": {
       "label": "Change Conversation State",
       "description": "Updates the state of a conversation.",
@@ -86,9 +179,18 @@
           "type": "select",
           "required": true,
           "options": [
-            { "value": "unresolved", "label": "Unresolved" },
-            { "value": "resolved", "label": "Resolved" },
-            { "value": "pending", "label": "Pending" }
+            {
+              "value": "unresolved",
+              "label": "Unresolved"
+            },
+            {
+              "value": "resolved",
+              "label": "Resolved"
+            },
+            {
+              "value": "pending",
+              "label": "Pending"
+            }
           ]
         }
       },

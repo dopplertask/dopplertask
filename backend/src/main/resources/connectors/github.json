@@ -1,0 +1,1724 @@
+{
+  "name": "github",
+  "label": "GitHub",
+  "description": "Developer platform that allows developers to create, store, manage and share their code",
+  "icon": "",
+  "hosts": [
+    "api.github.com"
+  ],
+  "baseUrl": "https://api.github.com",
+  "upstream": {
+    "package": "@activepieces/piece-github",
+    "version": "0.11.1"
+  },
+  "credential": {
+    "oauth2": {
+      "authUrl": "https://github.com/login/oauth/authorize",
+      "tokenUrl": "https://github.com/login/oauth/access_token",
+      "scope": "admin:repo_hook admin:org repo gist"
+    }
+  },
+  "actions": {
+    "find_issue": {
+      "label": "Find Issue",
+      "description": "Finds the first issue whose title matches your text.",
+      "audience": "both",
+      "inputs": {
+        "repository": {
+          "label": "Repository",
+          "description": "The repository, as owner/name.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.github.com/user/repos",
+              "query": {
+                "per_page": "100"
+              }
+            },
+            "list": "$",
+            "label": "$.full_name",
+            "value": "$.full_name"
+          }
+        },
+        "title": {
+          "label": "Title",
+          "description": "Words to look for in issue titles.",
+          "required": true
+        },
+        "state": {
+          "label": "State",
+          "description": "Which issues to search.",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "open",
+              "label": "Open"
+            },
+            {
+              "value": "closed",
+              "label": "Closed"
+            },
+            {
+              "value": "all",
+              "label": "All"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/search/issues'+q({q:'repo:'+o+'/'+r+' is:issue in:title \"'+v.title.replace(/[\"\\\\]/g,' ')+'\"'+(h('state')&&v.state!=='all'?' state:'+v.state:''),per_page:1});return request;",
+      "afterResponse": "return {found:response.total_count>0,result:response.items};"
+    },
+    "trigger_workflow_dispatch": {
+      "label": "Trigger Workflow Dispatch",
+      "description": "Starts a GitHub Actions workflow run, optionally waiting for it.",
+      "audience": "both",
+      "inputs": {
+        "repository": {
+          "label": "Repository",
+          "description": "The repository, as owner/name.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.github.com/user/repos",
+              "query": {
+                "per_page": "100"
+              }
+            },
+            "list": "$",
+            "label": "$.full_name",
+            "value": "$.full_name"
+          }
+        },
+        "workflow": {
+          "label": "Workflow",
+          "description": "Only workflows with a workflow_dispatch trigger can run. The workflow ID or file name, such as deploy.yml.",
+          "required": true
+        },
+        "ref": {
+          "label": "Branch or Tag",
+          "description": "If a branch and a tag share a name, GitHub uses the tag.",
+          "required": true
+        },
+        "inputs": {
+          "label": "Workflow Inputs",
+          "description": "Read from the workflow file on the chosen branch or tag. A JSON object of the workflow_dispatch inputs, such as {\"environment\": \"staging\"}.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/repos/'+o+'/'+r+'/actions/workflows/'+u(v.workflow)+'/dispatches';request.body=Object.assign({ref:v.ref},h('inputs')&&Object.keys(J('inputs')).length>0?{inputs:J('inputs')}:{},{return_run_details:true});return request;",
+      "afterResponse": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nreturn call({method:'GET',url:'/repos/'+o+'/'+r+'/actions/runs/'+response.workflow_run_id});"
+    },
+    "create_issue_ai": {
+      "label": "Create Issue (Agent)",
+      "description": "Opens a new issue in a GitHub repository.",
+      "audience": "ai",
+      "inputs": {
+        "owner": {
+          "label": "Owner",
+          "description": "Repository owner login (user or org). Resolve via List My Repositories or Search Repositories.",
+          "required": true
+        },
+        "repo": {
+          "label": "Repository",
+          "description": "Repository name (without the owner prefix).",
+          "required": true
+        },
+        "title": {
+          "label": "Title",
+          "description": "The title of the issue.",
+          "required": true
+        },
+        "body": {
+          "label": "Body",
+          "description": "The body/description of the issue.",
+          "type": "multiline"
+        },
+        "labels": {
+          "label": "Labels",
+          "description": "Label names to attach. Resolve via List Repository Labels. A JSON list of label names, such as [\"bug\"].",
+          "type": "json"
+        },
+        "assignees": {
+          "label": "Assignees",
+          "description": "User logins to assign. Resolve via List Assignees. A JSON list of user logins, such as [\"octocat\"].",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/repos/'+o+'/'+r+'/issues';request.body=Object.assign({title:v.title},h('body')?{body:v.body}:{},h('labels')&&J('labels').length>0?{labels:J('labels')}:{},h('assignees')&&J('assignees').length>0?{assignees:J('assignees')}:{});return request;"
+    },
+    "get_issue_ai": {
+      "label": "Get Issue (Agent)",
+      "description": "Fetches the full details of a single issue by number.",
+      "audience": "ai",
+      "inputs": {
+        "owner": {
+          "label": "Owner",
+          "description": "Repository owner login (user or org). Resolve via List My Repositories or Search Repositories.",
+          "required": true
+        },
+        "repo": {
+          "label": "Repository",
+          "description": "Repository name (without the owner prefix).",
+          "required": true
+        },
+        "issue_number": {
+          "label": "Issue Number",
+          "description": "The issue (or pull request) number. Resolve via List Repository Issues or Search Issues and Pull Requests.",
+          "type": "number",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/repos/'+o+'/'+r+'/issues/'+u(v.issue_number);return request;"
+    },
+    "update_issue_ai": {
+      "label": "Update Issue (Agent)",
+      "description": "Edits an existing issue, including closing or reopening it.",
+      "audience": "ai",
+      "inputs": {
+        "owner": {
+          "label": "Owner",
+          "description": "Repository owner login (user or org). Resolve via List My Repositories or Search Repositories.",
+          "required": true
+        },
+        "repo": {
+          "label": "Repository",
+          "description": "Repository name (without the owner prefix).",
+          "required": true
+        },
+        "issue_number": {
+          "label": "Issue Number",
+          "description": "The issue number to update. Resolve via List Repository Issues.",
+          "type": "number",
+          "required": true
+        },
+        "title": {
+          "label": "Title"
+        },
+        "body": {
+          "label": "Body",
+          "type": "multiline"
+        },
+        "state": {
+          "label": "State",
+          "description": "The new state of the issue (open or closed).",
+          "type": "select",
+          "options": [
+            {
+              "value": "open",
+              "label": "Open"
+            },
+            {
+              "value": "closed",
+              "label": "Closed"
+            }
+          ]
+        },
+        "state_reason": {
+          "label": "State Reason",
+          "description": "The reason for the state change (only used if State is set).",
+          "type": "select",
+          "options": [
+            {
+              "value": "completed",
+              "label": "Completed"
+            },
+            {
+              "value": "not_planned",
+              "label": "Not Planned"
+            },
+            {
+              "value": "reopened",
+              "label": "Reopened"
+            },
+            {
+              "value": "duplicate",
+              "label": "Duplicate"
+            }
+          ]
+        },
+        "milestone": {
+          "label": "Milestone Number",
+          "description": "Milestone number to associate. Resolve via List Milestones. To remove the issue's milestone instead, set Clear Milestone.",
+          "type": "number"
+        },
+        "clear_milestone": {
+          "label": "Clear Milestone",
+          "description": "Set to true to remove the issue's current milestone. Overrides Milestone Number.",
+          "type": "boolean"
+        },
+        "labels": {
+          "label": "Labels",
+          "description": "Replaces the full label set. Resolve names via List Repository Labels. A JSON list of label names, such as [\"bug\"].",
+          "type": "json"
+        },
+        "assignees": {
+          "label": "Assignees",
+          "description": "Replaces the full assignee set (logins). Resolve via List Assignees. A JSON list of user logins, such as [\"octocat\"].",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/repos/'+o+'/'+r+'/issues/'+u(v.issue_number);request.body=Object.assign({},h('title')?{title:v.title}:{},h('body')?{body:v.body}:{},h('state')?{state:v.state}:{},h('state_reason')?{state_reason:v.state_reason}:{},B('clear_milestone')?{milestone:null}:h('milestone')?{milestone:N('milestone')}:{},h('labels')?{labels:J('labels')}:{},h('assignees')?{assignees:J('assignees')}:{});return request;"
+    },
+    "create_issue_comment_ai": {
+      "label": "Create Issue Comment (Agent)",
+      "description": "Posts a comment on an issue or pull request.",
+      "audience": "ai",
+      "inputs": {
+        "owner": {
+          "label": "Owner",
+          "description": "Repository owner login (user or org). Resolve via List My Repositories or Search Repositories.",
+          "required": true
+        },
+        "repo": {
+          "label": "Repository",
+          "description": "Repository name (without the owner prefix).",
+          "required": true
+        },
+        "issue_number": {
+          "label": "Issue Number",
+          "description": "The issue or pull request number to comment on. Resolve via List Repository Issues / List Pull Requests.",
+          "type": "number",
+          "required": true
+        },
+        "body": {
+          "label": "Comment Body",
+          "description": "The comment text to add.",
+          "type": "multiline",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/repos/'+o+'/'+r+'/issues/'+u(v.issue_number)+'/comments';request.body={body:v.body};return request;"
+    },
+    "add_labels_to_issue_ai": {
+      "label": "Add Labels to Issue (Agent)",
+      "description": "Adds labels to an issue without removing existing ones.",
+      "audience": "ai",
+      "inputs": {
+        "owner": {
+          "label": "Owner",
+          "description": "Repository owner login (user or org). Resolve via List My Repositories or Search Repositories.",
+          "required": true
+        },
+        "repo": {
+          "label": "Repository",
+          "description": "Repository name (without the owner prefix).",
+          "required": true
+        },
+        "issue_number": {
+          "label": "Issue Number",
+          "description": "The issue or pull request number. Resolve via List Repository Issues.",
+          "type": "number",
+          "required": true
+        },
+        "labels": {
+          "label": "Labels",
+          "description": "Label names to add. Resolve via List Repository Labels. A JSON list of label names, such as [\"bug\"].",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/repos/'+o+'/'+r+'/issues/'+u(v.issue_number)+'/labels';request.body={labels:J('labels')};return request;"
+    },
+    "remove_label_from_issue": {
+      "label": "Remove Label from Issue (Agent)",
+      "description": "Detaches a single label from an issue or pull request.",
+      "audience": "ai",
+      "inputs": {
+        "owner": {
+          "label": "Owner",
+          "description": "Repository owner login (user or org). Resolve via List My Repositories, Search Repositories, or Get Authenticated User.",
+          "required": true
+        },
+        "repo": {
+          "label": "Repository",
+          "description": "Repository name (without the owner prefix).",
+          "required": true
+        },
+        "issue_number": {
+          "label": "Issue Number",
+          "description": "The issue or pull request number. Resolve via List Repository Issues.",
+          "type": "number",
+          "required": true
+        },
+        "name": {
+          "label": "Label Name",
+          "description": "The label to remove. Resolve current labels via List Issue Labels.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/repos/'+o+'/'+r+'/issues/'+u(v.issue_number)+'/labels/'+e(v.name);return request;"
+    },
+    "set_issue_labels": {
+      "label": "Set Issue Labels (Agent)",
+      "description": "Replaces the entire label set on an issue or pull request.",
+      "audience": "ai",
+      "inputs": {
+        "owner": {
+          "label": "Owner",
+          "description": "Repository owner login (user or org). Resolve via List My Repositories, Search Repositories, or Get Authenticated User.",
+          "required": true
+        },
+        "repo": {
+          "label": "Repository",
+          "description": "Repository name (without the owner prefix).",
+          "required": true
+        },
+        "issue_number": {
+          "label": "Issue Number",
+          "description": "The issue or pull request number. Resolve via List Repository Issues.",
+          "type": "number",
+          "required": true
+        },
+        "labels": {
+          "label": "Labels",
+          "description": "The complete label set to apply (replaces existing). Empty clears all. Resolve names via List Repository Labels. A JSON list of label names, such as [\"bug\"].",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/repos/'+o+'/'+r+'/issues/'+u(v.issue_number)+'/labels';request.body={labels:J('labels')};return request;"
+    },
+    "add_assignees_to_issue": {
+      "label": "Add Assignees to Issue (Agent)",
+      "description": "Assigns users to an issue or pull request.",
+      "audience": "ai",
+      "inputs": {
+        "owner": {
+          "label": "Owner",
+          "description": "Repository owner login (user or org). Resolve via List My Repositories, Search Repositories, or Get Authenticated User.",
+          "required": true
+        },
+        "repo": {
+          "label": "Repository",
+          "description": "Repository name (without the owner prefix).",
+          "required": true
+        },
+        "issue_number": {
+          "label": "Issue Number",
+          "description": "The issue or pull request number. Resolve via List Repository Issues.",
+          "type": "number",
+          "required": true
+        },
+        "assignees": {
+          "label": "Assignees",
+          "description": "User logins to assign (max 10). Resolve via List Assignees. A JSON list of user logins, such as [\"octocat\"].",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/repos/'+o+'/'+r+'/issues/'+u(v.issue_number)+'/assignees';request.body={assignees:J('assignees')};return request;"
+    },
+    "create_label": {
+      "label": "Create Label (Agent)",
+      "description": "Defines a new label in a repository.",
+      "audience": "ai",
+      "inputs": {
+        "owner": {
+          "label": "Owner",
+          "description": "Repository owner login (user or org). Resolve via List My Repositories, Search Repositories, or Get Authenticated User.",
+          "required": true
+        },
+        "repo": {
+          "label": "Repository",
+          "description": "Repository name (without the owner prefix).",
+          "required": true
+        },
+        "name": {
+          "label": "Name",
+          "description": "The label name.",
+          "required": true
+        },
+        "color": {
+          "label": "Color",
+          "description": "Six-character hex color code without the leading \"#\" (e.g. \"f29513\")."
+        },
+        "description": {
+          "label": "Description",
+          "description": "Short description of the label."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/repos/'+o+'/'+r+'/labels';request.body=Object.assign({name:v.name},h('color')?{color:v.color}:{},h('description')?{description:v.description}:{});return request;"
+    },
+    "update_label": {
+      "label": "Update Label (Agent)",
+      "description": "Renames or recolors an existing repository label.",
+      "audience": "ai",
+      "inputs": {
+        "owner": {
+          "label": "Owner",
+          "description": "Repository owner login (user or org). Resolve via List My Repositories, Search Repositories, or Get Authenticated User.",
+          "required": true
+        },
+        "repo": {
+          "label": "Repository",
+          "description": "Repository name (without the owner prefix).",
+          "required": true
+        },
+        "name": {
+          "label": "Current Name",
+          "description": "The current label name to update. Resolve via List Repository Labels.",
+          "required": true
+        },
+        "new_name": {
+          "label": "New Name",
+          "description": "New label name (leave empty to keep the current name)."
+        },
+        "color": {
+          "label": "Color",
+          "description": "Six-character hex color code without the leading \"#\" (e.g. \"f29513\")."
+        },
+        "description": {
+          "label": "Description"
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/repos/'+o+'/'+r+'/labels/'+e(v.name);request.body=Object.assign({},h('new_name')?{new_name:v.new_name}:{},h('color')?{color:v.color}:{},h('description')?{description:v.description}:{});return request;"
+    },
+    "create_pull_request": {
+      "label": "Create Pull Request (Agent)",
+      "description": "Opens a pull request between two branches.",
+      "audience": "ai",
+      "inputs": {
+        "owner": {
+          "label": "Owner",
+          "description": "Repository owner login (user or org). Resolve via List My Repositories, Search Repositories, or Get Authenticated User.",
+          "required": true
+        },
+        "repo": {
+          "label": "Repository",
+          "description": "Repository name (without the owner prefix).",
+          "required": true
+        },
+        "title": {
+          "label": "Title",
+          "required": true
+        },
+        "head": {
+          "label": "Head Branch",
+          "description": "The branch with your changes (e.g. \"feature/x\"). For a fork use \"fork-owner:branch\".",
+          "required": true
+        },
+        "base": {
+          "label": "Base Branch",
+          "description": "The branch to merge into (e.g. \"main\").",
+          "required": true
+        },
+        "body": {
+          "label": "Body",
+          "type": "multiline"
+        },
+        "draft": {
+          "label": "Draft",
+          "description": "Open as a draft pull request.",
+          "type": "boolean"
+        },
+        "maintainer_can_modify": {
+          "label": "Maintainer Can Modify",
+          "description": "Allow maintainers to edit the head branch.",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/repos/'+o+'/'+r+'/pulls';request.body=Object.assign({title:v.title,head:v.head,base:v.base},h('body')?{body:v.body}:{},h('draft')?{draft:B('draft')}:{},h('maintainer_can_modify')?{maintainer_can_modify:B('maintainer_can_modify')}:{});return request;"
+    },
+    "get_pull_request": {
+      "label": "Get Pull Request (Agent)",
+      "description": "Fetches a single pull request by number.",
+      "audience": "ai",
+      "inputs": {
+        "owner": {
+          "label": "Owner",
+          "description": "Repository owner login (user or org). Resolve via List My Repositories, Search Repositories, or Get Authenticated User.",
+          "required": true
+        },
+        "repo": {
+          "label": "Repository",
+          "description": "Repository name (without the owner prefix).",
+          "required": true
+        },
+        "pull_number": {
+          "label": "Pull Request Number",
+          "description": "The pull request number. Resolve via List Pull Requests.",
+          "type": "number",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/repos/'+o+'/'+r+'/pulls/'+u(v.pull_number);return request;"
+    },
+    "update_pull_request": {
+      "label": "Update Pull Request (Agent)",
+      "description": "Edits a pull request, including closing or reopening it.",
+      "audience": "ai",
+      "inputs": {
+        "owner": {
+          "label": "Owner",
+          "description": "Repository owner login (user or org). Resolve via List My Repositories, Search Repositories, or Get Authenticated User.",
+          "required": true
+        },
+        "repo": {
+          "label": "Repository",
+          "description": "Repository name (without the owner prefix).",
+          "required": true
+        },
+        "pull_number": {
+          "label": "Pull Request Number",
+          "description": "The pull request number. Resolve via List Pull Requests.",
+          "type": "number",
+          "required": true
+        },
+        "title": {
+          "label": "Title"
+        },
+        "body": {
+          "label": "Body",
+          "type": "multiline"
+        },
+        "state": {
+          "label": "State",
+          "description": "Open or close the pull request.",
+          "type": "select",
+          "options": [
+            {
+              "value": "open",
+              "label": "Open"
+            },
+            {
+              "value": "closed",
+              "label": "Closed"
+            }
+          ]
+        },
+        "base": {
+          "label": "Base Branch",
+          "description": "Change the base branch the PR targets."
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/repos/'+o+'/'+r+'/pulls/'+u(v.pull_number);request.body=Object.assign({},h('title')?{title:v.title}:{},h('body')?{body:v.body}:{},h('state')?{state:v.state}:{},h('base')?{base:v.base}:{});return request;"
+    },
+    "merge_pull_request": {
+      "label": "Merge Pull Request (Agent)",
+      "description": "Merges an open pull request into its base branch.",
+      "audience": "ai",
+      "inputs": {
+        "owner": {
+          "label": "Owner",
+          "description": "Repository owner login (user or org). Resolve via List My Repositories, Search Repositories, or Get Authenticated User.",
+          "required": true
+        },
+        "repo": {
+          "label": "Repository",
+          "description": "Repository name (without the owner prefix).",
+          "required": true
+        },
+        "pull_number": {
+          "label": "Pull Request Number",
+          "description": "The pull request number. Resolve via List Pull Requests.",
+          "type": "number",
+          "required": true
+        },
+        "merge_method": {
+          "label": "Merge Method",
+          "type": "select",
+          "options": [
+            {
+              "value": "merge",
+              "label": "Merge"
+            },
+            {
+              "value": "squash",
+              "label": "Squash"
+            },
+            {
+              "value": "rebase",
+              "label": "Rebase"
+            }
+          ]
+        },
+        "commit_title": {
+          "label": "Commit Title"
+        },
+        "commit_message": {
+          "label": "Commit Message",
+          "type": "multiline"
+        },
+        "sha": {
+          "label": "Head SHA",
+          "description": "If set, the merge only proceeds when the PR head still matches this SHA (get via Get Pull Request)."
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/repos/'+o+'/'+r+'/pulls/'+u(v.pull_number)+'/merge';request.body=Object.assign({},h('merge_method')?{merge_method:v.merge_method}:{},h('commit_title')?{commit_title:v.commit_title}:{},h('commit_message')?{commit_message:v.commit_message}:{},h('sha')?{sha:v.sha}:{});return request;"
+    },
+    "create_pull_request_review": {
+      "label": "Create Pull Request Review (Agent)",
+      "description": "Submits a review on a pull request.",
+      "audience": "ai",
+      "inputs": {
+        "owner": {
+          "label": "Owner",
+          "description": "Repository owner login (user or org). Resolve via List My Repositories, Search Repositories, or Get Authenticated User.",
+          "required": true
+        },
+        "repo": {
+          "label": "Repository",
+          "description": "Repository name (without the owner prefix).",
+          "required": true
+        },
+        "pull_number": {
+          "label": "Pull Request Number",
+          "description": "The pull request number. Resolve via List Pull Requests.",
+          "type": "number",
+          "required": true
+        },
+        "event": {
+          "label": "Event",
+          "description": "The review action. Omit to leave the review pending.",
+          "type": "select",
+          "options": [
+            {
+              "value": "APPROVE",
+              "label": "Approve"
+            },
+            {
+              "value": "REQUEST_CHANGES",
+              "label": "Request Changes"
+            },
+            {
+              "value": "COMMENT",
+              "label": "Comment"
+            }
+          ]
+        },
+        "body": {
+          "label": "Body",
+          "description": "The review summary text (required for REQUEST_CHANGES/COMMENT).",
+          "type": "multiline"
+        },
+        "commit_id": {
+          "label": "Commit SHA",
+          "description": "The SHA the review applies to (defaults to the latest). Get via Get Pull Request."
+        },
+        "comments": {
+          "label": "Inline Comments",
+          "description": "Optional array of inline comments, e.g. [{\"path\":\"file.ts\",\"position\":5,\"body\":\"...\"}].",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/repos/'+o+'/'+r+'/pulls/'+u(v.pull_number)+'/reviews';request.body=Object.assign({},h('event')?{event:v.event}:{},h('body')?{body:v.body}:{},h('commit_id')?{commit_id:v.commit_id}:{},h('comments')?{comments:J('comments')}:{});return request;"
+    },
+    "request_pull_request_reviewers": {
+      "label": "Request Pull Request Reviewers (Agent)",
+      "description": "Requests reviews from users or teams on a pull request.",
+      "audience": "ai",
+      "inputs": {
+        "owner": {
+          "label": "Owner",
+          "description": "Repository owner login (user or org). Resolve via List My Repositories, Search Repositories, or Get Authenticated User.",
+          "required": true
+        },
+        "repo": {
+          "label": "Repository",
+          "description": "Repository name (without the owner prefix).",
+          "required": true
+        },
+        "pull_number": {
+          "label": "Pull Request Number",
+          "description": "The pull request number. Resolve via List Pull Requests.",
+          "type": "number",
+          "required": true
+        },
+        "reviewers": {
+          "label": "Reviewers",
+          "description": "User logins to request a review from. A JSON list of user logins.",
+          "type": "json"
+        },
+        "team_reviewers": {
+          "label": "Team Reviewers",
+          "description": "Team slugs to request a review from. A JSON list of team slugs.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/repos/'+o+'/'+r+'/pulls/'+u(v.pull_number)+'/requested_reviewers';request.body=Object.assign({},h('reviewers')&&J('reviewers').length>0?{reviewers:J('reviewers')}:{},h('team_reviewers')&&J('team_reviewers').length>0?{team_reviewers:J('team_reviewers')}:{});return request;"
+    },
+    "create_pull_request_review_comment_ai": {
+      "label": "Create Pull Request Review Comment (Agent)",
+      "description": "Posts an inline review comment on a pull request.",
+      "audience": "ai",
+      "inputs": {
+        "owner": {
+          "label": "Owner",
+          "description": "Repository owner login (user or org). Resolve via List My Repositories or Search Repositories.",
+          "required": true
+        },
+        "repo": {
+          "label": "Repository",
+          "description": "Repository name (without the owner prefix).",
+          "required": true
+        },
+        "pull_number": {
+          "label": "Pull Request Number",
+          "description": "The pull request number. Resolve via List Pull Requests.",
+          "type": "number",
+          "required": true
+        },
+        "commit_id": {
+          "label": "Commit SHA",
+          "description": "The SHA of the commit to comment on. Get via Get Pull Request (head.sha) or List Pull Request Commits.",
+          "required": true
+        },
+        "path": {
+          "label": "File Path",
+          "description": "The relative path of the file to comment on. Get via List Pull Request Files.",
+          "required": true
+        },
+        "body": {
+          "label": "Comment Body",
+          "description": "The content of the review comment.",
+          "type": "multiline",
+          "required": true
+        },
+        "position": {
+          "label": "Position",
+          "description": "The line index in the diff (counting from the first @@ hunk header) where the comment is placed.",
+          "type": "number",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/repos/'+o+'/'+r+'/pulls/'+u(v.pull_number)+'/comments';request.body={commit_id:v.commit_id,path:v.path,body:v.body,position:h('position')?N('position'):undefined};return request;"
+    },
+    "get_repository": {
+      "label": "Get Repository (Agent)",
+      "description": "Fetches metadata for a single repository.",
+      "audience": "ai",
+      "inputs": {
+        "owner": {
+          "label": "Owner",
+          "description": "Repository owner login (user or org). Resolve via List My Repositories, Search Repositories, or Get Authenticated User.",
+          "required": true
+        },
+        "repo": {
+          "label": "Repository",
+          "description": "Repository name (without the owner prefix).",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/repos/'+o+'/'+r;return request;"
+    },
+    "create_repository": {
+      "label": "Create Repository (Agent)",
+      "description": "Creates a new repository for the authenticated user.",
+      "audience": "ai",
+      "inputs": {
+        "name": {
+          "label": "Name",
+          "description": "The repository name.",
+          "required": true
+        },
+        "description": {
+          "label": "Description"
+        },
+        "private": {
+          "label": "Private",
+          "description": "Create as a private repository.",
+          "type": "boolean"
+        },
+        "auto_init": {
+          "label": "Auto Init",
+          "description": "Initialize with an empty README so the repo has a default branch.",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/user/repos';request.body=Object.assign({name:v.name},h('description')?{description:v.description}:{},h('private')?{private:B('private')}:{},h('auto_init')?{auto_init:B('auto_init')}:{});return request;"
+    },
+    "create_organization_repository": {
+      "label": "Create Organization Repository (Agent)",
+      "description": "Creates a new repository inside an organization.",
+      "audience": "ai",
+      "inputs": {
+        "org": {
+          "label": "Organization",
+          "description": "The organization login that will own the repository.",
+          "required": true
+        },
+        "name": {
+          "label": "Name",
+          "description": "The repository name.",
+          "required": true
+        },
+        "description": {
+          "label": "Description"
+        },
+        "private": {
+          "label": "Private",
+          "description": "Create as a private repository.",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/orgs/'+u(v.org)+'/repos';request.body=Object.assign({name:v.name},h('description')?{description:v.description}:{},h('private')?{private:B('private')}:{});return request;"
+    },
+    "update_repository": {
+      "label": "Update Repository (Agent)",
+      "description": "Updates settings on a repository.",
+      "audience": "ai",
+      "inputs": {
+        "owner": {
+          "label": "Owner",
+          "description": "Repository owner login (user or org). Resolve via List My Repositories, Search Repositories, or Get Authenticated User.",
+          "required": true
+        },
+        "repo": {
+          "label": "Repository",
+          "description": "Repository name (without the owner prefix).",
+          "required": true
+        },
+        "name": {
+          "label": "Name"
+        },
+        "description": {
+          "label": "Description"
+        },
+        "private": {
+          "label": "Private",
+          "description": "Yes makes the repository private, No makes it public. Leave empty or pick Leave unchanged to keep the current setting.",
+          "type": "select",
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes"
+            },
+            {
+              "value": "no",
+              "label": "No"
+            },
+            {
+              "value": "unchanged",
+              "label": "Leave unchanged"
+            }
+          ]
+        },
+        "default_branch": {
+          "label": "Default Branch",
+          "description": "Resolve via List Branches."
+        },
+        "has_issues": {
+          "label": "Has Issues",
+          "description": "Yes turns Issues on, No turns them off. Leave empty or pick Leave unchanged to keep the current setting.",
+          "type": "select",
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes"
+            },
+            {
+              "value": "no",
+              "label": "No"
+            },
+            {
+              "value": "unchanged",
+              "label": "Leave unchanged"
+            }
+          ]
+        },
+        "archived": {
+          "label": "Archived",
+          "description": "Yes archives the repository (read-only state), No unarchives it. Leave empty or pick Leave unchanged to keep the current setting.",
+          "type": "select",
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes"
+            },
+            {
+              "value": "no",
+              "label": "No"
+            },
+            {
+              "value": "unchanged",
+              "label": "Leave unchanged"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/repos/'+o+'/'+r;request.body=Object.assign({},h('name')?{name:v.name}:{},h('description')?{description:v.description}:{},{private:(k=>v[k]==='yes'?true:v[k]==='no'?false:undefined)('private')},h('default_branch')?{default_branch:v.default_branch}:{},{has_issues:(k=>v[k]==='yes'?true:v[k]==='no'?false:undefined)('has_issues'),archived:(k=>v[k]==='yes'?true:v[k]==='no'?false:undefined)('archived')});return request;"
+    },
+    "get_branch": {
+      "label": "Get Branch (Agent)",
+      "description": "Fetches a single branch including its tip commit.",
+      "audience": "ai",
+      "inputs": {
+        "owner": {
+          "label": "Owner",
+          "description": "Repository owner login (user or org). Resolve via List My Repositories, Search Repositories, or Get Authenticated User.",
+          "required": true
+        },
+        "repo": {
+          "label": "Repository",
+          "description": "Repository name (without the owner prefix).",
+          "required": true
+        },
+        "branch": {
+          "label": "Branch",
+          "description": "The branch name. Resolve via List Branches.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/repos/'+o+'/'+r+'/branches/'+u(v.branch);return request;"
+    },
+    "get_commit": {
+      "label": "Get Commit (Agent)",
+      "description": "Fetches a single commit including its file changes.",
+      "audience": "ai",
+      "inputs": {
+        "owner": {
+          "label": "Owner",
+          "description": "Repository owner login (user or org). Resolve via List My Repositories, Search Repositories, or Get Authenticated User.",
+          "required": true
+        },
+        "repo": {
+          "label": "Repository",
+          "description": "Repository name (without the owner prefix).",
+          "required": true
+        },
+        "ref": {
+          "label": "Ref",
+          "description": "Commit SHA, branch name, or tag. Resolve via List Commits.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/repos/'+o+'/'+r+'/commits/'+u(v.ref);return request;"
+    },
+    "compare_commits": {
+      "label": "Compare Commits (Agent)",
+      "description": "Compares two commits, branches, or tags.",
+      "audience": "ai",
+      "inputs": {
+        "owner": {
+          "label": "Owner",
+          "description": "Repository owner login (user or org). Resolve via List My Repositories, Search Repositories, or Get Authenticated User.",
+          "required": true
+        },
+        "repo": {
+          "label": "Repository",
+          "description": "Repository name (without the owner prefix).",
+          "required": true
+        },
+        "base": {
+          "label": "Base",
+          "description": "The base ref (branch, tag, or SHA).",
+          "required": true
+        },
+        "head": {
+          "label": "Head",
+          "description": "The head ref to compare against the base.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/repos/'+o+'/'+r+'/compare/'+u(v.base)+'...'+u(v.head);return request;"
+    },
+    "list_languages": {
+      "label": "List Languages (Agent)",
+      "description": "Returns the language byte-count map for a repository.",
+      "audience": "ai",
+      "inputs": {
+        "owner": {
+          "label": "Owner",
+          "description": "Repository owner login (user or org). Resolve via List My Repositories, Search Repositories, or Get Authenticated User.",
+          "required": true
+        },
+        "repo": {
+          "label": "Repository",
+          "description": "Repository name (without the owner prefix).",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/repos/'+o+'/'+r+'/languages';return request;"
+    },
+    "get_file_content": {
+      "label": "Get File Content (Agent)",
+      "description": "Reads a file (or directory listing) from a repository.",
+      "audience": "ai",
+      "inputs": {
+        "owner": {
+          "label": "Owner",
+          "description": "Repository owner login (user or org). Resolve via List My Repositories, Search Repositories, or Get Authenticated User.",
+          "required": true
+        },
+        "repo": {
+          "label": "Repository",
+          "description": "Repository name (without the owner prefix).",
+          "required": true
+        },
+        "path": {
+          "label": "Path",
+          "description": "File or directory path within the repo (e.g. \"src/index.ts\").",
+          "required": true
+        },
+        "ref": {
+          "label": "Ref",
+          "description": "Optional branch, tag, or commit SHA (defaults to the default branch)."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/repos/'+o+'/'+r+'/contents/'+v.path.split('/').map(e).join('/')+q(h('ref')?{ref:v.ref}:{});return request;"
+    },
+    "create_or_update_file": {
+      "label": "Create or Update File (Agent)",
+      "description": "Creates or updates a single file via a commit.",
+      "audience": "ai",
+      "inputs": {
+        "owner": {
+          "label": "Owner",
+          "description": "Repository owner login (user or org). Resolve via List My Repositories, Search Repositories, or Get Authenticated User.",
+          "required": true
+        },
+        "repo": {
+          "label": "Repository",
+          "description": "Repository name (without the owner prefix).",
+          "required": true
+        },
+        "path": {
+          "label": "Path",
+          "description": "File path within the repo (e.g. \"docs/readme.md\").",
+          "required": true
+        },
+        "message": {
+          "label": "Commit Message",
+          "required": true
+        },
+        "content": {
+          "label": "Content (base64)",
+          "description": "The new file content, base64-encoded.",
+          "type": "multiline",
+          "required": true
+        },
+        "sha": {
+          "label": "Blob SHA",
+          "description": "REQUIRED when updating an existing file — its current blob sha from Get File Content. Omit to create a new file."
+        },
+        "branch": {
+          "label": "Branch",
+          "description": "Branch to commit to (defaults to the default branch)."
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/repos/'+o+'/'+r+'/contents/'+v.path.split('/').map(e).join('/');request.body=Object.assign({message:v.message,content:v.content},h('sha')?{sha:v.sha}:{},h('branch')?{branch:v.branch}:{});return request;"
+    },
+    "get_repository_tree": {
+      "label": "Get Repository Tree (Agent)",
+      "description": "Lists the full file tree at a given ref.",
+      "audience": "ai",
+      "inputs": {
+        "owner": {
+          "label": "Owner",
+          "description": "Repository owner login (user or org). Resolve via List My Repositories, Search Repositories, or Get Authenticated User.",
+          "required": true
+        },
+        "repo": {
+          "label": "Repository",
+          "description": "Repository name (without the owner prefix).",
+          "required": true
+        },
+        "tree_sha": {
+          "label": "Tree SHA or Branch",
+          "description": "A tree SHA or branch name (e.g. \"main\").",
+          "required": true
+        },
+        "recursive": {
+          "label": "Recursive",
+          "description": "Return the full nested tree instead of just the top level.",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/repos/'+o+'/'+r+'/git/trees/'+u(v.tree_sha)+q(B('recursive')?{recursive:'1'}:{});return request;"
+    },
+    "create_branch_ai": {
+      "label": "Create Branch (Agent)",
+      "description": "Creates a new branch from the tip of a source branch.",
+      "audience": "ai",
+      "inputs": {
+        "owner": {
+          "label": "Owner",
+          "description": "Repository owner login (user or org). Resolve via List My Repositories or Search Repositories.",
+          "required": true
+        },
+        "repo": {
+          "label": "Repository",
+          "description": "Repository name (without the owner prefix).",
+          "required": true
+        },
+        "source_branch": {
+          "label": "Source Branch",
+          "description": "The branch whose tip the new branch starts from (e.g. \"main\"). Resolve via List Branches.",
+          "required": true
+        },
+        "new_branch_name": {
+          "label": "New Branch Name",
+          "description": "The name for the new branch (e.g. 'feature/new-design').",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/repos/'+o+'/'+r+'/branches/'+u(v.source_branch);return request;",
+      "afterResponse": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nreturn call({method:'POST',url:'/repos/'+o+'/'+r+'/git/refs',body:{ref:'refs/heads/'+v.new_branch_name,sha:response.commit.sha}});"
+    },
+    "get_reference": {
+      "label": "Get Reference (Agent)",
+      "description": "Resolves a git ref to its commit SHA.",
+      "audience": "ai",
+      "inputs": {
+        "owner": {
+          "label": "Owner",
+          "description": "Repository owner login (user or org). Resolve via List My Repositories, Search Repositories, or Get Authenticated User.",
+          "required": true
+        },
+        "repo": {
+          "label": "Repository",
+          "description": "Repository name (without the owner prefix).",
+          "required": true
+        },
+        "ref": {
+          "label": "Ref",
+          "description": "The ref without the \"refs/\" prefix, e.g. \"heads/main\".",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/repos/'+o+'/'+r+'/git/ref/'+u(v.ref);return request;"
+    },
+    "search_repositories": {
+      "label": "Search Repositories (Agent)",
+      "description": "Searches public/accessible repositories with a query.",
+      "audience": "ai",
+      "inputs": {
+        "q": {
+          "label": "Query",
+          "description": "Search query with optional qualifiers, e.g. \"topic:cli language:go stars:>100\".",
+          "required": true
+        },
+        "sort": {
+          "label": "Sort",
+          "type": "select",
+          "options": [
+            {
+              "value": "stars",
+              "label": "Stars"
+            },
+            {
+              "value": "forks",
+              "label": "Forks"
+            },
+            {
+              "value": "help-wanted-issues",
+              "label": "Help Wanted Issues"
+            },
+            {
+              "value": "updated",
+              "label": "Updated"
+            }
+          ]
+        },
+        "order": {
+          "label": "Order",
+          "type": "select",
+          "options": [
+            {
+              "value": "desc",
+              "label": "Descending"
+            },
+            {
+              "value": "asc",
+              "label": "Ascending"
+            }
+          ]
+        },
+        "per_page": {
+          "label": "Per Page",
+          "description": "Results per page (max 100).",
+          "type": "number"
+        },
+        "page": {
+          "label": "Page",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/search/repositories'+q(Object.assign({q:v.q},h('sort')?{sort:v.sort}:{},h('order')?{order:v.order}:{},h('per_page')?{per_page:v.per_page}:{},h('page')?{page:v.page}:{}));return request;"
+    },
+    "search_issues_and_pull_requests": {
+      "label": "Search Issues and Pull Requests (Agent)",
+      "description": "Searches issues and PRs across repositories with a query.",
+      "audience": "ai",
+      "inputs": {
+        "q": {
+          "label": "Query",
+          "description": "Search query, e.g. \"repo:octocat/Hello-World is:issue is:open label:bug\".",
+          "required": true
+        },
+        "sort": {
+          "label": "Sort",
+          "description": "Sort field (e.g. comments, created, updated, reactions)."
+        },
+        "order": {
+          "label": "Order",
+          "type": "select",
+          "options": [
+            {
+              "value": "desc",
+              "label": "Descending"
+            },
+            {
+              "value": "asc",
+              "label": "Ascending"
+            }
+          ]
+        },
+        "per_page": {
+          "label": "Per Page",
+          "description": "Results per page (max 100).",
+          "type": "number"
+        },
+        "page": {
+          "label": "Page",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/search/issues'+q(Object.assign({q:v.q},h('sort')?{sort:v.sort}:{},h('order')?{order:v.order}:{},h('per_page')?{per_page:v.per_page}:{},h('page')?{page:v.page}:{}));return request;"
+    },
+    "search_code": {
+      "label": "Search Code (Agent)",
+      "description": "Searches file contents across repositories.",
+      "audience": "ai",
+      "inputs": {
+        "q": {
+          "label": "Query",
+          "description": "Code search query, e.g. \"addClass in:file language:js repo:jquery/jquery\".",
+          "required": true
+        },
+        "per_page": {
+          "label": "Per Page",
+          "description": "Results per page (max 100).",
+          "type": "number"
+        },
+        "page": {
+          "label": "Page",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/search/code'+q(Object.assign({q:v.q},h('per_page')?{per_page:v.per_page}:{},h('page')?{page:v.page}:{}));return request;"
+    },
+    "search_users": {
+      "label": "Search Users (Agent)",
+      "description": "Searches GitHub users and organizations.",
+      "audience": "ai",
+      "inputs": {
+        "q": {
+          "label": "Query",
+          "description": "User search query, e.g. \"tom repos:>10 location:london\".",
+          "required": true
+        },
+        "per_page": {
+          "label": "Per Page",
+          "description": "Results per page (max 100).",
+          "type": "number"
+        },
+        "page": {
+          "label": "Page",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/search/users'+q(Object.assign({q:v.q},h('per_page')?{per_page:v.per_page}:{},h('page')?{page:v.page}:{}));return request;"
+    },
+    "get_authenticated_user": {
+      "label": "Get Authenticated User (Agent)",
+      "description": "Returns the profile of the connected account.",
+      "audience": "ai",
+      "inputs": {},
+      "request": {
+        "method": "GET",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/user';return request;"
+    },
+    "get_user": {
+      "label": "Get User (Agent)",
+      "description": "Fetches a user's public profile by login.",
+      "audience": "ai",
+      "inputs": {
+        "username": {
+          "label": "Username",
+          "description": "The user or organization login.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/users/'+u(v.username);return request;"
+    },
+    "create_release": {
+      "label": "Create Release (Agent)",
+      "description": "Creates a release for a tag.",
+      "audience": "ai",
+      "inputs": {
+        "owner": {
+          "label": "Owner",
+          "description": "Repository owner login (user or org). Resolve via List My Repositories, Search Repositories, or Get Authenticated User.",
+          "required": true
+        },
+        "repo": {
+          "label": "Repository",
+          "description": "Repository name (without the owner prefix).",
+          "required": true
+        },
+        "tag_name": {
+          "label": "Tag Name",
+          "description": "The git tag for this release (e.g. \"v1.2.0\").",
+          "required": true
+        },
+        "name": {
+          "label": "Release Name"
+        },
+        "body": {
+          "label": "Body",
+          "description": "Release notes.",
+          "type": "multiline"
+        },
+        "target_commitish": {
+          "label": "Target Commitish",
+          "description": "Branch or SHA the tag is created from if it does not exist."
+        },
+        "draft": {
+          "label": "Draft",
+          "type": "boolean"
+        },
+        "prerelease": {
+          "label": "Prerelease",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/repos/'+o+'/'+r+'/releases';request.body=Object.assign({tag_name:v.tag_name},h('name')?{name:v.name}:{},h('body')?{body:v.body}:{},h('target_commitish')?{target_commitish:v.target_commitish}:{},h('draft')?{draft:B('draft')}:{},h('prerelease')?{prerelease:B('prerelease')}:{});return request;"
+    },
+    "get_release": {
+      "label": "Get Release (Agent)",
+      "description": "Fetches a single release by its id.",
+      "audience": "ai",
+      "inputs": {
+        "owner": {
+          "label": "Owner",
+          "description": "Repository owner login (user or org). Resolve via List My Repositories, Search Repositories, or Get Authenticated User.",
+          "required": true
+        },
+        "repo": {
+          "label": "Repository",
+          "description": "Repository name (without the owner prefix).",
+          "required": true
+        },
+        "release_id": {
+          "label": "Release ID",
+          "description": "The numeric release id. Resolve via List Releases.",
+          "type": "number",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/repos/'+o+'/'+r+'/releases/'+u(v.release_id);return request;"
+    },
+    "get_latest_release": {
+      "label": "Get Latest Release (Agent)",
+      "description": "Fetches the latest published release.",
+      "audience": "ai",
+      "inputs": {
+        "owner": {
+          "label": "Owner",
+          "description": "Repository owner login (user or org). Resolve via List My Repositories, Search Repositories, or Get Authenticated User.",
+          "required": true
+        },
+        "repo": {
+          "label": "Repository",
+          "description": "Repository name (without the owner prefix).",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/repos/'+o+'/'+r+'/releases/latest';return request;"
+    },
+    "create_milestone": {
+      "label": "Create Milestone (Agent)",
+      "description": "Creates a milestone in a repository.",
+      "audience": "ai",
+      "inputs": {
+        "owner": {
+          "label": "Owner",
+          "description": "Repository owner login (user or org). Resolve via List My Repositories, Search Repositories, or Get Authenticated User.",
+          "required": true
+        },
+        "repo": {
+          "label": "Repository",
+          "description": "Repository name (without the owner prefix).",
+          "required": true
+        },
+        "title": {
+          "label": "Title",
+          "required": true
+        },
+        "description": {
+          "label": "Description",
+          "type": "multiline"
+        },
+        "state": {
+          "label": "State",
+          "type": "select",
+          "options": [
+            {
+              "value": "open",
+              "label": "Open"
+            },
+            {
+              "value": "closed",
+              "label": "Closed"
+            }
+          ]
+        },
+        "due_on": {
+          "label": "Due On",
+          "description": "ISO 8601 timestamp for the due date."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/repos/'+o+'/'+r+'/milestones';request.body=Object.assign({title:v.title},h('description')?{description:v.description}:{},h('state')?{state:v.state}:{},h('due_on')?{due_on:v.due_on}:{});return request;"
+    },
+    "get_milestone": {
+      "label": "Get Milestone (Agent)",
+      "description": "Fetches a single milestone by number.",
+      "audience": "ai",
+      "inputs": {
+        "owner": {
+          "label": "Owner",
+          "description": "Repository owner login (user or org). Resolve via List My Repositories, Search Repositories, or Get Authenticated User.",
+          "required": true
+        },
+        "repo": {
+          "label": "Repository",
+          "description": "Repository name (without the owner prefix).",
+          "required": true
+        },
+        "milestone_number": {
+          "label": "Milestone Number",
+          "description": "The milestone number. Resolve via List Milestones.",
+          "type": "number",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/repos/'+o+'/'+r+'/milestones/'+u(v.milestone_number);return request;"
+    },
+    "update_milestone": {
+      "label": "Update Milestone (Agent)",
+      "description": "Updates a milestone, including closing or reopening it.",
+      "audience": "ai",
+      "inputs": {
+        "owner": {
+          "label": "Owner",
+          "description": "Repository owner login (user or org). Resolve via List My Repositories, Search Repositories, or Get Authenticated User.",
+          "required": true
+        },
+        "repo": {
+          "label": "Repository",
+          "description": "Repository name (without the owner prefix).",
+          "required": true
+        },
+        "milestone_number": {
+          "label": "Milestone Number",
+          "description": "The milestone number. Resolve via List Milestones.",
+          "type": "number",
+          "required": true
+        },
+        "title": {
+          "label": "Title"
+        },
+        "state": {
+          "label": "State",
+          "type": "select",
+          "options": [
+            {
+              "value": "open",
+              "label": "Open"
+            },
+            {
+              "value": "closed",
+              "label": "Closed"
+            }
+          ]
+        },
+        "description": {
+          "label": "Description",
+          "type": "multiline"
+        },
+        "due_on": {
+          "label": "Due On",
+          "description": "ISO 8601 timestamp for the due date."
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://api.github.com"
+      },
+      "beforeRequest": "const v=inputs,h=k=>v[k]!=null&&v[k]!=='',J=k=>JSON.parse(v[k]),N=k=>Number(v[k]),B=k=>v[k]==='true',u=x=>String(x).split('%').map(encodeURI).join('%'),e=encodeURIComponent,q=x=>{const s=Object.entries(x).filter(y=>y[1]!=null).map(y=>e(y[0])+'='+e(String(y[1]))).join('&').replace(/%20/g,'+').replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());return s?'?'+s:''},[o,r]=h('repository')?v.repository.split('/'):[v.owner,v.repo];\nrequest.url='/repos/'+o+'/'+r+'/milestones/'+u(v.milestone_number);request.body=Object.assign({},h('title')?{title:v.title}:{},h('state')?{state:v.state}:{},h('description')?{description:v.description}:{},h('due_on')?{due_on:v.due_on}:{});return request;"
+    }
+  },
+  "triggers": {}
+}

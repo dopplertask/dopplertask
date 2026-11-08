@@ -1155,5 +1155,50 @@
         "subscriptionPlan": "$.subscriptionPlan"
       }
     }
+  },
+  "triggers": {
+    "new-submission": {
+      "label": "New Submission",
+      "description": "Triggers when a form receives a new submission",
+      "inputs": {
+        "form_id": {
+          "label": "Form",
+          "description": "Only forms this API key can access are listed.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.tally.so/forms",
+              "query": {
+                "page": "1",
+                "limit": "100"
+              }
+            },
+            "list": "$.items",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        }
+      },
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.tally.so/webhooks",
+          "body": {
+            "formId": "{{form_id}}",
+            "url": "{{webhookUrl}}",
+            "eventTypes": [
+              "FORM_RESPONSE"
+            ]
+          }
+        },
+        "id": "$.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.tally.so/webhooks/{{webhookId}}"
+        }
+      },
+      "afterResponse": "if (response.eventType !== 'FORM_RESPONSE') return [];\nconst data = response.data || {};\nconst isObject = (value) => typeof value === 'object' && value !== null && !Array.isArray(value);\nconst textById = (entries) => Object.fromEntries((entries || []).map((entry) => [entry.id, entry.text]));\nconst fields = {};\nconst seen = {};\nfor (const field of data.fields || []) {\n  if (field.type === 'CHECKBOXES' && !field.options) continue;\n  const count = seen[field.label] || 0;\n  seen[field.label] = count + 1;\n  const key = count === 0 ? field.label : `${field.label} (${count + 1})`;\n  let value = field.value;\n  if (['MULTIPLE_CHOICE', 'CHECKBOXES', 'DROPDOWN', 'MULTI_SELECT', 'RANKING'].includes(field.type)) {\n    if (field.options && field.options.length > 0 && Array.isArray(value)) {\n      const optionText = textById(field.options);\n      value = value.map((id) => optionText[id] ?? id);\n    }\n  } else if (field.type === 'MATRIX' && isObject(value)) {\n    const rowText = textById(field.rows);\n    const columnText = textById(field.columns);\n    value = {};\n    for (const [rowId, columnIds] of Object.entries(field.value)) {\n      value[rowText[rowId] ?? rowId] = Array.isArray(columnIds) ? columnIds.map((id) => columnText[id] ?? id) : columnIds;\n    }\n  }\n  fields[key] = value;\n}\nreturn [{ ...data, fields }];",
+      "items": "$"
+    }
   }
 }

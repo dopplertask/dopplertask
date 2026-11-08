@@ -1,0 +1,1294 @@
+{
+  "name": "todoist",
+  "label": "Todoist",
+  "description": "To-do list and task manager",
+  "icon": "",
+  "hosts": [
+    "api.todoist.com"
+  ],
+  "baseUrl": "https://api.todoist.com/api/v1",
+  "upstream": {
+    "package": "@activepieces/piece-todoist",
+    "version": "0.6.3"
+  },
+  "credential": {
+    "oauth2": {
+      "authUrl": "https://todoist.com/oauth/authorize",
+      "tokenUrl": "https://todoist.com/oauth/access_token",
+      "scope": "data:read_write"
+    }
+  },
+  "actions": {
+    "create_task": {
+      "label": "Create Task",
+      "description": "Add a task to a Todoist project or your Inbox.",
+      "audience": "human",
+      "inputs": {
+        "project_id": {
+          "label": "Project",
+          "description": "Leave empty to add the task to your Inbox.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.todoist.com/api/v1/projects"
+            },
+            "list": "$.results",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "section_id": {
+          "label": "Section",
+          "description": "Leave empty to add the task outside any section.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.todoist.com/api/v1/sections",
+              "query": {
+                "project_id": "{{project_id}}"
+              }
+            },
+            "list": "$.results",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "content": {
+          "label": "Title",
+          "description": "Markdown and links are supported.",
+          "type": "multiline",
+          "required": true
+        },
+        "description": {
+          "label": "Description",
+          "description": "Extra details shown under the title. Markdown is supported.",
+          "type": "multiline"
+        },
+        "labels": {
+          "label": "Labels",
+          "description": "Names of personal or shared labels to add.",
+          "type": "json"
+        },
+        "priority": {
+          "label": "Priority",
+          "description": "1 is normal, 4 is urgent; Todoist shows 4 as P1.",
+          "type": "number"
+        },
+        "due_date": {
+          "label": "Due Date",
+          "description": "YYYY-MM-DD or English words. Repeating dates work too."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.todoist.com/api/v1/tasks",
+        "body": {
+          "content": "{{content}}",
+          "project_id": "{{project_id}}",
+          "description": "{{description}}",
+          "labels": "{{labels}}",
+          "priority": "{{priority}}",
+          "section_id": "{{section_id}}",
+          "due_date": "{{due_date}}"
+        }
+      },
+      "beforeRequest": "var due = request.body.due_date;\ndelete request.body.due_date;\nif (due) {\n  var time = Date.parse(due);\n  if (isNaN(time)) request.body.due_string = due;\n  else if (/^\\d{4}-\\d{2}-\\d{2}$/.test(due)) request.body.due_date = due;\n  else request.body.due_datetime = new Date(time).toISOString();\n}\nreturn request;"
+    },
+    "update_task": {
+      "label": "Update Task",
+      "description": "Change the title, details, labels, priority or due date of a task.",
+      "audience": "human",
+      "inputs": {
+        "task_id": {
+          "label": "Task ID",
+          "description": "The task's ID, from a Create Task or Find Task step.",
+          "required": true
+        },
+        "content": {
+          "label": "Title",
+          "description": "Markdown and links are supported.",
+          "type": "multiline"
+        },
+        "description": {
+          "label": "Description",
+          "description": "Extra details shown under the title. Markdown is supported.",
+          "type": "multiline"
+        },
+        "labels": {
+          "label": "Labels",
+          "description": "Replaces the task's labels with these names.",
+          "type": "json"
+        },
+        "priority": {
+          "label": "Priority",
+          "description": "1 is normal, 4 is urgent; Todoist shows 4 as P1.",
+          "type": "number"
+        },
+        "due_date": {
+          "label": "Due Date",
+          "description": "YYYY-MM-DD or English words. Repeating dates work too."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.todoist.com/api/v1/tasks/{{task_id}}",
+        "body": {
+          "content": "{{content}}",
+          "description": "{{description}}",
+          "labels": "{{labels}}",
+          "priority": "{{priority}}",
+          "due_date": "{{due_date}}"
+        }
+      },
+      "beforeRequest": "if (Array.isArray(request.body.labels) && request.body.labels.length === 0) delete request.body.labels;\nvar due = request.body.due_date;\ndelete request.body.due_date;\nif (due) {\n  var time = Date.parse(due);\n  if (isNaN(time)) request.body.due_string = due;\n  else if (/^\\d{4}-\\d{2}-\\d{2}$/.test(due)) request.body.due_date = due;\n  else request.body.due_datetime = new Date(time).toISOString();\n}\nreturn request;"
+    },
+    "find_task": {
+      "label": "Find Task",
+      "description": "Find an open task by its exact title.",
+      "audience": "human",
+      "inputs": {
+        "name": {
+          "label": "Title",
+          "description": "Matches an open task whose title is exactly this text.",
+          "required": true
+        },
+        "project_id": {
+          "label": "Project",
+          "description": "Leave empty to search every project.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.todoist.com/api/v1/projects"
+            },
+            "list": "$.results",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.todoist.com/api/v1/tasks",
+        "query": {
+          "project_id": "{{project_id}}"
+        }
+      },
+      "afterResponse": "const query = (cursor) => { const q = {}; if (inputs.project_id) q.project_id = inputs.project_id; if (cursor) q.cursor = cursor; return q; };\nlet tasks = response.results;\nlet cursor = response.next_cursor;\nwhile (cursor) {\n  const page = call({method: 'GET', url: '/tasks', query: query(cursor)});\n  tasks = tasks.concat(page.results);\n  cursor = page.next_cursor;\n}\nconst match = tasks.find((task) => task.content == inputs.name);\nif (!match) throw new Error('Task not found');\nreturn match;"
+    },
+    "mark_task_completed": {
+      "label": "Mark Task as Completed",
+      "description": "Complete a task. A recurring task moves to its next date.",
+      "audience": "human",
+      "inputs": {
+        "task_id": {
+          "label": "Task ID",
+          "description": "The task's ID, from a Create Task or Find Task step.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.todoist.com/api/v1/tasks/{{task_id}}/close"
+      }
+    },
+    "todoist_create_task": {
+      "label": "Create Task",
+      "description": "Create a task in Todoist with explicit, structured fields.",
+      "audience": "ai",
+      "inputs": {
+        "project_id": {
+          "label": "Project",
+          "description": "Task project ID. If not set, task is put to user's Inbox.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.todoist.com/api/v1/projects"
+            },
+            "list": "$.results",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "content": {
+          "label": "content",
+          "description": "The task's content. It may contain some markdown-formatted text and hyperlinks",
+          "type": "multiline",
+          "required": true
+        },
+        "description": {
+          "label": "Description",
+          "description": "A description for the task. This value may contain some markdown-formatted text and hyperlinks.",
+          "type": "multiline"
+        },
+        "labels": {
+          "label": "Labels",
+          "description": "The task's labels (a list of names that may represent either personal or shared labels)",
+          "type": "json"
+        },
+        "priority": {
+          "label": "Priority",
+          "description": "Task priority from 1 (normal) to 4 (urgent)",
+          "type": "number"
+        },
+        "due_date": {
+          "label": "Due date",
+          "description": "Can be either a specific date in YYYY-MM-DD format relative to user's timezone, a specific date and time in RFC3339 format, or a human defined date (e.g. 'next Monday') using local time"
+        },
+        "section_id": {
+          "label": "Section",
+          "description": "Leave empty to add the task outside any section.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.todoist.com/api/v1/sections",
+              "query": {
+                "project_id": "{{project_id}}"
+              }
+            },
+            "list": "$.results",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.todoist.com/api/v1/tasks",
+        "body": {
+          "content": "{{content}}",
+          "project_id": "{{project_id}}",
+          "description": "{{description}}",
+          "labels": "{{labels}}",
+          "priority": "{{priority}}",
+          "section_id": "{{section_id}}",
+          "due_date": "{{due_date}}"
+        }
+      },
+      "beforeRequest": "var due = request.body.due_date;\ndelete request.body.due_date;\nif (due) {\n  var time = Date.parse(due);\n  if (isNaN(time)) request.body.due_string = due;\n  else if (/^\\d{4}-\\d{2}-\\d{2}$/.test(due)) request.body.due_date = due;\n  else request.body.due_datetime = new Date(time).toISOString();\n}\nreturn request;"
+    },
+    "todoist_update_task": {
+      "label": "Update Task",
+      "description": "Update fields on an existing Todoist task.",
+      "audience": "ai",
+      "inputs": {
+        "task_id": {
+          "label": "Task ID",
+          "description": "The ID of the task to update (obtain from Find Task, Filter Tasks, or Get Task).",
+          "required": true
+        },
+        "content": {
+          "label": "content",
+          "description": "The task's content. It may contain some markdown-formatted text and hyperlinks",
+          "type": "multiline"
+        },
+        "description": {
+          "label": "Description",
+          "description": "A description for the task. This value may contain some markdown-formatted text and hyperlinks.",
+          "type": "multiline"
+        },
+        "labels": {
+          "label": "Labels",
+          "description": "The task's labels (a list of names that may represent either personal or shared labels)",
+          "type": "json"
+        },
+        "priority": {
+          "label": "Priority",
+          "description": "Task priority from 1 (normal) to 4 (urgent)",
+          "type": "number"
+        },
+        "due_date": {
+          "label": "Due date",
+          "description": "Can be either a specific date in YYYY-MM-DD format relative to user's timezone, a specific date and time in RFC3339 format, or a human defined date (e.g. 'next Monday') using local time"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.todoist.com/api/v1/tasks/{{task_id}}",
+        "body": {
+          "content": "{{content}}",
+          "description": "{{description}}",
+          "labels": "{{labels}}",
+          "priority": "{{priority}}",
+          "due_date": "{{due_date}}"
+        }
+      },
+      "beforeRequest": "if (Array.isArray(request.body.labels) && request.body.labels.length === 0) delete request.body.labels;\nvar due = request.body.due_date;\ndelete request.body.due_date;\nif (due) {\n  var time = Date.parse(due);\n  if (isNaN(time)) request.body.due_string = due;\n  else if (/^\\d{4}-\\d{2}-\\d{2}$/.test(due)) request.body.due_date = due;\n  else request.body.due_datetime = new Date(time).toISOString();\n}\nreturn request;"
+    },
+    "todoist_find_task": {
+      "label": "Find Task",
+      "description": "Find an active task by its exact name.",
+      "audience": "ai",
+      "inputs": {
+        "name": {
+          "label": "Name",
+          "description": "The name of the task to search for.",
+          "required": true
+        },
+        "project_id": {
+          "label": "Project",
+          "description": "Search for tasks within the selected project. If left blank, then all projects are searched.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.todoist.com/api/v1/projects"
+            },
+            "list": "$.results",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.todoist.com/api/v1/tasks",
+        "query": {
+          "project_id": "{{project_id}}"
+        }
+      },
+      "afterResponse": "const query = (cursor) => { const q = {}; if (inputs.project_id) q.project_id = inputs.project_id; if (cursor) q.cursor = cursor; return q; };\nlet tasks = response.results;\nlet cursor = response.next_cursor;\nwhile (cursor) {\n  const page = call({method: 'GET', url: '/tasks', query: query(cursor)});\n  tasks = tasks.concat(page.results);\n  cursor = page.next_cursor;\n}\nconst match = tasks.find((task) => task.content == inputs.name);\nif (!match) throw new Error('Task not found');\nreturn match;"
+    },
+    "todoist_complete_task": {
+      "label": "Complete Task",
+      "description": "Mark an active task as completed.",
+      "audience": "ai",
+      "inputs": {
+        "task_id": {
+          "label": "Task ID",
+          "description": "The ID of the task to complete (obtain from Find Task, Filter Tasks, or Get Task).",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.todoist.com/api/v1/tasks/{{task_id}}/close"
+      }
+    },
+    "todoist_filter_tasks": {
+      "label": "Filter Tasks",
+      "description": "Query active tasks using Todoist filter syntax.",
+      "audience": "ai",
+      "inputs": {
+        "query": {
+          "label": "Query",
+          "description": "Todoist filter query. Examples: \"today | overdue\", \"p1 & !#Work\", \"search: meeting\", \"no due date\". Uses Todoist's native filter syntax.",
+          "required": true
+        },
+        "lang": {
+          "label": "Language",
+          "description": "IETF language code for parsing date keywords in the query (e.g. \"en\", \"de\"). Defaults to the account language."
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of tasks to return per page (1-200, default 50). All matching pages are followed automatically.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.todoist.com/api/v1/tasks/filter"
+      },
+      "beforeRequest": "const form = (params) => Object.keys(params).filter((key) => params[key] !== undefined && params[key] !== '').map((key) => encodeURIComponent(key) + '=' + encodeURIComponent(params[key]).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+')).join('&');\nconst params = {query: inputs.query, lang: inputs.lang, limit: inputs.limit};\nrequest.url = request.url + '?' + form(params);\nreturn request;",
+      "afterResponse": "const form = (params) => Object.keys(params).filter((key) => params[key] !== undefined && params[key] !== '').map((key) => encodeURIComponent(key) + '=' + encodeURIComponent(params[key]).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+')).join('&');\nconst params = {query: inputs.query, lang: inputs.lang, limit: inputs.limit};\nlet items = response.results;\nlet cursor = response.next_cursor;\nwhile (cursor) {\n  const page = call({method: 'GET', url: '/tasks/filter?' + form(Object.assign({}, params, {cursor}))});\n  items = items.concat(page.results);\n  cursor = page.next_cursor;\n}\nreturn {tasks: items, count: items.length};"
+    },
+    "todoist_reopen_task": {
+      "label": "Reopen Task",
+      "description": "Uncomplete a previously completed task.",
+      "audience": "ai",
+      "inputs": {
+        "task_id": {
+          "label": "Task ID",
+          "description": "The ID of the completed task to reopen (obtain from a completed-task list or Get Task).",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.todoist.com/api/v1/tasks/{{task_id}}/reopen"
+      },
+      "afterResponse": "return {success: true, task_id: inputs.task_id};"
+    },
+    "todoist_move_task": {
+      "label": "Move Task",
+      "description": "Move a task to a different project, section, or parent.",
+      "audience": "ai",
+      "inputs": {
+        "task_id": {
+          "label": "Task ID",
+          "description": "The ID of the task to move (obtain from Find Task or Filter Tasks).",
+          "required": true
+        },
+        "project_id": {
+          "label": "Destination Project ID",
+          "description": "Move the task into this project. 16-character base32 ID from List Projects. Provide at least one of project, section, or parent."
+        },
+        "section_id": {
+          "label": "Destination Section ID",
+          "description": "Move the task into this section. 16-character base32 ID from List Sections. Provide at least one of project, section, or parent."
+        },
+        "parent_id": {
+          "label": "Parent Task ID",
+          "description": "Make the task a sub-task of this parent task. 16-character base32 ID. Provide at least one of project, section, or parent."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.todoist.com/api/v1/tasks/{{task_id}}/move",
+        "body": {
+          "project_id": "{{project_id}}",
+          "section_id": "{{section_id}}",
+          "parent_id": "{{parent_id}}"
+        }
+      },
+      "beforeRequest": "if (!inputs.project_id && !inputs.section_id && !inputs.parent_id) throw new Error('Move Task requires at least one destination: project_id, section_id, or parent_id.');\nreturn request;"
+    },
+    "todoist_quick_add_task": {
+      "label": "Quick Add Task",
+      "description": "Create a task from a natural-language sentence.",
+      "audience": "ai",
+      "inputs": {
+        "text": {
+          "label": "Text",
+          "description": "The task text with inline syntax. Use #Project to set the project, @label for labels, p1-p4 for priority, and natural-language dates. Example: \"Submit report by Friday 5pm #Work p2\".",
+          "type": "multiline",
+          "required": true
+        },
+        "note": {
+          "label": "Note",
+          "description": "Optional note (comment) to attach to the created task.",
+          "type": "multiline"
+        },
+        "reminder": {
+          "label": "Reminder",
+          "description": "Optional natural-language reminder, e.g. \"tomorrow at 9am\"."
+        },
+        "auto_reminder": {
+          "label": "Auto Reminder",
+          "description": "Add a default reminder to the task if it has a due time.",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.todoist.com/api/v1/tasks/quick",
+        "body": {
+          "text": "{{text}}",
+          "note": "{{note}}",
+          "reminder": "{{reminder}}",
+          "auto_reminder": "{{auto_reminder}}"
+        }
+      }
+    },
+    "todoist_get_task": {
+      "label": "Get Task",
+      "description": "Fetch a single task by its ID.",
+      "audience": "ai",
+      "inputs": {
+        "task_id": {
+          "label": "Task ID",
+          "description": "The ID of the task to fetch (e.g. from a trigger payload, Find Task, or Filter Tasks).",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.todoist.com/api/v1/tasks/{{task_id}}"
+      }
+    },
+    "todoist_list_completed_tasks": {
+      "label": "List Completed Tasks (by Completion Date)",
+      "description": "List tasks completed within a date window.",
+      "audience": "ai",
+      "inputs": {
+        "since": {
+          "label": "Since",
+          "description": "Start of the window, RFC3339 datetime (e.g. \"2026-06-01T00:00:00Z\"). Tasks completed at or after this time are included.",
+          "required": true
+        },
+        "until": {
+          "label": "Until",
+          "description": "End of the window, RFC3339 datetime (e.g. \"2026-06-27T23:59:59Z\"). Must be within ~3 months of Since.",
+          "required": true
+        },
+        "project_id": {
+          "label": "Project ID",
+          "description": "Optional. Limit results to this project (16-character base32 ID from List Projects)."
+        },
+        "section_id": {
+          "label": "Section ID",
+          "description": "Optional. Limit results to this section (16-character base32 ID from List Sections)."
+        },
+        "parent_id": {
+          "label": "Parent Task ID",
+          "description": "Optional. Limit results to sub-tasks of this parent task."
+        },
+        "filter_query": {
+          "label": "Filter Query",
+          "description": "Optional Todoist filter query to further narrow the results (same syntax as Filter Tasks)."
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum tasks per page (default 200). All pages are followed automatically.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.todoist.com/api/v1/tasks/completed/by_completion_date"
+      },
+      "beforeRequest": "const form = (params) => Object.keys(params).filter((key) => params[key] !== undefined && params[key] !== '').map((key) => encodeURIComponent(key) + '=' + encodeURIComponent(params[key]).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+')).join('&');\nconst params = {since: inputs.since, until: inputs.until, project_id: inputs.project_id, section_id: inputs.section_id, parent_id: inputs.parent_id, filter_query: inputs.filter_query, limit: inputs.limit || '200'};\nrequest.url = request.url + '?' + form(params);\nreturn request;",
+      "afterResponse": "const form = (params) => Object.keys(params).filter((key) => params[key] !== undefined && params[key] !== '').map((key) => encodeURIComponent(key) + '=' + encodeURIComponent(params[key]).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+')).join('&');\nconst params = {since: inputs.since, until: inputs.until, project_id: inputs.project_id, section_id: inputs.section_id, parent_id: inputs.parent_id, filter_query: inputs.filter_query, limit: inputs.limit || '200'};\nlet items = response.items;\nlet cursor = response.next_cursor;\nwhile (cursor) {\n  const page = call({method: 'GET', url: '/tasks/completed/by_completion_date?' + form(Object.assign({}, params, {cursor}))});\n  items = items.concat(page.items);\n  cursor = page.next_cursor;\n}\nreturn {tasks: items, count: items.length};"
+    },
+    "todoist_list_completed_tasks_by_due_date": {
+      "label": "List Completed Tasks (by Due Date)",
+      "description": "List completed tasks whose due date falls in a window.",
+      "audience": "ai",
+      "inputs": {
+        "since": {
+          "label": "Since",
+          "description": "Start of the due-date window, date \"YYYY-MM-DD\" or RFC3339 datetime (e.g. \"2026-06-01\").",
+          "required": true
+        },
+        "until": {
+          "label": "Until",
+          "description": "End of the due-date window, date \"YYYY-MM-DD\" or RFC3339 datetime (e.g. \"2026-06-27\"). Must be within the allowed window of Since.",
+          "required": true
+        },
+        "project_id": {
+          "label": "Project ID",
+          "description": "Optional. Limit results to this project (16-character base32 ID from List Projects)."
+        },
+        "section_id": {
+          "label": "Section ID",
+          "description": "Optional. Limit results to this section (16-character base32 ID from List Sections)."
+        },
+        "parent_id": {
+          "label": "Parent Task ID",
+          "description": "Optional. Limit results to sub-tasks of this parent task."
+        },
+        "filter_query": {
+          "label": "Filter Query",
+          "description": "Optional Todoist filter query to further narrow the results (same syntax as Filter Tasks)."
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum tasks per page (default 200). All pages are followed automatically.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.todoist.com/api/v1/tasks/completed/by_due_date"
+      },
+      "beforeRequest": "const form = (params) => Object.keys(params).filter((key) => params[key] !== undefined && params[key] !== '').map((key) => encodeURIComponent(key) + '=' + encodeURIComponent(params[key]).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+')).join('&');\nconst params = {since: inputs.since, until: inputs.until, project_id: inputs.project_id, section_id: inputs.section_id, parent_id: inputs.parent_id, filter_query: inputs.filter_query, limit: inputs.limit || '200'};\nrequest.url = request.url + '?' + form(params);\nreturn request;",
+      "afterResponse": "const form = (params) => Object.keys(params).filter((key) => params[key] !== undefined && params[key] !== '').map((key) => encodeURIComponent(key) + '=' + encodeURIComponent(params[key]).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+')).join('&');\nconst params = {since: inputs.since, until: inputs.until, project_id: inputs.project_id, section_id: inputs.section_id, parent_id: inputs.parent_id, filter_query: inputs.filter_query, limit: inputs.limit || '200'};\nlet items = response.items;\nlet cursor = response.next_cursor;\nwhile (cursor) {\n  const page = call({method: 'GET', url: '/tasks/completed/by_due_date?' + form(Object.assign({}, params, {cursor}))});\n  items = items.concat(page.items);\n  cursor = page.next_cursor;\n}\nreturn {tasks: items, count: items.length};"
+    },
+    "todoist_create_project": {
+      "label": "Create Project",
+      "description": "Create a new Todoist project.",
+      "audience": "ai",
+      "inputs": {
+        "name": {
+          "label": "Name",
+          "description": "Name of the new project.",
+          "required": true
+        },
+        "color": {
+          "label": "Color",
+          "description": "Color of the project icon. A Todoist color name, e.g. 'berry_red', 'blue', 'charcoal'."
+        },
+        "parent_id": {
+          "label": "Parent Project ID",
+          "description": "ID of a parent project to nest this project under, making it a sub-project. Resolve the name to an ID via List Projects. Leave blank for a top-level project."
+        },
+        "view_style": {
+          "label": "View Style",
+          "description": "How the project is displayed in Todoist.",
+          "type": "select",
+          "options": [
+            {
+              "value": "list",
+              "label": "List"
+            },
+            {
+              "value": "board",
+              "label": "Board"
+            }
+          ]
+        },
+        "description": {
+          "label": "Description",
+          "description": "Description for the project.",
+          "type": "multiline"
+        },
+        "is_favorite": {
+          "label": "Is Favorite",
+          "description": "Whether the project is marked as a favorite.",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.todoist.com/api/v1/projects",
+        "body": {
+          "name": "{{name}}",
+          "color": "{{color}}",
+          "parent_id": "{{parent_id}}",
+          "view_style": "{{view_style}}",
+          "description": "{{description}}",
+          "is_favorite": "{{is_favorite}}"
+        }
+      }
+    },
+    "todoist_update_project": {
+      "label": "Update Project",
+      "description": "Update an existing Todoist project.",
+      "audience": "ai",
+      "inputs": {
+        "project_id": {
+          "label": "Project ID",
+          "description": "ID of the project to update. Resolve via List Projects or Search Projects.",
+          "required": true
+        },
+        "name": {
+          "label": "Name",
+          "description": "New name for the project."
+        },
+        "color": {
+          "label": "Color",
+          "description": "New color of the project icon. A Todoist color name, e.g. 'berry_red', 'blue', 'charcoal'."
+        },
+        "view_style": {
+          "label": "View Style",
+          "description": "How the project is displayed in Todoist.",
+          "type": "select",
+          "options": [
+            {
+              "value": "list",
+              "label": "List"
+            },
+            {
+              "value": "board",
+              "label": "Board"
+            }
+          ]
+        },
+        "description": {
+          "label": "Description",
+          "description": "New description for the project.",
+          "type": "multiline"
+        },
+        "is_favorite": {
+          "label": "Is Favorite",
+          "description": "Mark the project as a favorite, remove it from favorites, or leave the current setting unchanged.",
+          "type": "select",
+          "options": [
+            {
+              "value": "",
+              "label": "Leave unchanged"
+            },
+            {
+              "value": "yes",
+              "label": "Yes"
+            },
+            {
+              "value": "no",
+              "label": "No"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.todoist.com/api/v1/projects/{{project_id}}",
+        "body": {
+          "name": "{{name}}",
+          "color": "{{color}}",
+          "view_style": "{{view_style}}",
+          "description": "{{description}}",
+          "is_favorite": "{{is_favorite}}"
+        }
+      },
+      "beforeRequest": "var favorite = String(request.body.is_favorite || '').trim().toLowerCase();\ndelete request.body.is_favorite;\nif (favorite === 'yes' || favorite === 'true') request.body.is_favorite = true;\nif (favorite === 'no' || favorite === 'false') request.body.is_favorite = false;\nreturn request;"
+    },
+    "todoist_get_project": {
+      "label": "Get Project",
+      "description": "Get a single Todoist project by its ID.",
+      "audience": "ai",
+      "inputs": {
+        "project_id": {
+          "label": "Project ID",
+          "description": "ID of the project to fetch. Resolve via List Projects or Search Projects.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.todoist.com/api/v1/projects/{{project_id}}"
+      }
+    },
+    "todoist_list_projects": {
+      "label": "List Projects",
+      "description": "List all Todoist projects.",
+      "audience": "ai",
+      "request": {
+        "method": "GET",
+        "url": "https://api.todoist.com/api/v1/projects"
+      },
+      "afterResponse": "const query = (cursor) => { const q = {}; Object.keys(q).forEach((k) => { if (!q[k]) delete q[k]; }); if (cursor) q.cursor = cursor; return q; };\nlet items = response.results;\nlet cursor = response.next_cursor;\nwhile (cursor) {\n  const page = call({method: 'GET', url: '/projects', query: query(cursor)});\n  items = items.concat(page.results);\n  cursor = page.next_cursor;\n}\nreturn {projects: items, count: items.length};"
+    },
+    "todoist_search_projects": {
+      "label": "Search Projects",
+      "description": "Search Todoist projects by name.",
+      "audience": "ai",
+      "inputs": {
+        "query": {
+          "label": "Query",
+          "description": "Case-insensitive substring to match against project names, e.g. 'work'. Leave blank to return all projects."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.todoist.com/api/v1/projects"
+      },
+      "afterResponse": "const query = (cursor) => { const q = {}; Object.keys(q).forEach((k) => { if (!q[k]) delete q[k]; }); if (cursor) q.cursor = cursor; return q; };\nlet items = response.results;\nlet cursor = response.next_cursor;\nwhile (cursor) {\n  const page = call({method: 'GET', url: '/projects', query: query(cursor)});\n  items = items.concat(page.results);\n  cursor = page.next_cursor;\n}\nconst needle = (inputs.query || '').trim().toLowerCase();\nif (needle) items = items.filter((project) => project.name.toLowerCase().includes(needle));\nreturn {projects: items, count: items.length};"
+    },
+    "todoist_unarchive_project": {
+      "label": "Unarchive Project",
+      "description": "Restore an archived Todoist project to active.",
+      "audience": "ai",
+      "inputs": {
+        "project_id": {
+          "label": "Project ID",
+          "description": "ID of the archived project to restore. Resolve via List Archived Projects.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.todoist.com/api/v1/projects/{{project_id}}/unarchive"
+      },
+      "afterResponse": "return {success: true, project_id: inputs.project_id};"
+    },
+    "todoist_list_archived_projects": {
+      "label": "List Archived Projects",
+      "description": "List archived Todoist projects.",
+      "audience": "ai",
+      "request": {
+        "method": "GET",
+        "url": "https://api.todoist.com/api/v1/projects/archived"
+      },
+      "afterResponse": "const query = (cursor) => { const q = {}; Object.keys(q).forEach((k) => { if (!q[k]) delete q[k]; }); if (cursor) q.cursor = cursor; return q; };\nlet items = response.results;\nlet cursor = response.next_cursor;\nwhile (cursor) {\n  const page = call({method: 'GET', url: '/projects/archived', query: query(cursor)});\n  items = items.concat(page.results);\n  cursor = page.next_cursor;\n}\nreturn {projects: items, count: items.length};"
+    },
+    "todoist_create_section": {
+      "label": "Create Section",
+      "description": "Create a new section within a Todoist project.",
+      "audience": "ai",
+      "inputs": {
+        "name": {
+          "label": "Name",
+          "description": "Name of the new section.",
+          "required": true
+        },
+        "project_id": {
+          "label": "Project ID",
+          "description": "ID of the project to add the section to. Resolve via List Projects or Search Projects.",
+          "required": true
+        },
+        "order": {
+          "label": "Order",
+          "description": "Order of the section among the other sections in the project (lower is higher).",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.todoist.com/api/v1/sections",
+        "body": {
+          "name": "{{name}}",
+          "project_id": "{{project_id}}",
+          "order": "{{order}}"
+        }
+      }
+    },
+    "todoist_update_section": {
+      "label": "Update Section",
+      "description": "Rename an existing Todoist section.",
+      "audience": "ai",
+      "inputs": {
+        "section_id": {
+          "label": "Section ID",
+          "description": "ID of the section to rename. Resolve via List Sections or Search Sections.",
+          "required": true
+        },
+        "name": {
+          "label": "Name",
+          "description": "New name for the section.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.todoist.com/api/v1/sections/{{section_id}}",
+        "body": {
+          "name": "{{name}}"
+        }
+      }
+    },
+    "todoist_get_section": {
+      "label": "Get Section",
+      "description": "Get a single Todoist section by its ID.",
+      "audience": "ai",
+      "inputs": {
+        "section_id": {
+          "label": "Section ID",
+          "description": "ID of the section to fetch. Resolve via List Sections or Search Sections.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.todoist.com/api/v1/sections/{{section_id}}"
+      }
+    },
+    "todoist_list_sections": {
+      "label": "List Sections",
+      "description": "List Todoist sections, optionally filtered to one project.",
+      "audience": "ai",
+      "inputs": {
+        "project_id": {
+          "label": "Project ID",
+          "description": "Restrict to sections in this project. Resolve via List Projects. Leave blank to list sections across all projects."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.todoist.com/api/v1/sections",
+        "query": {
+          "project_id": "{{project_id}}"
+        }
+      },
+      "afterResponse": "const query = (cursor) => { const q = {project_id: inputs.project_id}; Object.keys(q).forEach((k) => { if (!q[k]) delete q[k]; }); if (cursor) q.cursor = cursor; return q; };\nlet items = response.results;\nlet cursor = response.next_cursor;\nwhile (cursor) {\n  const page = call({method: 'GET', url: '/sections', query: query(cursor)});\n  items = items.concat(page.results);\n  cursor = page.next_cursor;\n}\nreturn {sections: items, count: items.length};"
+    },
+    "todoist_search_sections": {
+      "label": "Search Sections",
+      "description": "Search Todoist sections by name.",
+      "audience": "ai",
+      "inputs": {
+        "query": {
+          "label": "Query",
+          "description": "Case-insensitive substring to match against section names, e.g. 'todo'. Leave blank to return all sections in scope."
+        },
+        "project_id": {
+          "label": "Project ID",
+          "description": "Restrict the search to sections in this project. Resolve via List Projects. Leave blank to search all projects."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.todoist.com/api/v1/sections",
+        "query": {
+          "project_id": "{{project_id}}"
+        }
+      },
+      "afterResponse": "const query = (cursor) => { const q = {project_id: inputs.project_id}; Object.keys(q).forEach((k) => { if (!q[k]) delete q[k]; }); if (cursor) q.cursor = cursor; return q; };\nlet items = response.results;\nlet cursor = response.next_cursor;\nwhile (cursor) {\n  const page = call({method: 'GET', url: '/sections', query: query(cursor)});\n  items = items.concat(page.results);\n  cursor = page.next_cursor;\n}\nconst needle = (inputs.query || '').trim().toLowerCase();\nif (needle) items = items.filter((section) => section.name.toLowerCase().includes(needle));\nreturn {sections: items, count: items.length};"
+    },
+    "todoist_list_archived_sections": {
+      "label": "List Archived Sections",
+      "description": "List archived sections within a Todoist project.",
+      "audience": "ai",
+      "inputs": {
+        "project_id": {
+          "label": "Project ID",
+          "description": "ID of the project whose archived sections to list. Resolve via List Projects or Search Projects.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.todoist.com/api/v1/sections/archived",
+        "query": {
+          "project_id": "{{project_id}}"
+        }
+      },
+      "afterResponse": "// This list comes as an array, or under results or sections.\nconst pageOf = (body) => Array.isArray(body) ? body : (body.results || body.sections || []);\nconst nextOf = (body) => Array.isArray(body) ? null : (body.next_cursor || null);\nlet items = pageOf(response);\nlet cursor = nextOf(response);\nwhile (cursor) {\n  const page = call({method: 'GET', url: '/sections/archived', query: {project_id: inputs.project_id, cursor}});\n  items = items.concat(pageOf(page));\n  cursor = nextOf(page);\n}\nreturn {sections: items, count: items.length};"
+    },
+    "todoist_create_label": {
+      "label": "Create Label",
+      "description": "Creates a new personal label in Todoist.",
+      "audience": "ai",
+      "inputs": {
+        "name": {
+          "label": "Name",
+          "description": "The label name. Between 1 and 128 characters.",
+          "required": true
+        },
+        "color": {
+          "label": "Color",
+          "description": "The label's color, as a Todoist color name (e.g. 'berry_red', 'blue', 'charcoal')."
+        },
+        "order": {
+          "label": "Order",
+          "description": "Number used to sort the label in the list view (lower comes first).",
+          "type": "number"
+        },
+        "is_favorite": {
+          "label": "Is Favorite",
+          "description": "Whether the label is marked as a favorite.",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.todoist.com/api/v1/labels",
+        "body": {
+          "name": "{{name}}",
+          "color": "{{color}}",
+          "order": "{{order}}",
+          "is_favorite": "{{is_favorite}}"
+        }
+      }
+    },
+    "todoist_update_label": {
+      "label": "Update Label",
+      "description": "Updates an existing personal label in Todoist.",
+      "audience": "ai",
+      "inputs": {
+        "label_id": {
+          "label": "Label ID",
+          "description": "The ID of the personal label to update. Obtain it via List Labels or Search Labels.",
+          "required": true
+        },
+        "name": {
+          "label": "Name",
+          "description": "New label name. Between 1 and 128 characters."
+        },
+        "color": {
+          "label": "Color",
+          "description": "The label's color, as a Todoist color name (e.g. 'berry_red', 'blue', 'charcoal')."
+        },
+        "order": {
+          "label": "Order",
+          "description": "Number used to sort the label in the list view (lower comes first).",
+          "type": "number"
+        },
+        "is_favorite": {
+          "label": "Is Favorite",
+          "description": "Mark the label as a favorite, remove it from favorites, or leave the current setting unchanged.",
+          "type": "select",
+          "options": [
+            {
+              "value": "",
+              "label": "Leave unchanged"
+            },
+            {
+              "value": "yes",
+              "label": "Yes"
+            },
+            {
+              "value": "no",
+              "label": "No"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.todoist.com/api/v1/labels/{{label_id}}",
+        "body": {
+          "name": "{{name}}",
+          "color": "{{color}}",
+          "order": "{{order}}",
+          "is_favorite": "{{is_favorite}}"
+        }
+      },
+      "beforeRequest": "var favorite = String(request.body.is_favorite || '').trim().toLowerCase();\ndelete request.body.is_favorite;\nif (favorite === 'yes' || favorite === 'true') request.body.is_favorite = true;\nif (favorite === 'no' || favorite === 'false') request.body.is_favorite = false;\nreturn request;"
+    },
+    "todoist_get_label": {
+      "label": "Get Label",
+      "description": "Gets a single personal label by ID in Todoist.",
+      "audience": "ai",
+      "inputs": {
+        "label_id": {
+          "label": "Label ID",
+          "description": "The ID of the personal label to fetch. Obtain it via List Labels or Search Labels.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.todoist.com/api/v1/labels/{{label_id}}"
+      }
+    },
+    "todoist_list_labels": {
+      "label": "List Labels",
+      "description": "Lists all of the user's personal labels in Todoist.",
+      "audience": "ai",
+      "request": {
+        "method": "GET",
+        "url": "https://api.todoist.com/api/v1/labels"
+      },
+      "afterResponse": "const query = (cursor) => { const q = {}; Object.keys(q).forEach((k) => { if (!q[k]) delete q[k]; }); if (cursor) q.cursor = cursor; return q; };\nlet items = response.results;\nlet cursor = response.next_cursor;\nwhile (cursor) {\n  const page = call({method: 'GET', url: '/labels', query: query(cursor)});\n  items = items.concat(page.results);\n  cursor = page.next_cursor;\n}\nreturn {labels: items, count: items.length};"
+    },
+    "todoist_search_labels": {
+      "label": "Search Labels",
+      "description": "Searches personal labels by name in Todoist.",
+      "audience": "ai",
+      "inputs": {
+        "query": {
+          "label": "Query",
+          "description": "Text to match against label names, case-insensitively (e.g. 'work').",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.todoist.com/api/v1/labels"
+      },
+      "afterResponse": "const query = (cursor) => { const q = {}; Object.keys(q).forEach((k) => { if (!q[k]) delete q[k]; }); if (cursor) q.cursor = cursor; return q; };\nlet items = response.results;\nlet cursor = response.next_cursor;\nwhile (cursor) {\n  const page = call({method: 'GET', url: '/labels', query: query(cursor)});\n  items = items.concat(page.results);\n  cursor = page.next_cursor;\n}\nconst needle = inputs.query.toLowerCase();\nitems = items.filter((label) => label.name.toLowerCase().includes(needle));\nreturn {labels: items, count: items.length};"
+    },
+    "todoist_list_shared_labels": {
+      "label": "List Shared Labels",
+      "description": "Lists shared (workspace) label names in Todoist.",
+      "audience": "ai",
+      "inputs": {
+        "omit_personal": {
+          "label": "Omit Personal",
+          "description": "When true, names that also exist as personal labels are excluded, returning only purely shared labels.",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.todoist.com/api/v1/labels/shared",
+        "query": {
+          "omit_personal": "{{omit_personal}}"
+        }
+      },
+      "afterResponse": "const query = (cursor) => { const q = {omit_personal: inputs.omit_personal}; Object.keys(q).forEach((k) => { if (!q[k]) delete q[k]; }); if (cursor) q.cursor = cursor; return q; };\nlet items = response.results;\nlet cursor = response.next_cursor;\nwhile (cursor) {\n  const page = call({method: 'GET', url: '/labels/shared', query: query(cursor)});\n  items = items.concat(page.results);\n  cursor = page.next_cursor;\n}\nreturn {shared_labels: items, count: items.length};"
+    },
+    "todoist_rename_shared_label": {
+      "label": "Rename Shared Label",
+      "description": "Renames a shared (workspace) label across all tasks in Todoist.",
+      "audience": "ai",
+      "inputs": {
+        "name": {
+          "label": "Current Name",
+          "description": "The existing shared label name to rename. Resolve it via List Shared Labels.",
+          "required": true
+        },
+        "new_name": {
+          "label": "New Name",
+          "description": "The new name to apply to the shared label.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.todoist.com/api/v1/labels/shared/rename",
+        "body": {
+          "name": "{{name}}",
+          "new_name": "{{new_name}}"
+        }
+      },
+      "afterResponse": "return {success: true, name: inputs.name, new_name: inputs.new_name};"
+    },
+    "todoist_remove_shared_label": {
+      "label": "Remove Shared Label",
+      "description": "Removes a shared (workspace) label from all tasks in Todoist.",
+      "audience": "ai",
+      "inputs": {
+        "name": {
+          "label": "Name",
+          "description": "The shared label name to remove from all tasks. Resolve it via List Shared Labels.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.todoist.com/api/v1/labels/shared/remove",
+        "body": {
+          "name": "{{name}}"
+        }
+      },
+      "afterResponse": "return {success: true, name: inputs.name};"
+    },
+    "todoist_create_task_comment": {
+      "label": "Create Task Comment",
+      "description": "Adds a comment to a Todoist task.",
+      "audience": "ai",
+      "inputs": {
+        "task_id": {
+          "label": "Task ID",
+          "description": "The ID of the task to comment on (e.g. \"6X4Vv2hfXjqWf3wj\"). Obtain it from Find Task or List Tasks.",
+          "required": true
+        },
+        "content": {
+          "label": "Content",
+          "description": "The comment text, 1 to 15000 characters. May contain markdown-formatted text and hyperlinks.",
+          "type": "multiline",
+          "required": true
+        },
+        "attachment": {
+          "label": "Attachment",
+          "description": "Optional pre-formed attachment object (e.g. { \"resource_type\": \"file\", \"file_url\": \"https://...\", \"file_name\": \"doc.pdf\", \"file_type\": \"application/pdf\" }).",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.todoist.com/api/v1/comments",
+        "body": {
+          "task_id": "{{task_id}}",
+          "content": "{{content}}",
+          "attachment": "{{attachment}}"
+        }
+      }
+    },
+    "todoist_create_project_comment": {
+      "label": "Create Project Comment",
+      "description": "Adds a comment to a Todoist project.",
+      "audience": "ai",
+      "inputs": {
+        "project_id": {
+          "label": "Project ID",
+          "description": "The ID of the project to comment on (e.g. \"6X4Vv2hfXjqWf3wj\"). Obtain it from List Projects.",
+          "required": true
+        },
+        "content": {
+          "label": "Content",
+          "description": "The comment text, 1 to 15000 characters. May contain markdown-formatted text and hyperlinks.",
+          "type": "multiline",
+          "required": true
+        },
+        "attachment": {
+          "label": "Attachment",
+          "description": "Optional pre-formed attachment object (e.g. { \"resource_type\": \"file\", \"file_url\": \"https://...\", \"file_name\": \"doc.pdf\", \"file_type\": \"application/pdf\" }).",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.todoist.com/api/v1/comments",
+        "body": {
+          "project_id": "{{project_id}}",
+          "content": "{{content}}",
+          "attachment": "{{attachment}}"
+        }
+      }
+    },
+    "todoist_get_comment": {
+      "label": "Get Comment",
+      "description": "Fetches a single Todoist comment by its ID.",
+      "audience": "ai",
+      "inputs": {
+        "comment_id": {
+          "label": "Comment ID",
+          "description": "The ID of the comment to retrieve (e.g. \"2992679862\"). Obtain it from List Comments.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.todoist.com/api/v1/comments/{{comment_id}}"
+      }
+    },
+    "todoist_list_comments": {
+      "label": "List Comments",
+      "description": "Lists all comments on a Todoist task or project.",
+      "audience": "ai",
+      "inputs": {
+        "task_id": {
+          "label": "Task ID",
+          "description": "The task whose comments to list (e.g. \"6X4Vv2hfXjqWf3wj\"). Provide this OR Project ID, not both."
+        },
+        "project_id": {
+          "label": "Project ID",
+          "description": "The project whose comments to list (e.g. \"6X4Vv2hfXjqWf3wj\"). Provide this OR Task ID, not both."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.todoist.com/api/v1/comments",
+        "query": {
+          "task_id": "{{task_id}}",
+          "project_id": "{{project_id}}"
+        }
+      },
+      "beforeRequest": "if ((inputs.task_id && inputs.project_id) || (!inputs.task_id && !inputs.project_id)) throw new Error('Provide exactly one of Task ID or Project ID (they are mutually exclusive).');\nreturn request;",
+      "afterResponse": "const query = (cursor) => { const q = {task_id: inputs.task_id, project_id: inputs.project_id}; Object.keys(q).forEach((k) => { if (!q[k]) delete q[k]; }); if (cursor) q.cursor = cursor; return q; };\nlet items = response.results;\nlet cursor = response.next_cursor;\nwhile (cursor) {\n  const page = call({method: 'GET', url: '/comments', query: query(cursor)});\n  items = items.concat(page.results);\n  cursor = page.next_cursor;\n}\nreturn {comments: items, count: items.length};"
+    },
+    "todoist_get_current_user": {
+      "label": "Get Current User",
+      "description": "Retrieves the authenticated Todoist user profile.",
+      "audience": "ai",
+      "request": {
+        "method": "GET",
+        "url": "https://api.todoist.com/api/v1/user"
+      }
+    },
+    "todoist_get_productivity_stats": {
+      "label": "Get Productivity Stats",
+      "description": "Retrieves the authenticated user's Todoist productivity statistics.",
+      "audience": "ai",
+      "request": {
+        "method": "GET",
+        "url": "https://api.todoist.com/api/v1/tasks/completed/stats"
+      }
+    },
+    "todoist_list_activity_log": {
+      "label": "List Activity Log",
+      "description": "Retrieves the Todoist activity (event) history.",
+      "audience": "ai",
+      "inputs": {
+        "object_type": {
+          "label": "Object Type",
+          "description": "Restrict to one object type. One of: \"project\", \"item\" (task), \"note\" (comment).",
+          "type": "select",
+          "options": [
+            {
+              "value": "project",
+              "label": "Project"
+            },
+            {
+              "value": "item",
+              "label": "Task (item)"
+            },
+            {
+              "value": "note",
+              "label": "Comment (note)"
+            }
+          ]
+        },
+        "event_type": {
+          "label": "Event Type",
+          "description": "Restrict to a single event type across all object types, e.g. \"added\", \"updated\", \"completed\", \"deleted\"."
+        },
+        "object_id": {
+          "label": "Object ID",
+          "description": "Restrict to one specific object. Must be paired with Object Type (e.g. a task ID with object_type \"item\")."
+        },
+        "parent_project_id": {
+          "label": "Parent Project ID",
+          "description": "Restrict to one project and all of its tasks and comments. Resolve the ID via List Projects."
+        },
+        "parent_item_id": {
+          "label": "Parent Task ID",
+          "description": "Restrict to one task and all of its comments. Resolve the ID via Find Task."
+        },
+        "date_from": {
+          "label": "Date From",
+          "description": "Only events on or after this instant, ISO 8601 (e.g. \"2026-01-01T00:00:00Z\")."
+        },
+        "date_to": {
+          "label": "Date To",
+          "description": "Only events before this instant (exclusive), ISO 8601 (e.g. \"2026-02-01T00:00:00Z\")."
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of events to return per page.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.todoist.com/api/v1/activities"
+      },
+      "beforeRequest": "const form = (params) => Object.keys(params).filter((key) => params[key] !== undefined && params[key] !== '').map((key) => encodeURIComponent(key) + '=' + encodeURIComponent(params[key]).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+')).join('&');\nconst params = {object_type: inputs.object_type, event_type: inputs.event_type, object_id: inputs.object_id, parent_project_id: inputs.parent_project_id, parent_item_id: inputs.parent_item_id, date_from: inputs.date_from, date_to: inputs.date_to, limit: inputs.limit};\nrequest.url = request.url + '?' + form(params);\nreturn request;",
+      "afterResponse": "const form = (params) => Object.keys(params).filter((key) => params[key] !== undefined && params[key] !== '').map((key) => encodeURIComponent(key) + '=' + encodeURIComponent(params[key]).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+')).join('&');\nconst params = {object_type: inputs.object_type, event_type: inputs.event_type, object_id: inputs.object_id, parent_project_id: inputs.parent_project_id, parent_item_id: inputs.parent_item_id, date_from: inputs.date_from, date_to: inputs.date_to, limit: inputs.limit};\nlet items = response.results;\nlet cursor = response.next_cursor;\nwhile (cursor) {\n  const page = call({method: 'GET', url: '/activities?' + form(Object.assign({}, params, {cursor}))});\n  items = items.concat(page.results);\n  cursor = page.next_cursor;\n}\nreturn {events: items, count: items.length};"
+    }
+  }
+}

@@ -1532,5 +1532,151 @@
       "afterResponse": "const teams = Array.isArray(response) ? response : (response?.items ?? []); return {teams, count: teams.length};",
       "audience": "both"
     }
+  },
+  "triggers": {
+    "new_todo": {
+      "label": "New To-Do",
+      "description": "Fires when a to-do is created in Ninety",
+      "inputs": {
+        "teamId": {
+          "label": "Team",
+          "description": "Leave empty to cover every team the token can see",
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.public.ninety.io/v1/teams"
+            },
+            "list": "$",
+            "label": "$.name",
+            "value": "$._id"
+          }
+        },
+        "scope": {
+          "label": "Scope",
+          "type": "select",
+          "description": "Ninety cannot return personal and team to-dos in one call, so a flow watches one or the other",
+          "options": [
+            {
+              "value": "team",
+              "label": "Team to-dos"
+            },
+            {
+              "value": "personal",
+              "label": "Personal to-dos"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.public.ninety.io/v1/todos/query",
+        "body": {
+          "archived": false,
+          "pageSize": 100,
+          "teamId": "{{teamId}}",
+          "page": 1
+        }
+      },
+      "beforeRequest": "if (inputs.scope) request.body = {archived: false, pageSize: 100, ...(request.body.teamId === undefined ? {} : {teamId: request.body.teamId}), isPersonal: inputs.scope === 'personal', page: 1};\nreturn request;",
+      "afterResponse": "const pageOf = (body) => Array.isArray(body) ? body : (body?.items ?? []);\nconst collected = new Map();\nlet page = 1;\nlet items = pageOf(response);\nwhile (true) {\n  for (const item of items) collected.set(item._id, item);\n  if (items.length < 100 || page >= 5) break;\n  page++;\n  items = pageOf(call({method: 'POST', url: '/todos/query', body: {archived: false, pageSize: 100, ...(inputs.teamId ? {teamId: inputs.teamId} : {}), ...(inputs.scope ? {isPersonal: inputs.scope === 'personal'} : {}), page}}));\n}\nreturn [...collected.values()];",
+      "items": "$",
+      "newBy": "time",
+      "key": "$.createdDate"
+    },
+    "new_issue": {
+      "label": "New Issue",
+      "description": "Fires when an issue is raised in Ninety",
+      "inputs": {
+        "teamId": {
+          "label": "Team",
+          "description": "Leave empty to cover every team the token can see",
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.public.ninety.io/v1/teams"
+            },
+            "list": "$",
+            "label": "$.name",
+            "value": "$._id"
+          }
+        },
+        "intervalCode": {
+          "label": "Term",
+          "type": "select",
+          "description": "Short term issues sit on the weekly list, long term on the parking lot",
+          "options": [
+            {
+              "value": "SHORT_TERM",
+              "label": "Short term"
+            },
+            {
+              "value": "LONG_TERM",
+              "label": "Long term"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.public.ninety.io/v1/issues/query",
+        "body": {
+          "sortField": "createdDate",
+          "sortDirection": "DESC",
+          "pageSize": 100,
+          "teamId": "{{teamId}}",
+          "intervalCode": "{{intervalCode}}",
+          "pageIndex": 0
+        }
+      },
+      "afterResponse": "const items = Array.isArray(response) ? response : (response?.items ?? []);\nreturn items;",
+      "items": "$",
+      "newBy": "time",
+      "key": "$.createdDate"
+    },
+    "new_rock": {
+      "label": "New Rock",
+      "description": "Fires when a rock is created in Ninety",
+      "inputs": {
+        "teamId": {
+          "label": "Team",
+          "description": "Leave empty to cover every team the token can see",
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.public.ninety.io/v1/teams"
+            },
+            "list": "$",
+            "label": "$.name",
+            "value": "$._id"
+          }
+        },
+        "userId": {
+          "label": "Owner",
+          "description": "Only return records owned by this person",
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.public.ninety.io/v1/users"
+            },
+            "list": "$",
+            "label": "$.primaryEmail",
+            "value": "$.id"
+          }
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.public.ninety.io/v1/rocks/query/paged",
+        "body": {
+          "sortField": "dueDate",
+          "sortDirection": "DESC",
+          "pageIndex": 0,
+          "pageSize": 200,
+          "archived": false,
+          "teamId": "{{teamId}}",
+          "userId": "{{userId}}"
+        }
+      },
+      "afterResponse": "const items = Array.isArray(response) ? response : (response?.items ?? []);\nreturn items;",
+      "items": "$",
+      "newBy": "time",
+      "key": "$.createdDate"
+    }
   }
 }

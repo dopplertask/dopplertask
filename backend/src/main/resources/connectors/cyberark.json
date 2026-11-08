@@ -1,0 +1,94 @@
+{
+  "name": "cyberark",
+  "label": "CyberArk",
+  "description": "Manage users, groups, and access controls in CyberArk Privileged Access Management",
+  "icon": "",
+  "hosts": [
+    "{{credential.serverUrl}}"
+  ],
+  "baseUrl": "https://{{credential.serverUrl}}",
+  "upstream": {
+    "package": "@activepieces/piece-cyberark",
+    "version": "0.1.8"
+  },
+  "credential": {
+    "fields": {
+      "serverUrl": {
+        "label": "PVWA Server URL",
+        "description": "The PVWA server URL (e.g., https://pvwa-server)",
+        "required": true
+      },
+      "username": {
+        "label": "Username",
+        "description": "CyberArk username",
+        "required": true
+      },
+      "password": {
+        "label": "Password",
+        "description": "CyberArk password",
+        "secret": true,
+        "required": true
+      }
+    },
+    "body": {
+      "username": "{{credential.username}}",
+      "password": "{{credential.password}}"
+    }
+  },
+  "actions": {
+    "delete_user": {
+      "label": "Delete User",
+      "description": "Deletes a specific user in the Vault (requires Add/Update Users authorization)",
+      "audience": "both",
+      "inputs": {
+        "userId": {
+          "label": "User",
+          "description": "The ID of the Vault user to delete.",
+          "required": true
+        },
+        "confirmDeletion": {
+          "label": "Confirm Deletion",
+          "description": "Check this box to confirm you want to delete the selected user. This action cannot be undone.",
+          "type": "boolean",
+          "required": true,
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.serverUrl}}/PasswordVault/API/Users/{{userId}}/",
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "beforeRequest": "const answer = call({ method: 'POST', url: '/PasswordVault/API/auth/Cyberark/Logon/', headers: { 'Content-Type': 'application/json' } });\nconst token = typeof answer === 'string' ? answer.replace(/^[\"']|[\"']$/g, '').trim() : '';\nif (!token) throw new Error('Invalid token received from authentication');\nif (String(inputs.confirmDeletion) !== 'true') throw new Error('Please check the confirmation box to proceed with user deletion.');\nrequest.headers.Authorization = token;\nreturn request;",
+      "afterResponse": "return { success: true, message: `User ${inputs.userId} deleted successfully` };"
+    },
+    "remove_member_from_group": {
+      "label": "Remove Member from Group",
+      "description": "Removes a specific user from a user group in the Vault",
+      "audience": "both",
+      "inputs": {
+        "groupId": {
+          "label": "Group",
+          "description": "The ID of the Vault user group.",
+          "required": true
+        },
+        "memberId": {
+          "label": "Member",
+          "description": "The Vault user name or LDAP group name to remove from the group.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.serverUrl}}/PasswordVault/API/UserGroups/{{groupId}}/Members/{{memberId}}/",
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "beforeRequest": "const answer = call({ method: 'POST', url: '/PasswordVault/API/auth/Cyberark/Logon/', headers: { 'Content-Type': 'application/json' } });\nconst token = typeof answer === 'string' ? answer.replace(/^[\"']|[\"']$/g, '').trim() : '';\nif (!token) throw new Error('Invalid token received from authentication');\nrequest.headers.Authorization = token;\nreturn request;",
+      "afterResponse": "return { success: true, message: `Successfully removed ${inputs.memberId} from group ${inputs.groupId}` };"
+    }
+  }
+}

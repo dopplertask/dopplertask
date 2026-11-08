@@ -3513,6 +3513,927 @@
         "body": {}
       },
       "beforeRequest": "request.body = { memberships: JSON.parse(inputs.userIds).map(function (id) { return { userId: String(id) }; }) };\nreturn request;"
+    },
+    "find-time-entry": {
+      "label": "Find Time Entry",
+      "description": "Finds a time entry by description, start datetime or end datetime.",
+      "audience": "human",
+      "inputs": {
+        "workspaceId": {
+          "label": "Workspace",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.clockify.me/api/v1/workspaces"
+            }
+          }
+        },
+        "start": {
+          "label": "Start Datetime"
+        },
+        "end": {
+          "label": "End Datetime"
+        },
+        "description": {
+          "label": "Entry Description",
+          "type": "multiline"
+        },
+        "projectId": {
+          "label": "Project",
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.clockify.me/api/v1/workspaces/{{workspaceId}}/projects"
+            }
+          }
+        },
+        "taskId": {
+          "label": "Task",
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.clockify.me/api/v1/workspaces/{{workspaceId}}/projects/{{projectId}}/tasks"
+            }
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.clockify.me/api/v1/workspaces/{{workspaceId}}/user//time-entries",
+        "query": {
+          "hydrated": "true",
+          "description": "{{description}}",
+          "start": "{{start}}",
+          "end": "{{end}}",
+          "project": "{{projectId}}",
+          "task": "{{taskId}}"
+        }
+      },
+      "beforeRequest": "if (request.url.includes('/user//')) request.url = request.url.replace('/user//', '/user/' + encodeURIComponent(call({method: 'GET', url: '/user'}).id) + '/');\nreturn request;"
+    },
+    "clockify_bulk_delete_time_entries": {
+      "label": "Bulk Delete Time Entries",
+      "description": "Deletes several of a user's time entries.",
+      "audience": "ai",
+      "inputs": {
+        "workspaceId": {
+          "label": "Workspace ID",
+          "description": "Workspace ID. Use List Workspaces to find it.",
+          "required": true
+        },
+        "userId": {
+          "label": "User ID",
+          "description": "User ID. Empty = the connected user. Another user needs workspace admin."
+        },
+        "timeEntryIds": {
+          "label": "Time Entry IDs",
+          "description": "Time entry IDs. Use List Time Entries to find them.",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.clockify.me/api/v1/workspaces/{{workspaceId}}/user/{{userId}}/time-entries"
+      },
+      "beforeRequest": "if (request.url.includes('/user//')) request.url = request.url.replace('/user//', '/user/' + encodeURIComponent(call({method: 'GET', url: '/user'}).id) + '/');\nrequest.query = {'time-entry-ids': JSON.parse(inputs.timeEntryIds).map(String).join(',')};\nreturn request;",
+      "afterResponse": "return { timeEntries: response, count: response.length };"
+    },
+    "clockify_bulk_update_time_entries": {
+      "label": "Bulk Update Time Entries",
+      "description": "Applies the same change to several of a user's time entries.",
+      "audience": "ai",
+      "inputs": {
+        "workspaceId": {
+          "label": "Workspace ID",
+          "description": "Workspace ID. Use List Workspaces to find it.",
+          "required": true
+        },
+        "userId": {
+          "label": "User ID",
+          "description": "User ID. Empty = the connected user. Another user needs workspace admin."
+        },
+        "timeEntryIds": {
+          "label": "Time Entry IDs",
+          "description": "IDs of the entries to change, all belonging to the user. Use List Time Entries to find them.",
+          "type": "json",
+          "required": true
+        },
+        "description": {
+          "label": "Description",
+          "description": "What the time was spent on.",
+          "type": "multiline"
+        },
+        "projectId": {
+          "label": "Project ID",
+          "description": "New project ID. Empty = unchanged."
+        },
+        "taskId": {
+          "label": "Task ID",
+          "description": "New task ID. Empty = unchanged."
+        },
+        "tagIds": {
+          "label": "Tag IDs",
+          "description": "Replaces the tags. Empty = unchanged.",
+          "type": "json"
+        },
+        "billable": {
+          "label": "Billable",
+          "description": "Billable (Yes) or not (No). Empty = unchanged.",
+          "type": "select",
+          "options": [
+            {
+              "value": "true",
+              "label": "Yes"
+            },
+            {
+              "value": "false",
+              "label": "No"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.clockify.me/api/v1/workspaces/{{workspaceId}}/user/{{userId}}/time-entries"
+      },
+      "beforeRequest": "const v = (x) => x === undefined || x === '' ? undefined : x;\nconst ob = (x) => x ? x === 'true' : undefined;\nconst ids = (x) => { const a = x ? JSON.parse(x) : []; return a.length ? a.map(String) : undefined; };\nif (request.url.includes('/user//')) request.url = request.url.replace('/user//', '/user/' + encodeURIComponent(call({method: 'GET', url: '/user'}).id) + '/');\nconst found = call({method: 'POST', url: '/workspaces/' + encodeURIComponent(inputs.workspaceId) + '/time-entries/batch', body: {timeEntryIds: JSON.parse(inputs.timeEntryIds).map(String)}});\nrequest.body = found.filter((e) => e.timeInterval && e.timeInterval.start).map((e) => ({ id: e.id, start: e.timeInterval.start, end: e.timeInterval.end, description: v(inputs.description) ?? e.description,\n  projectId: v(inputs.projectId) ?? e.projectId, taskId: v(inputs.taskId) ?? e.taskId, tagIds: ids(inputs.tagIds) ?? e.tagIds, billable: ob(inputs.billable) ?? e.billable, type: e.type,\n  customFields: e.customFieldValues && e.customFieldValues.map((c) => ({ customFieldId: c.customFieldId, value: c.value })) }));\nreturn request;",
+      "afterResponse": "return { timeEntries: response, count: response.length };"
+    },
+    "clockify_create_workspace": {
+      "label": "Create Workspace",
+      "description": "Creates a new workspace.",
+      "audience": "ai",
+      "inputs": {
+        "name": {
+          "label": "Name",
+          "description": "Name of the new workspace.",
+          "required": true
+        },
+        "organizationId": {
+          "label": "Organization ID",
+          "description": "Optional organization to create the workspace in: the cakeOrganizationId of an existing workspace (Get Workspace). Empty = the organization of your active workspace."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.clockify.me/api/v1/workspaces",
+        "body": {
+          "name": "{{name}}",
+          "organizationId": "{{organizationId}}"
+        }
+      },
+      "beforeRequest": "if (!inputs.organizationId) {\n  const me = call({method: 'GET', url: '/user'});\n  if (me.activeWorkspace) request.body.organizationId = call({method: 'GET', url: '/workspaces/' + encodeURIComponent(me.activeWorkspace)}).cakeOrganizationId;\n}\nreturn request;"
+    },
+    "clockify_duplicate_time_entry": {
+      "label": "Duplicate Time Entry",
+      "description": "Copies a time entry.",
+      "audience": "ai",
+      "inputs": {
+        "workspaceId": {
+          "label": "Workspace ID",
+          "description": "Workspace ID. Use List Workspaces to find it.",
+          "required": true
+        },
+        "userId": {
+          "label": "User ID",
+          "description": "User ID. Empty = the connected user. Another user needs workspace admin."
+        },
+        "timeEntryId": {
+          "label": "Time Entry ID",
+          "description": "Time entry ID. Use List Time Entries to find it.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.clockify.me/api/v1/workspaces/{{workspaceId}}/user/{{userId}}/time-entries/{{timeEntryId}}/duplicate"
+      },
+      "beforeRequest": "if (request.url.includes('/user//')) request.url = request.url.replace('/user//', '/user/' + encodeURIComponent(call({method: 'GET', url: '/user'}).id) + '/');\nreturn request;"
+    },
+    "clockify_list_holidays_in_period": {
+      "label": "List Holidays in Period",
+      "description": "Lists the holidays of a user between two dates.",
+      "audience": "ai",
+      "inputs": {
+        "workspaceId": {
+          "label": "Workspace ID",
+          "description": "Workspace ID. Use List Workspaces to find it.",
+          "required": true
+        },
+        "assignedTo": {
+          "label": "User ID",
+          "description": "User whose holidays to return. Empty = the connected user."
+        },
+        "start": {
+          "label": "From",
+          "description": "Start of the period, ISO 8601.",
+          "required": true
+        },
+        "end": {
+          "label": "To",
+          "description": "End of the period, ISO 8601.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.clockify.me/api/v1/workspaces/{{workspaceId}}/holidays/in-period",
+        "query": {
+          "assigned-to": "{{assignedTo}}",
+          "start": "{{start}}",
+          "end": "{{end}}"
+        }
+      },
+      "beforeRequest": "if (!inputs.assignedTo) request.query = Object.assign({'assigned-to': call({method: 'GET', url: '/user'}).id}, request.query);\nreturn request;",
+      "afterResponse": "return { holidays: response, count: response.length };"
+    },
+    "clockify_list_time_entries": {
+      "label": "List Time Entries",
+      "description": "Lists or searches a user's time entries.",
+      "audience": "ai",
+      "inputs": {
+        "workspaceId": {
+          "label": "Workspace ID",
+          "description": "Workspace ID. Use List Workspaces to find it.",
+          "required": true
+        },
+        "userId": {
+          "label": "User ID",
+          "description": "User ID. Empty = the connected user. Another user needs workspace admin."
+        },
+        "start": {
+          "label": "From",
+          "description": "Optional: only entries starting at or after this ISO 8601 datetime."
+        },
+        "end": {
+          "label": "To",
+          "description": "Optional: only entries starting before this ISO 8601 datetime."
+        },
+        "description": {
+          "label": "Description",
+          "description": "Optional: only entries whose description contains this text."
+        },
+        "projectId": {
+          "label": "Project ID",
+          "description": "Optional: only entries on this project."
+        },
+        "taskId": {
+          "label": "Task ID",
+          "description": "Optional: only entries on this task."
+        },
+        "tagIds": {
+          "label": "Tag IDs",
+          "description": "Optional: only entries with these tags.",
+          "type": "json"
+        },
+        "inProgress": {
+          "label": "Running Only",
+          "description": "Only the running entry. Default false.",
+          "type": "boolean"
+        },
+        "hydrated": {
+          "label": "Include Details",
+          "description": "Return project, task and tag objects instead of only their IDs. Default false.",
+          "type": "boolean"
+        },
+        "page": {
+          "label": "Page",
+          "description": "Page number, starting at 1. Default 1.",
+          "type": "number",
+          "defaultValue": "1"
+        },
+        "pageSize": {
+          "label": "Page Size",
+          "description": "Items per page, 1 to 5000. Default 50.",
+          "type": "number",
+          "defaultValue": "50"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.clockify.me/api/v1/workspaces/{{workspaceId}}/user/{{userId}}/time-entries",
+        "query": {
+          "start": "{{start}}",
+          "end": "{{end}}",
+          "description": "{{description}}",
+          "project": "{{projectId}}",
+          "task": "{{taskId}}",
+          "hydrated": "{{hydrated}}",
+          "page": "{{page}}",
+          "page-size": "{{pageSize}}"
+        }
+      },
+      "beforeRequest": "if (request.url.includes('/user//')) request.url = request.url.replace('/user//', '/user/' + encodeURIComponent(call({method: 'GET', url: '/user'}).id) + '/');\nconst tags = inputs.tagIds ? JSON.parse(inputs.tagIds).map(String).join(',') : '';\nif (tags) request.query.tags = tags;\nif (inputs.inProgress === 'true') request.query['in-progress'] = 'true';\nreturn request;",
+      "afterResponse": "return { timeEntries: response, count: response.length };"
+    },
+    "clockify_stop_timer": {
+      "label": "Stop Timer",
+      "description": "Stops a user's running timer.",
+      "audience": "ai",
+      "inputs": {
+        "workspaceId": {
+          "label": "Workspace ID",
+          "description": "Workspace ID. Use List Workspaces to find it.",
+          "required": true
+        },
+        "userId": {
+          "label": "User ID",
+          "description": "User ID. Empty = the connected user. Another user needs workspace admin."
+        },
+        "end": {
+          "label": "End",
+          "description": "ISO 8601 stop time. Empty = now."
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://api.clockify.me/api/v1/workspaces/{{workspaceId}}/user/{{userId}}/time-entries",
+        "body": {
+          "end": "{{end}}"
+        }
+      },
+      "beforeRequest": "if (request.url.includes('/user//')) request.url = request.url.replace('/user//', '/user/' + encodeURIComponent(call({method: 'GET', url: '/user'}).id) + '/');\nif (!inputs.end) request.body = { end: new Date().toISOString() };\nreturn request;"
+    },
+    "clockify_update_client": {
+      "label": "Update Client",
+      "description": "Updates or archives a client.",
+      "audience": "ai",
+      "inputs": {
+        "workspaceId": {
+          "label": "Workspace ID",
+          "description": "Workspace ID. Use List Workspaces to find it.",
+          "required": true
+        },
+        "clientId": {
+          "label": "Client ID",
+          "description": "Client ID. Use List Clients to find it.",
+          "required": true
+        },
+        "name": {
+          "label": "Name"
+        },
+        "email": {
+          "label": "Email"
+        },
+        "address": {
+          "label": "Address",
+          "type": "multiline"
+        },
+        "note": {
+          "label": "Note",
+          "type": "multiline"
+        },
+        "archived": {
+          "label": "Archived",
+          "description": "Archive (Yes) or unarchive (No) the client. Empty = unchanged.",
+          "type": "select",
+          "options": [
+            {
+              "value": "true",
+              "label": "Yes"
+            },
+            {
+              "value": "false",
+              "label": "No"
+            }
+          ]
+        },
+        "archiveProjects": {
+          "label": "Archive Projects Too",
+          "description": "When archiving, also archive the client projects. Default false.",
+          "type": "boolean"
+        },
+        "markTasksAsDone": {
+          "label": "Mark Tasks as Done",
+          "description": "When archiving with its projects, also mark their tasks done. Default false.",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.clockify.me/api/v1/workspaces/{{workspaceId}}/clients/{{clientId}}",
+        "query": {
+          "archive-projects": "{{archiveProjects}}",
+          "mark-tasks-as-done": "{{markTasksAsDone}}"
+        }
+      },
+      "beforeRequest": "const v = (x) => x === undefined || x === '' ? undefined : x;\nconst ob = (x) => x ? x === 'true' : undefined;\nconst o = call({method: 'GET', url: request.url});\nrequest.body = { name: v(inputs.name) ?? o.name, email: v(inputs.email) ?? o.email, address: v(inputs.address) ?? o.address, note: v(inputs.note) ?? o.note,\n  archived: ob(inputs.archived) ?? o.archived, currencyId: o.currencyId, ccEmails: o.ccEmails };\nreturn request;"
+    },
+    "clockify_update_holiday": {
+      "label": "Update Holiday",
+      "description": "Changes a holiday.",
+      "audience": "ai",
+      "inputs": {
+        "workspaceId": {
+          "label": "Workspace ID",
+          "description": "Workspace ID. Use List Workspaces to find it.",
+          "required": true
+        },
+        "holidayId": {
+          "label": "Holiday ID",
+          "description": "Holiday ID. Use List Holidays to find it.",
+          "required": true
+        },
+        "name": {
+          "label": "Name"
+        },
+        "startDate": {
+          "label": "Start Date",
+          "description": "First day, YYYY-MM-DD."
+        },
+        "endDate": {
+          "label": "End Date",
+          "description": "Last day, YYYY-MM-DD. Same as Start Date for one day."
+        },
+        "userIds": {
+          "label": "User IDs",
+          "description": "Replaces the users it applies to. Use List Users. Empty = unchanged.",
+          "type": "json"
+        },
+        "userGroupIds": {
+          "label": "User Group IDs",
+          "description": "Replaces the user groups it applies to. Use List User Groups. Empty = unchanged.",
+          "type": "json"
+        },
+        "everyone": {
+          "label": "Everyone",
+          "description": "Applies to all members (Yes) or only the listed ones (No). Empty = unchanged.",
+          "type": "select",
+          "options": [
+            {
+              "value": "true",
+              "label": "Yes"
+            },
+            {
+              "value": "false",
+              "label": "No"
+            }
+          ]
+        },
+        "occursAnnually": {
+          "label": "Repeats Yearly",
+          "description": "Empty = unchanged.",
+          "type": "select",
+          "options": [
+            {
+              "value": "true",
+              "label": "Yes"
+            },
+            {
+              "value": "false",
+              "label": "No"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.clockify.me/api/v1/workspaces/{{workspaceId}}/holidays/{{holidayId}}"
+      },
+      "beforeRequest": "const v = (x) => x === undefined || x === '' ? undefined : x;\nconst ob = (x) => x ? x === 'true' : undefined;\nconst ids = (x) => { const a = x ? JSON.parse(x) : []; return a.length ? a.map(String) : undefined; };\nconst ef = (a) => a && a.length ? { ids: a.map(String), contains: 'CONTAINS', status: 'ALL' } : undefined;\nconst n = call({method: 'GET', url: '/workspaces/' + encodeURIComponent(inputs.workspaceId) + '/holidays'}).find((h) => h.id === inputs.holidayId);\nif (!n) throw new Error('Holiday ' + inputs.holidayId + ' not found in this workspace. Use List Holidays to find it.');\nrequest.body = { name: v(inputs.name) ?? n.name, datePeriod: { startDate: v(inputs.startDate) ?? n.datePeriod.startDate, endDate: v(inputs.endDate) ?? n.datePeriod.endDate },\n  occursAnnually: ob(inputs.occursAnnually) ?? n.occursAnnually ?? false, everyoneIncludingNew: ob(inputs.everyone) ?? n.everyoneIncludingNew ?? false,\n  users: ef(ids(inputs.userIds) ?? n.userIds), userGroups: ef(ids(inputs.userGroupIds) ?? n.userGroupIds),\n  automaticTimeEntryCreation: typeof n.automaticTimeEntryCreation === 'object' ? n.automaticTimeEntryCreation : undefined };\nreturn request;"
+    },
+    "clockify_update_project": {
+      "label": "Update Project",
+      "description": "Updates or archives a project.",
+      "audience": "ai",
+      "inputs": {
+        "workspaceId": {
+          "label": "Workspace ID",
+          "description": "Workspace ID. Use List Workspaces to find it.",
+          "required": true
+        },
+        "projectId": {
+          "label": "Project ID",
+          "description": "Project ID. Use List Projects to find it.",
+          "required": true
+        },
+        "name": {
+          "label": "Name"
+        },
+        "clientId": {
+          "label": "Client ID",
+          "description": "Optional client ID. Use List Clients to find it."
+        },
+        "color": {
+          "label": "Color",
+          "description": "Hex color, for example #03A9F4."
+        },
+        "note": {
+          "label": "Note",
+          "type": "multiline"
+        },
+        "billable": {
+          "label": "Billable",
+          "description": "Make the project billable (Yes) or not (No). Empty = unchanged.",
+          "type": "select",
+          "options": [
+            {
+              "value": "true",
+              "label": "Yes"
+            },
+            {
+              "value": "false",
+              "label": "No"
+            }
+          ]
+        },
+        "isPublic": {
+          "label": "Public",
+          "description": "Make the project public (Yes) or members-only (No). Empty = unchanged.",
+          "type": "select",
+          "options": [
+            {
+              "value": "true",
+              "label": "Yes"
+            },
+            {
+              "value": "false",
+              "label": "No"
+            }
+          ]
+        },
+        "archived": {
+          "label": "Archived",
+          "description": "Archive (Yes) or unarchive (No). Empty = unchanged.",
+          "type": "select",
+          "options": [
+            {
+              "value": "true",
+              "label": "Yes"
+            },
+            {
+              "value": "false",
+              "label": "No"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.clockify.me/api/v1/workspaces/{{workspaceId}}/projects/{{projectId}}"
+      },
+      "beforeRequest": "const v = (x) => x === undefined || x === '' ? undefined : x;\nconst ob = (x) => x ? x === 'true' : undefined;\nconst o = call({method: 'GET', url: request.url});\nrequest.body = { name: v(inputs.name) ?? o.name, clientId: v(inputs.clientId) ?? o.clientId, color: v(inputs.color) ?? o.color, note: v(inputs.note) ?? o.note,\n  billable: ob(inputs.billable) ?? o.billable, isPublic: ob(inputs.isPublic) ?? o.public, archived: ob(inputs.archived) ?? o.archived };\nreturn request;"
+    },
+    "clockify_update_shared_report": {
+      "label": "Update Shared Report",
+      "description": "Renames a shared report or changes who can see it.",
+      "audience": "ai",
+      "inputs": {
+        "workspaceId": {
+          "label": "Workspace ID",
+          "description": "Workspace ID. Use List Workspaces to find it.",
+          "required": true
+        },
+        "sharedReportId": {
+          "label": "Shared Report ID",
+          "description": "Shared report ID. Use List Shared Reports to find it.",
+          "required": true
+        },
+        "name": {
+          "label": "Name"
+        },
+        "isPublic": {
+          "label": "Public",
+          "description": "Anyone with the link can view it. Empty = unchanged.",
+          "type": "select",
+          "options": [
+            {
+              "value": "true",
+              "label": "Yes"
+            },
+            {
+              "value": "false",
+              "label": "No"
+            }
+          ]
+        },
+        "fixedDate": {
+          "label": "Fixed Period",
+          "description": "Viewers cannot change the period. Empty = unchanged.",
+          "type": "select",
+          "options": [
+            {
+              "value": "true",
+              "label": "Yes"
+            },
+            {
+              "value": "false",
+              "label": "No"
+            }
+          ]
+        },
+        "visibleToUsers": {
+          "label": "Visible to Users",
+          "description": "User IDs that can view it; replaces the list. Empty = unchanged.",
+          "type": "json"
+        },
+        "visibleToUserGroups": {
+          "label": "Visible to User Groups",
+          "description": "User group IDs that can view it; replaces the list. Empty = unchanged.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://reports.api.clockify.me/v1/workspaces/{{workspaceId}}/shared-reports/{{sharedReportId}}"
+      },
+      "beforeRequest": "const v = (x) => x === undefined || x === '' ? undefined : x;\nconst ob = (x) => x ? x === 'true' : undefined;\nconst ids = (x) => { const a = x ? JSON.parse(x) : []; return a.length ? a.map(String) : undefined; };\nlet o;\nfor (let page = 1; ; page++) {\n  const reports = call({method: 'GET', url: 'https://reports.api.clockify.me/v1/workspaces/' + encodeURIComponent(inputs.workspaceId) + '/shared-reports', query: {sharedReportsFilter: 'ALL', page: String(page), pageSize: '1000'}}).reports || [];\n  o = reports.find((r) => r.id === inputs.sharedReportId);\n  if (o || reports.length < 1000) break;\n}\nif (!o) throw new Error('Shared report ' + inputs.sharedReportId + ' not found in this workspace. Use List Shared Reports to find it.');\nconst idsOf = (list) => list && list.map((u) => u.id);\nrequest.body = { name: v(inputs.name) ?? o.name, isPublic: ob(inputs.isPublic) ?? o.isPublic, fixedDate: ob(inputs.fixedDate) ?? o.fixedDate,\n  visibleToUsers: ids(inputs.visibleToUsers) ?? idsOf(o.visibleToUsers), visibleToUserGroups: ids(inputs.visibleToUserGroups) ?? idsOf(o.visibleToUserGroups) };\nreturn request;"
+    },
+    "clockify_update_tag": {
+      "label": "Update Tag",
+      "description": "Renames, archives or unarchives a tag.",
+      "audience": "ai",
+      "inputs": {
+        "workspaceId": {
+          "label": "Workspace ID",
+          "description": "Workspace ID. Use List Workspaces to find it.",
+          "required": true
+        },
+        "tagId": {
+          "label": "Tag ID",
+          "description": "Tag ID. Use List Tags to find it.",
+          "required": true
+        },
+        "name": {
+          "label": "Name"
+        },
+        "archived": {
+          "label": "Archived",
+          "description": "Archive (Yes) or unarchive (No) the tag. Empty = unchanged.",
+          "type": "select",
+          "options": [
+            {
+              "value": "true",
+              "label": "Yes"
+            },
+            {
+              "value": "false",
+              "label": "No"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.clockify.me/api/v1/workspaces/{{workspaceId}}/tags/{{tagId}}"
+      },
+      "beforeRequest": "const v = (x) => x === undefined || x === '' ? undefined : x;\nconst ob = (x) => x ? x === 'true' : undefined;\nconst o = call({method: 'GET', url: request.url});\nrequest.body = { name: v(inputs.name) ?? o.name, archived: ob(inputs.archived) ?? o.archived ?? false };\nreturn request;"
+    },
+    "clockify_update_task": {
+      "label": "Update Task",
+      "description": "Updates, completes or reopens a task.",
+      "audience": "ai",
+      "inputs": {
+        "workspaceId": {
+          "label": "Workspace ID",
+          "description": "Workspace ID. Use List Workspaces to find it.",
+          "required": true
+        },
+        "projectId": {
+          "label": "Project ID",
+          "description": "Project ID. Use List Projects to find it.",
+          "required": true
+        },
+        "taskId": {
+          "label": "Task ID",
+          "description": "Task ID. Use List Tasks to find it.",
+          "required": true
+        },
+        "name": {
+          "label": "Name"
+        },
+        "status": {
+          "label": "Status",
+          "description": "Active or Done. Empty = unchanged.",
+          "type": "select",
+          "options": [
+            {
+              "value": "ACTIVE",
+              "label": "Active"
+            },
+            {
+              "value": "DONE",
+              "label": "Done"
+            }
+          ]
+        },
+        "assigneeIds": {
+          "label": "Assignee IDs",
+          "description": "Replaces the assignees. Use List Users to find them. Empty = unchanged.",
+          "type": "json"
+        },
+        "userGroupIds": {
+          "label": "User Group IDs",
+          "description": "Replaces the assigned user groups. Use List User Groups. Empty = unchanged.",
+          "type": "json"
+        },
+        "estimate": {
+          "label": "Estimate",
+          "description": "Time estimate as an ISO 8601 duration, for example PT8H."
+        },
+        "billable": {
+          "label": "Billable",
+          "description": "Billable (Yes) or not (No). Empty = unchanged.",
+          "type": "select",
+          "options": [
+            {
+              "value": "true",
+              "label": "Yes"
+            },
+            {
+              "value": "false",
+              "label": "No"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.clockify.me/api/v1/workspaces/{{workspaceId}}/projects/{{projectId}}/tasks/{{taskId}}"
+      },
+      "beforeRequest": "const v = (x) => x === undefined || x === '' ? undefined : x;\nconst ob = (x) => x ? x === 'true' : undefined;\nconst ids = (x) => { const a = x ? JSON.parse(x) : []; return a.length ? a.map(String) : undefined; };\nconst o = call({method: 'GET', url: request.url});\nrequest.body = { name: v(inputs.name) ?? o.name, status: v(inputs.status) ?? o.status, assigneeIds: ids(inputs.assigneeIds) ?? o.assigneeIds, userGroupIds: ids(inputs.userGroupIds) ?? o.userGroupIds,\n  estimate: v(inputs.estimate) ?? o.estimate, billable: ob(inputs.billable) ?? o.billable, budgetEstimate: o.budgetEstimate };\nreturn request;"
+    },
+    "clockify_update_time_entry": {
+      "label": "Update Time Entry",
+      "description": "Updates a time entry.",
+      "audience": "ai",
+      "inputs": {
+        "workspaceId": {
+          "label": "Workspace ID",
+          "description": "Workspace ID. Use List Workspaces to find it.",
+          "required": true
+        },
+        "timeEntryId": {
+          "label": "Time Entry ID",
+          "description": "Time entry ID. Use List Time Entries to find it.",
+          "required": true
+        },
+        "start": {
+          "label": "Start",
+          "description": "New ISO 8601 start. Empty = unchanged."
+        },
+        "end": {
+          "label": "End",
+          "description": "New ISO 8601 end. Empty = unchanged."
+        },
+        "description": {
+          "label": "Description",
+          "description": "What the time was spent on.",
+          "type": "multiline"
+        },
+        "projectId": {
+          "label": "Project ID",
+          "description": "New project ID. Empty = unchanged."
+        },
+        "taskId": {
+          "label": "Task ID",
+          "description": "New task ID. Empty = unchanged."
+        },
+        "tagIds": {
+          "label": "Tag IDs",
+          "description": "Replaces the tags. Empty = unchanged.",
+          "type": "json"
+        },
+        "billable": {
+          "label": "Billable",
+          "description": "Billable (Yes) or not (No). Empty = unchanged.",
+          "type": "select",
+          "options": [
+            {
+              "value": "true",
+              "label": "Yes"
+            },
+            {
+              "value": "false",
+              "label": "No"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.clockify.me/api/v1/workspaces/{{workspaceId}}/time-entries/{{timeEntryId}}"
+      },
+      "beforeRequest": "const v = (x) => x === undefined || x === '' ? undefined : x;\nconst ob = (x) => x ? x === 'true' : undefined;\nconst ids = (x) => { const a = x ? JSON.parse(x) : []; return a.length ? a.map(String) : undefined; };\nconst o = call({method: 'GET', url: request.url});\nconst span = o.timeInterval || {};\nrequest.body = { start: v(inputs.start) ?? span.start ?? '', end: v(inputs.end) ?? span.end, description: v(inputs.description) ?? o.description, projectId: v(inputs.projectId) ?? o.projectId,\n  taskId: v(inputs.taskId) ?? o.taskId, tagIds: ids(inputs.tagIds) ?? o.tagIds, billable: ob(inputs.billable) ?? o.billable, type: o.type,\n  customFields: o.customFieldValues && o.customFieldValues.map((c) => ({ customFieldId: c.customFieldId, value: c.value })) };\nreturn request;"
+    }
+  },
+  "triggers": {
+    "new-task": {
+      "label": "New Task",
+      "description": "Triggers when a new task is created in specified project.",
+      "inputs": {
+        "workspaceId": {
+          "label": "Workspace",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.clockify.me/api/v1/workspaces"
+            }
+          }
+        },
+        "projectId": {
+          "label": "Project",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.clockify.me/api/v1/workspaces/{{workspaceId}}/projects"
+            }
+          }
+        }
+      },
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.clockify.me/api/v1/workspaces/{{workspaceId}}/webhooks",
+          "body": {
+            "url": "{{webhookUrl}}"
+          }
+        },
+        "id": "$.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.clockify.me/api/v1/workspaces/{{workspaceId}}/webhooks/{{webhookId}}"
+        },
+        "beforeRequest": "request.body.webhookEvent = 'NEW_TASK';\nrequest.body.triggerSourceType = 'PROJECT_ID';\nrequest.body.triggerSource = [inputs.projectId];\nreturn request;"
+      },
+      "items": "$"
+    },
+    "new-time-entry": {
+      "label": "New Time Entry",
+      "description": "Triggers when a new time entry is created.",
+      "inputs": {
+        "workspaceId": {
+          "label": "Workspace",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.clockify.me/api/v1/workspaces"
+            }
+          }
+        },
+        "projectId": {
+          "label": "Project",
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.clockify.me/api/v1/workspaces/{{workspaceId}}/projects"
+            }
+          }
+        },
+        "taskId": {
+          "label": "Task",
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.clockify.me/api/v1/workspaces/{{workspaceId}}/projects/{{projectId}}/tasks"
+            }
+          }
+        }
+      },
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.clockify.me/api/v1/workspaces/{{workspaceId}}/webhooks",
+          "body": {
+            "url": "{{webhookUrl}}"
+          }
+        },
+        "id": "$.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.clockify.me/api/v1/workspaces/{{workspaceId}}/webhooks/{{webhookId}}"
+        },
+        "beforeRequest": "request.body.webhookEvent = 'NEW_TIME_ENTRY';\nconst source = inputs.taskId ? ['TASK_ID', inputs.taskId] : inputs.projectId ? ['PROJECT_ID', inputs.projectId] : inputs.workspaceId ? ['WORKSPACE_ID', inputs.workspaceId] : [];\nif (source.length) { request.body.triggerSourceType = source[0]; request.body.triggerSource = [source[1]]; }\nreturn request;"
+      },
+      "items": "$"
+    },
+    "new-timer-started": {
+      "label": "New Timer Started",
+      "description": "Triggers when a new entry is started and running.",
+      "inputs": {
+        "workspaceId": {
+          "label": "Workspace",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://api.clockify.me/api/v1/workspaces"
+            }
+          }
+        }
+      },
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.clockify.me/api/v1/workspaces/{{workspaceId}}/webhooks",
+          "body": {
+            "url": "{{webhookUrl}}"
+          }
+        },
+        "id": "$.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.clockify.me/api/v1/workspaces/{{workspaceId}}/webhooks/{{webhookId}}"
+        },
+        "beforeRequest": "request.body.webhookEvent = 'NEW_TIMER_STARTED';\nrequest.body.triggerSourceType = 'WORKSPACE_ID';\nrequest.body.triggerSource = [inputs.workspaceId];\nreturn request;"
+      },
+      "items": "$"
     }
   }
 }

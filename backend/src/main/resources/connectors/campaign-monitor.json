@@ -26,6 +26,231 @@
     }
   },
   "actions": {
+    "add_subscriber_to_list": {
+      "label": "Add Subscriber",
+      "description": "Adds a new subscriber to a list.",
+      "audience": "human",
+      "inputs": {
+        "clientId": {
+          "label": "Client Account",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "method": "GET",
+              "url": "https://api.createsend.com/api/v3.3/clients.json"
+            },
+            "list": "$",
+            "label": "$.Name",
+            "value": "$.ClientID"
+          }
+        },
+        "listId": {
+          "label": "List ID",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "method": "GET",
+              "url": "https://api.createsend.com/api/v3.3/clients/{{clientId}}/lists.json"
+            },
+            "list": "$",
+            "label": "$.Name",
+            "value": "$.ListID"
+          }
+        },
+        "email": {
+          "label": "Email Address",
+          "required": true
+        },
+        "name": {
+          "label": "Name",
+          "required": false
+        },
+        "phone": {
+          "label": "Phone",
+          "required": false
+        },
+        "consentToTrack": {
+          "label": "Consent to Track",
+          "description": "Whether the subscriber has consented to tracking.",
+          "type": "select",
+          "required": true,
+          "defaultValue": "Unchanged",
+          "options": [
+            {
+              "value": "Yes",
+              "label": "Yes"
+            },
+            {
+              "value": "No",
+              "label": "No"
+            },
+            {
+              "value": "Unchanged",
+              "label": "Unchanged"
+            }
+          ]
+        },
+        "consentToSendSms": {
+          "label": "Consent to Send SMS",
+          "description": "Whether the subscriber has consented to send SMS.",
+          "type": "select",
+          "required": false,
+          "defaultValue": "Unchanged",
+          "options": [
+            {
+              "value": "Yes",
+              "label": "Yes"
+            },
+            {
+              "value": "No",
+              "label": "No"
+            },
+            {
+              "value": "Unchanged",
+              "label": "Unchanged"
+            }
+          ]
+        },
+        "resubscribe": {
+          "label": "Resubscribe",
+          "description": "If true, the subscriber will be resubscribed if they previously unsubscribed.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "fields": {
+          "label": "Custom Fields",
+          "description": "Values of the list's custom fields, as a JSON object keyed by field key, such as {\"[Company]\": \"Acme\"}.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.createsend.com/api/v3.3/subscribers/{{listId}}.json",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {}
+      },
+      "beforeRequest": "const listId = inputs.listId, fields = inputs.fields ? JSON.parse(inputs.fields) : {}; const blank = (value) => value === undefined || value === null || value === ''; const day = (value) => { if (typeof value !== 'string') return value; const match = /^(\\d{4})-(\\d{2})-(\\d{2})T\\d{2}:\\d{2}/.exec(value); return match ? `${match[1]}/${match[2]}/${match[3]}` : value; }; const dates = new Set((call({ method: 'GET', url: '/lists/' + encodeURIComponent(listId) + '/customfields.json' }) || []).filter((field) => field.DataType === 'Date').map((field) => field.Key)); const custom = Object.entries(fields || {}).flatMap(([key, value]) => Array.isArray(value) ? value.filter((item) => !blank(item)).map((item) => ({ Key: key, Value: item })) : blank(value) ? [] : [{ Key: key, Value: dates.has(key) ? day(value) : value }]); request.body = { EmailAddress: inputs.email, Name: inputs.name || '', ConsentToTrack: inputs.consentToTrack || 'Unchanged', ConsentToSendSms: inputs.consentToSendSms || 'Unchanged', Resubscribe: inputs.resubscribe === 'true', MobileNumber: inputs.phone || undefined, CustomFields: custom }; return request;",
+      "afterResponse": "return { success: true, emailAddress: typeof response === 'string' ? response : inputs.email, listId: inputs.listId };"
+    },
+    "update_subscriber_details": {
+      "label": "Update Subscriber",
+      "description": "Update an existing subscriber in a list.",
+      "audience": "human",
+      "inputs": {
+        "clientId": {
+          "label": "Client Account",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "method": "GET",
+              "url": "https://api.createsend.com/api/v3.3/clients.json"
+            },
+            "list": "$",
+            "label": "$.Name",
+            "value": "$.ClientID"
+          }
+        },
+        "listId": {
+          "label": "List ID",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "method": "GET",
+              "url": "https://api.createsend.com/api/v3.3/clients/{{clientId}}/lists.json"
+            },
+            "list": "$",
+            "label": "$.Name",
+            "value": "$.ListID"
+          }
+        },
+        "email": {
+          "label": "Email Address",
+          "description": "The current email address of the subscriber.",
+          "required": true
+        },
+        "newEmail": {
+          "label": "New Email Address",
+          "description": "New email for the subscriber. Leave empty to keep the current one.",
+          "required": false
+        },
+        "name": {
+          "label": "Name",
+          "required": false
+        },
+        "phone": {
+          "label": "Phone",
+          "required": false
+        },
+        "consentToTrack": {
+          "label": "Consent to Track",
+          "description": "Whether the subscriber has consented to tracking.",
+          "type": "select",
+          "required": false,
+          "defaultValue": "Unchanged",
+          "options": [
+            {
+              "value": "Yes",
+              "label": "Yes"
+            },
+            {
+              "value": "No",
+              "label": "No"
+            },
+            {
+              "value": "Unchanged",
+              "label": "Unchanged"
+            }
+          ]
+        },
+        "consentToSendSms": {
+          "label": "Consent to Send SMS",
+          "description": "Whether the subscriber has consented to send SMS.",
+          "type": "select",
+          "required": false,
+          "defaultValue": "Unchanged",
+          "options": [
+            {
+              "value": "Yes",
+              "label": "Yes"
+            },
+            {
+              "value": "No",
+              "label": "No"
+            },
+            {
+              "value": "Unchanged",
+              "label": "Unchanged"
+            }
+          ]
+        },
+        "resubscribe": {
+          "label": "Resubscribe",
+          "description": "If true, the subscriber will be resubscribed if they previously unsubscribed.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "fields": {
+          "label": "Custom Fields",
+          "description": "Values of the list's custom fields, as a JSON object keyed by field key, such as {\"[Company]\": \"Acme\"}.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.createsend.com/api/v3.3/subscribers/{{listId}}.json",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "query": {
+          "email": "{{email}}"
+        },
+        "body": {}
+      },
+      "beforeRequest": "const listId = inputs.listId, fields = inputs.fields ? JSON.parse(inputs.fields) : {}; const blank = (value) => value === undefined || value === null || value === ''; const day = (value) => { if (typeof value !== 'string') return value; const match = /^(\\d{4})-(\\d{2})-(\\d{2})T\\d{2}:\\d{2}/.exec(value); return match ? `${match[1]}/${match[2]}/${match[3]}` : value; }; const dates = new Set((call({ method: 'GET', url: '/lists/' + encodeURIComponent(listId) + '/customfields.json' }) || []).filter((field) => field.DataType === 'Date').map((field) => field.Key)); const custom = Object.entries(fields || {}).flatMap(([key, value]) => Array.isArray(value) ? value.filter((item) => !blank(item)).map((item) => ({ Key: key, Value: item })) : blank(value) ? [] : [{ Key: key, Value: dates.has(key) ? day(value) : value }]); request.body = { EmailAddress: (inputs.newEmail || '').trim() || inputs.email, MobileNumber: inputs.phone || undefined, Name: inputs.name || undefined, ConsentToTrack: inputs.consentToTrack || 'Unchanged', ConsentToSendSms: inputs.consentToSendSms || 'Unchanged', Resubscribe: inputs.resubscribe === 'true', CustomFields: custom }; return request;",
+      "afterResponse": "return { success: true, emailAddress: (inputs.newEmail || '').trim() || inputs.email, listId: inputs.listId };"
+    },
     "unsubscribe_subscriber": {
       "label": "Unsubscribe Subscriber",
       "description": "Remove a subscriber from a list.",
@@ -619,6 +844,186 @@
       },
       "beforeRequest": "const list = (value) => (value ? JSON.parse(value) : []).map((item) => String(item ?? '').trim()).filter((item) => item.length > 0); const to = list(inputs.to), cc = list(inputs.cc), bcc = list(inputs.bcc); if (to.length === 0) throw new Error('Add at least one recipient in To.'); request.body = { To: to, CC: cc.length > 0 ? cc : undefined, BCC: bcc.length > 0 ? bcc : undefined, Data: inputs.data ? JSON.parse(inputs.data) : {}, AddRecipientsToList: inputs.addRecipientsToList === 'true', ConsentToTrack: inputs.consentToTrack }; return request;"
     },
+    "add_subscriber_json": {
+      "label": "Add Subscriber (JSON fields)",
+      "description": "Adds a subscriber to a list, with custom fields as JSON.",
+      "audience": "ai",
+      "inputs": {
+        "listId": {
+          "label": "List ID",
+          "description": "ID of the list to add the subscriber to.",
+          "required": true
+        },
+        "email": {
+          "label": "Email Address",
+          "required": true
+        },
+        "name": {
+          "label": "Name",
+          "required": false
+        },
+        "phone": {
+          "label": "Phone",
+          "required": false
+        },
+        "consentToTrack": {
+          "label": "Consent to Track",
+          "description": "Whether the subscriber has consented to tracking.",
+          "type": "select",
+          "required": true,
+          "defaultValue": "Unchanged",
+          "options": [
+            {
+              "value": "Yes",
+              "label": "Yes"
+            },
+            {
+              "value": "No",
+              "label": "No"
+            },
+            {
+              "value": "Unchanged",
+              "label": "Unchanged"
+            }
+          ]
+        },
+        "consentToSendSms": {
+          "label": "Consent to Send SMS",
+          "description": "Whether the subscriber has consented to send SMS.",
+          "type": "select",
+          "required": false,
+          "defaultValue": "Unchanged",
+          "options": [
+            {
+              "value": "Yes",
+              "label": "Yes"
+            },
+            {
+              "value": "No",
+              "label": "No"
+            },
+            {
+              "value": "Unchanged",
+              "label": "Unchanged"
+            }
+          ]
+        },
+        "resubscribe": {
+          "label": "Resubscribe",
+          "description": "Resubscribe the contact if they previously unsubscribed.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "customFields": {
+          "label": "Custom Fields",
+          "description": "JSON object of field name to value, e.g. {\"Company\":\"Acme\"}.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.createsend.com/api/v3.3/subscribers/{{listId}}.json",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {}
+      },
+      "beforeRequest": "const named = (value) => { if (value === undefined || value === null || value === '') return {}; const parsed = typeof value === 'string' ? JSON.parse(value) : value; if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new Error('Custom Fields must be a JSON object, e.g. {\"Company\":\"Acme\",\"Age\":30}.'); const out = {}; for (const [key, item] of Object.entries(parsed)) { const name = key.replace(/^\\s*\\[(.*)\\]\\s*$/, '$1').replace(/\\s+/g, ''); if (name.length !== 0) out[`[${name}]`] = item; } return out; }; const listId = inputs.listId.trim(), fields = named(inputs.customFields); const blank = (value) => value === undefined || value === null || value === ''; const day = (value) => { if (typeof value !== 'string') return value; const match = /^(\\d{4})-(\\d{2})-(\\d{2})T\\d{2}:\\d{2}/.exec(value); return match ? `${match[1]}/${match[2]}/${match[3]}` : value; }; const dates = new Set((call({ method: 'GET', url: '/lists/' + encodeURIComponent(listId) + '/customfields.json' }) || []).filter((field) => field.DataType === 'Date').map((field) => field.Key)); const custom = Object.entries(fields || {}).flatMap(([key, value]) => Array.isArray(value) ? value.filter((item) => !blank(item)).map((item) => ({ Key: key, Value: item })) : blank(value) ? [] : [{ Key: key, Value: dates.has(key) ? day(value) : value }]); request.url = '/subscribers/' + encodeURIComponent(listId) + '.json'; request.body = { EmailAddress: inputs.email.trim(), Name: inputs.name || '', MobileNumber: inputs.phone || undefined, ConsentToTrack: inputs.consentToTrack || 'Unchanged', ConsentToSendSms: inputs.consentToSendSms || 'Unchanged', Resubscribe: inputs.resubscribe === 'true', CustomFields: custom }; return request;",
+      "afterResponse": "return { success: true, emailAddress: typeof response === 'string' ? response : inputs.email.trim(), listId: inputs.listId.trim() };"
+    },
+    "update_subscriber_json": {
+      "label": "Update Subscriber (JSON fields)",
+      "description": "Updates a subscriber in a list, with custom fields as JSON.",
+      "audience": "ai",
+      "inputs": {
+        "listId": {
+          "label": "List ID",
+          "description": "ID of the list the subscriber belongs to.",
+          "required": true
+        },
+        "email": {
+          "label": "Email Address",
+          "description": "The current email address of the subscriber.",
+          "required": true
+        },
+        "newEmail": {
+          "label": "New Email Address",
+          "description": "New email for the subscriber. Leave empty to keep it.",
+          "required": false
+        },
+        "name": {
+          "label": "Name",
+          "required": false
+        },
+        "phone": {
+          "label": "Phone",
+          "required": false
+        },
+        "consentToTrack": {
+          "label": "Consent to Track",
+          "description": "Whether the subscriber has consented to tracking.",
+          "type": "select",
+          "required": false,
+          "defaultValue": "Unchanged",
+          "options": [
+            {
+              "value": "Yes",
+              "label": "Yes"
+            },
+            {
+              "value": "No",
+              "label": "No"
+            },
+            {
+              "value": "Unchanged",
+              "label": "Unchanged"
+            }
+          ]
+        },
+        "consentToSendSms": {
+          "label": "Consent to Send SMS",
+          "description": "Whether the subscriber has consented to send SMS.",
+          "type": "select",
+          "required": false,
+          "defaultValue": "Unchanged",
+          "options": [
+            {
+              "value": "Yes",
+              "label": "Yes"
+            },
+            {
+              "value": "No",
+              "label": "No"
+            },
+            {
+              "value": "Unchanged",
+              "label": "Unchanged"
+            }
+          ]
+        },
+        "resubscribe": {
+          "label": "Resubscribe",
+          "description": "Resubscribe the contact if they previously unsubscribed.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "customFields": {
+          "label": "Custom Fields",
+          "description": "JSON object of field name to value, e.g. {\"Company\":\"Acme\"}.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.createsend.com/api/v3.3/subscribers/{{listId}}.json",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {}
+      },
+      "beforeRequest": "const named = (value) => { if (value === undefined || value === null || value === '') return {}; const parsed = typeof value === 'string' ? JSON.parse(value) : value; if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new Error('Custom Fields must be a JSON object, e.g. {\"Company\":\"Acme\",\"Age\":30}.'); const out = {}; for (const [key, item] of Object.entries(parsed)) { const name = key.replace(/^\\s*\\[(.*)\\]\\s*$/, '$1').replace(/\\s+/g, ''); if (name.length !== 0) out[`[${name}]`] = item; } return out; }; const listId = inputs.listId.trim(), email = inputs.email.trim(), fields = named(inputs.customFields); const blank = (value) => value === undefined || value === null || value === ''; const day = (value) => { if (typeof value !== 'string') return value; const match = /^(\\d{4})-(\\d{2})-(\\d{2})T\\d{2}:\\d{2}/.exec(value); return match ? `${match[1]}/${match[2]}/${match[3]}` : value; }; const dates = new Set((call({ method: 'GET', url: '/lists/' + encodeURIComponent(listId) + '/customfields.json' }) || []).filter((field) => field.DataType === 'Date').map((field) => field.Key)); const custom = Object.entries(fields || {}).flatMap(([key, value]) => Array.isArray(value) ? value.filter((item) => !blank(item)).map((item) => ({ Key: key, Value: item })) : blank(value) ? [] : [{ Key: key, Value: dates.has(key) ? day(value) : value }]); request.url = '/subscribers/' + encodeURIComponent(listId) + '.json'; request.query = { email }; request.body = { EmailAddress: (inputs.newEmail || '').trim() || email, Name: inputs.name || undefined, MobileNumber: inputs.phone || undefined, ConsentToTrack: inputs.consentToTrack || 'Unchanged', ConsentToSendSms: inputs.consentToSendSms || 'Unchanged', Resubscribe: inputs.resubscribe === 'true', CustomFields: custom }; return request;",
+      "afterResponse": "return { success: true, emailAddress: (inputs.newEmail || '').trim() || inputs.email.trim(), listId: inputs.listId.trim() };"
+    },
     "create_draft_campaign": {
       "label": "Create Draft Campaign",
       "description": "Creates a draft campaign from hosted HTML content.",
@@ -1088,6 +1493,42 @@
       },
       "beforeRequest": "const list = (value) => (value ? JSON.parse(value) : []).map((item) => String(item).trim()).filter((item) => item.length > 0); const options = list(inputs.options), multi = ['MultiSelectOne', 'MultiSelectMany'].includes(inputs.dataType); if (multi && options.length === 0) throw new Error('Options are required for multi-select data types.'); request.body = { FieldName: inputs.fieldName.trim(), DataType: inputs.dataType, Options: multi ? options : [], VisibleInPreferenceCenter: inputs.visibleInPreferenceCenter !== 'false' }; return request;",
       "afterResponse": "return { key: String(response), fieldName: inputs.fieldName.trim(), dataType: inputs.dataType, listId: inputs.listId };"
+    }
+  },
+  "triggers": {
+    "new_campaign_sent": {
+      "label": "New Campaign Sent",
+      "description": "Triggers when a client sends a new campaign.",
+      "inputs": {
+        "clientId": {
+          "label": "Client Account",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "method": "GET",
+              "url": "https://api.createsend.com/api/v3.3/clients.json"
+            },
+            "list": "$",
+            "label": "$.Name",
+            "value": "$.ClientID"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.createsend.com/api/v3.3/clients/{{clientId}}/campaigns.json",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "query": {
+          "page": "1",
+          "pagesize": "100",
+          "orderdirection": "desc"
+        }
+      },
+      "items": "$.Results",
+      "newBy": "lastItem",
+      "key": "$.CampaignID"
     }
   }
 }

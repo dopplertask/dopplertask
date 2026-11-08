@@ -1,0 +1,551 @@
+{
+  "name": "supabase",
+  "label": "Supabase",
+  "description": "The open-source Firebase alternative",
+  "icon": "supabase",
+  "hosts": [
+    "{{credential.url}}"
+  ],
+  "baseUrl": "https://{{credential.url}}",
+  "upstream": {
+    "package": "@activepieces/piece-supabase",
+    "version": "0.4.2"
+  },
+  "credential": {
+    "fields": {
+      "url": {
+        "label": "Project URL",
+        "description": "Your Supabase project URL (e.g., https://your-project-ref.supabase.co)",
+        "required": true
+      },
+      "apiKey": {
+        "label": "API Key",
+        "description": "Service Role Key (for actions) or Anonymous Key (for basic triggers). Find your keys in Settings, API, Project API keys.",
+        "required": true,
+        "secret": true
+      }
+    },
+    "headers": {
+      "apikey": "{{credential.apiKey}}",
+      "Authorization": "Bearer {{credential.apiKey}}",
+      "X-Client-Info": "supabase-js-node/2.49.9"
+    }
+  },
+  "actions": {
+    "create_row": {
+      "label": "Create Row",
+      "description": "Create a new row in a table",
+      "inputs": {
+        "table_name": {
+          "label": "Table",
+          "description": "Only tables exposed through the Supabase Data API can be used.",
+          "required": true
+        },
+        "row_data": {
+          "label": "Row Data",
+          "description": "The new row, as a JSON object with one field per column.",
+          "type": "json",
+          "required": true
+        },
+        "return_row": {
+          "label": "Return Created Row",
+          "description": "When off, the step outputs nothing.",
+          "type": "boolean",
+          "defaultValue": "true"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.url}}/rest/v1/{{table_name}}",
+        "headers": {
+          "Content-Profile": "public"
+        },
+        "body": "{{row_data}}"
+      },
+      "beforeRequest": "const returning = inputs.return_row !== 'false';\nif (returning) request.url += '?select=*';\nrequest.headers.Prefer = returning ? 'return=representation' : '';\nreturn request;",
+      "afterResponse": "return inputs.return_row === 'false' ? null : response;"
+    },
+    "delete_rows": {
+      "label": "Delete Rows",
+      "description": "Remove rows matching filter criteria from a table",
+      "inputs": {
+        "table_name": {
+          "label": "Table",
+          "description": "Only tables exposed through the Supabase Data API can be used.",
+          "required": true
+        },
+        "filter_column": {
+          "label": "Column",
+          "description": "Rows are matched on this column.",
+          "required": true
+        },
+        "filter_type": {
+          "label": "Condition",
+          "description": "How the column is compared with the value.",
+          "type": "select",
+          "required": true,
+          "defaultValue": "in",
+          "options": [
+            {
+              "value": "eq",
+              "label": "Equals"
+            },
+            {
+              "value": "neq",
+              "label": "Does not equal"
+            },
+            {
+              "value": "in",
+              "label": "Is one of"
+            },
+            {
+              "value": "gt",
+              "label": "Greater than"
+            },
+            {
+              "value": "gte",
+              "label": "Greater than or equal to"
+            },
+            {
+              "value": "lt",
+              "label": "Less than"
+            },
+            {
+              "value": "lte",
+              "label": "Less than or equal to"
+            },
+            {
+              "value": "is_null",
+              "label": "Is null"
+            },
+            {
+              "value": "is_not_null",
+              "label": "Is not null"
+            },
+            {
+              "value": "like",
+              "label": "Matches pattern"
+            },
+            {
+              "value": "ilike",
+              "label": "Matches pattern, any case"
+            }
+          ]
+        },
+        "filter_value": {
+          "label": "Value",
+          "description": "Not used by Is one of, Is null or Is not null."
+        },
+        "filter_values": {
+          "label": "Values",
+          "description": "Used only by Is one of, as a JSON list such as [\"a\", \"b\"].",
+          "type": "json"
+        },
+        "return_deleted": {
+          "label": "Return Deleted Rows",
+          "description": "Adds the deleted rows to the output.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.url}}/rest/v1/{{table_name}}",
+        "headers": {
+          "Content-Profile": "public"
+        }
+      },
+      "beforeRequest": "const encode = (text) => encodeURIComponent(String(text)).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst queryOf = (pairs) => pairs.map(([key, value]) => encode(key) + '=' + encode(value)).join('&');\nconst inList = (values) => 'in.(' + [...new Set(values)].map((v) => typeof v === 'string' && /[,()]/.test(v) ? '\"' + v + '\"' : '' + v).join(',') + ')';\nconst list = inputs.filter_values ? JSON.parse(inputs.filter_values) : [];\nconst need = (check) => { if (!inputs.filter_value) throw new Error('Filter value is required for ' + check); return inputs.filter_value; };\nconst column = inputs.filter_column;\nconst pairs = [];\nswitch (inputs.filter_type) {\n  case 'eq': pairs.push([column, 'eq.' + need('equality check')]); break;\n  case 'neq': pairs.push([column, 'neq.' + need('not-equals check')]); break;\n  case 'in': if (!list || list.length === 0) throw new Error('Filter values are required for \"in\" filter type'); pairs.push([column, inList(list)]); break;\n  case 'gt': pairs.push([column, 'gt.' + need('greater-than check')]); break;\n  case 'gte': pairs.push([column, 'gte.' + need('greater-than-or-equal check')]); break;\n  case 'lt': pairs.push([column, 'lt.' + need('less-than check')]); break;\n  case 'lte': pairs.push([column, 'lte.' + need('less-than-or-equal check')]); break;\n  case 'is_null': pairs.push([column, 'is.null']); break;\n  case 'is_not_null': pairs.push([column, 'not.is.null']); break;\n  case 'like': pairs.push([column, 'like.' + need('like pattern matching')]); break;\n  case 'ilike': pairs.push([column, 'ilike.' + need('case-insensitive like pattern matching')]); break;\n  default: throw new Error('Unsupported filter type: ' + inputs.filter_type);\n}\nconst returning = inputs.return_deleted === 'true';\nif (returning) pairs.push(['select', '*']);\nrequest.headers.Prefer = returning ? 'return=representation' : '';\nrequest.url += '?' + queryOf(pairs);\nreturn request;",
+      "afterResponse": "return inputs.return_deleted === 'true' ? {success: true, deleted_rows: response} : {success: true};"
+    },
+    "update_row": {
+      "label": "Update Row",
+      "description": "Update rows in a table based on filter criteria",
+      "inputs": {
+        "table_name": {
+          "label": "Table",
+          "description": "Only tables exposed through the Supabase Data API can be used.",
+          "required": true
+        },
+        "filter_column": {
+          "label": "Column",
+          "description": "Rows are matched on this column.",
+          "required": true
+        },
+        "filter_type": {
+          "label": "Condition",
+          "description": "How the column is compared with the value.",
+          "type": "select",
+          "required": true,
+          "defaultValue": "eq",
+          "options": [
+            {
+              "value": "eq",
+              "label": "Equals"
+            },
+            {
+              "value": "in",
+              "label": "Is one of"
+            },
+            {
+              "value": "gt",
+              "label": "Greater than"
+            }
+          ]
+        },
+        "filter_value": {
+          "label": "Value",
+          "description": "Used by every condition except Is one of."
+        },
+        "filter_values": {
+          "label": "Values",
+          "description": "Used only by Is one of, as a JSON list such as [\"a\", \"b\"].",
+          "type": "json"
+        },
+        "update_data": {
+          "label": "New Values",
+          "description": "The new values, as a JSON object with one field per column.",
+          "type": "json",
+          "required": true
+        },
+        "return_updated": {
+          "label": "Return Updated Rows",
+          "description": "Adds the updated rows to the output.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://{{credential.url}}/rest/v1/{{table_name}}",
+        "headers": {
+          "Content-Profile": "public"
+        },
+        "body": "{{update_data}}"
+      },
+      "beforeRequest": "const encode = (text) => encodeURIComponent(String(text)).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst queryOf = (pairs) => pairs.map(([key, value]) => encode(key) + '=' + encode(value)).join('&');\nconst inList = (values) => 'in.(' + [...new Set(values)].map((v) => typeof v === 'string' && /[,()]/.test(v) ? '\"' + v + '\"' : '' + v).join(',') + ')';\nconst list = inputs.filter_values ? JSON.parse(inputs.filter_values) : [];\nconst need = (check) => { if (!inputs.filter_value) throw new Error('Filter value is required for ' + check); return inputs.filter_value; };\nconst column = inputs.filter_column;\nconst pairs = [];\nswitch (inputs.filter_type) {\n  case 'eq': pairs.push([column, 'eq.' + need('equality check')]); break;\n  case 'in': if (!list || list.length === 0) throw new Error('Filter values are required for \"in list\" filter type'); pairs.push([column, inList(list)]); break;\n  case 'gt': pairs.push([column, 'gt.' + need('greater-than check')]); break;\n  default: throw new Error('Unsupported filter type: ' + inputs.filter_type);\n}\nconst returning = inputs.return_updated === 'true';\nif (returning) pairs.push(['select', '*']);\nrequest.headers.Prefer = returning ? 'return=representation' : '';\nrequest.url += '?' + queryOf(pairs);\nreturn request;",
+      "afterResponse": "return inputs.return_updated === 'true' ? {success: true, updated_rows: response} : {success: true};"
+    },
+    "upsert_row": {
+      "label": "Upsert Row",
+      "description": "Insert or update a row in a table",
+      "inputs": {
+        "table_name": {
+          "label": "Table",
+          "description": "Only tables exposed through the Supabase Data API can be used.",
+          "required": true
+        },
+        "on_conflict": {
+          "label": "Match Column",
+          "description": "A unique column. Rows with the same value here are updated.",
+          "required": true
+        },
+        "row_data": {
+          "label": "Row Data",
+          "description": "The row, as a JSON object with one field per column.",
+          "type": "json",
+          "required": true
+        },
+        "return_upserted": {
+          "label": "Return Upserted Rows",
+          "description": "Adds the written rows to the output.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.url}}/rest/v1/{{table_name}}",
+        "headers": {
+          "Content-Profile": "public"
+        },
+        "body": "{{row_data}}"
+      },
+      "beforeRequest": "const encode = (text) => encodeURIComponent(String(text)).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst queryOf = (pairs) => pairs.map(([key, value]) => encode(key) + '=' + encode(value)).join('&');\nconst pairs = [['on_conflict', inputs.on_conflict]];\nconst returning = inputs.return_upserted === 'true';\nif (returning) pairs.push(['select', '*']);\nrequest.headers.Prefer = 'resolution=merge-duplicates' + (returning ? ',return=representation' : '');\nrequest.url += '?' + queryOf(pairs);\nreturn request;",
+      "afterResponse": "return inputs.return_upserted === 'true' ? {success: true, upserted_rows: response} : {success: true};"
+    },
+    "search_rows": {
+      "label": "Search Rows",
+      "description": "Search for rows in a table with filters and pagination",
+      "inputs": {
+        "table_name": {
+          "label": "Table",
+          "description": "Only tables exposed through the Supabase Data API can be used.",
+          "required": true
+        },
+        "columns": {
+          "label": "Columns",
+          "description": "Comma-separated. Leave empty to return every column."
+        },
+        "filters": {
+          "label": "Filters",
+          "description": "A row is returned only if it matches every filter: a JSON list of {\"field\", \"operator\", \"value\"}, where operator is eq, neq, gt, gte, lt, lte, like, ilike, is, in, contains or containedBy. Use -> in field for a JSON key; for in, separate values with commas.",
+          "type": "json"
+        },
+        "page": {
+          "label": "Page",
+          "description": "Starts at 1.",
+          "type": "number",
+          "defaultValue": "1"
+        },
+        "pageSize": {
+          "label": "Rows Per Page",
+          "description": "Between 1 and 1000.",
+          "type": "number",
+          "defaultValue": "20"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.url}}/rest/v1/{{table_name}}",
+        "headers": {
+          "Accept-Profile": "public"
+        }
+      },
+      "beforeRequest": "const encode = (text) => encodeURIComponent(String(text)).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst queryOf = (pairs) => pairs.map(([key, value]) => encode(key) + '=' + encode(value)).join('&');\nconst inList = (values) => 'in.(' + [...new Set(values)].map((v) => typeof v === 'string' && /[,()]/.test(v) ? '\"' + v + '\"' : '' + v).join(',') + ')';\nconst columns = inputs.columns;\nif (columns && !/^[a-zA-Z0-9_,.\\s\\->\"*]+$/.test(columns)) throw new Error('Invalid column specification. Only alphanumeric characters, underscores, commas, dots, arrows, quotes, and asterisks are allowed.');\nlet quoted = false;\nconst pairs = [['select', (columns || '*').split('').map((c) => { if (/\\s/.test(c) && !quoted) return ''; if (c === '\"') quoted = !quoted; return c; }).join('')]];\nconst filters = inputs.filters ? JSON.parse(inputs.filters) : [];\nconst set = (name, value) => typeof value === 'string' ? name + '.' + value : Array.isArray(value) ? name + '.{' + value.join(',') + '}' : name + '.' + JSON.stringify(value);\nif (Array.isArray(filters)) for (const filter of filters) {\n  if (!filter.field || !filter.operator) throw new Error('Filter must have both field and operator specified');\n  if (!/^[a-zA-Z0-9_.\\->\"]+$/.test(filter.field)) throw new Error('Invalid field name: ' + filter.field + '. Only alphanumeric characters, underscores, dots, and arrows are allowed.');\n  const value = filter.value;\n  try {\n    switch (filter.operator) {\n      case 'eq': case 'neq': case 'gt': case 'gte': case 'lt': case 'lte': case 'is': pairs.push([filter.field, filter.operator + '.' + value]); break;\n      case 'like': case 'ilike': pairs.push([filter.field, filter.operator + '.' + String(value)]); break;\n      case 'in': pairs.push([filter.field, inList(Array.isArray(value) ? value : String(value).split(','))]); break;\n      case 'contains': case 'containedBy':\n        if (!(typeof value == 'string' || Array.isArray(value) || value && typeof value == 'object')) throw new Error((filter.operator === 'contains' ? 'Contains' : 'ContainedBy') + ' operator requires string, array, or object value');\n        pairs.push([filter.field, set(filter.operator === 'contains' ? 'cs' : 'cd', value)]); break;\n      default: throw new Error('Unsupported filter operator: ' + filter.operator);\n    }\n  } catch (e) { throw new Error(\"Failed to apply filter on field '\" + filter.field + \"' with operator '\" + filter.operator + \"': \" + e.message); }\n}\nconst page = Math.max(1, Number(inputs.page) || 1), size = Math.min(1000, Math.max(1, Number(inputs.pageSize) || 20));\npairs.push(['offset', (page - 1) * size], ['limit', size]);\nrequest.url += '?' + queryOf(pairs);\nreturn request;",
+      "afterResponse": "const page = Math.max(1, Number(inputs.page) || 1), size = Math.min(1000, Math.max(1, Number(inputs.pageSize) || 20)), from = (page - 1) * size;\nconst data = Array.isArray(response) ? response : [];\nreturn {data, count: 0, page, pageSize: size, total_pages: 0, range: {from, to: from + size - 1, returned: data.length}};"
+    },
+    "create_bucket": {
+      "label": "Create Storage Bucket",
+      "description": "Creates a new Storage bucket, public or private.",
+      "inputs": {
+        "name": {
+          "label": "Bucket Name",
+          "description": "Must be unique in the project.",
+          "required": true
+        },
+        "public": {
+          "label": "Public",
+          "description": "Whether files in this bucket are publicly readable by URL.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "fileSizeLimit": {
+          "label": "Max File Size",
+          "description": "In bytes. Empty uses the project's upload limit.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.url}}/storage/v1/bucket",
+        "body": {
+          "id": "{{name}}",
+          "name": "{{name}}",
+          "public": "{{public}}",
+          "file_size_limit": "{{fileSizeLimit}}"
+        }
+      },
+      "beforeRequest": "if (!request.body.file_size_limit) delete request.body.file_size_limit;\nif (request.body.public === undefined) request.body.public = false;\nreturn request;",
+      "afterResponse": "return {name: response.name};"
+    },
+    "list_buckets": {
+      "label": "List Storage Buckets",
+      "description": "Lists all Storage buckets in the project.",
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.url}}/storage/v1/bucket"
+      },
+      "afterResponse": "return {buckets: (Array.isArray(response) ? response : []).map((b) => ({id: b.id, name: b.name, public: b.public, created_at: b.created_at, updated_at: b.updated_at}))};"
+    },
+    "list_files": {
+      "label": "List Files in Bucket",
+      "description": "Lists files and folders inside a Storage bucket, optionally under a specific folder path.",
+      "inputs": {
+        "bucket": {
+          "label": "Bucket",
+          "description": "The bucket's name, as shown in Storage.",
+          "required": true
+        },
+        "path": {
+          "label": "Folder Path",
+          "description": "Leave empty to list the bucket root."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.url}}/storage/v1/object/list/{{bucket}}",
+        "body": {
+          "limit": 100,
+          "offset": 0,
+          "sortBy": {
+            "column": "name",
+            "order": "asc"
+          }
+        }
+      },
+      "beforeRequest": "request.body.prefix = inputs.path || '';\nreturn request;",
+      "afterResponse": "const files = new Map();\nlet page = response, offset = 0;\nwhile (true) {\n  const items = Array.isArray(page) ? page : [];\n  for (const file of items) if (!files.has(file.name)) files.set(file.name, file);\n  if (items.length !== 100) break;\n  offset += 90;\n  page = call({method: 'POST', url: '/storage/v1/object/list/' + encodeURIComponent(inputs.bucket), body: {limit: 100, offset, sortBy: {column: 'name', order: 'asc'}, prefix: inputs.path || ''}});\n}\nreturn {files: [...files.values()].map((p) => ({name: p.name, id: p.id, updated_at: p.updated_at, created_at: p.created_at, last_accessed_at: p.last_accessed_at, size: p.metadata?.size ?? null, mimetype: p.metadata?.mimetype ?? null}))};"
+    },
+    "list_users": {
+      "label": "List Users",
+      "description": "Lists the users registered in the project's Auth system. Requires the Service Role Key.",
+      "inputs": {
+        "page": {
+          "label": "Page",
+          "description": "Starts at 1.",
+          "type": "number",
+          "defaultValue": "1"
+        },
+        "perPage": {
+          "label": "Users Per Page",
+          "description": "How many users each page returns.",
+          "type": "number",
+          "defaultValue": "50"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.url}}/auth/v1/admin/users",
+        "headers": {
+          "X-Supabase-Api-Version": "2024-01-01"
+        }
+      },
+      "beforeRequest": "request.query = {page: String(Number(inputs.page) || 1), per_page: String(Number(inputs.perPage) || 50)};\nreturn request;",
+      "afterResponse": "return {users: (response.users ?? []).map((u) => ({id: u.id, email: u.email ?? null, phone: u.phone ?? null, created_at: u.created_at, last_sign_in_at: u.last_sign_in_at ?? null, confirmed_at: u.confirmed_at ?? null}))};"
+    },
+    "get_user": {
+      "label": "Get User",
+      "description": "Gets a single user's Auth record by ID. Requires the Service Role Key.",
+      "inputs": {
+        "userId": {
+          "label": "User ID",
+          "description": "Find it under Authentication, Users in Supabase.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.url}}/auth/v1/admin/users/{{userId}}",
+        "headers": {
+          "X-Supabase-Api-Version": "2024-01-01"
+        }
+      },
+      "afterResponse": "const user = response.user ?? response;\nreturn {id: user.id, email: user.email ?? null, phone: user.phone ?? null, user_metadata: user.user_metadata ?? {}, app_metadata: user.app_metadata ?? {}, created_at: user.created_at, last_sign_in_at: user.last_sign_in_at ?? null, confirmed_at: user.confirmed_at ?? null};"
+    },
+    "create_user": {
+      "label": "Create User",
+      "description": "Creates a user in Supabase Auth. Requires the Service Role Key.",
+      "inputs": {
+        "email": {
+          "label": "Email",
+          "description": "Enter an email, a phone number, or both."
+        },
+        "phone": {
+          "label": "Phone",
+          "description": "Include the country code."
+        },
+        "password": {
+          "label": "Password",
+          "description": "Leave empty for passwordless sign-in."
+        },
+        "emailConfirm": {
+          "label": "Mark Email as Confirmed",
+          "description": "Lets the user sign in without confirming by email.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "userMetadata": {
+          "label": "User Metadata",
+          "description": "Custom data saved on the user, as JSON.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.url}}/auth/v1/admin/users",
+        "headers": {
+          "Content-Type": "application/json;charset=UTF-8",
+          "X-Supabase-Api-Version": "2024-01-01"
+        },
+        "body": {
+          "email": "{{email}}",
+          "phone": "{{phone}}",
+          "password": "{{password}}",
+          "email_confirm": "{{emailConfirm}}",
+          "user_metadata": "{{userMetadata}}"
+        }
+      },
+      "beforeRequest": "if (!inputs.email && !inputs.phone) throw new Error('Either Email or Phone must be provided.');\nreturn request;",
+      "afterResponse": "const user = response.user ?? response;\nreturn {id: user.id, email: user.email ?? null, phone: user.phone ?? null, created_at: user.created_at};"
+    },
+    "update_user": {
+      "label": "Update User",
+      "description": "Updates a user's email, phone, password, or metadata. Requires the Service Role Key.",
+      "inputs": {
+        "userId": {
+          "label": "User ID",
+          "description": "Find it under Authentication, Users in Supabase.",
+          "required": true
+        },
+        "email": {
+          "label": "Email",
+          "description": "Empty email, phone and password keep their current value."
+        },
+        "phone": {
+          "label": "Phone",
+          "description": "Include the country code."
+        },
+        "password": {
+          "label": "Password",
+          "description": "Leave empty to keep the current password."
+        },
+        "userMetadata": {
+          "label": "User Metadata",
+          "description": "Custom data saved on the user, as JSON.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://{{credential.url}}/auth/v1/admin/users/{{userId}}",
+        "headers": {
+          "Content-Type": "application/json;charset=UTF-8",
+          "X-Supabase-Api-Version": "2024-01-01"
+        },
+        "body": {
+          "email": "{{email}}",
+          "phone": "{{phone}}",
+          "password": "{{password}}",
+          "user_metadata": "{{userMetadata}}"
+        }
+      },
+      "afterResponse": "const user = response.user ?? response;\nreturn {id: user.id, email: user.email ?? null, phone: user.phone ?? null, updated_at: user.updated_at ?? null};"
+    },
+    "invite_user": {
+      "label": "Invite User by Email",
+      "description": "Sends an invite email to a new user, who sets their own password when accepting. Requires the Service Role Key.",
+      "inputs": {
+        "email": {
+          "label": "Email",
+          "required": true
+        },
+        "userMetadata": {
+          "label": "User Metadata",
+          "description": "Custom data saved on the user, as JSON.",
+          "type": "json"
+        },
+        "redirectTo": {
+          "label": "Redirect URL",
+          "description": "Page the user lands on after accepting."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.url}}/auth/v1/invite",
+        "headers": {
+          "Content-Type": "application/json;charset=UTF-8",
+          "X-Supabase-Api-Version": "2024-01-01"
+        },
+        "query": {
+          "redirect_to": "{{redirectTo}}"
+        },
+        "body": {
+          "email": "{{email}}",
+          "data": "{{userMetadata}}"
+        }
+      },
+      "afterResponse": "const user = response.user ?? response;\nreturn {id: user.id, email: user.email ?? null, invited_at: user.invited_at ?? null};"
+    }
+  }
+}

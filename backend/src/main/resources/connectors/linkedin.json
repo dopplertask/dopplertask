@@ -1,0 +1,183 @@
+{
+  "name": "linkedin",
+  "label": "LinkedIn",
+  "description": "Post to LinkedIn profiles and Company Pages",
+  "icon": "",
+  "hosts": [
+    "api.linkedin.com"
+  ],
+  "baseUrl": "https://api.linkedin.com",
+  "upstream": {
+    "package": "@activepieces/piece-linkedin",
+    "version": "0.6.2"
+  },
+  "credential": {
+    "oauth2": {
+      "authUrl": "https://www.linkedin.com/oauth/v2/authorization",
+      "tokenUrl": "https://www.linkedin.com/oauth/v2/accessToken",
+      "scope": "w_member_social w_organization_social rw_organization_admin openid email profile"
+    }
+  },
+  "actions": {
+    "get_current_member_profile": {
+      "label": "Get Current Member Profile",
+      "description": "Get the profile of the LinkedIn member who owns the connection",
+      "audience": "ai",
+      "request": {
+        "method": "GET",
+        "url": "https://api.linkedin.com/v2/userinfo"
+      },
+      "outputs": {
+        "sub": "$.sub",
+        "memberUrn": "$.member_urn",
+        "email": "$.email"
+      },
+      "afterResponse": "var profile = response || {};\nvar locale = profile.locale;\nvar readLocale = () => {\n  if (typeof locale === 'string') return locale;\n  if (typeof locale === 'object' && locale !== null) {\n    if (typeof locale.language === 'string' && typeof locale.country === 'string') return locale.language + '_' + locale.country;\n    if (typeof locale.language === 'string') return locale.language;\n  }\n  return null;\n};\nvar or = (value) => value === undefined || value === null ? null : value;\nreturn {\n  sub: or(profile.sub),\n  member_urn: profile.sub ? 'urn:li:person:' + profile.sub : null,\n  name: or(profile.name),\n  given_name: or(profile.given_name),\n  family_name: or(profile.family_name),\n  email: or(profile.email),\n  email_verified: or(profile.email_verified),\n  picture: or(profile.picture),\n  locale: readLocale()\n};"
+    },
+    "list_managed_organizations": {
+      "label": "List Managed Organizations",
+      "description": "List the LinkedIn organization pages the connected member administers",
+      "audience": "ai",
+      "request": {
+        "method": "GET",
+        "url": "https://api.linkedin.com/rest/organizationAcls",
+        "headers": {
+          "X-Restli-Protocol-Version": "2.0.0",
+          "LinkedIn-Version": "202511"
+        },
+        "query": {
+          "q": "roleAssignee",
+          "role": "ADMINISTRATOR",
+          "state": "APPROVED",
+          "start": "0",
+          "count": "100"
+        }
+      },
+      "outputs": {
+        "organizations": "$.organizations",
+        "count": "$.count"
+      },
+      "afterResponse": "var headers = { 'X-Restli-Protocol-Version': '2.0.0', 'LinkedIn-Version': '202511' };\nvar elements = [];\nvar page = response || {};\nvar start = 0;\nfor (var index = 0; index < 20; index++) {\n  if (index > 0) page = call({ method: 'GET', url: '/rest/organizationAcls', headers: headers, query: { q: 'roleAssignee', role: 'ADMINISTRATOR', state: 'APPROVED', start: String(start), count: '100' } });\n  var found = page.elements || [];\n  elements.push(...found);\n  if (found.length === 0) break;\n  var links = page.paging && Array.isArray(page.paging.links) ? page.paging.links : null;\n  var next = links === null ? null : links.some((link) => link.rel === 'next');\n  if (next === false || (next === null && found.length < 100)) break;\n  start += found.length;\n}\nvar idOf = (urn) => urn.substring(urn.lastIndexOf(':') + 1);\nvar seen = {};\nvar rows = elements.map((element) => ({\n  organization_urn: element.organizationTarget || element.organization || element.organizationalTarget || null,\n  role: element.role === undefined ? null : element.role,\n  state: element.state === undefined ? null : element.state\n})).filter((row) => {\n  if (row.organization_urn === null || seen[row.organization_urn]) return false;\n  seen[row.organization_urn] = true;\n  return true;\n});\nif (elements.length > 0 && rows.length === 0) throw new Error('LinkedIn returned ' + elements.length + ' organization role assignment(s) but none carried a recognised organization URN, so no organization id could be resolved. The keys present on the first entry were: ' + Object.keys(elements[0]).join(', ') + '. This is an API shape change, not an empty account.');\nif (rows.length === 0) return { organizations: [], count: 0 };\nvar ids = rows.map((row) => idOf(String(row.organization_urn)));\nvar results = {};\nfor (var at = 0; at < ids.length; at += 50) {\n  var lookup = call({ method: 'GET', url: '/rest/organizations?ids=List(' + ids.slice(at, at + 50).map(encodeURIComponent).join(',') + ')', headers: headers });\n  Object.assign(results, lookup.results || {});\n}\nvar or = (value) => value === undefined || value === null ? null : value;\nvar organizations = rows.map((row) => {\n  var id = idOf(String(row.organization_urn));\n  var organization = results[id] || {};\n  return { organization_urn: row.organization_urn, organization_id: id, name: or(organization.localizedName), vanity_name: or(organization.vanityName), website: or(organization.localizedWebsite), role: row.role, state: row.state };\n});\nreturn { organizations: organizations, count: organizations.length };"
+    },
+    "update_post_commentary": {
+      "label": "Update Post Commentary",
+      "description": "Edit the commentary, call-to-action label or landing page of an existing LinkedIn post",
+      "audience": "ai",
+      "inputs": {
+        "post_urn": {
+          "label": "Post URN",
+          "description": "URN of the post to edit, for example urn:li:share:7212345678901234567.",
+          "required": true
+        },
+        "commentary": {
+          "label": "Commentary",
+          "description": "New body text. Leave empty to keep the current text.",
+          "type": "multiline"
+        },
+        "content_call_to_action_label": {
+          "label": "Call To Action Label",
+          "description": "New call-to-action button label. Leave empty to keep the current one.",
+          "type": "select",
+          "options": [
+            {
+              "label": "Apply",
+              "value": "APPLY"
+            },
+            {
+              "label": "Download",
+              "value": "DOWNLOAD"
+            },
+            {
+              "label": "View Quote",
+              "value": "VIEW_QUOTE"
+            },
+            {
+              "label": "Learn More",
+              "value": "LEARN_MORE"
+            },
+            {
+              "label": "Sign Up",
+              "value": "SIGN_UP"
+            },
+            {
+              "label": "Subscribe",
+              "value": "SUBSCRIBE"
+            },
+            {
+              "label": "Register",
+              "value": "REGISTER"
+            },
+            {
+              "label": "Join",
+              "value": "JOIN"
+            },
+            {
+              "label": "Attend",
+              "value": "ATTEND"
+            },
+            {
+              "label": "Request Demo",
+              "value": "REQUEST_DEMO"
+            },
+            {
+              "label": "See More",
+              "value": "SEE_MORE"
+            }
+          ]
+        },
+        "content_landing_page": {
+          "label": "Landing Page URL",
+          "description": "New destination for the call-to-action button. Leave empty to keep the current one."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.linkedin.com/rest/posts/{{post_urn}}",
+        "headers": {
+          "X-Restli-Protocol-Version": "2.0.0",
+          "LinkedIn-Version": "202511",
+          "X-RestLi-Method": "PARTIAL_UPDATE"
+        }
+      },
+      "outputs": {
+        "postUrn": "$.post_urn",
+        "updatedFields": "$.updated_fields"
+      },
+      "beforeRequest": "var patch = {};\nif (inputs.commentary) patch.commentary = inputs.commentary.replace(/[\\(*\\)\\[\\]\\{\\}<>@|~_]/gm, (x) => '\\\\' + x);\nif (inputs.content_call_to_action_label) patch.contentCallToActionLabel = inputs.content_call_to_action_label;\nif (inputs.content_landing_page) patch.contentLandingPage = inputs.content_landing_page;\nif (Object.keys(patch).length === 0) throw new Error('Nothing to update. Supply at least one of Commentary, Call To Action Label or Landing Page URL.');\nrequest.body = { patch: { $set: patch } };\nreturn request;",
+      "afterResponse": "var fields = [];\nif (inputs.commentary) fields.push('commentary');\nif (inputs.content_call_to_action_label) fields.push('contentCallToActionLabel');\nif (inputs.content_landing_page) fields.push('contentLandingPage');\nreturn { success: true, post_urn: inputs.post_urn, updated_fields: fields.join(', '), updated_field_count: fields.length };"
+    },
+    "create_image_upload_url": {
+      "label": "Create Image Upload URL",
+      "description": "Reserve a LinkedIn image URN and a URL to upload the bytes to",
+      "audience": "ai",
+      "inputs": {
+        "owner_urn": {
+          "label": "Owner URN",
+          "description": "Who will own the image, such as the member URN that Get Current Member Profile gives."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.linkedin.com/rest/images",
+        "headers": {
+          "X-Restli-Protocol-Version": "2.0.0",
+          "LinkedIn-Version": "202511"
+        },
+        "query": {
+          "action": "initializeUpload"
+        },
+        "body": {
+          "initializeUploadRequest": {
+            "owner": "{{owner_urn}}"
+          }
+        }
+      },
+      "outputs": {
+        "imageUrn": "$.image_urn",
+        "uploadUrl": "$.upload_url"
+      },
+      "beforeRequest": "if (!inputs.owner_urn) throw new Error('Owner URN is needed: use the member URN that Get Current Member Profile gives.');\nreturn request;",
+      "afterResponse": "var value = (response && response.value) || {};\nvar or = (item) => item === undefined || item === null ? null : item;\nreturn { owner_urn: inputs.owner_urn, image_urn: or(value.image), upload_url: or(value.uploadUrl), upload_url_expires_at: or(value.uploadUrlExpiresAt) };"
+    }
+  }
+}

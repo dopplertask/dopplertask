@@ -1,0 +1,66 @@
+{
+  "name": "freshdesk",
+  "label": "Freshdesk",
+  "description": "Customer support software",
+  "icon": "",
+  "hosts": ["{{credential.base_url}}"],
+  "baseUrl": "https://{{credential.base_url}}",
+  "upstream": {"package": "@activepieces/piece-freshdesk", "version": "0.3.3"},
+  "credential": {
+    "fields": {
+      "base_url": {"label": "Base URL", "description": "Enter the base URL, such as https://yourcompany.freshdesk.com.", "required": true},
+      "access_token": {"label": "API Token", "description": "Get the API token by visiting your profile settings and clicking View API key", "required": true, "secret": true}
+    },
+    "headers": {"Authorization": "{{credential.access_token}}"}
+  },
+  "actions": {
+    "get_tickets": {
+      "label": "Get Tickets",
+      "description": "Get Ticket instances from Freshdesk.",
+      "request": {"method": "GET", "url": "https://{{credential.base_url}}/api/v2/tickets/"}
+    },
+    "get_contact_from_id": {
+      "label": "Get Contact from ID",
+      "description": "Get contacts details from Freshdesk using ID number.",
+      "inputs": {
+        "contactid": {"label": "Contact ID number", "description": "The ID number of the contact", "required": true}
+      },
+      "request": {"method": "GET", "url": "https://{{credential.base_url}}/api/v2/contacts/{{contactid}}"}
+    },
+    "get_ticket_status": {
+      "label": "Get Ticket Status",
+      "description": "Get Ticket status from Freshdesk. Returns ticket_status, assigned_status, assigned_id",
+      "inputs": {
+        "ticketid": {"label": "Ticket ID", "description": "The Ticket ID to return status", "required": true}
+      },
+      "request": {"method": "GET", "url": "https://{{credential.base_url}}/api/v2/tickets/{{ticketid}}"},
+      "outputs": {"ticket_status": "$[0].ticket_status", "assigned_status": "$[0].assigned_status", "assigned_id": "$[0].assigned_id"},
+      "afterResponse": "var names = {2: 'OPEN', 3: 'PENDING', 4: 'RESOLVED', 5: 'CLOSED'};\nvar responder = response.responder_id;\nreturn [{ticket_status: names[response.status] !== undefined ? names[response.status] : response.status, assigned_status: responder === null || responder === undefined ? 'NOTASSIGNED' : 'ASSIGNED', assigned_id: responder}];"
+    },
+    "get_contacts": {
+      "label": "Get Freshdesk Contacts",
+      "description": "Get contact details from Freshdesk for all (optional filtered) contacts.",
+      "inputs": {
+        "filter_type": {"label": "Optional Filter", "description": "Select one and provide the value.", "type": "select", "options": [
+          {"value": "email", "label": "E-mail"}, {"value": "mobile", "label": "Mobile"}, {"value": "phone", "label": "Phone"},
+          {"value": "company_id", "label": "Company ID"}, {"value": "updated_since", "label": "Updated Since"}]},
+        "filter_value": {"label": "Filter value", "description": "Provide value if previous option selected!"},
+        "filter_status": {"label": "Optional Filter Status", "description": "Can filter by state: blocked, deleted, unverified or verified.", "type": "select", "options": [
+          {"value": "blocked", "label": "Blocked"}, {"value": "deleted", "label": "Deleted"}, {"value": "unverified", "label": "Unverified"}, {"value": "verified", "label": "Verified"}]},
+        "per_page": {"label": "Results to return", "description": "Freshdesk calls this per_page - set to 0 for all, if specified maximum is 100", "type": "number", "required": true, "defaultValue": "0"}
+      },
+      "request": {"method": "GET", "url": "https://{{credential.base_url}}/api/v2/contacts/"},
+      "beforeRequest": "var form = (text) => encodeURIComponent(String(text)).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar query = [];\nif (inputs.filter_type && inputs.filter_value) query.push(form(inputs.filter_type) + '=' + form(inputs.filter_value));\nif (inputs.filter_status) query.push('state=' + form(inputs.filter_status));\nif (Number(inputs.per_page || 0) != 0) query.push('per_page=' + form(inputs.per_page));\nrequest.url = request.url + '?' + query.join('&');\nreturn request;"
+    },
+    "get_all_tickets_by_status": {
+      "label": "Get All Tickets By Status",
+      "description": "Get All Tickets by selected status from Freshdesk.",
+      "inputs": {
+        "status_filter": {"label": "Choose Status(es)", "description": "Select one or status values, as a list such as [\"status:2\", \"status:3\"]. Open is status:2, Pending status:3, Resolved status:4 and Closed status:5.", "type": "json", "required": true}
+      },
+      "request": {"method": "GET", "url": "https://{{credential.base_url}}/api/v2/search/tickets/"},
+      "beforeRequest": "var text = String(inputs.status_filter || '').trim();\nvar chosen = text.startsWith('[') ? JSON.parse(text) : [text];\nvar form = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nrequest.url = request.url + '?query=' + form('\"' + chosen.map((item) => String(item).replace(/,/g, ' OR ')).join(' OR ') + '\"');\nreturn request;",
+      "afterResponse": "var names = {2: 'Open', 3: 'Pending', 4: 'Resolved', 5: 'Closed'};\nvar results = response.results.slice();\nresults.sort((a, b) => a.requester_id - b.requester_id);\nreturn results.map((ticket) => ({id: ticket.id, requester_id: ticket.requester_id, responder_id: ticket.responder_id, company_id: ticket.company_id, status: names[ticket.status] || 'Unknown', subject: ticket.subject, created_at: ticket.created_at, updated_at: ticket.updated_at, description_text: ticket.description_text, description: ticket.description}));"
+    }
+  }
+}

@@ -1,0 +1,3243 @@
+{
+  "name": "microsoft-excel-365",
+  "label": "Microsoft Excel 365",
+  "description": "Spreadsheet software by Microsoft",
+  "icon": "",
+  "hosts": [
+    "graph.microsoft.com"
+  ],
+  "baseUrl": "https://graph.microsoft.com/v1.0",
+  "upstream": {
+    "package": "@activepieces/piece-microsoft-excel-365",
+    "version": "0.8.5"
+  },
+  "credential": {
+    "oauth2": {
+      "authUrl": "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+      "tokenUrl": "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+      "scope": "Files.ReadWrite Sites.ReadWrite.All offline_access openid email profile"
+    }
+  },
+  "actions": {
+    "append_row": {
+      "label": "Append Row to Worksheet",
+      "description": "Append row of values to a worksheet",
+      "inputs": {
+        "storageSource": {
+          "label": "Excel File Source",
+          "type": "select",
+          "required": true,
+          "defaultValue": "onedrive",
+          "options": [
+            {
+              "value": "onedrive",
+              "label": "OneDrive"
+            },
+            {
+              "value": "sharepoint",
+              "label": "SharePoint"
+            }
+          ]
+        },
+        "siteId": {
+          "label": "Sharepoint Site",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites?search=*&$select=displayName,id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "documentId": {
+          "label": "Sharepoint Document Library",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites/{{siteId}}/drives?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "workbookId": {
+          "label": "Workbook",
+          "required": true,
+          "description": "The workbook ID. The choices list the OneDrive workbooks.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/root/search(q='.xlsx')?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "worksheetId": {
+          "label": "Worksheet",
+          "required": true,
+          "description": "The worksheet name.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.name"
+          }
+        },
+        "isFirstRowHeaders": {
+          "label": "Does the first row contain headers?",
+          "description": "If the first row is headers",
+          "type": "boolean",
+          "required": true,
+          "defaultValue": "false"
+        },
+        "values": {
+          "label": "Values",
+          "type": "json",
+          "required": true,
+          "description": "With headers, the value of each column by its index, such as {\"0\": \"Ada\", \"1\": \"ada@example.com\"}. Without, {\"values\": [\"Ada\", \"ada@example.com\"]}."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets/{{worksheetId}}/usedRange",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D='https://graph.microsoft.com/v1.0'+(inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId)),W=D+'/items/'+e(inputs.workbookId)+'/workbook',S=W+'/worksheets/'+e(inputs.worksheetId),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=S+'/usedRange';\nreturn request;",
+      "afterResponse": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D='https://graph.microsoft.com/v1.0'+(inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId)),W=D+'/items/'+e(inputs.workbookId)+'/workbook',S=W+'/worksheets/'+e(inputs.worksheetId),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nconst col=n=>{let s='';while(n>0){const m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=Math.floor((n-m)/26);}return s;};\nconst v=JSON.parse(inputs.values);\nconst values=inputs.isFirstRowHeaders==='true'?(()=>{const a=new Array(Math.max(...Object.keys(v).map(Number))+1).fill(null);for(const k in v)a[Number(k)]=v[k];return a;})():Object.values(v)[0];\nconst used=response.address.split('!')[1],last=used.indexOf(':')!=-1?used.split(':')[1]:used,row=parseInt(last.match(/\\d+/)[0],10)+1;\nconst done=call({method:'PATCH',url:S+\"/range(address='A\"+row+':'+col(Object.values(values).length)+row+\"')\",headers:H,body:{values:[values]}});\nreturn Object.assign({row},done);"
+    },
+    "append_multiple_rows": {
+      "label": "Append Multiple Rows",
+      "description": "Appends multiple row of values to a worksheet.",
+      "inputs": {
+        "storageSource": {
+          "label": "Excel File Source",
+          "type": "select",
+          "required": true,
+          "defaultValue": "onedrive",
+          "options": [
+            {
+              "value": "onedrive",
+              "label": "OneDrive"
+            },
+            {
+              "value": "sharepoint",
+              "label": "SharePoint"
+            }
+          ]
+        },
+        "siteId": {
+          "label": "Sharepoint Site",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites?search=*&$select=displayName,id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "documentId": {
+          "label": "Sharepoint Document Library",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites/{{siteId}}/drives?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "workbookId": {
+          "label": "Workbook",
+          "required": true,
+          "description": "The workbook ID. The choices list the OneDrive workbooks.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/root/search(q='.xlsx')?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "worksheetId": {
+          "label": "Worksheet",
+          "required": true,
+          "description": "The worksheet name.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.name"
+          }
+        },
+        "values": {
+          "label": "Values",
+          "type": "json",
+          "required": true,
+          "description": "The rows, each with the value of each column by its index, such as {\"values\": [{\"0\": \"Ada\", \"1\": \"ada@example.com\"}]}."
+        },
+        "filterColumn": {
+          "label": "Filter Column",
+          "description": "The index of the column to filter on, such as 0 for the first column. Only the rows that meet the condition are inserted."
+        },
+        "filterType": {
+          "label": "Filter Type",
+          "type": "select",
+          "options": [
+            {
+              "value": "TEXT_EXACTLY_MATCHES",
+              "label": "(Text) Exactly matches"
+            },
+            {
+              "value": "TEXT_DOES_NOT_EXACTLY_MATCH",
+              "label": "(Text) Does not exactly match"
+            },
+            {
+              "value": "TEXT_MATCHES_ANY_OF",
+              "label": "(Text) Matches any of"
+            },
+            {
+              "value": "TEXT_MATCHES_NONE_OF",
+              "label": "(Text) Matches none of"
+            }
+          ]
+        },
+        "filterValue": {
+          "label": "Filter Value",
+          "type": "json",
+          "description": "Such as {\"value\": \"Ada\"}, or {\"value\": [\"Ada\", \"Bo\"]} for any of and none of."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets/{{worksheetId}}/range(address='A1:ZZ1')/usedRange",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D='https://graph.microsoft.com/v1.0'+(inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId)),W=D+'/items/'+e(inputs.workbookId)+'/workbook',S=W+'/worksheets/'+e(inputs.worksheetId),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=S+\"/range(address='A1:ZZ1')/usedRange\";\nreturn request;",
+      "afterResponse": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D='https://graph.microsoft.com/v1.0'+(inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId)),W=D+'/items/'+e(inputs.workbookId)+'/workbook',S=W+'/worksheets/'+e(inputs.worksheetId),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nconst col=n=>{let s='';while(n>0){const m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=Math.floor((n-m)/26);}return s;};\nconst js=v=>{if(v===undefined||v===null||v==='')return undefined;try{return JSON.parse(v);}catch(x){return v;}};\nconst count=(response.values?.[0]??[]).length,raw=js(inputs.filterValue)?.['value'],column=inputs.filterColumn,type=inputs.filterType;\nlet rows=JSON.parse(inputs.values)['values']??[];\nif(column){\n  if(!type||!raw)throw new Error('When a filter column is selected, filter condition and value are required.');\n  const wanted=Array.isArray(raw)?raw.map(x=>String(x).trim().toLowerCase()):raw!=null?[String(raw).trim()]:[];\n  rows=rows.filter(r=>{const value=String(r[column]??'').trim();switch(type){case 'TEXT_EXACTLY_MATCHES':return value===wanted[0];case 'TEXT_DOES_NOT_EXACTLY_MATCH':return value!==wanted[0];case 'TEXT_MATCHES_ANY_OF':return wanted.includes(value.toLowerCase());case 'TEXT_MATCHES_NONE_OF':return !wanted.includes(value.toLowerCase());default:return true;}});\n}\nconst values=rows.map(r=>Array.from({length:count},(_,i)=>r[i]??null));\nif(values.length===0)throw new Error('No rows to insert. The provided/filtered rows did not contain any values.');\nconst used=call({method:'GET',url:S+'/usedRange',headers:H}).address.split('!')[1],last=parseInt((used.indexOf(':')!=-1?used.split(':')[1]:used).match(/\\d+/)[0],10);\nconst done=call({method:'PATCH',url:S+\"/range(address='A\"+(last+1)+':'+col(count)+(last+values.length)+\"')\",headers:H,body:{values}});\n['numberFormat','formulas','formulasLocal','formulasR1C1','valueTypes','values','text'].forEach(k=>delete done[k]);\nreturn done;"
+    },
+    "get_worksheets": {
+      "label": "Get Worksheets",
+      "description": "Retrieve worksheets from a workbook",
+      "inputs": {
+        "storageSource": {
+          "label": "Excel File Source",
+          "type": "select",
+          "required": true,
+          "defaultValue": "onedrive",
+          "options": [
+            {
+              "value": "onedrive",
+              "label": "OneDrive"
+            },
+            {
+              "value": "sharepoint",
+              "label": "SharePoint"
+            }
+          ]
+        },
+        "siteId": {
+          "label": "Sharepoint Site",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites?search=*&$select=displayName,id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "documentId": {
+          "label": "Sharepoint Document Library",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites/{{siteId}}/drives?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "workbookId": {
+          "label": "Workbook",
+          "required": true,
+          "description": "The workbook ID. The choices list the OneDrive workbooks.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/root/search(q='.xlsx')?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "returnAll": {
+          "label": "Return All",
+          "description": "If checked, all worksheets will be returned",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Limit the number of worksheets returned",
+          "type": "number",
+          "defaultValue": "10"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D='https://graph.microsoft.com/v1.0'+(inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId)),W=D+'/items/'+e(inputs.workbookId)+'/workbook',S=W+'/worksheets/'+e(inputs.worksheetId),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=W+'/worksheets';\nreturn request;",
+      "afterResponse": "return inputs.returnAll==='true'?response.value:response.value.slice(0,Math.min(response.value.length,Number(inputs.limit||0)));"
+    },
+    "get_worksheet_rows": {
+      "label": "Get Worksheet Rows",
+      "description": "Retrieve rows from a worksheet",
+      "inputs": {
+        "storageSource": {
+          "label": "Excel File Source",
+          "type": "select",
+          "required": true,
+          "defaultValue": "onedrive",
+          "options": [
+            {
+              "value": "onedrive",
+              "label": "OneDrive"
+            },
+            {
+              "value": "sharepoint",
+              "label": "SharePoint"
+            }
+          ]
+        },
+        "siteId": {
+          "label": "Sharepoint Site",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites?search=*&$select=displayName,id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "documentId": {
+          "label": "Sharepoint Document Library",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites/{{siteId}}/drives?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "workbookId": {
+          "label": "Workbook",
+          "required": true,
+          "description": "The workbook ID. The choices list the OneDrive workbooks.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/root/search(q='.xlsx')?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "worksheetId": {
+          "label": "Worksheet",
+          "required": true,
+          "description": "The worksheet name.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.name"
+          }
+        },
+        "range": {
+          "label": "Range",
+          "description": "Range of the rows to retrieve (e.g., A2:B2)"
+        },
+        "headerRow": {
+          "label": "Header Row",
+          "description": "Row number of the header",
+          "type": "number"
+        },
+        "firstDataRow": {
+          "label": "First Data Row",
+          "description": "Row number of the first data row",
+          "type": "number"
+        },
+        "useFilter": {
+          "label": "Use Filters ?",
+          "description": "Enables the column wise filter.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "filterList": {
+          "label": "Filter",
+          "type": "json",
+          "description": "Such as {\"filter\": [{\"filterColumn\": 0, \"filterOperator\": \"TEXT_CONTAINS\", \"filterValue\": \"Ada\"}]}, with the column by its index. Operators: TEXT_CONTAINS, TEXT_DOES_NOT_CONTAIN, TEXT_EXACTLY_MATCHES, TEXT_DOES_NOT_EXACTLY_MATCH, TEXT_IN_LIST, TEXT_NOT_IN_LIST, NUMBER_IS_GREATER_THAN, NUMBER_IS_LESS_THAN, NUMBER_IS_EQUAL_TO, DATE_IS_BEFORE, DATE_IS_EQUAL, DATE_IS_AFTER, DATE_IS_ON_OR_BEFORE, DATE_IS_ON_OR_AFTER, EXISTS, DOES_NOT_EXIST."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets/{{worksheetId}}/usedRange(valuesOnly=true)",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D='https://graph.microsoft.com/v1.0'+(inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId)),W=D+'/items/'+e(inputs.workbookId)+'/workbook',S=W+'/worksheets/'+e(inputs.worksheetId),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=S+'/'+(inputs.range?\"range(address%20=%20'\"+e(inputs.range)+\"')\":'usedRange(valuesOnly=true)');\nreturn request;",
+      "afterResponse": "const js=v=>{if(v===undefined||v===null||v==='')return undefined;try{return JSON.parse(v);}catch(x){return v;}};\nconst rx=/^(\\d{4})[-/]?(\\d{1,2})?[-/]?(\\d{0,2})[Tt\\s]*(\\d{1,2})?:?(\\d{1,2})?:?(\\d{1,2})?[.:]?(\\d+)?$/;\nconst day=d=>{if(typeof d==='string'&&!/Z$/i.test(d)){const m=d.match(rx);if(m){const ms=(m[7]||'0').substring(0,3);return new Date(m[1],(m[2]||1)-1,m[3]||1,m[4]||0,m[5]||0,m[6]||0,ms).getTime();}}return new Date(d).getTime();};\nconst ok=d=>(typeof d==='string'||typeof d==='number')&&!isNaN(day(d));\nconst dates=(a,b,f)=>ok(a)&&ok(b)&&f(day(a),day(b));\nconst num=v=>{const n=Number(v);return isNaN(n)?v:n;};\nconst list=v=>{if(typeof v==='string'){try{const p=JSON.parse(v);return Array.isArray(p)?p:[p];}catch(x){return [v];}}return Array.isArray(v)?v:[v];};\nconst low=t=>typeof t==='string'?t.toLowerCase():JSON.stringify(t).toLowerCase();\nconst has=(c,s)=>String(c).toLowerCase().includes(s.toLowerCase()),same=(c,s)=>String(c).toLowerCase()===s.toLowerCase();\nconst pass=(filters,row)=>filters.every(({filterColumn:i,filterOperator:op,filterValue:v})=>{\n  if(i===undefined||!op)return true;const c=row[i];\n  if(op==='EXISTS')return c!==undefined&&c!==null&&c!=='';\n  if(op==='DOES_NOT_EXIST')return c===undefined||c===null||c==='';\n  if(v===undefined)return true;\n  switch(op){case 'TEXT_CONTAINS':return has(c,v);case 'TEXT_DOES_NOT_CONTAIN':return !has(c,v);case 'TEXT_EXACTLY_MATCHES':return same(c,v);case 'TEXT_DOES_NOT_EXACTLY_MATCH':return !same(c,v);\n  case 'TEXT_IN_LIST':return list(v).some(x=>low(x)===low(c));case 'TEXT_NOT_IN_LIST':return !list(v).some(x=>low(x)===low(c));\n  case 'NUMBER_IS_GREATER_THAN':return num(c)>num(v);case 'NUMBER_IS_LESS_THAN':return num(c)<num(v);case 'NUMBER_IS_EQUAL_TO':return num(c)===num(v);\n  case 'DATE_IS_AFTER':return dates(c,v,(a,b)=>a>b);case 'DATE_IS_EQUAL':return dates(c,v,(a,b)=>a===b);case 'DATE_IS_BEFORE':return dates(c,v,(a,b)=>a<b);\n  case 'DATE_IS_ON_OR_AFTER':return dates(c,v,(a,b)=>a>=b);case 'DATE_IS_ON_OR_BEFORE':return dates(c,v,(a,b)=>a<=b);default:return true;}});\nconst rows=response.text;if(!rows||rows.length===0)return [];\nconst filters=(js(inputs.filterList)??{})['filter']??[],use=inputs.useFilter==='true'&&filters.length>0;\nconst h=inputs.headerRow?Number(inputs.headerRow)-1:-1,start=inputs.firstDataRow?Number(inputs.firstDataRow)-1:0,headers=h>=0?rows[h]:null,out=[];\nfor(let i=start;i<rows.length;i++){const row=rows[i];if(use&&!pass(filters,row))continue;\n  if(headers){const o={};for(let j=0;j<headers.length;j++)o[String(headers[j])]=row[j];out.push(o);}else out.push(row);}\nreturn out;"
+    },
+    "update_row": {
+      "label": "Update Worksheet Rows",
+      "description": "Update a row in a worksheet",
+      "inputs": {
+        "storageSource": {
+          "label": "Excel File Source",
+          "type": "select",
+          "required": true,
+          "defaultValue": "onedrive",
+          "options": [
+            {
+              "value": "onedrive",
+              "label": "OneDrive"
+            },
+            {
+              "value": "sharepoint",
+              "label": "SharePoint"
+            }
+          ]
+        },
+        "siteId": {
+          "label": "Sharepoint Site",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites?search=*&$select=displayName,id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "documentId": {
+          "label": "Sharepoint Document Library",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites/{{siteId}}/drives?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "workbookId": {
+          "label": "Workbook",
+          "required": true,
+          "description": "The workbook ID. The choices list the OneDrive workbooks.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/root/search(q='.xlsx')?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "worksheetId": {
+          "label": "Worksheet",
+          "required": true,
+          "description": "The worksheet name.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.name"
+          }
+        },
+        "row_number": {
+          "label": "Row number",
+          "description": "The row number to update",
+          "type": "number",
+          "required": true
+        },
+        "isFirstRowHeaders": {
+          "label": "Does the first row contain headers?",
+          "description": "If the first row is headers",
+          "type": "boolean",
+          "required": true,
+          "defaultValue": "false"
+        },
+        "values": {
+          "label": "Values",
+          "type": "json",
+          "required": true,
+          "description": "With headers, the value of each column by its index, such as {\"0\": \"Ada\", \"1\": \"ada@example.com\"}. Without, {\"values\": [\"Ada\", \"ada@example.com\"]}."
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets/{{worksheetId}}/range(address='A{{row_number}}')",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D='https://graph.microsoft.com/v1.0'+(inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId)),W=D+'/items/'+e(inputs.workbookId)+'/workbook',S=W+'/worksheets/'+e(inputs.worksheetId),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nconst col=n=>{let s='';while(n>0){const m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=Math.floor((n-m)/26);}return s;};\nconst v=JSON.parse(inputs.values),r=inputs.row_number;\nconst values=inputs.isFirstRowHeaders==='true'?(()=>{const a=new Array(Math.max(...Object.keys(v).map(Number))+1).fill(null);for(const k in v)a[Number(k)]=v[k];return a;})():Object.values(v);\nrequest.url=S+\"/range(address='A\"+r+':'+col(Object.values(values).length)+r+\"')\";request.body={values:[values]};\nreturn request;"
+    },
+    "clear_worksheet": {
+      "label": "Clear Worksheet",
+      "description": "Clear a worksheet",
+      "inputs": {
+        "storageSource": {
+          "label": "Excel File Source",
+          "type": "select",
+          "required": true,
+          "defaultValue": "onedrive",
+          "options": [
+            {
+              "value": "onedrive",
+              "label": "OneDrive"
+            },
+            {
+              "value": "sharepoint",
+              "label": "SharePoint"
+            }
+          ]
+        },
+        "siteId": {
+          "label": "Sharepoint Site",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites?search=*&$select=displayName,id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "documentId": {
+          "label": "Sharepoint Document Library",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites/{{siteId}}/drives?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "workbookId": {
+          "label": "Workbook",
+          "required": true,
+          "description": "The workbook ID. The choices list the OneDrive workbooks.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/root/search(q='.xlsx')?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "worksheetId": {
+          "label": "Worksheet",
+          "required": true,
+          "description": "The worksheet name.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.name"
+          }
+        },
+        "range": {
+          "label": "Range",
+          "description": "The range in A1 notation (e.g., A2:B2) to clear in the worksheet, if not provided, clear the entire worksheet"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets/{{worksheetId}}/usedRange(valuesOnly=true)/clear",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D='https://graph.microsoft.com/v1.0'+(inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId)),W=D+'/items/'+e(inputs.workbookId)+'/workbook',S=W+'/worksheets/'+e(inputs.worksheetId),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=S+'/'+(inputs.range?\"range(address%20=%20'\"+e(inputs.range)+\"')/clear\":'usedRange(valuesOnly=true)/clear');request.body={applyTo:'contents'};\nreturn request;",
+      "afterResponse": "return {};"
+    },
+    "delete_worksheet": {
+      "label": "Delete Worksheet",
+      "description": "Delete a worksheet in a workbook",
+      "inputs": {
+        "storageSource": {
+          "label": "Excel File Source",
+          "type": "select",
+          "required": true,
+          "defaultValue": "onedrive",
+          "options": [
+            {
+              "value": "onedrive",
+              "label": "OneDrive"
+            },
+            {
+              "value": "sharepoint",
+              "label": "SharePoint"
+            }
+          ]
+        },
+        "siteId": {
+          "label": "Sharepoint Site",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites?search=*&$select=displayName,id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "documentId": {
+          "label": "Sharepoint Document Library",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites/{{siteId}}/drives?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "workbookId": {
+          "label": "Workbook",
+          "required": true,
+          "description": "The workbook ID. The choices list the OneDrive workbooks.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/root/search(q='.xlsx')?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "worksheetId": {
+          "label": "Worksheet",
+          "required": true,
+          "description": "The worksheet name.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.name"
+          }
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets/{{worksheetId}}",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D='https://graph.microsoft.com/v1.0'+(inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId)),W=D+'/items/'+e(inputs.workbookId)+'/workbook',S=W+'/worksheets/'+e(inputs.worksheetId),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=S;\nreturn request;",
+      "afterResponse": "return {success: true};"
+    },
+    "get_workbooks": {
+      "label": "Get Workbooks",
+      "description": "Retrieve a list of workbooks",
+      "inputs": {
+        "storageSource": {
+          "label": "Excel File Source",
+          "type": "select",
+          "required": true,
+          "defaultValue": "onedrive",
+          "options": [
+            {
+              "value": "onedrive",
+              "label": "OneDrive"
+            },
+            {
+              "value": "sharepoint",
+              "label": "SharePoint"
+            }
+          ]
+        },
+        "siteId": {
+          "label": "Sharepoint Site",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites?search=*&$select=displayName,id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "documentId": {
+          "label": "Sharepoint Document Library",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites/{{siteId}}/drives?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Limits the number of workbooks returned, returns all workbooks if empty",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/drive/root/search(q='.xlsx')",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D='https://graph.microsoft.com/v1.0'+(inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId)),W=D+'/items/'+e(inputs.workbookId)+'/workbook',S=W+'/worksheets/'+e(inputs.worksheetId),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=D+\"/root/search(q='.xlsx')\"+(inputs.limit!==''?'?$top='+inputs.limit:'');\nreturn request;",
+      "afterResponse": "return response.value.map(item => ({id: item.id, name: item.name, webUrl: item.webUrl}));"
+    },
+    "get-worksheet-columns": {
+      "label": "Get Worksheet Columns",
+      "description": "List columns of a worksheet.",
+      "inputs": {
+        "storageSource": {
+          "label": "Excel File Source",
+          "type": "select",
+          "required": true,
+          "defaultValue": "onedrive",
+          "options": [
+            {
+              "value": "onedrive",
+              "label": "OneDrive"
+            },
+            {
+              "value": "sharepoint",
+              "label": "SharePoint"
+            }
+          ]
+        },
+        "siteId": {
+          "label": "Sharepoint Site",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites?search=*&$select=displayName,id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "documentId": {
+          "label": "Sharepoint Document Library",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites/{{siteId}}/drives?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "workbookId": {
+          "label": "Workbook",
+          "required": true,
+          "description": "The workbook ID. The choices list the OneDrive workbooks.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/root/search(q='.xlsx')?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "worksheetId": {
+          "label": "Worksheet",
+          "required": true,
+          "description": "The worksheet name.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.name"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets/{{worksheetId}}/range(address='A1:ZZ1')/usedRange",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D='https://graph.microsoft.com/v1.0'+(inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId)),W=D+'/items/'+e(inputs.workbookId)+'/workbook',S=W+'/worksheets/'+e(inputs.worksheetId),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=S+\"/range(address='A1:ZZ1')/usedRange\";\nreturn request;",
+      "afterResponse": "return response.values?.[0] ?? [];"
+    },
+    "delete_workbook": {
+      "label": "Delete Workbook",
+      "description": "Delete a workbook",
+      "inputs": {
+        "storageSource": {
+          "label": "Excel File Source",
+          "type": "select",
+          "required": true,
+          "defaultValue": "onedrive",
+          "options": [
+            {
+              "value": "onedrive",
+              "label": "OneDrive"
+            },
+            {
+              "value": "sharepoint",
+              "label": "SharePoint"
+            }
+          ]
+        },
+        "siteId": {
+          "label": "Sharepoint Site",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites?search=*&$select=displayName,id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "documentId": {
+          "label": "Sharepoint Document Library",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites/{{siteId}}/drives?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "workbookId": {
+          "label": "Workbook",
+          "required": true,
+          "description": "The workbook ID. The choices list the OneDrive workbooks.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/root/search(q='.xlsx')?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D='https://graph.microsoft.com/v1.0'+(inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId)),W=D+'/items/'+e(inputs.workbookId)+'/workbook',S=W+'/worksheets/'+e(inputs.worksheetId),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=D+'/items/'+e(inputs.workbookId);\nreturn request;",
+      "afterResponse": "return {success: true};"
+    },
+    "add_worksheet": {
+      "label": "Add a Worksheet to a Workbook",
+      "description": "Add a worksheet to a workbook",
+      "inputs": {
+        "storageSource": {
+          "label": "Excel File Source",
+          "type": "select",
+          "required": true,
+          "defaultValue": "onedrive",
+          "options": [
+            {
+              "value": "onedrive",
+              "label": "OneDrive"
+            },
+            {
+              "value": "sharepoint",
+              "label": "SharePoint"
+            }
+          ]
+        },
+        "siteId": {
+          "label": "Sharepoint Site",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites?search=*&$select=displayName,id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "documentId": {
+          "label": "Sharepoint Document Library",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites/{{siteId}}/drives?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "workbookId": {
+          "label": "Workbook",
+          "required": true,
+          "description": "The workbook ID. The choices list the OneDrive workbooks.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/root/search(q='.xlsx')?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "worksheet_name": {
+          "label": "Worksheet Name",
+          "description": "The name of the new worksheet",
+          "defaultValue": "Sheet"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D='https://graph.microsoft.com/v1.0'+(inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId)),W=D+'/items/'+e(inputs.workbookId)+'/workbook',S=W+'/worksheets/'+e(inputs.worksheetId),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=W+'/worksheets';request.body=inputs.worksheet_name?{name:inputs.worksheet_name}:{};\nreturn request;"
+    },
+    "get_table_rows": {
+      "label": "Get Table Rows",
+      "description": "List rows of a table in a worksheet",
+      "inputs": {
+        "storageSource": {
+          "label": "Excel File Source",
+          "type": "select",
+          "required": true,
+          "defaultValue": "onedrive",
+          "options": [
+            {
+              "value": "onedrive",
+              "label": "OneDrive"
+            },
+            {
+              "value": "sharepoint",
+              "label": "SharePoint"
+            }
+          ]
+        },
+        "siteId": {
+          "label": "Sharepoint Site",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites?search=*&$select=displayName,id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "documentId": {
+          "label": "Sharepoint Document Library",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites/{{siteId}}/drives?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "workbookId": {
+          "label": "Workbook",
+          "required": true,
+          "description": "The workbook ID. The choices list the OneDrive workbooks.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/root/search(q='.xlsx')?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "worksheetId": {
+          "label": "Worksheet",
+          "required": true,
+          "description": "The worksheet name.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.name"
+          }
+        },
+        "tableId": {
+          "label": "Table",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets/{{worksheetId}}/tables?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Limit the number of rows retrieved",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets/{{worksheetId}}/tables/{{tableId}}/rows",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D='https://graph.microsoft.com/v1.0'+(inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId)),W=D+'/items/'+e(inputs.workbookId)+'/workbook',S=W+'/worksheets/'+e(inputs.worksheetId),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=S+'/tables/'+e(inputs.tableId)+'/rows'+(inputs.limit&&Number(inputs.limit)?'?$top='+inputs.limit:'');\nreturn request;",
+      "afterResponse": "return response.value.map(row => row.values[0]);"
+    },
+    "get_table_columns": {
+      "label": "Get Table Columns",
+      "description": "List columns of a table in a worksheet",
+      "inputs": {
+        "storageSource": {
+          "label": "Excel File Source",
+          "type": "select",
+          "required": true,
+          "defaultValue": "onedrive",
+          "options": [
+            {
+              "value": "onedrive",
+              "label": "OneDrive"
+            },
+            {
+              "value": "sharepoint",
+              "label": "SharePoint"
+            }
+          ]
+        },
+        "siteId": {
+          "label": "Sharepoint Site",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites?search=*&$select=displayName,id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "documentId": {
+          "label": "Sharepoint Document Library",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites/{{siteId}}/drives?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "workbookId": {
+          "label": "Workbook",
+          "required": true,
+          "description": "The workbook ID. The choices list the OneDrive workbooks.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/root/search(q='.xlsx')?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "worksheetId": {
+          "label": "Worksheet",
+          "required": true,
+          "description": "The worksheet name.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.name"
+          }
+        },
+        "tableId": {
+          "label": "Table",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets/{{worksheetId}}/tables?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Limit the number of columns retrieved",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets/{{worksheetId}}/tables/{{tableId}}/columns",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D='https://graph.microsoft.com/v1.0'+(inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId)),W=D+'/items/'+e(inputs.workbookId)+'/workbook',S=W+'/worksheets/'+e(inputs.worksheetId),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=S+'/tables/'+e(inputs.tableId)+'/columns'+(inputs.limit&&Number(inputs.limit)?'?$top='+inputs.limit:'');\nreturn request;",
+      "afterResponse": "return response.value.map(column => column.name);"
+    },
+    "create_table": {
+      "label": "Create Table",
+      "description": "Create a table in a worksheet",
+      "inputs": {
+        "storageSource": {
+          "label": "Excel File Source",
+          "type": "select",
+          "required": true,
+          "defaultValue": "onedrive",
+          "options": [
+            {
+              "value": "onedrive",
+              "label": "OneDrive"
+            },
+            {
+              "value": "sharepoint",
+              "label": "SharePoint"
+            }
+          ]
+        },
+        "siteId": {
+          "label": "Sharepoint Site",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites?search=*&$select=displayName,id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "documentId": {
+          "label": "Sharepoint Document Library",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites/{{siteId}}/drives?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "workbookId": {
+          "label": "Workbook",
+          "required": true,
+          "description": "The workbook ID. The choices list the OneDrive workbooks.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/root/search(q='.xlsx')?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "worksheetId": {
+          "label": "Worksheet",
+          "required": true,
+          "description": "The worksheet name.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.name"
+          }
+        },
+        "selectRange": {
+          "label": "Select Range",
+          "description": "How to select the range for the table",
+          "type": "select",
+          "required": true,
+          "defaultValue": "auto",
+          "options": [
+            {
+              "value": "auto",
+              "label": "Automatically"
+            },
+            {
+              "value": "manual",
+              "label": "Manually"
+            }
+          ]
+        },
+        "range": {
+          "label": "Range",
+          "description": "The range of cells in A1 notation (e.g., A2:B2) that will be converted to a table",
+          "defaultValue": "A1:B2"
+        },
+        "hasHeaders": {
+          "label": "Has Headers",
+          "description": "Whether the range has column labels",
+          "type": "boolean",
+          "required": true,
+          "defaultValue": "true"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets/{{worksheetId}}/tables/add",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D='https://graph.microsoft.com/v1.0'+(inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId)),W=D+'/items/'+e(inputs.workbookId)+'/workbook',S=W+'/worksheets/'+e(inputs.worksheetId),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nconst range=inputs.selectRange==='auto'?call({method:'GET',url:S+'/usedRange?$select=address',headers:H}).address.split('!')[1]:(inputs.range||undefined);\nrequest.url=S+'/tables/add';request.body={address:range,hasHeaders:inputs.hasHeaders==='true'};\nreturn request;"
+    },
+    "delete_table": {
+      "label": "Delete Table",
+      "description": "Delete a table from a worksheet",
+      "inputs": {
+        "storageSource": {
+          "label": "Excel File Source",
+          "type": "select",
+          "required": true,
+          "defaultValue": "onedrive",
+          "options": [
+            {
+              "value": "onedrive",
+              "label": "OneDrive"
+            },
+            {
+              "value": "sharepoint",
+              "label": "SharePoint"
+            }
+          ]
+        },
+        "siteId": {
+          "label": "Sharepoint Site",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites?search=*&$select=displayName,id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "documentId": {
+          "label": "Sharepoint Document Library",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites/{{siteId}}/drives?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "workbookId": {
+          "label": "Workbook",
+          "required": true,
+          "description": "The workbook ID. The choices list the OneDrive workbooks.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/root/search(q='.xlsx')?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "worksheetId": {
+          "label": "Worksheet",
+          "required": true,
+          "description": "The worksheet name.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.name"
+          }
+        },
+        "tableId": {
+          "label": "Table",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets/{{worksheetId}}/tables?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets/{{worksheetId}}/tables/{{tableId}}",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D='https://graph.microsoft.com/v1.0'+(inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId)),W=D+'/items/'+e(inputs.workbookId)+'/workbook',S=W+'/worksheets/'+e(inputs.worksheetId),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=S+'/tables/'+e(inputs.tableId);\nreturn request;",
+      "afterResponse": "return {success: true};"
+    },
+    "lookup_table_column": {
+      "label": "Lookup Table Column",
+      "description": "Lookup a value in a table column in a worksheet",
+      "inputs": {
+        "storageSource": {
+          "label": "Excel File Source",
+          "type": "select",
+          "required": true,
+          "defaultValue": "onedrive",
+          "options": [
+            {
+              "value": "onedrive",
+              "label": "OneDrive"
+            },
+            {
+              "value": "sharepoint",
+              "label": "SharePoint"
+            }
+          ]
+        },
+        "siteId": {
+          "label": "Sharepoint Site",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites?search=*&$select=displayName,id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "documentId": {
+          "label": "Sharepoint Document Library",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites/{{siteId}}/drives?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "workbookId": {
+          "label": "Workbook",
+          "required": true,
+          "description": "The workbook ID. The choices list the OneDrive workbooks.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/root/search(q='.xlsx')?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "worksheetId": {
+          "label": "Worksheet",
+          "required": true,
+          "description": "The worksheet name.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.name"
+          }
+        },
+        "tableId": {
+          "label": "Table",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets/{{worksheetId}}/tables?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "lookup_column": {
+          "label": "Lookup Column",
+          "description": "The column name to lookup the value in",
+          "required": true
+        },
+        "lookup_value": {
+          "label": "Lookup Value",
+          "description": "The value to lookup",
+          "required": true
+        },
+        "return_all_matches": {
+          "label": "Return All Matches",
+          "description": "If checked, all matching rows will be returned",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets/{{worksheetId}}/tables/{{tableId}}/rows",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D='https://graph.microsoft.com/v1.0'+(inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId)),W=D+'/items/'+e(inputs.workbookId)+'/workbook',S=W+'/worksheets/'+e(inputs.worksheetId),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=S+'/tables/'+e(inputs.tableId)+'/rows';\nreturn request;",
+      "afterResponse": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D='https://graph.microsoft.com/v1.0'+(inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId)),W=D+'/items/'+e(inputs.workbookId)+'/workbook',S=W+'/worksheets/'+e(inputs.worksheetId),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nconst columns=call({method:'GET',url:S+'/tables/'+e(inputs.tableId)+'/columns',headers:H}).value;\nconst index=columns.findIndex(c=>c.name===inputs.lookup_column);\nif(index===-1)throw new Error('Column \"'+inputs.lookup_column+'\" not found in the table.');\nconst matched=response.value.filter(r=>r.values[0][index]===inputs.lookup_value).map(r=>r.values[0]);\nreturn inputs.return_all_matches==='true'?matched:(matched[0]||null);"
+    },
+    "append_table_rows": {
+      "label": "Append Rows to a Table",
+      "description": "Append rows to a table",
+      "inputs": {
+        "storageSource": {
+          "label": "Excel File Source",
+          "type": "select",
+          "required": true,
+          "defaultValue": "onedrive",
+          "options": [
+            {
+              "value": "onedrive",
+              "label": "OneDrive"
+            },
+            {
+              "value": "sharepoint",
+              "label": "SharePoint"
+            }
+          ]
+        },
+        "siteId": {
+          "label": "Sharepoint Site",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites?search=*&$select=displayName,id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "documentId": {
+          "label": "Sharepoint Document Library",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites/{{siteId}}/drives?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "workbookId": {
+          "label": "Workbook",
+          "required": true,
+          "description": "The workbook ID. The choices list the OneDrive workbooks.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/root/search(q='.xlsx')?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "worksheetId": {
+          "label": "Worksheet",
+          "required": true,
+          "description": "The worksheet name.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.name"
+          }
+        },
+        "tableId": {
+          "label": "Table",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets/{{worksheetId}}/tables?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "values": {
+          "label": "Values",
+          "type": "json",
+          "required": true,
+          "description": "The value of each column by its index, such as {\"0\": \"Ada\", \"1\": \"ada@example.com\"}."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets/{{worksheetId}}/tables/{{tableId}}/rows",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D='https://graph.microsoft.com/v1.0'+(inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId)),W=D+'/items/'+e(inputs.workbookId)+'/workbook',S=W+'/worksheets/'+e(inputs.worksheetId),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=S+'/tables/'+e(inputs.tableId)+'/rows';request.body={values:[Object.values(JSON.parse(inputs.values))]};\nreturn request;"
+    },
+    "convert_to_range": {
+      "label": "Convert to Range",
+      "description": "Converts a table to a range",
+      "inputs": {
+        "storageSource": {
+          "label": "Excel File Source",
+          "type": "select",
+          "required": true,
+          "defaultValue": "onedrive",
+          "options": [
+            {
+              "value": "onedrive",
+              "label": "OneDrive"
+            },
+            {
+              "value": "sharepoint",
+              "label": "SharePoint"
+            }
+          ]
+        },
+        "siteId": {
+          "label": "Sharepoint Site",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites?search=*&$select=displayName,id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "documentId": {
+          "label": "Sharepoint Document Library",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites/{{siteId}}/drives?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "workbookId": {
+          "label": "Workbook",
+          "required": true,
+          "description": "The workbook ID. The choices list the OneDrive workbooks.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/root/search(q='.xlsx')?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "worksheetId": {
+          "label": "Worksheet",
+          "required": true,
+          "description": "The worksheet name.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.name"
+          }
+        },
+        "tableId": {
+          "label": "Table",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets/{{worksheetId}}/tables?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets/{{worksheetId}}/tables/{{tableId}}/convertToRange",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D='https://graph.microsoft.com/v1.0'+(inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId)),W=D+'/items/'+e(inputs.workbookId)+'/workbook',S=W+'/worksheets/'+e(inputs.worksheetId),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=S+'/tables/'+e(inputs.tableId)+'/convertToRange';request.body={};\nreturn request;"
+    },
+    "createWorkbook": {
+      "label": "Create Workbook",
+      "description": "Create a new workbook at the specified location",
+      "inputs": {
+        "storageSource": {
+          "label": "Excel File Source",
+          "type": "select",
+          "required": true,
+          "defaultValue": "onedrive",
+          "options": [
+            {
+              "value": "onedrive",
+              "label": "OneDrive"
+            },
+            {
+              "value": "sharepoint",
+              "label": "SharePoint"
+            }
+          ]
+        },
+        "siteId": {
+          "label": "Sharepoint Site",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites?search=*&$select=displayName,id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "documentId": {
+          "label": "Sharepoint Document Library",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites/{{siteId}}/drives?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "name": {
+          "label": "Name",
+          "description": "The name of the new workbook",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/me/drive/root/children",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D='https://graph.microsoft.com/v1.0'+(inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId)),W=D+'/items/'+e(inputs.workbookId)+'/workbook',S=W+'/worksheets/'+e(inputs.worksheetId),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=D+'/root/children';request.body={file:{},name:inputs.name.endsWith('.xlsx')?inputs.name:inputs.name+'.xlsx','@microsoft.graph.conflictBehavior':'rename'};\nreturn request;"
+    },
+    "clear_column": {
+      "label": "Clear Column by Index",
+      "description": "Clear contents/formatting of a column by its index.",
+      "inputs": {
+        "storageSource": {
+          "label": "Excel File Source",
+          "type": "select",
+          "required": true,
+          "defaultValue": "onedrive",
+          "options": [
+            {
+              "value": "onedrive",
+              "label": "OneDrive"
+            },
+            {
+              "value": "sharepoint",
+              "label": "SharePoint"
+            }
+          ]
+        },
+        "siteId": {
+          "label": "Sharepoint Site",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites?search=*&$select=displayName,id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "documentId": {
+          "label": "Sharepoint Document Library",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites/{{siteId}}/drives?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "workbookId": {
+          "label": "Workbook",
+          "required": true,
+          "description": "The workbook ID. The choices list the OneDrive workbooks.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/root/search(q='.xlsx')?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "worksheetId": {
+          "label": "Worksheet",
+          "required": true,
+          "description": "The worksheet name.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.name"
+          }
+        },
+        "column_index": {
+          "label": "Column Index",
+          "description": "The 1-based index of the column to be cleared (e.g., 1 for column A, 2 for column B).",
+          "type": "number",
+          "required": true
+        },
+        "applyTo": {
+          "label": "Clear Type",
+          "type": "select",
+          "required": true,
+          "defaultValue": "All",
+          "options": [
+            {
+              "value": "All",
+              "label": "All (Contents and Formatting)"
+            },
+            {
+              "value": "Contents",
+              "label": "Contents Only"
+            },
+            {
+              "value": "Formats",
+              "label": "Formats Only"
+            }
+          ],
+          "description": "Specify what to clear from the column."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets/{{worksheetId}}/range(address='A:A')/clear",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D='https://graph.microsoft.com/v1.0'+(inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId)),W=D+'/items/'+e(inputs.workbookId)+'/workbook',S=W+'/worksheets/'+e(inputs.worksheetId),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nconst col=n=>{let s='';while(n>0){const m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=Math.floor((n-m)/26);}return s;};\nconst i=Number(inputs.column_index);if(!Number.isInteger(i)||i<1)throw new Error('Column index must be a positive integer.');\nrequest.url=S+\"/range(address='\"+col(i)+':'+col(i)+\"')/clear\";request.body={applyTo:inputs.applyTo};\nreturn request;",
+      "afterResponse": "return {};"
+    },
+    "clear_range": {
+      "label": "Clear Cells by Range",
+      "description": "Clear a block of cells (range) content or formatting.",
+      "inputs": {
+        "storageSource": {
+          "label": "Excel File Source",
+          "type": "select",
+          "required": true,
+          "defaultValue": "onedrive",
+          "options": [
+            {
+              "value": "onedrive",
+              "label": "OneDrive"
+            },
+            {
+              "value": "sharepoint",
+              "label": "SharePoint"
+            }
+          ]
+        },
+        "siteId": {
+          "label": "Sharepoint Site",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites?search=*&$select=displayName,id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "documentId": {
+          "label": "Sharepoint Document Library",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites/{{siteId}}/drives?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "workbookId": {
+          "label": "Workbook",
+          "required": true,
+          "description": "The workbook ID. The choices list the OneDrive workbooks.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/root/search(q='.xlsx')?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "worksheetId": {
+          "label": "Worksheet",
+          "required": true,
+          "description": "The worksheet name.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.name"
+          }
+        },
+        "range": {
+          "label": "Range",
+          "description": "The range of cells to clear, in A1 notation (e.g., \"A1:C5\").",
+          "required": true
+        },
+        "applyTo": {
+          "label": "Clear Type",
+          "type": "select",
+          "required": true,
+          "defaultValue": "All",
+          "options": [
+            {
+              "value": "All",
+              "label": "All (Contents and Formatting)"
+            },
+            {
+              "value": "Contents",
+              "label": "Contents Only"
+            },
+            {
+              "value": "Formats",
+              "label": "Formats Only"
+            }
+          ],
+          "description": "Specify what to clear from the range."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets/{{worksheetId}}/range(address='{{range}}')/clear",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D='https://graph.microsoft.com/v1.0'+(inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId)),W=D+'/items/'+e(inputs.workbookId)+'/workbook',S=W+'/worksheets/'+e(inputs.worksheetId),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nif(!/^[A-Z]+[1-9][0-9]*(:[A-Z]+[1-9][0-9]*)?$/.test(inputs.range))throw new Error('Invalid range format. Please use A1 notation (e.g., \"A1\" or \"A1:C5\").');\nrequest.url=S+\"/range(address='\"+inputs.range+\"')/clear\";request.body={applyTo:inputs.applyTo};\nreturn request;",
+      "afterResponse": "return {};"
+    },
+    "clear_row": {
+      "label": "Clear Row by ID",
+      "description": "Clear contents/formatting of an entire row by its ID.",
+      "inputs": {
+        "storageSource": {
+          "label": "Excel File Source",
+          "type": "select",
+          "required": true,
+          "defaultValue": "onedrive",
+          "options": [
+            {
+              "value": "onedrive",
+              "label": "OneDrive"
+            },
+            {
+              "value": "sharepoint",
+              "label": "SharePoint"
+            }
+          ]
+        },
+        "siteId": {
+          "label": "Sharepoint Site",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites?search=*&$select=displayName,id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "documentId": {
+          "label": "Sharepoint Document Library",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites/{{siteId}}/drives?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "workbookId": {
+          "label": "Workbook",
+          "required": true,
+          "description": "The workbook ID. The choices list the OneDrive workbooks.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/root/search(q='.xlsx')?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "worksheetId": {
+          "label": "Worksheet",
+          "required": true,
+          "description": "The worksheet name.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.name"
+          }
+        },
+        "row_id": {
+          "label": "Row Number",
+          "description": "The number of the row to be cleared (e.g., 5 for the 5th row).",
+          "type": "number",
+          "required": true
+        },
+        "applyTo": {
+          "label": "Clear Type",
+          "type": "select",
+          "required": true,
+          "defaultValue": "All",
+          "options": [
+            {
+              "value": "All",
+              "label": "All (Contents and Formatting)"
+            },
+            {
+              "value": "Contents",
+              "label": "Contents Only"
+            },
+            {
+              "value": "Formats",
+              "label": "Formats Only"
+            }
+          ],
+          "description": "Specify what to clear from the row."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets/{{worksheetId}}/range(address='{{row_id}}:{{row_id}}')/clear",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D='https://graph.microsoft.com/v1.0'+(inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId)),W=D+'/items/'+e(inputs.workbookId)+'/workbook',S=W+'/worksheets/'+e(inputs.worksheetId),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nconst r=Number(inputs.row_id);if(!Number.isInteger(r)||r<1)throw new Error('Row index must be a positive integer.');\nrequest.url=S+\"/range(address='\"+r+':'+r+\"')/clear\";request.body={applyTo:inputs.applyTo};\nreturn request;",
+      "afterResponse": "return {};"
+    },
+    "delete_row": {
+      "label": "Delete Row",
+      "description": "Delete an entire row from a worksheet by its row number.",
+      "inputs": {
+        "storageSource": {
+          "label": "Excel File Source",
+          "type": "select",
+          "required": true,
+          "defaultValue": "onedrive",
+          "options": [
+            {
+              "value": "onedrive",
+              "label": "OneDrive"
+            },
+            {
+              "value": "sharepoint",
+              "label": "SharePoint"
+            }
+          ]
+        },
+        "siteId": {
+          "label": "Sharepoint Site",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites?search=*&$select=displayName,id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "documentId": {
+          "label": "Sharepoint Document Library",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites/{{siteId}}/drives?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "workbookId": {
+          "label": "Workbook",
+          "required": true,
+          "description": "The workbook ID. The choices list the OneDrive workbooks.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/root/search(q='.xlsx')?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "worksheetId": {
+          "label": "Worksheet",
+          "required": true,
+          "description": "The worksheet name.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.name"
+          }
+        },
+        "row_id": {
+          "label": "Row Number",
+          "description": "The number of the row to delete (e.g., 5 to delete the 5th row). Rows below will shift up.",
+          "type": "number",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets/{{worksheetId}}/range(address='{{row_id}}:{{row_id}}')/delete",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D='https://graph.microsoft.com/v1.0'+(inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId)),W=D+'/items/'+e(inputs.workbookId)+'/workbook',S=W+'/worksheets/'+e(inputs.worksheetId),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nconst r=Number(inputs.row_id);if(!Number.isInteger(r)||r<1)throw new Error('Row number must be a positive integer.');\nrequest.url=S+\"/range(address='\"+r+':'+r+\"')/delete\";request.body={shift:'Up'};\nreturn request;",
+      "afterResponse": "return {success: true, deleted_row: Number(inputs.row_id)};"
+    },
+    "create_worksheet": {
+      "label": "Create Worksheet",
+      "description": "Add a new worksheet (tab) to an existing workbook with optional default headers.",
+      "inputs": {
+        "storageSource": {
+          "label": "Excel File Source",
+          "type": "select",
+          "required": true,
+          "defaultValue": "onedrive",
+          "options": [
+            {
+              "value": "onedrive",
+              "label": "OneDrive"
+            },
+            {
+              "value": "sharepoint",
+              "label": "SharePoint"
+            }
+          ]
+        },
+        "siteId": {
+          "label": "Sharepoint Site",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites?search=*&$select=displayName,id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "documentId": {
+          "label": "Sharepoint Document Library",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites/{{siteId}}/drives?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "workbookId": {
+          "label": "Workbook",
+          "required": true,
+          "description": "The workbook ID. The choices list the OneDrive workbooks.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/root/search(q='.xlsx')?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "name": {
+          "label": "Worksheet Name",
+          "description": "The name for the new worksheet. If not provided, a default name like 'Sheet1' will be assigned."
+        },
+        "headers": {
+          "label": "Headers",
+          "type": "json",
+          "description": "Optional: A list of headers to add to the first row, such as [\"Name\", \"Email\"]. A table will be created from these headers."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets/add",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D='https://graph.microsoft.com/v1.0'+(inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId)),W=D+'/items/'+e(inputs.workbookId)+'/workbook',S=W+'/worksheets/'+e(inputs.worksheetId),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=W+'/worksheets/add';request.body=inputs.name?{name:inputs.name}:{};\nreturn request;",
+      "afterResponse": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D='https://graph.microsoft.com/v1.0'+(inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId)),W=D+'/items/'+e(inputs.workbookId)+'/workbook',S=W+'/worksheets/'+e(inputs.worksheetId),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nconst col=n=>{let s='';while(n>0){const m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=Math.floor((n-m)/26);}return s;};\nconst js=v=>{if(v===undefined||v===null||v==='')return undefined;try{return JSON.parse(v);}catch(x){return v;}};\nconst headers=js(inputs.headers);\nif(!(headers&&Array.isArray(headers)&&headers.length>0))return response;\nconst address='A1:'+col(headers.length)+'1',sheet=W+'/worksheets/'+e(response.name);\ncall({method:'PATCH',url:sheet+\"/range(address='\"+address+\"')\",headers:H,body:{values:[headers]}});\nreturn call({method:'POST',url:sheet+'/tables/add',headers:H,body:{address,hasHeaders:true}});"
+    },
+    "copy_worksheet": {
+      "label": "Copy Worksheet",
+      "description": "Duplicate a worksheet into a new worksheet, in the same workbook or a different one. Copies values, formulas, and number formats.",
+      "inputs": {
+        "storageSource": {
+          "label": "Excel File Source",
+          "type": "select",
+          "required": true,
+          "defaultValue": "onedrive",
+          "options": [
+            {
+              "value": "onedrive",
+              "label": "OneDrive"
+            },
+            {
+              "value": "sharepoint",
+              "label": "SharePoint"
+            }
+          ]
+        },
+        "siteId": {
+          "label": "Sharepoint Site",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites?search=*&$select=displayName,id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "documentId": {
+          "label": "Sharepoint Document Library",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites/{{siteId}}/drives?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "folderId": {
+          "label": "Folder",
+          "description": "The folder containing the workbook, which narrows the workbook choices. Leave empty to search the entire drive."
+        },
+        "workbookId": {
+          "label": "Workbook",
+          "required": true,
+          "description": "The workbook ID. The choices list the OneDrive workbooks.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/root/search(q='.xlsx')?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "worksheetId": {
+          "label": "Worksheet",
+          "required": true,
+          "description": "The worksheet name.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.name"
+          }
+        },
+        "destinationWorkbookId": {
+          "label": "Destination Workbook",
+          "description": "The workbook to copy the worksheet into. Leave empty to copy within the source workbook.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/root/search(q='.xlsx')?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "newWorksheetName": {
+          "label": "New Worksheet Name",
+          "description": "The name for the copied worksheet. If left empty, Excel assigns a default name. The name must not be blank or exceed 31 characters, not contain any of / \\ ? * : [ ], and be unique within the destination workbook, and not be the reserved name \"History\"."
+        },
+        "copyMode": {
+          "label": "Copy Mode",
+          "description": "Whether to copy the formulas (recalculated in the new sheet) or just the resulting values.",
+          "type": "select",
+          "required": true,
+          "defaultValue": "formulas",
+          "options": [
+            {
+              "value": "formulas",
+              "label": "Values and formulas"
+            },
+            {
+              "value": "values",
+              "label": "Values only"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets/{{worksheetId}}/usedRange",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D='https://graph.microsoft.com/v1.0'+(inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId)),W=D+'/items/'+e(inputs.workbookId)+'/workbook',S=W+'/worksheets/'+e(inputs.worksheetId),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=S+'/usedRange?$select=address,rowCount,columnCount,numberFormat,'+(inputs.copyMode==='values'?'values':'formulas');\nreturn request;",
+      "afterResponse": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D='https://graph.microsoft.com/v1.0'+(inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId)),W=D+'/items/'+e(inputs.workbookId)+'/workbook',S=W+'/worksheets/'+e(inputs.worksheetId),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nconst target=inputs.destinationWorkbookId||inputs.workbookId,values=inputs.copyMode==='values',used=response,T=D+'/items/'+e(target)+'/workbook/worksheets/';\nconst sheet=call({method:'POST',url:T+'add',headers:H,body:inputs.newWorksheetName?{name:inputs.newWorksheetName}:{}});\nconst cells=values?used.values:used.formulas,first=cells?.[0]?.[0],empty=(used.rowCount??0)<=1&&(used.columnCount??0)<=1&&(first===null||first===undefined||first==='');\nlet range=null;\nif(!empty&&used.address){range=used.address.substring(used.address.lastIndexOf('!')+1);\n  try{call({method:'PATCH',url:T+e(sheet.id)+\"/range(address='\"+range+\"')\",headers:H,body:values?{values:used.values,numberFormat:used.numberFormat}:{formulas:used.formulas,numberFormat:used.numberFormat}});}\n  catch(error){try{call({method:'DELETE',url:T+e(sheet.id),headers:H});}catch(ignored){}\n    throw new Error('Failed to write the copied contents, so the new worksheet was removed: '+error.message+(values?'':' Sheets that use table (structured-reference) formulas or merged cells may not be copyable with formulas — try setting Copy Mode to \"Values only\".'));}}\nreturn {worksheet:sheet,copiedToSameWorkbook:target===inputs.workbookId,copied:{mode:inputs.copyMode,range,rows:empty?0:used.rowCount??0,columns:empty?0:used.columnCount??0},note:\"Cell values, formulas, and number formats are copied. Cell styles (fonts, fills, borders), column widths, row heights, charts, conditional formatting, data validation, and tables are not copied \\u2014 Microsoft Graph does not expose a native worksheet-copy operation. When copying to a different workbook, formulas that reference other worksheets may not resolve.\"};"
+    },
+    "find_row": {
+      "label": "Find Row",
+      "description": "Locate a row by specifying a lookup column and value (e.g. find a row where “ID” = 123).",
+      "inputs": {
+        "storageSource": {
+          "label": "Excel File Source",
+          "type": "select",
+          "required": true,
+          "defaultValue": "onedrive",
+          "options": [
+            {
+              "value": "onedrive",
+              "label": "OneDrive"
+            },
+            {
+              "value": "sharepoint",
+              "label": "SharePoint"
+            }
+          ]
+        },
+        "siteId": {
+          "label": "Sharepoint Site",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites?search=*&$select=displayName,id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "documentId": {
+          "label": "Sharepoint Document Library",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites/{{siteId}}/drives?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "workbookId": {
+          "label": "Workbook",
+          "required": true,
+          "description": "The workbook ID. The choices list the OneDrive workbooks.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/root/search(q='.xlsx')?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "worksheetId": {
+          "label": "Worksheet",
+          "required": true,
+          "description": "The worksheet name.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.name"
+          }
+        },
+        "tableId": {
+          "label": "Table",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets/{{worksheetId}}/tables?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "lookup_column": {
+          "label": "Lookup Column",
+          "description": "The column to search in.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/tables/{{tableId}}/columns",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "lookup_value": {
+          "label": "Lookup Value",
+          "description": "The value to find in the lookup column.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/tables/{{tableId}}/columns/{{lookup_column}}/filter/apply",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D='https://graph.microsoft.com/v1.0'+(inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId)),W=D+'/items/'+e(inputs.workbookId)+'/workbook',S=W+'/worksheets/'+e(inputs.worksheetId),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=W+'/tables/'+e(inputs.tableId)+'/columns/'+e(inputs.lookup_column)+'/filter/apply';\nrequest.body={criteria:{criterion1:'='+inputs.lookup_value.replace(/'/g,\"''\"),filterOn:'Custom'}};\nreturn request;",
+      "afterResponse": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D='https://graph.microsoft.com/v1.0'+(inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId)),W=D+'/items/'+e(inputs.workbookId)+'/workbook',S=W+'/worksheets/'+e(inputs.worksheetId),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\ntry{return call({method:'GET',url:W+'/tables/'+e(inputs.tableId)+'/range/visibleView/rows',headers:H}).value;}\nfinally{call({method:'POST',url:W+'/tables/'+e(inputs.tableId)+'/columns/'+e(inputs.lookup_column)+'/filter/clear',headers:H,body:{}});}"
+    },
+    "find-workbook": {
+      "label": "Find Workbook",
+      "description": "Finds an existing workbook by name.",
+      "inputs": {
+        "storageSource": {
+          "label": "Excel File Source",
+          "type": "select",
+          "required": true,
+          "defaultValue": "onedrive",
+          "options": [
+            {
+              "value": "onedrive",
+              "label": "OneDrive"
+            },
+            {
+              "value": "sharepoint",
+              "label": "SharePoint"
+            }
+          ]
+        },
+        "siteId": {
+          "label": "Sharepoint Site",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites?search=*&$select=displayName,id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "documentId": {
+          "label": "Sharepoint Document Library",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites/{{siteId}}/drives?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "fileName": {
+          "label": "File Name",
+          "description": "Excel File name to search for without extension.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/drive/items/root/search(q='.xlsx')",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D='https://graph.microsoft.com/v1.0'+(inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId)),W=D+'/items/'+e(inputs.workbookId)+'/workbook',S=W+'/worksheets/'+e(inputs.worksheetId),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=D+\"/items/root/search(q='.xlsx')?$select=id,name,lastModifiedDateTime,parentReference\";\nreturn request;",
+      "afterResponse": "const name=inputs.fileName.endsWith('.xlsx')?inputs.fileName:inputs.fileName+'.xlsx',data=response.value.filter(item=>item.name===name);\nreturn {found:data.length>0,data};"
+    },
+    "find-worksheet": {
+      "label": "Find Worksheet",
+      "description": "Finds an existing worksheet by name.",
+      "inputs": {
+        "storageSource": {
+          "label": "Excel File Source",
+          "type": "select",
+          "required": true,
+          "defaultValue": "onedrive",
+          "options": [
+            {
+              "value": "onedrive",
+              "label": "OneDrive"
+            },
+            {
+              "value": "sharepoint",
+              "label": "SharePoint"
+            }
+          ]
+        },
+        "siteId": {
+          "label": "Sharepoint Site",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites?search=*&$select=displayName,id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "documentId": {
+          "label": "Sharepoint Document Library",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites/{{siteId}}/drives?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "workbookId": {
+          "label": "Workbook",
+          "required": true,
+          "description": "The workbook ID. The choices list the OneDrive workbooks.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/root/search(q='.xlsx')?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "sheetName": {
+          "label": "Worksheet Name",
+          "required": true
+        },
+        "exactMatch": {
+          "label": "Exact Match",
+          "description": "If true, only return worksheets that exactly match the name. If false, return worksheets that contain the name.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D='https://graph.microsoft.com/v1.0'+(inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId)),W=D+'/items/'+e(inputs.workbookId)+'/workbook',S=W+'/worksheets/'+e(inputs.worksheetId),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=W+'/worksheets';\nreturn request;",
+      "afterResponse": "const wanted=inputs.sheetName.toLowerCase(),data=(response.value??[]).filter(s=>{const t=s.name?.toLowerCase()??'';return inputs.exactMatch==='true'?wanted===t:t.includes(wanted);});\nreturn {found:data.length>0,data};"
+    },
+    "get_range": {
+      "label": "Get Cells in Range",
+      "description": "Retrieve the values in a given cell range (e.g., “A1:C10”).",
+      "inputs": {
+        "storageSource": {
+          "label": "Excel File Source",
+          "type": "select",
+          "required": true,
+          "defaultValue": "onedrive",
+          "options": [
+            {
+              "value": "onedrive",
+              "label": "OneDrive"
+            },
+            {
+              "value": "sharepoint",
+              "label": "SharePoint"
+            }
+          ]
+        },
+        "siteId": {
+          "label": "Sharepoint Site",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites?search=*&$select=displayName,id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "documentId": {
+          "label": "Sharepoint Document Library",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites/{{siteId}}/drives?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "workbookId": {
+          "label": "Workbook",
+          "required": true,
+          "description": "The workbook ID. The choices list the OneDrive workbooks.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/root/search(q='.xlsx')?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "worksheetId": {
+          "label": "Worksheet",
+          "required": true,
+          "description": "The worksheet name.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.name"
+          }
+        },
+        "range": {
+          "label": "Range",
+          "description": "The range of cells to retrieve, in A1 notation (e.g., \"A1:C10\").",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets/{{worksheetId}}/range(address='{{range}}')",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D='https://graph.microsoft.com/v1.0'+(inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId)),W=D+'/items/'+e(inputs.workbookId)+'/workbook',S=W+'/worksheets/'+e(inputs.worksheetId),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nif(!/^[A-Z]+[1-9][0-9]*(:[A-Z]+[1-9][0-9]*)?$/.test(inputs.range))throw new Error('Invalid range format. Please use A1 notation (e.g., \"A1\" or \"A1:C5\").');\nrequest.url=S+\"/range(address='\"+inputs.range+\"')\";\nreturn request;"
+    },
+    "getRowById": {
+      "label": "Get Row by ID",
+      "description": "Retrieve the entire content of a row by its row ID.",
+      "inputs": {
+        "storageSource": {
+          "label": "Excel File Source",
+          "type": "select",
+          "required": true,
+          "defaultValue": "onedrive",
+          "options": [
+            {
+              "value": "onedrive",
+              "label": "OneDrive"
+            },
+            {
+              "value": "sharepoint",
+              "label": "SharePoint"
+            }
+          ]
+        },
+        "siteId": {
+          "label": "Sharepoint Site",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites?search=*&$select=displayName,id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "documentId": {
+          "label": "Sharepoint Document Library",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites/{{siteId}}/drives?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "workbookId": {
+          "label": "Workbook",
+          "required": true,
+          "description": "The workbook ID. The choices list the OneDrive workbooks.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/root/search(q='.xlsx')?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "worksheetId": {
+          "label": "Worksheet",
+          "required": true,
+          "description": "The worksheet name.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.name"
+          }
+        },
+        "tableId": {
+          "label": "Table",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets/{{worksheetId}}/tables?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "row_id": {
+          "label": "Row ID (Index)",
+          "description": "The zero-based index of the row to retrieve (e.g., 0 for the first row, 1 for the second).",
+          "type": "number",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/tables/{{tableId}}/rows/itemAt(index={{row_id}})",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D='https://graph.microsoft.com/v1.0'+(inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId)),W=D+'/items/'+e(inputs.workbookId)+'/workbook',S=W+'/worksheets/'+e(inputs.worksheetId),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=W+'/tables/'+e(inputs.tableId)+'/rows/itemAt(index='+Number(inputs.row_id)+')';\nreturn request;"
+    },
+    "get_worksheet": {
+      "label": "Get Worksheet by ID",
+      "description": "Retrieve metadata of a worksheet by its ID.",
+      "inputs": {
+        "storageSource": {
+          "label": "Excel File Source",
+          "type": "select",
+          "required": true,
+          "defaultValue": "onedrive",
+          "options": [
+            {
+              "value": "onedrive",
+              "label": "OneDrive"
+            },
+            {
+              "value": "sharepoint",
+              "label": "SharePoint"
+            }
+          ]
+        },
+        "siteId": {
+          "label": "Sharepoint Site",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites?search=*&$select=displayName,id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "documentId": {
+          "label": "Sharepoint Document Library",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites/{{siteId}}/drives?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "workbookId": {
+          "label": "Workbook",
+          "required": true,
+          "description": "The workbook ID. The choices list the OneDrive workbooks.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/root/search(q='.xlsx')?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "worksheetId": {
+          "label": "Worksheet",
+          "required": true,
+          "description": "The worksheet name.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.name"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets/{{worksheetId}}",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D='https://graph.microsoft.com/v1.0'+(inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId)),W=D+'/items/'+e(inputs.workbookId)+'/workbook',S=W+'/worksheets/'+e(inputs.worksheetId),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=S;\nreturn request;"
+    },
+    "rename_worksheet": {
+      "label": "Rename Worksheet",
+      "description": "Change the name of an existing worksheet.",
+      "inputs": {
+        "storageSource": {
+          "label": "Excel File Source",
+          "type": "select",
+          "required": true,
+          "defaultValue": "onedrive",
+          "options": [
+            {
+              "value": "onedrive",
+              "label": "OneDrive"
+            },
+            {
+              "value": "sharepoint",
+              "label": "SharePoint"
+            }
+          ]
+        },
+        "siteId": {
+          "label": "Sharepoint Site",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites?search=*&$select=displayName,id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "documentId": {
+          "label": "Sharepoint Document Library",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/sites/{{siteId}}/drives?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "workbookId": {
+          "label": "Workbook",
+          "required": true,
+          "description": "The workbook ID. The choices list the OneDrive workbooks.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/root/search(q='.xlsx')?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.id"
+          }
+        },
+        "worksheetId": {
+          "label": "Worksheet",
+          "required": true,
+          "description": "The worksheet name.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets?$select=id,name",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.name",
+            "value": "$.name"
+          }
+        },
+        "new_name": {
+          "label": "New Worksheet Name",
+          "description": "The new name for the worksheet. It cannot be blank or exceed 31 characters, must not contain any of / \\ ? * : [ ], and cannot be \"History\".",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets/{{worksheetId}}",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D='https://graph.microsoft.com/v1.0'+(inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId)),W=D+'/items/'+e(inputs.workbookId)+'/workbook',S=W+'/worksheets/'+e(inputs.worksheetId),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=S;request.body={name:inputs.new_name};\nreturn request;"
+    }
+  },
+  "triggers": {}
+}

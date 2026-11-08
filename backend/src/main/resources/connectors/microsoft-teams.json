@@ -1,0 +1,2062 @@
+{
+  "name": "microsoft-teams",
+  "label": "Microsoft Teams",
+  "description": "",
+  "icon": "",
+  "hosts": [
+    "graph.microsoft.com"
+  ],
+  "baseUrl": "https://graph.microsoft.com/v1.0",
+  "upstream": {
+    "package": "@activepieces/piece-microsoft-teams",
+    "version": "0.8.2"
+  },
+  "credential": {
+    "oauth2": {
+      "authUrl": "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+      "tokenUrl": "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+      "scope": "openid email profile offline_access User.Read Channel.Create Channel.ReadBasic.All ChannelMessage.Send Team.ReadBasic.All Chat.ReadWrite ChannelMessage.Read.All TeamMember.Read.All User.ReadBasic.All Presence.Read.All OnlineMeetingTranscript.Read.All OnlineMeetingRecording.Read.All"
+    }
+  },
+  "actions": {
+    "microsoft_teams_create_channel": {
+      "label": "Create Channel",
+      "description": "Create a new channel in Microsoft Teams.",
+      "audience": "human",
+      "inputs": {
+        "teamId": {
+          "label": "Team ID",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/joinedTeams",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "channelDisplayName": {
+          "label": "Channel Name",
+          "required": true
+        },
+        "channelDescription": {
+          "label": "Channel Description",
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/teams/{{teamId}}/channels",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        },
+        "body": {
+          "displayName": "{{channelDisplayName}}",
+          "description": "{{channelDescription}}"
+        }
+      },
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=raw(request.url);return request;"
+    },
+    "microsoft_teams_send_channel_message": {
+      "label": "Send Channel Message",
+      "description": "Sends a message to a teams's channel.",
+      "audience": "human",
+      "inputs": {
+        "teamId": {
+          "label": "Team ID",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/joinedTeams",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "channelId": {
+          "label": "Channel ID",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/teams/{{teamId}}/channels",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "contentType": {
+          "label": "Content Type",
+          "required": true,
+          "type": "select",
+          "options": [
+            {
+              "value": "text",
+              "label": "Text"
+            },
+            {
+              "value": "html",
+              "label": "HTML"
+            }
+          ],
+          "defaultValue": "text"
+        },
+        "content": {
+          "label": "Message",
+          "description": "Use @username to mention team members in the message.",
+          "required": true,
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/teams/{{teamId}}/channels/{{channelId}}/messages",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nconst l=v=>v.trim().toLowerCase(),u=/(^|[\\s(>])@([A-Za-z0-9._-]+)/g,r=inputs.content,c=[];let a=r;\nconst names=Array.from(r.matchAll(new RegExp(u.source,'g')),h=>h[2]);\nif(names.length){const d=[...new Set(names.map(l))].flatMap(A=>[\"microsoft.graph.aadUserConversationMember/displayName eq '\"+A+\"'\",\"startswith(microsoft.graph.aadUserConversationMember/email, '\"+A+\"@')\"]),v=[];\nlet x=call({url:'/teams/'+p(inputs.teamId)+'/members?$filter='+q(d.join(' or ')),headers:H});\nwhile(x.value&&x.value.length){v.push(...x.value);if(x['@odata.nextLink'])x=call({url:x['@odata.nextLink'],headers:H});else break;}\nconst S=new Map();for(const A of v)for(const N of [A.displayName,A.userPrincipalName,A.email].filter(N=>!!N)){S.set(l(N),A);if(N.includes('@'))S.set(l(N.split('@')[0]),A);if(N.includes(' '))S.set(l(N.replace(/\\s+/g,'')),A);}\na=r.replace(u,(A,O,N)=>{const e=S.get(l(N));if(!e)return A;const t=e.displayName||e.userPrincipalName||e.userId;if(!t||!e.userId)return A;const i=c.length;c.push({id:i,mentionText:t,mentioned:{user:{id:e.userId,displayName:t,userPrincipalName:e.userPrincipalName}}});return O+'<at id=\"'+i+'\">'+t+'</at>';});\nif(inputs.contentType==='text'&&c.length)a='<div>'+a.replace(/\\n/g,'<br>')+'</div>';}\nrequest.body={body:{content:a,contentType:'html'}};if(c.length)request.body.mentions=c;request.url=raw(request.url);return request;"
+    },
+    "microsoft_teams_send_chat_message": {
+      "label": "Send Chat Message",
+      "description": "Sends a message in an existing chat.",
+      "audience": "human",
+      "inputs": {
+        "chatId": {
+          "label": "Chat ID",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/chats?$expand=members&$top=50",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.topic",
+            "value": "$.id"
+          }
+        },
+        "contentType": {
+          "label": "Content Type",
+          "required": true,
+          "type": "select",
+          "options": [
+            {
+              "value": "text",
+              "label": "Text"
+            },
+            {
+              "value": "html",
+              "label": "HTML"
+            }
+          ],
+          "defaultValue": "text"
+        },
+        "content": {
+          "label": "Message",
+          "required": true,
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/chats/{{chatId}}/messages",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        },
+        "body": {
+          "body": {
+            "content": "{{content}}",
+            "contentType": "{{contentType}}"
+          }
+        }
+      },
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=raw(request.url);return request;"
+    },
+    "microsoft_teams_reply_to_channel_message": {
+      "label": "Reply to Channel Message",
+      "description": "Post a reply to an existing channel message.",
+      "audience": "human",
+      "inputs": {
+        "teamId": {
+          "label": "Team ID",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/joinedTeams",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "channelId": {
+          "label": "Channel ID",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/teams/{{teamId}}/channels",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "messageId": {
+          "label": "Message ID",
+          "description": "ID of the parent message to reply to.",
+          "required": true
+        },
+        "contentType": {
+          "label": "Content Type",
+          "required": true,
+          "type": "select",
+          "options": [
+            {
+              "value": "text",
+              "label": "Text"
+            },
+            {
+              "value": "html",
+              "label": "HTML"
+            }
+          ],
+          "defaultValue": "text"
+        },
+        "content": {
+          "label": "Message",
+          "required": true,
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/teams/{{teamId}}/channels/{{channelId}}/messages/{{messageId}}/replies",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        },
+        "body": {
+          "body": {
+            "content": "{{content}}",
+            "contentType": "{{contentType}}"
+          }
+        }
+      },
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=raw(request.url);return request;"
+    },
+    "microsoft_teams_create_chat_and_send_message": {
+      "label": "Create Chat & Send Message",
+      "description": "Start a new chat and send an initial message.",
+      "audience": "human",
+      "inputs": {
+        "teamId": {
+          "label": "Team ID",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/joinedTeams",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "members": {
+          "label": "Member",
+          "description": "The user IDs of the other members, as a JSON list such as [\"user-id\"]. One member makes a one-on-one chat, more make a group chat.",
+          "required": true,
+          "type": "json"
+        },
+        "contentType": {
+          "label": "Message Content Type",
+          "required": true,
+          "type": "select",
+          "options": [
+            {
+              "value": "text",
+              "label": "Text"
+            },
+            {
+              "value": "html",
+              "label": "HTML"
+            }
+          ],
+          "defaultValue": "text"
+        },
+        "content": {
+          "label": "Initial Message",
+          "required": true,
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me?$select=id,userPrincipalName",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "outputs": {
+        "chatId": "$.chat.id",
+        "messageId": "$.message.id"
+      },
+      "beforeRequest": "if(!JSON.parse(inputs.members||'[]').length)throw new Error('For one-on-one chats, provide exactly one other member.');return request;",
+      "afterResponse": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nconst G='https://graph.microsoft.com/v1.0',b=x=>({'@odata.type':'#microsoft.graph.aadUserConversationMember',roles:['owner'],'user@odata.bind':x}),u=JSON.parse(inputs.members).map(v=>G+\"/users('\"+v+\"')\");\nconst chat=call({method:'POST',url:'/chats',headers:H,body:{chatType:u.length===1?'oneOnOne':'group',members:[b(G+\"/users('\"+response.id+\"')\"),...u.map(b)]}});\nconst message=call({method:'POST',url:'/chats/'+p(chat.id)+'/messages',headers:H,body:{body:{content:inputs.content,contentType:inputs.contentType}}});\nreturn {chat,message};"
+    },
+    "microsoft_teams_create_private_channel": {
+      "label": "Create Private Channel",
+      "description": "Create a new private channel in a team.",
+      "audience": "human",
+      "inputs": {
+        "teamId": {
+          "label": "Team ID",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/joinedTeams",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "channelDisplayName": {
+          "label": "Channel Name",
+          "required": true
+        },
+        "channelDescription": {
+          "label": "Channel Description",
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/teams/{{teamId}}/channels",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        },
+        "body": {
+          "displayName": "{{channelDisplayName}}",
+          "description": "{{channelDescription}}",
+          "membershipType": "private"
+        }
+      },
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=raw(request.url);return request;"
+    },
+    "microsoft_teams_get_chat_message": {
+      "label": "Get Chat Message",
+      "description": "Fetch a specific chat message by chat and message ID.",
+      "audience": "human",
+      "inputs": {
+        "chatId": {
+          "label": "Chat ID",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/chats?$expand=members&$top=50",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.topic",
+            "value": "$.id"
+          }
+        },
+        "messageId": {
+          "label": "Message ID",
+          "description": "The ID of the message to retrieve.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/chats/{{chatId}}/messages/{{messageId}}",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=raw(request.url);return request;"
+    },
+    "microsoft_teams_delete_chat_message": {
+      "label": "Delete Chat Message",
+      "description": "Soft-Deletes a message in chat.You can only delete messages you sent.",
+      "audience": "human",
+      "inputs": {
+        "chatId": {
+          "label": "Chat ID",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/chats?$expand=members&$top=50",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.topic",
+            "value": "$.id"
+          }
+        },
+        "messageId": {
+          "label": "Message ID",
+          "description": "The ID of the message to delete.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me?$select=id,userPrincipalName",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "afterResponse": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\ncall({method:'POST',url:'/users/'+p(response.id)+'/chats/'+p(inputs.chatId)+'/messages/'+p(inputs.messageId)+'/softDelete',headers:H,body:{}});\nreturn {success:true,messageId:inputs.messageId,chatId:inputs.chatId};"
+    },
+    "microsoft_teams_get_channel_message": {
+      "label": "Get Channel Message",
+      "description": "Fetch a specific channel message by team, channel, and message ID (optionally a reply).",
+      "audience": "human",
+      "inputs": {
+        "teamId": {
+          "label": "Team ID",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/joinedTeams",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "channelId": {
+          "label": "Channel ID",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/teams/{{teamId}}/channels",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "messageId": {
+          "label": "Message ID",
+          "description": "The ID of the channel message to retrieve.",
+          "required": true
+        },
+        "replyId": {
+          "label": "Reply ID (optional)",
+          "description": "Provide to fetch a specific reply under the message."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/teams/{{teamId}}/channels/{{channelId}}/messages/{{messageId}}",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=raw(request.url)+(inputs.replyId?'/replies/'+p(inputs.replyId):'');return request;"
+    },
+    "microsoft_teams_find_channel": {
+      "label": "Find Channel",
+      "description": "Finds channels by name.",
+      "audience": "human",
+      "inputs": {
+        "teamId": {
+          "label": "Team ID",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/joinedTeams",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "channelName": {
+          "label": "Channel Name",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/teams/{{teamId}}/allChannels",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=raw(request.url)+'?$filter='+q(\"displayName eq '\"+inputs.channelName+\"'\");return request;",
+      "afterResponse": "return {found:response.value.length>0,result:response.value};"
+    },
+    "microsoft_teams_find_team_member": {
+      "label": "Find Team Member",
+      "description": "Finds a team member by email or display name.",
+      "audience": "human",
+      "inputs": {
+        "teamId": {
+          "label": "Team ID",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://graph.microsoft.com/v1.0/me/joinedTeams",
+              "headers": {
+                "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+              }
+            },
+            "list": "$.value",
+            "label": "$.displayName",
+            "value": "$.id"
+          }
+        },
+        "searchBy": {
+          "label": "Search By",
+          "required": true,
+          "type": "select",
+          "options": [
+            {
+              "value": "email",
+              "label": "Email"
+            },
+            {
+              "value": "name",
+              "label": "Name"
+            }
+          ],
+          "defaultValue": "email"
+        },
+        "searchValue": {
+          "label": "searchValue",
+          "description": "Email address or name to search for.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/teams/{{teamId}}/members",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nconst f=inputs.searchBy=='email'?\"microsoft.graph.aadUserConversationMember/email eq '\"+inputs.searchValue+\"'\":\"microsoft.graph.aadUserConversationMember/displayName eq  '\"+inputs.searchValue+\"'\";\nrequest.url=raw(request.url)+'?$filter='+q(f);return request;",
+      "afterResponse": "return {found:response.value.length>0,result:response.value};"
+    },
+    "microsoft_teams_get_meeting_recording": {
+      "label": "Get Meeting Recording",
+      "description": "Retrieves recordings for a Teams meeting. Provide a Recording to fetch its metadata; omit it to list all available recordings.",
+      "audience": "human",
+      "inputs": {
+        "meetingIdentifierType": {
+          "label": "Meeting Identifier Type",
+          "description": "Choose how to identify the meeting.",
+          "required": true,
+          "type": "select",
+          "options": [
+            {
+              "value": "meetingId",
+              "label": "Meeting ID"
+            },
+            {
+              "value": "joinWebUrl",
+              "label": "Join Web URL"
+            },
+            {
+              "value": "joinMeetingId",
+              "label": "Join Meeting ID"
+            }
+          ],
+          "defaultValue": "meetingId"
+        },
+        "meetingIdentifierValue": {
+          "label": "Meeting Identifier Value",
+          "required": true
+        },
+        "recordingId": {
+          "label": "Recording",
+          "description": "The recording ID. Leave empty to list every recording of the meeting."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/onlineMeetings",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nlet id=inputs.meetingIdentifierValue;\nif(inputs.meetingIdentifierType!=='meetingId'){const f=inputs.meetingIdentifierType==='joinWebUrl'?\"JoinWebUrl eq '\"+id+\"'\":\"joinMeetingIdSettings/joinMeetingId eq '\"+id+\"'\";\nconst r=call({url:'/me/onlineMeetings?$filter='+q(f),headers:H});if(!(r.value&&r.value.length))throw new Error('No meeting found with the provided identifier.');id=r.value[0].id;}\nrequest.url='/me/onlineMeetings/'+p(id)+'/recordings'+(inputs.recordingId?'/'+p(inputs.recordingId):'');return request;"
+    },
+    "microsoft_teams_get_team": {
+      "label": "Get Team",
+      "description": "Gets a team by ID, with its settings.",
+      "audience": "ai",
+      "inputs": {
+        "teamId": {
+          "label": "Team ID",
+          "description": "The team ID, from List Joined Teams.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/teams/{{teamId}}",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=raw(request.url);return request;"
+    },
+    "microsoft_teams_list_associated_teams": {
+      "label": "List Associated Teams",
+      "description": "Lists the teams the signed-in user is associated with, including teams reached through shared channels.",
+      "audience": "ai",
+      "inputs": {},
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/teamwork/associatedTeams",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      }
+    },
+    "microsoft_teams_list_deleted_teams": {
+      "label": "List Deleted Teams",
+      "description": "Lists teams that were deleted and can still be restored.",
+      "audience": "ai",
+      "inputs": {},
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/teamwork/deletedTeams",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      }
+    },
+    "microsoft_teams_list_joined_teams": {
+      "label": "List Joined Teams",
+      "description": "Lists the teams the signed-in user is a direct member of.",
+      "audience": "ai",
+      "inputs": {},
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/joinedTeams",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      }
+    },
+    "microsoft_teams_list_teams": {
+      "label": "List Teams",
+      "description": "Lists teams in the organization, one page at a time.",
+      "audience": "ai",
+      "inputs": {
+        "filter": {
+          "label": "Filter",
+          "description": "An OData $filter on team properties, for example startswith(displayName, 'Sales')."
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "How many items to return on this page, 1 to 999. Defaults to 50.",
+          "type": "number",
+          "defaultValue": "50"
+        },
+        "nextLink": {
+          "label": "Next Page Link",
+          "description": "The @odata.nextLink from the previous page. Leave empty for the first page."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/teams",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nif(inputs.nextLink){if(!/^https:\\/\\/graph\\.microsoft\\.com(:443)?(?=[\\/?#]|$)/i.test(inputs.nextLink))throw new Error('Next Page Link must be an @odata.nextLink returned by a previous page (it starts with https://graph.microsoft.com/).');request.url=inputs.nextLink;return request;}\nconst s=['$top='+Math.min(Math.max(Math.trunc(Number(inputs.limit||50)),1),999)];\nif(inputs.filter)s.push('$filter='+q(inputs.filter));request.url=raw(request.url)+'?'+s.join('&');return request;"
+    },
+    "microsoft_teams_create_team_channel": {
+      "label": "Create Team Channel",
+      "description": "Creates a standard or private channel in a team.",
+      "audience": "ai",
+      "inputs": {
+        "teamId": {
+          "label": "Team ID",
+          "description": "The team ID, from List Joined Teams.",
+          "required": true
+        },
+        "displayName": {
+          "label": "Channel Name",
+          "description": "The channel name, up to 50 characters.",
+          "required": true
+        },
+        "description": {
+          "label": "Description",
+          "type": "multiline"
+        },
+        "membershipType": {
+          "label": "Membership Type",
+          "description": "standard (every team member) or private (only invited members). Defaults to standard.",
+          "type": "select",
+          "options": [
+            {
+              "value": "standard",
+              "label": "Standard"
+            },
+            {
+              "value": "private",
+              "label": "Private"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/teams/{{teamId}}/channels",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        },
+        "body": {
+          "displayName": "{{displayName}}",
+          "description": "{{description}}",
+          "membershipType": "{{membershipType}}"
+        }
+      },
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nif(inputs.membershipType&&!['standard','private'].includes(inputs.membershipType))throw new Error(\"Membership Type must be one of standard, private, got '\"+inputs.membershipType+\"'.\");\nrequest.url=raw(request.url);return request;"
+    },
+    "microsoft_teams_get_channel": {
+      "label": "Get Channel",
+      "description": "Gets one channel of a team by its ID.",
+      "audience": "ai",
+      "inputs": {
+        "teamId": {
+          "label": "Team ID",
+          "description": "The team ID, from List Joined Teams.",
+          "required": true
+        },
+        "channelId": {
+          "label": "Channel ID",
+          "description": "The channel ID, from List Channels.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/teams/{{teamId}}/channels/{{channelId}}",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=raw(request.url);return request;"
+    },
+    "microsoft_teams_get_primary_channel": {
+      "label": "Get Primary Channel",
+      "description": "Gets the General channel of a team.",
+      "audience": "ai",
+      "inputs": {
+        "teamId": {
+          "label": "Team ID",
+          "description": "The team ID, from List Joined Teams.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/teams/{{teamId}}/primaryChannel",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=raw(request.url);return request;"
+    },
+    "microsoft_teams_list_all_channels": {
+      "label": "List All Channels",
+      "description": "Lists the channels of a team, including channels shared into it.",
+      "audience": "ai",
+      "inputs": {
+        "teamId": {
+          "label": "Team ID",
+          "description": "The team ID, from List Joined Teams.",
+          "required": true
+        },
+        "channelName": {
+          "label": "Channel Name",
+          "description": "Return only channels whose display name is exactly this. Leave empty for every channel."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/teams/{{teamId}}/allChannels",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=raw(request.url)+(inputs.channelName?'?$filter='+q(\"displayName eq '\"+inputs.channelName.replace(/'/g,\"''\")+\"'\"):'');return request;"
+    },
+    "microsoft_teams_list_channels": {
+      "label": "List Channels",
+      "description": "Lists the channels of a team.",
+      "audience": "ai",
+      "inputs": {
+        "teamId": {
+          "label": "Team ID",
+          "description": "The team ID, from List Joined Teams.",
+          "required": true
+        },
+        "filter": {
+          "label": "Filter",
+          "description": "An OData $filter on channel properties, for example membershipType eq 'private'."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/teams/{{teamId}}/channels",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=raw(request.url)+(inputs.filter?'?$filter='+q(inputs.filter):'');return request;"
+    },
+    "microsoft_teams_list_incoming_channels": {
+      "label": "List Incoming Channels",
+      "description": "Lists the channels shared into a team from other teams.",
+      "audience": "ai",
+      "inputs": {
+        "teamId": {
+          "label": "Team ID",
+          "description": "The team ID, from List Joined Teams.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/teams/{{teamId}}/incomingChannels",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=raw(request.url);return request;"
+    },
+    "microsoft_teams_get_channel_message_by_id": {
+      "label": "Get Channel Message by ID",
+      "description": "Gets one channel message, or one reply in its thread.",
+      "audience": "ai",
+      "inputs": {
+        "teamId": {
+          "label": "Team ID",
+          "description": "The team ID, from List Joined Teams.",
+          "required": true
+        },
+        "channelId": {
+          "label": "Channel ID",
+          "description": "The channel ID, from List Channels.",
+          "required": true
+        },
+        "messageId": {
+          "label": "Message ID",
+          "description": "The top-level message ID, from List Channel Messages.",
+          "required": true
+        },
+        "replyId": {
+          "label": "Reply ID",
+          "description": "A reply ID under that message, from List Channel Message Replies. Leave empty to get the message itself."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/teams/{{teamId}}/channels/{{channelId}}/messages/{{messageId}}",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=raw(request.url)+(inputs.replyId?'/replies/'+p(inputs.replyId):'');return request;"
+    },
+    "microsoft_teams_list_channel_message_hosted_contents": {
+      "label": "List Channel Message Hosted Contents",
+      "description": "Lists the inline images and other hosted content of a channel message or reply.",
+      "audience": "ai",
+      "inputs": {
+        "teamId": {
+          "label": "Team ID",
+          "description": "The team ID, from List Joined Teams.",
+          "required": true
+        },
+        "channelId": {
+          "label": "Channel ID",
+          "description": "The channel ID, from List Channels.",
+          "required": true
+        },
+        "messageId": {
+          "label": "Message ID",
+          "description": "The top-level message ID, from List Channel Messages.",
+          "required": true
+        },
+        "replyId": {
+          "label": "Reply ID",
+          "description": "A reply ID under that message, from List Channel Message Replies. Leave empty for the message itself."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/teams/{{teamId}}/channels/{{channelId}}/messages/{{messageId}}",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=raw(request.url)+(inputs.replyId?'/replies/'+p(inputs.replyId):'')+'/hostedContents';return request;"
+    },
+    "microsoft_teams_list_channel_message_replies": {
+      "label": "List Channel Message Replies",
+      "description": "Lists the replies in the thread of a channel message, one page at a time.",
+      "audience": "ai",
+      "inputs": {
+        "teamId": {
+          "label": "Team ID",
+          "description": "The team ID, from List Joined Teams.",
+          "required": true
+        },
+        "channelId": {
+          "label": "Channel ID",
+          "description": "The channel ID, from List Channels.",
+          "required": true
+        },
+        "messageId": {
+          "label": "Message ID",
+          "description": "The top-level message ID, from List Channel Messages.",
+          "required": true
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "How many items to return on this page, 1 to 50. Defaults to 20.",
+          "type": "number",
+          "defaultValue": "20"
+        },
+        "nextLink": {
+          "label": "Next Page Link",
+          "description": "The @odata.nextLink from the previous page. Leave empty for the first page."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/teams/{{teamId}}/channels/{{channelId}}/messages/{{messageId}}/replies",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nif(inputs.nextLink){if(!/^https:\\/\\/graph\\.microsoft\\.com(:443)?(?=[\\/?#]|$)/i.test(inputs.nextLink))throw new Error('Next Page Link must be an @odata.nextLink returned by a previous page (it starts with https://graph.microsoft.com/).');request.url=inputs.nextLink;return request;}\nconst s=['$top='+Math.min(Math.max(Math.trunc(Number(inputs.limit||20)),1),50)];\nrequest.url=raw(request.url)+'?'+s.join('&');return request;"
+    },
+    "microsoft_teams_list_channel_messages": {
+      "label": "List Channel Messages",
+      "description": "Lists the top-level messages in a channel, one page at a time.",
+      "audience": "ai",
+      "inputs": {
+        "teamId": {
+          "label": "Team ID",
+          "description": "The team ID, from List Joined Teams.",
+          "required": true
+        },
+        "channelId": {
+          "label": "Channel ID",
+          "description": "The channel ID, from List Channels.",
+          "required": true
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "How many items to return on this page, 1 to 50. Defaults to 20.",
+          "type": "number",
+          "defaultValue": "20"
+        },
+        "nextLink": {
+          "label": "Next Page Link",
+          "description": "The @odata.nextLink from the previous page. Leave empty for the first page."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/teams/{{teamId}}/channels/{{channelId}}/messages",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nif(inputs.nextLink){if(!/^https:\\/\\/graph\\.microsoft\\.com(:443)?(?=[\\/?#]|$)/i.test(inputs.nextLink))throw new Error('Next Page Link must be an @odata.nextLink returned by a previous page (it starts with https://graph.microsoft.com/).');request.url=inputs.nextLink;return request;}\nconst s=['$top='+Math.min(Math.max(Math.trunc(Number(inputs.limit||20)),1),50)];\nrequest.url=raw(request.url)+'?'+s.join('&');return request;"
+    },
+    "microsoft_teams_post_channel_message_reply": {
+      "label": "Post Channel Message Reply",
+      "description": "Posts a reply in the thread of a channel message.",
+      "audience": "ai",
+      "inputs": {
+        "teamId": {
+          "label": "Team ID",
+          "description": "The team ID, from List Joined Teams.",
+          "required": true
+        },
+        "channelId": {
+          "label": "Channel ID",
+          "description": "The channel ID, from List Channels.",
+          "required": true
+        },
+        "messageId": {
+          "label": "Message ID",
+          "description": "The ID of the top-level message to reply to, from List Channel Messages or Post Channel Message.",
+          "required": true
+        },
+        "content": {
+          "label": "Content",
+          "description": "The message body. With mentions, use html and write mention N as <at id=\"N\">displayName</at>, N being its index in Mentions starting at 0.",
+          "required": true,
+          "type": "multiline"
+        },
+        "contentType": {
+          "label": "Content Type",
+          "description": "text or html. Must be html when Mentions is not empty.",
+          "required": true,
+          "type": "select",
+          "options": [
+            {
+              "value": "text",
+              "label": "Text"
+            },
+            {
+              "value": "html",
+              "label": "HTML"
+            }
+          ],
+          "defaultValue": "text"
+        },
+        "mentions": {
+          "label": "Mentions",
+          "description": "Users to @mention, as a JSON list of {\"userId\", \"displayName\"}. Item N must appear in Content as <at id=\"N\">displayName</at> (N starts at 0), and Content Type must be html.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/teams/{{teamId}}/channels/{{channelId}}/messages/{{messageId}}/replies",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nconst t=inputs.contentType,m=(inputs.mentions?JSON.parse(inputs.mentions):[]).map((c,u)=>{if(typeof c!=='object'||c===null||typeof c.userId!=='string'||typeof c.displayName!=='string'||!c.userId||!c.displayName)throw new Error('Mentions item '+u+' needs both a User ID and a Display Name.');return c;});\nif(!['text','html'].includes(t))throw new Error('Content Type must be one of: text, html.');\nif(m.length&&t!=='html')throw new Error('Mentions need Content Type html, with mention N written as <at id=\"N\">displayName</at> in Content.');\nconst missing=m.map((c,u)=>u).filter(u=>!inputs.content.includes('<at id=\"'+u+'\">'));if(missing.length)throw new Error('Content is missing the mention tag for Mentions index '+missing.join(', ')+'; write <at id=\"N\">displayName</at> for each mention N.');\nrequest.body={body:{content:inputs.content,contentType:t},...(inputs.subject?{subject:inputs.subject}:{}),...(m.length?{mentions:m.map((c,u)=>({id:u,mentionText:c.displayName,mentioned:{user:{id:c.userId,displayName:c.displayName,userIdentityType:'aadUser'}}}))}:{})};\nrequest.url=raw(request.url);return request;"
+    },
+    "microsoft_teams_post_channel_message": {
+      "label": "Post Channel Message",
+      "description": "Posts a new top-level message to a channel.",
+      "audience": "ai",
+      "inputs": {
+        "teamId": {
+          "label": "Team ID",
+          "description": "The team ID, from List Joined Teams.",
+          "required": true
+        },
+        "channelId": {
+          "label": "Channel ID",
+          "description": "The channel ID, from List Channels.",
+          "required": true
+        },
+        "content": {
+          "label": "Content",
+          "description": "The message body. With mentions, use html and write mention N as <at id=\"N\">displayName</at>, N being its index in Mentions starting at 0.",
+          "required": true,
+          "type": "multiline"
+        },
+        "contentType": {
+          "label": "Content Type",
+          "description": "text or html. Must be html when Mentions is not empty.",
+          "required": true,
+          "type": "select",
+          "options": [
+            {
+              "value": "text",
+              "label": "Text"
+            },
+            {
+              "value": "html",
+              "label": "HTML"
+            }
+          ],
+          "defaultValue": "text"
+        },
+        "subject": {
+          "label": "Subject",
+          "description": "An optional subject line shown above the message."
+        },
+        "mentions": {
+          "label": "Mentions",
+          "description": "Users to @mention, as a JSON list of {\"userId\", \"displayName\"}. Item N must appear in Content as <at id=\"N\">displayName</at> (N starts at 0), and Content Type must be html.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/teams/{{teamId}}/channels/{{channelId}}/messages",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nconst t=inputs.contentType,m=(inputs.mentions?JSON.parse(inputs.mentions):[]).map((c,u)=>{if(typeof c!=='object'||c===null||typeof c.userId!=='string'||typeof c.displayName!=='string'||!c.userId||!c.displayName)throw new Error('Mentions item '+u+' needs both a User ID and a Display Name.');return c;});\nif(!['text','html'].includes(t))throw new Error('Content Type must be one of: text, html.');\nif(m.length&&t!=='html')throw new Error('Mentions need Content Type html, with mention N written as <at id=\"N\">displayName</at> in Content.');\nconst missing=m.map((c,u)=>u).filter(u=>!inputs.content.includes('<at id=\"'+u+'\">'));if(missing.length)throw new Error('Content is missing the mention tag for Mentions index '+missing.join(', ')+'; write <at id=\"N\">displayName</at> for each mention N.');\nrequest.body={body:{content:inputs.content,contentType:t},...(inputs.subject?{subject:inputs.subject}:{}),...(m.length?{mentions:m.map((c,u)=>({id:u,mentionText:c.displayName,mentioned:{user:{id:c.userId,displayName:c.displayName,userIdentityType:'aadUser'}}}))}:{})};\nrequest.url=raw(request.url);return request;"
+    },
+    "microsoft_teams_set_channel_message_reaction": {
+      "label": "Set Channel Message Reaction",
+      "description": "Adds a reaction from the signed-in user to a channel message or reply.",
+      "audience": "ai",
+      "inputs": {
+        "teamId": {
+          "label": "Team ID",
+          "description": "The team ID, from List Joined Teams.",
+          "required": true
+        },
+        "channelId": {
+          "label": "Channel ID",
+          "description": "The channel ID, from List Channels.",
+          "required": true
+        },
+        "messageId": {
+          "label": "Message ID",
+          "description": "The top-level message ID, from List Channel Messages.",
+          "required": true
+        },
+        "replyId": {
+          "label": "Reply ID",
+          "description": "A reply ID under that message, from List Channel Message Replies. Leave empty to react to the message itself."
+        },
+        "reactionType": {
+          "label": "Reaction",
+          "description": "The reaction as a unicode emoji, for example 👍 or ❤️.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/teams/{{teamId}}/channels/{{channelId}}/messages/{{messageId}}",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        },
+        "body": {
+          "reactionType": "{{reactionType}}"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=raw(request.url)+(inputs.replyId?'/replies/'+p(inputs.replyId):'')+'/setReaction';return request;",
+      "afterResponse": "return {success:true,reactionType:inputs.reactionType};"
+    },
+    "microsoft_teams_unset_channel_message_reaction": {
+      "label": "Unset Channel Message Reaction",
+      "description": "Removes a reaction of the signed-in user from a channel message or reply.",
+      "audience": "ai",
+      "inputs": {
+        "teamId": {
+          "label": "Team ID",
+          "description": "The team ID, from List Joined Teams.",
+          "required": true
+        },
+        "channelId": {
+          "label": "Channel ID",
+          "description": "The channel ID, from List Channels.",
+          "required": true
+        },
+        "messageId": {
+          "label": "Message ID",
+          "description": "The top-level message ID, from List Channel Messages.",
+          "required": true
+        },
+        "replyId": {
+          "label": "Reply ID",
+          "description": "A reply ID under that message, from List Channel Message Replies. Leave empty for the message itself."
+        },
+        "reactionType": {
+          "label": "Reaction",
+          "description": "The reaction to remove, as a unicode emoji, for example 👍.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/teams/{{teamId}}/channels/{{channelId}}/messages/{{messageId}}",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        },
+        "body": {
+          "reactionType": "{{reactionType}}"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=raw(request.url)+(inputs.replyId?'/replies/'+p(inputs.replyId):'')+'/unsetReaction';return request;",
+      "afterResponse": "return {success:true,reactionType:inputs.reactionType};"
+    },
+    "microsoft_teams_add_chat_member": {
+      "label": "Add Chat Member",
+      "description": "Adds a user to a group chat.",
+      "audience": "ai",
+      "inputs": {
+        "chatId": {
+          "label": "Chat ID",
+          "description": "The chat ID, from List Chats.",
+          "required": true
+        },
+        "userId": {
+          "label": "User ID",
+          "description": "The user ID or user principal name, from List Users.",
+          "required": true
+        },
+        "role": {
+          "label": "Role",
+          "description": "owner for members and out-of-tenant external users, guest for in-tenant guest users. Defaults to owner.",
+          "type": "select",
+          "options": [
+            {
+              "value": "owner",
+              "label": "Owner"
+            },
+            {
+              "value": "guest",
+              "label": "Guest"
+            }
+          ],
+          "defaultValue": "owner"
+        },
+        "visibleHistoryStartDateTime": {
+          "label": "Share History From",
+          "description": "ISO 8601 timestamp; the new member sees messages from this time on. Use 0001-01-01T00:00:00Z for the whole history. Leave empty to share no history."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/chats/{{chatId}}/members",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nif(!['owner','guest'].includes(inputs.role||'owner'))throw new Error('Role must be one of: owner, guest.');\nrequest.body={'@odata.type':'#microsoft.graph.aadUserConversationMember','user@odata.bind':\"https://graph.microsoft.com/v1.0/users('\"+inputs.userId+\"')\",roles:[inputs.role||'owner'],...(inputs.visibleHistoryStartDateTime?{visibleHistoryStartDateTime:inputs.visibleHistoryStartDateTime}:{})};\nrequest.url=raw(request.url);return request;",
+      "afterResponse": "return {success:true};"
+    },
+    "microsoft_teams_get_chat_member": {
+      "label": "Get Chat Member",
+      "description": "Gets one membership of a chat by its membership ID.",
+      "audience": "ai",
+      "inputs": {
+        "chatId": {
+          "label": "Chat ID",
+          "description": "The chat ID, from List Chats.",
+          "required": true
+        },
+        "membershipId": {
+          "label": "Membership ID",
+          "description": "The membership ID (the id field), from List Chat Members.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/chats/{{chatId}}/members/{{membershipId}}",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=raw(request.url);return request;"
+    },
+    "microsoft_teams_get_chat": {
+      "label": "Get Chat",
+      "description": "Gets one chat by its ID.",
+      "audience": "ai",
+      "inputs": {
+        "chatId": {
+          "label": "Chat ID",
+          "description": "The chat ID, from List Chats.",
+          "required": true
+        },
+        "include": {
+          "label": "Include",
+          "description": "Extra data to include: the chat members or a preview of the last message. Leave empty for the chat only.",
+          "type": "select",
+          "options": [
+            {
+              "value": "members",
+              "label": "Members"
+            },
+            {
+              "value": "lastMessagePreview",
+              "label": "Last Message Preview"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/chats/{{chatId}}",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nif(inputs.include&&!['members','lastMessagePreview'].includes(inputs.include))throw new Error('Include must be one of: members, lastMessagePreview.');\nrequest.url=raw(request.url)+(inputs.include?'?$expand='+inputs.include:'');return request;"
+    },
+    "microsoft_teams_list_chat_members": {
+      "label": "List Chat Members",
+      "description": "Lists the members of a chat.",
+      "audience": "ai",
+      "inputs": {
+        "chatId": {
+          "label": "Chat ID",
+          "description": "The chat ID, from List Chats.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/chats/{{chatId}}/members",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=raw(request.url);return request;"
+    },
+    "microsoft_teams_list_chats": {
+      "label": "List Chats",
+      "description": "Lists the signed-in user's chats, one page at a time.",
+      "audience": "ai",
+      "inputs": {
+        "limit": {
+          "label": "Limit",
+          "description": "How many items to return on this page, 1 to 50. Defaults to 20.",
+          "type": "number",
+          "defaultValue": "20"
+        },
+        "nextLink": {
+          "label": "Next Page Link",
+          "description": "The @odata.nextLink from the previous page. Leave empty for the first page."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/chats",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nif(inputs.nextLink){if(!/^https:\\/\\/graph\\.microsoft\\.com(:443)?(?=[\\/?#]|$)/i.test(inputs.nextLink))throw new Error('Next Page Link must be an @odata.nextLink returned by a previous page (it starts with https://graph.microsoft.com/).');request.url=inputs.nextLink;return request;}\nconst s=['$top='+Math.min(Math.max(Math.trunc(Number(inputs.limit||20)),1),50)];\nrequest.url=raw(request.url)+'?'+s.join('&');return request;"
+    },
+    "microsoft_teams_list_pinned_chat_messages": {
+      "label": "List Pinned Chat Messages",
+      "description": "Lists the pinned messages of a chat.",
+      "audience": "ai",
+      "inputs": {
+        "chatId": {
+          "label": "Chat ID",
+          "description": "The chat ID, from List Chats.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/chats/{{chatId}}/pinnedMessages?$expand=message",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=raw(request.url);return request;"
+    },
+    "microsoft_teams_pin_chat_message": {
+      "label": "Pin Chat Message",
+      "description": "Pins a message in a chat.",
+      "audience": "ai",
+      "inputs": {
+        "chatId": {
+          "label": "Chat ID",
+          "description": "The chat ID, from List Chats.",
+          "required": true
+        },
+        "messageId": {
+          "label": "Message ID",
+          "description": "The message ID, from List Chat Messages.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/chats/{{chatId}}/pinnedMessages",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        },
+        "body": {
+          "message@odata.bind": "https://graph.microsoft.com/v1.0/chats/{{chatId}}/messages/{{messageId}}"
+        }
+      },
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=raw(request.url);return request;"
+    },
+    "microsoft_teams_unpin_chat_message": {
+      "label": "Unpin Chat Message",
+      "description": "Unpins a message in a chat.",
+      "audience": "ai",
+      "inputs": {
+        "chatId": {
+          "label": "Chat ID",
+          "description": "The chat ID, from List Chats.",
+          "required": true
+        },
+        "pinnedMessageId": {
+          "label": "Pinned Message ID",
+          "description": "The pinned message ID (the id field), from List Pinned Chat Messages or Pin Chat Message.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://graph.microsoft.com/v1.0/chats/{{chatId}}/pinnedMessages/{{pinnedMessageId}}",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=raw(request.url);return request;",
+      "afterResponse": "return {success:true};"
+    },
+    "microsoft_teams_update_chat": {
+      "label": "Update Chat",
+      "description": "Renames a group chat.",
+      "audience": "ai",
+      "inputs": {
+        "chatId": {
+          "label": "Chat ID",
+          "description": "The chat ID, from List Chats.",
+          "required": true
+        },
+        "topic": {
+          "label": "Topic",
+          "description": "The new chat title, at most 250 characters, no colons.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://graph.microsoft.com/v1.0/chats/{{chatId}}",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        },
+        "body": {
+          "topic": "{{topic}}"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=raw(request.url);return request;"
+    },
+    "microsoft_teams_get_chat_message_by_id": {
+      "label": "Get Chat Message by ID",
+      "description": "Gets one message in a chat by its ID.",
+      "audience": "ai",
+      "inputs": {
+        "chatId": {
+          "label": "Chat ID",
+          "description": "The chat ID, from List Chats.",
+          "required": true
+        },
+        "messageId": {
+          "label": "Message ID",
+          "description": "The message ID, from List Chat Messages or Post Chat Message.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/chats/{{chatId}}/messages/{{messageId}}",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=raw(request.url);return request;"
+    },
+    "microsoft_teams_list_chat_message_hosted_contents": {
+      "label": "List Chat Message Hosted Contents",
+      "description": "Lists the images and code snippets hosted inside a chat message.",
+      "audience": "ai",
+      "inputs": {
+        "chatId": {
+          "label": "Chat ID",
+          "description": "The chat ID, from List Chats.",
+          "required": true
+        },
+        "messageId": {
+          "label": "Message ID",
+          "description": "The message ID, from List Chat Messages or Get Chat Message by ID.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/chats/{{chatId}}/messages/{{messageId}}/hostedContents",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=raw(request.url);return request;"
+    },
+    "microsoft_teams_list_chat_messages": {
+      "label": "List Chat Messages",
+      "description": "Lists the messages in a chat, one page at a time.",
+      "audience": "ai",
+      "inputs": {
+        "chatId": {
+          "label": "Chat ID",
+          "description": "The chat ID, from List Chats.",
+          "required": true
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "How many items to return on this page, 1 to 50. Defaults to 20.",
+          "type": "number",
+          "defaultValue": "20"
+        },
+        "nextLink": {
+          "label": "Next Page Link",
+          "description": "The @odata.nextLink from the previous page. Leave empty for the first page."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/chats/{{chatId}}/messages",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nif(inputs.nextLink){if(!/^https:\\/\\/graph\\.microsoft\\.com(:443)?(?=[\\/?#]|$)/i.test(inputs.nextLink))throw new Error('Next Page Link must be an @odata.nextLink returned by a previous page (it starts with https://graph.microsoft.com/).');request.url=inputs.nextLink;return request;}\nconst s=['$top='+Math.min(Math.max(Math.trunc(Number(inputs.limit||20)),1),50)];\nrequest.url=raw(request.url)+'?'+s.join('&');return request;"
+    },
+    "microsoft_teams_post_chat_message": {
+      "label": "Post Chat Message",
+      "description": "Sends a message in an existing chat, optionally mentioning people.",
+      "audience": "ai",
+      "inputs": {
+        "chatId": {
+          "label": "Chat ID",
+          "description": "The chat ID, from List Chats.",
+          "required": true
+        },
+        "content": {
+          "label": "Content",
+          "description": "The message body, as plain text or HTML depending on Content Type.",
+          "required": true,
+          "type": "multiline"
+        },
+        "contentType": {
+          "label": "Content Type",
+          "description": "text or html. Must be html when Mentions is not empty.",
+          "required": true,
+          "type": "select",
+          "options": [
+            {
+              "value": "text",
+              "label": "Text"
+            },
+            {
+              "value": "html",
+              "label": "HTML"
+            }
+          ],
+          "defaultValue": "text"
+        },
+        "mentions": {
+          "label": "Mentions",
+          "description": "Users to @mention, as a JSON list of {\"userId\", \"displayName\"}. Item N must appear in Content as <at id=\"N\">displayName</at> (N starts at 0), and Content Type must be html.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/chats/{{chatId}}/messages",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nconst t=inputs.contentType,m=(inputs.mentions?JSON.parse(inputs.mentions):[]).map((c,u)=>{if(typeof c!=='object'||c===null||typeof c.userId!=='string'||typeof c.displayName!=='string'||!c.userId||!c.displayName)throw new Error('Mentions item '+u+' needs both a User ID and a Display Name.');return c;});\nif(!['text','html'].includes(t))throw new Error('Content Type must be one of: text, html.');\nif(m.length&&t!=='html')throw new Error('Mentions need Content Type html, with mention N written as <at id=\"N\">displayName</at> in Content.');\nconst missing=m.map((c,u)=>u).filter(u=>!inputs.content.includes('<at id=\"'+u+'\">'));if(missing.length)throw new Error('Content is missing the mention tag for Mentions index '+missing.join(', ')+'; write <at id=\"N\">displayName</at> for each mention N.');\nrequest.body={body:{content:inputs.content,contentType:t},...(inputs.subject?{subject:inputs.subject}:{}),...(m.length?{mentions:m.map((c,u)=>({id:u,mentionText:c.displayName,mentioned:{user:{id:c.userId,displayName:c.displayName,userIdentityType:'aadUser'}}}))}:{})};\nrequest.url=raw(request.url);return request;"
+    },
+    "microsoft_teams_set_chat_message_reaction": {
+      "label": "Set Chat Message Reaction",
+      "description": "Adds the signed-in user's reaction to a chat message.",
+      "audience": "ai",
+      "inputs": {
+        "chatId": {
+          "label": "Chat ID",
+          "description": "The chat ID, from List Chats.",
+          "required": true
+        },
+        "messageId": {
+          "label": "Message ID",
+          "description": "The message ID, from List Chat Messages or Post Chat Message.",
+          "required": true
+        },
+        "reactionType": {
+          "label": "Reaction",
+          "description": "The reaction as a unicode emoji, for example 👍, ❤️ or 😆.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/chats/{{chatId}}/messages/{{messageId}}/setReaction",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        },
+        "body": {
+          "reactionType": "{{reactionType}}"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=raw(request.url);return request;",
+      "afterResponse": "return {reactionSet:true,chatId:inputs.chatId,messageId:inputs.messageId,reactionType:inputs.reactionType};"
+    },
+    "microsoft_teams_unset_chat_message_reaction": {
+      "label": "Unset Chat Message Reaction",
+      "description": "Removes the signed-in user's reaction from a chat message.",
+      "audience": "ai",
+      "inputs": {
+        "chatId": {
+          "label": "Chat ID",
+          "description": "The chat ID, from List Chats.",
+          "required": true
+        },
+        "messageId": {
+          "label": "Message ID",
+          "description": "The message ID, from List Chat Messages or Post Chat Message.",
+          "required": true
+        },
+        "reactionType": {
+          "label": "Reaction",
+          "description": "The reaction as a unicode emoji, for example 👍, ❤️ or 😆.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/chats/{{chatId}}/messages/{{messageId}}/unsetReaction",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        },
+        "body": {
+          "reactionType": "{{reactionType}}"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=raw(request.url);return request;",
+      "afterResponse": "return {reactionRemoved:true,chatId:inputs.chatId,messageId:inputs.messageId,reactionType:inputs.reactionType};"
+    },
+    "microsoft_teams_update_chat_message": {
+      "label": "Update Chat Message",
+      "description": "Replaces the body of a chat message you sent.",
+      "audience": "ai",
+      "inputs": {
+        "chatId": {
+          "label": "Chat ID",
+          "description": "The chat ID, from List Chats.",
+          "required": true
+        },
+        "messageId": {
+          "label": "Message ID",
+          "description": "The ID of a message the signed-in user sent, from List Chat Messages or Post Chat Message.",
+          "required": true
+        },
+        "content": {
+          "label": "Content",
+          "description": "The new message body, replacing the old one, as plain text or HTML depending on Content Type.",
+          "required": true,
+          "type": "multiline"
+        },
+        "contentType": {
+          "label": "Content Type",
+          "description": "text or html.",
+          "required": true,
+          "type": "select",
+          "options": [
+            {
+              "value": "text",
+              "label": "Text"
+            },
+            {
+              "value": "html",
+              "label": "HTML"
+            }
+          ],
+          "defaultValue": "text"
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://graph.microsoft.com/v1.0/chats/{{chatId}}/messages/{{messageId}}",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nconst t=inputs.contentType,m=(inputs.mentions?JSON.parse(inputs.mentions):[]).map((c,u)=>{if(typeof c!=='object'||c===null||typeof c.userId!=='string'||typeof c.displayName!=='string'||!c.userId||!c.displayName)throw new Error('Mentions item '+u+' needs both a User ID and a Display Name.');return c;});\nif(!['text','html'].includes(t))throw new Error('Content Type must be one of: text, html.');\nif(m.length&&t!=='html')throw new Error('Mentions need Content Type html, with mention N written as <at id=\"N\">displayName</at> in Content.');\nconst missing=m.map((c,u)=>u).filter(u=>!inputs.content.includes('<at id=\"'+u+'\">'));if(missing.length)throw new Error('Content is missing the mention tag for Mentions index '+missing.join(', ')+'; write <at id=\"N\">displayName</at> for each mention N.');\nrequest.body={body:{content:inputs.content,contentType:t},...(inputs.subject?{subject:inputs.subject}:{}),...(m.length?{mentions:m.map((c,u)=>({id:u,mentionText:c.displayName,mentioned:{user:{id:c.userId,displayName:c.displayName,userIdentityType:'aadUser'}}}))}:{})};\nrequest.url=raw(request.url);return request;",
+      "afterResponse": "return {updated:true,chatId:inputs.chatId,messageId:inputs.messageId};"
+    },
+    "microsoft_teams_get_team_member": {
+      "label": "Get Team Member",
+      "description": "Gets one membership of a team by its membership ID.",
+      "audience": "ai",
+      "inputs": {
+        "teamId": {
+          "label": "Team ID",
+          "description": "The team ID, from List Joined Teams.",
+          "required": true
+        },
+        "membershipId": {
+          "label": "Membership ID",
+          "description": "The membership ID (the id field), from List Team Members.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/teams/{{teamId}}/members/{{membershipId}}",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=raw(request.url);return request;"
+    },
+    "microsoft_teams_list_team_members": {
+      "label": "List Team Members",
+      "description": "Lists the members of a team, optionally only those with an exact email or display name.",
+      "audience": "ai",
+      "inputs": {
+        "teamId": {
+          "label": "Team ID",
+          "description": "The team ID, from List Joined Teams.",
+          "required": true
+        },
+        "email": {
+          "label": "Email",
+          "description": "Only return the member with exactly this email address."
+        },
+        "displayName": {
+          "label": "Display Name",
+          "description": "Only return members with exactly this display name."
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "How many items to return on this page, 1 to 999. Defaults to 100.",
+          "type": "number",
+          "defaultValue": "100"
+        },
+        "nextLink": {
+          "label": "Next Page Link",
+          "description": "The @odata.nextLink from the previous page. Leave empty for the first page."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/teams/{{teamId}}/members",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "if(inputs.email&&inputs.displayName)throw new Error('Set either Email or Display Name, not both.');\nconst raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nif(inputs.nextLink){if(!/^https:\\/\\/graph\\.microsoft\\.com(:443)?(?=[\\/?#]|$)/i.test(inputs.nextLink))throw new Error('Next Page Link must be an @odata.nextLink returned by a previous page (it starts with https://graph.microsoft.com/).');request.url=inputs.nextLink;return request;}\nconst s=['$top='+Math.min(Math.max(Math.trunc(Number(inputs.limit||100)),1),999)];\nconst f=(k,v)=>\"microsoft.graph.aadUserConversationMember/\"+k+\" eq '\"+v.replace(/'/g,\"''\")+\"'\";\nif(inputs.email)s.push('$filter='+q(f('email',inputs.email)));else if(inputs.displayName)s.push('$filter='+q(f('displayName',inputs.displayName)));\nrequest.url=raw(request.url)+'?'+s.join('&');return request;"
+    },
+    "microsoft_teams_get_current_user": {
+      "label": "Get Current User",
+      "description": "Gets the profile of the signed-in user.",
+      "audience": "ai",
+      "inputs": {},
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      }
+    },
+    "microsoft_teams_get_teams_licensing_details": {
+      "label": "Get Teams Licensing Details",
+      "description": "Gets whether the signed-in user has a Teams license.",
+      "audience": "ai",
+      "inputs": {},
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/licenseDetails/getTeamsLicensingDetails",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      }
+    },
+    "microsoft_teams_get_user": {
+      "label": "Get User",
+      "description": "Gets a user by ID or user principal name.",
+      "audience": "ai",
+      "inputs": {
+        "userId": {
+          "label": "User ID",
+          "description": "The user ID or user principal name, from List Users.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/users/{{userId}}",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=raw(request.url);return request;"
+    },
+    "microsoft_teams_list_users": {
+      "label": "List Users",
+      "description": "Lists users in the organization, one page at a time.",
+      "audience": "ai",
+      "inputs": {
+        "filter": {
+          "label": "Filter",
+          "description": "An OData $filter on user properties, for example startswith(displayName,'Ann') or mail eq 'ann@contoso.com'."
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "How many items to return on this page, 1 to 999. Defaults to 100.",
+          "type": "number",
+          "defaultValue": "100"
+        },
+        "nextLink": {
+          "label": "Next Page Link",
+          "description": "The @odata.nextLink from the previous page. Leave empty for the first page."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/users",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nif(inputs.nextLink){if(!/^https:\\/\\/graph\\.microsoft\\.com(:443)?(?=[\\/?#]|$)/i.test(inputs.nextLink))throw new Error('Next Page Link must be an @odata.nextLink returned by a previous page (it starts with https://graph.microsoft.com/).');request.url=inputs.nextLink;return request;}\nconst s=['$top='+Math.min(Math.max(Math.trunc(Number(inputs.limit||100)),1),999)];\nif(inputs.filter)s.push('$filter='+q(inputs.filter));request.url=raw(request.url)+'?'+s.join('&');return request;"
+    },
+    "microsoft_teams_get_my_presence": {
+      "label": "Get My Presence",
+      "description": "Gets the signed-in user's Teams presence.",
+      "audience": "ai",
+      "inputs": {},
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/presence",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      }
+    },
+    "microsoft_teams_get_presences_by_user_ids": {
+      "label": "Get Presences by User IDs",
+      "description": "Gets the Teams presence of several users at once.",
+      "audience": "ai",
+      "inputs": {
+        "userIds": {
+          "label": "User IDs",
+          "description": "User IDs (GUIDs), from List Users or Get User, as a JSON list. At most 650.",
+          "required": true,
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/communications/getPresencesByUserId",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const ids=JSON.parse(inputs.userIds).map(o=>String(o));if(ids.length===0||ids.length>650)throw new Error('User IDs must contain between 1 and 650 IDs.');request.body={ids};return request;"
+    },
+    "microsoft_teams_get_user_presence": {
+      "label": "Get User Presence",
+      "description": "Gets a user's Teams presence.",
+      "audience": "ai",
+      "inputs": {
+        "userId": {
+          "label": "User ID",
+          "description": "The user ID (a GUID), from List Users or Get User.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/users/{{userId}}/presence",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=raw(request.url);return request;"
+    },
+    "microsoft_teams_get_meeting_recording_details": {
+      "label": "Get Meeting Recording Details",
+      "description": "Gets a meeting recording's details, without the video.",
+      "audience": "ai",
+      "inputs": {
+        "meetingId": {
+          "label": "Meeting ID",
+          "description": "The online meeting ID of a meeting the signed-in user organized (the long ID, not the numeric join ID or the join URL).",
+          "required": true
+        },
+        "recordingId": {
+          "label": "Recording ID",
+          "description": "The recording ID, from List Meeting Recordings.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/onlineMeetings/{{meetingId}}/recordings/{{recordingId}}",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=raw(request.url);return request;"
+    },
+    "microsoft_teams_get_meeting_transcript_details": {
+      "label": "Get Meeting Transcript Details",
+      "description": "Gets a meeting transcript's details, without its text.",
+      "audience": "ai",
+      "inputs": {
+        "meetingId": {
+          "label": "Meeting ID",
+          "description": "The online meeting ID of a meeting the signed-in user organized (the long ID, not the numeric join ID or the join URL).",
+          "required": true
+        },
+        "transcriptId": {
+          "label": "Transcript ID",
+          "description": "The transcript ID, from List Meeting Transcripts.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/onlineMeetings/{{meetingId}}/transcripts/{{transcriptId}}",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=raw(request.url);return request;"
+    },
+    "microsoft_teams_list_meeting_recordings": {
+      "label": "List Meeting Recordings",
+      "description": "Lists the recordings of an online meeting the signed-in user organized.",
+      "audience": "ai",
+      "inputs": {
+        "meetingId": {
+          "label": "Meeting ID",
+          "description": "The online meeting ID of a meeting the signed-in user organized (the long ID, not the numeric join ID or the join URL).",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/onlineMeetings/{{meetingId}}/recordings",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=raw(request.url);return request;"
+    },
+    "microsoft_teams_list_meeting_transcripts": {
+      "label": "List Meeting Transcripts",
+      "description": "Lists the transcripts of an online meeting the signed-in user organized.",
+      "audience": "ai",
+      "inputs": {
+        "meetingId": {
+          "label": "Meeting ID",
+          "description": "The online meeting ID of a meeting the signed-in user organized (the long ID, not the numeric join ID or the join URL).",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/onlineMeetings/{{meetingId}}/transcripts",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "const raw=u=>u.replace(/%3A/g,':').replace(/%40/g,'@'),p=v=>raw(encodeURIComponent(v)),q=v=>String(v).replace(/[^\\x21-\\x7e]|[\"'<>\\\\^`{|}\\[\\]]/gu,c=>c===\"'\"?'%27':encodeURIComponent(c)),H={SdkVersion:'graph-js/3.0.7 (featureUsage=7)'};\nrequest.url=raw(request.url);return request;"
+    },
+    "microsoft_teams_search_messages": {
+      "label": "Search Messages",
+      "description": "Searches the chat and channel messages the signed-in user can read.",
+      "audience": "ai",
+      "inputs": {
+        "query": {
+          "label": "Query",
+          "description": "Keywords to search for. Supports KQL, for example from:alex budget.",
+          "required": true
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "How many items to return on this page, 1 to 25. Defaults to 25.",
+          "type": "number",
+          "defaultValue": "25"
+        },
+        "offset": {
+          "label": "Offset",
+          "description": "How many results to skip, for the next page. Defaults to 0.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/search/query",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "beforeRequest": "request.body={requests:[{entityTypes:['chatMessage'],query:{queryString:inputs.query},from:inputs.offset?Number(inputs.offset):0,size:Math.min(Math.max(Math.trunc(Number(inputs.limit||25)),1),25)}]};return request;"
+    }
+  },
+  "triggers": {}
+}

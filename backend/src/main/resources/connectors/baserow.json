@@ -767,6 +767,242 @@
       },
       "beforeRequest": "const ids = JSON.parse(inputs.row_ids || '[]'); if (ids.length === 0) throw new Error('Row IDs must contain at least one ID.'); if (ids.length > 200) throw new Error(`Row IDs accepts at most 200 IDs per call; received ${ids.length}.`); const numbers = ids.map((id) => { const value = Number(id); if (!Number.isInteger(value) || value <= 0) throw new Error(`Row IDs contains an invalid ID: ${String(id)}.`); return value; }); request.query['table__' + inputs.table_id] = numbers.join(','); return request;",
       "afterResponse": "const names = response[String(inputs.table_id)] ?? {}; return {rows: Object.entries(names).map(([id, name]) => ({id: Number(id), name}))};"
+    },
+    "baserow_create_row": {
+      "label": "Create Row",
+      "description": "Creates a new row in a table.",
+      "audience": "human",
+      "inputs": {
+        "table_id": {
+          "label": "Table",
+          "description": "Only tables this connection can access are listed.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://{{credential.apiUrl}}/api/database/tables/all-tables/"
+            }
+          }
+        },
+        "table_fields": {
+          "label": "Table Fields",
+          "type": "json",
+          "required": true,
+          "description": "JSON object of field name to value, e.g. {\"Name\": \"Acme\", \"Status\": \"Active\"}."
+        },
+        "create_missing_select_options": {
+          "label": "Create Missing Select Options",
+          "type": "boolean",
+          "description": "Adds any select option the column does not have yet."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.apiUrl}}/api/database/fields/table/{{table_id}}/"
+      },
+      "afterResponse": "const format = (values, types, skipEmpty) => { const out = {}; for (const name of Object.keys(values)) { const value = values[name]; const blank = value == null || value === ''; if (skipEmpty && (blank || (Array.isArray(value) && value.length === 0))) continue; switch (types[name]) { case 'link_row': out[name] = Array.isArray(value) && value.length > 0 ? value.map(id => parseInt(id, 10)) : []; break; case 'multiple_collaborators': out[name] = Array.isArray(value) && value.length > 0 ? value.map(id => ({id: parseInt(id, 10)})) : []; break; case 'single_select': out[name] = blank || (Array.isArray(value) && value.length === 0) ? null : value; break; case 'multiple_select': out[name] = blank ? [] : value; break; default: out[name] = blank ? null : value; } } return out; };\nconst colors = ['blue', 'green', 'orange', 'red', 'purple', 'pink', 'cyan', 'yellow', 'gray'];\nconst ensureOptions = (fields, payload) => { for (const field of fields) { if (field.type !== 'single_select' && field.type !== 'multiple_select') continue; const value = payload[field.name]; if (value == null || value === '') continue; const existing = new Set(field.select_options.map(option => option.value)); const missing = [...new Set((Array.isArray(value) ? value : [value]).filter(item => typeof item === 'string' && item.length > 0 && !existing.has(item)))]; if (missing.length === 0) continue; try { call({method: 'PATCH', url: '/database/fields/' + field.id + '/', body: {select_options: [...field.select_options, ...missing.map((item, index) => ({value: item, color: colors[index % colors.length]}))]}}); } catch (e) {} } };\nconst fields = response; const types = {}; for (const field of fields) types[field.name] = field.type;\nconst values = format(JSON.parse(inputs.table_fields || '{}'), types, true);\nif (inputs.create_missing_select_options === 'true') ensureOptions(fields, values);\nreturn call({method: 'POST', url: '/database/rows/table/' + inputs.table_id + '/', query: {user_field_names: 'true'}, body: values});"
+    },
+    "baserow_update_row": {
+      "label": "Update Row",
+      "description": "Changes fields in an existing row.",
+      "audience": "human",
+      "inputs": {
+        "table_id": {
+          "label": "Table",
+          "description": "Only tables this connection can access are listed.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://{{credential.apiUrl}}/api/database/tables/all-tables/"
+            }
+          }
+        },
+        "row_id": {
+          "label": "Row",
+          "description": "Type to search the rows by any cell value.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://{{credential.apiUrl}}/api/database/rows/table/{{table_id}}/",
+              "query": {
+                "size": "200",
+                "user_field_names": "true"
+              }
+            },
+            "list": "$.results",
+            "label": "$.id"
+          }
+        },
+        "table_fields": {
+          "label": "Table Fields",
+          "type": "json",
+          "required": true,
+          "description": "JSON object of field name to value, e.g. {\"Name\": \"Acme\", \"Status\": \"Active\"}."
+        },
+        "create_missing_select_options": {
+          "label": "Create Missing Select Options",
+          "type": "boolean",
+          "description": "Adds any select option the column does not have yet."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.apiUrl}}/api/database/fields/table/{{table_id}}/"
+      },
+      "afterResponse": "const format = (values, types, skipEmpty) => { const out = {}; for (const name of Object.keys(values)) { const value = values[name]; const blank = value == null || value === ''; if (skipEmpty && (blank || (Array.isArray(value) && value.length === 0))) continue; switch (types[name]) { case 'link_row': out[name] = Array.isArray(value) && value.length > 0 ? value.map(id => parseInt(id, 10)) : []; break; case 'multiple_collaborators': out[name] = Array.isArray(value) && value.length > 0 ? value.map(id => ({id: parseInt(id, 10)})) : []; break; case 'single_select': out[name] = blank || (Array.isArray(value) && value.length === 0) ? null : value; break; case 'multiple_select': out[name] = blank ? [] : value; break; default: out[name] = blank ? null : value; } } return out; };\nconst colors = ['blue', 'green', 'orange', 'red', 'purple', 'pink', 'cyan', 'yellow', 'gray'];\nconst ensureOptions = (fields, payload) => { for (const field of fields) { if (field.type !== 'single_select' && field.type !== 'multiple_select') continue; const value = payload[field.name]; if (value == null || value === '') continue; const existing = new Set(field.select_options.map(option => option.value)); const missing = [...new Set((Array.isArray(value) ? value : [value]).filter(item => typeof item === 'string' && item.length > 0 && !existing.has(item)))]; if (missing.length === 0) continue; try { call({method: 'PATCH', url: '/database/fields/' + field.id + '/', body: {select_options: [...field.select_options, ...missing.map((item, index) => ({value: item, color: colors[index % colors.length]}))]}}); } catch (e) {} } };\nconst fields = response; const types = {}; for (const field of fields) types[field.name] = field.type;\nconst values = format(JSON.parse(inputs.table_fields || '{}'), types, true);\nif (inputs.create_missing_select_options === 'true') ensureOptions(fields, values);\nreturn call({method: 'PATCH', url: '/database/rows/table/' + inputs.table_id + '/' + inputs.row_id + '/', query: {user_field_names: 'true'}, body: values});"
+    },
+    "baserow_clean_row": {
+      "label": "Clean Row",
+      "description": "Clears the fields of a row that you leave empty.",
+      "audience": "human",
+      "inputs": {
+        "table_id": {
+          "label": "Table",
+          "description": "Only tables this connection can access are listed.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://{{credential.apiUrl}}/api/database/tables/all-tables/"
+            }
+          }
+        },
+        "row_id": {
+          "label": "Row",
+          "description": "Type to search the rows by any cell value.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://{{credential.apiUrl}}/api/database/rows/table/{{table_id}}/",
+              "query": {
+                "size": "200",
+                "user_field_names": "true"
+              }
+            },
+            "list": "$.results",
+            "label": "$.id"
+          }
+        },
+        "table_fields": {
+          "label": "Table Fields",
+          "type": "json",
+          "required": true,
+          "description": "JSON object of field name to value, e.g. {\"Name\": \"Acme\", \"Status\": \"Active\"}."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.apiUrl}}/api/database/fields/table/{{table_id}}/"
+      },
+      "afterResponse": "const format = (values, types, skipEmpty) => { const out = {}; for (const name of Object.keys(values)) { const value = values[name]; const blank = value == null || value === ''; if (skipEmpty && (blank || (Array.isArray(value) && value.length === 0))) continue; switch (types[name]) { case 'link_row': out[name] = Array.isArray(value) && value.length > 0 ? value.map(id => parseInt(id, 10)) : []; break; case 'multiple_collaborators': out[name] = Array.isArray(value) && value.length > 0 ? value.map(id => ({id: parseInt(id, 10)})) : []; break; case 'single_select': out[name] = blank || (Array.isArray(value) && value.length === 0) ? null : value; break; case 'multiple_select': out[name] = blank ? [] : value; break; default: out[name] = blank ? null : value; } } return out; };\nconst fields = response; const types = {}; for (const field of fields) types[field.name] = field.type;\nconst values = format(JSON.parse(inputs.table_fields || '{}'), types, false);\nreturn call({method: 'PATCH', url: '/database/rows/table/' + inputs.table_id + '/' + inputs.row_id + '/', query: {user_field_names: 'true'}, body: values});"
+    },
+    "baserow_upsert_row": {
+      "label": "Upsert Row",
+      "description": "Creates a new row or updates an existing one by matching a field value.",
+      "audience": "human",
+      "inputs": {
+        "table_id": {
+          "label": "Table",
+          "description": "Only tables this connection can access are listed.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://{{credential.apiUrl}}/api/database/tables/all-tables/"
+            }
+          }
+        },
+        "match_field": {
+          "label": "Match Field",
+          "description": "The column that identifies the row, such as an email.",
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://{{credential.apiUrl}}/api/database/fields/table/{{table_id}}/"
+            }
+          }
+        },
+        "match_value": {
+          "label": "Match Value",
+          "description": "The exact value to look for in the match field.",
+          "required": true
+        },
+        "table_fields": {
+          "label": "Table Fields",
+          "type": "json",
+          "required": true,
+          "description": "JSON object of field name to value, e.g. {\"Name\": \"Acme\", \"Status\": \"Active\"}."
+        },
+        "create_missing_select_options": {
+          "label": "Create Missing Select Options",
+          "type": "boolean",
+          "description": "Adds any select option the column does not have yet."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.apiUrl}}/api/database/fields/table/{{table_id}}/"
+      },
+      "afterResponse": "const format = (values, types, skipEmpty) => { const out = {}; for (const name of Object.keys(values)) { const value = values[name]; const blank = value == null || value === ''; if (skipEmpty && (blank || (Array.isArray(value) && value.length === 0))) continue; switch (types[name]) { case 'link_row': out[name] = Array.isArray(value) && value.length > 0 ? value.map(id => parseInt(id, 10)) : []; break; case 'multiple_collaborators': out[name] = Array.isArray(value) && value.length > 0 ? value.map(id => ({id: parseInt(id, 10)})) : []; break; case 'single_select': out[name] = blank || (Array.isArray(value) && value.length === 0) ? null : value; break; case 'multiple_select': out[name] = blank ? [] : value; break; default: out[name] = blank ? null : value; } } return out; };\nconst colors = ['blue', 'green', 'orange', 'red', 'purple', 'pink', 'cyan', 'yellow', 'gray'];\nconst ensureOptions = (fields, payload) => { for (const field of fields) { if (field.type !== 'single_select' && field.type !== 'multiple_select') continue; const value = payload[field.name]; if (value == null || value === '') continue; const existing = new Set(field.select_options.map(option => option.value)); const missing = [...new Set((Array.isArray(value) ? value : [value]).filter(item => typeof item === 'string' && item.length > 0 && !existing.has(item)))]; if (missing.length === 0) continue; try { call({method: 'PATCH', url: '/database/fields/' + field.id + '/', body: {select_options: [...field.select_options, ...missing.map((item, index) => ({value: item, color: colors[index % colors.length]}))]}}); } catch (e) {} } };\nconst fields = response; const types = {}; for (const field of fields) types[field.name] = field.type;\nconst rows = '/database/rows/table/' + inputs.table_id + '/';\nconst values = format(JSON.parse(inputs.table_fields || '{}'), types, true);\nconst key = /^\\d+$/.test(inputs.match_field) ? 'field_' + inputs.match_field : inputs.match_field;\nconst matchField = fields.find(field => field.id === parseInt(key.replace('field_', ''), 10));\nconst query = {user_field_names: 'true', size: '1'}; query['filter__' + key + '__equal'] = inputs.match_value;\nconst found = call({url: rows, query}).results;\nif (found.length > 0) { if (matchField) delete values[matchField.name]; if (inputs.create_missing_select_options === 'true') ensureOptions(fields, values); return {action: 'updated', row: call({method: 'PATCH', url: rows + found[0].id + '/', query: {user_field_names: 'true'}, body: values})}; }\nif (matchField) { const raw = inputs.match_value; let typed = raw; if (matchField.type === 'boolean') typed = ['true', '1', 'yes'].includes(raw.trim().toLowerCase()); else if (matchField.type === 'number' || matchField.type === 'rating') { typed = Number(raw); if (Number.isNaN(typed)) throw new Error('Match Value \"' + raw + '\" is not a valid number for the selected ' + matchField.type + ' field.'); } values[matchField.name] = typed; }\nif (inputs.create_missing_select_options === 'true') ensureOptions(fields, values);\nreturn {action: 'created', row: call({method: 'POST', url: rows, query: {user_field_names: 'true'}, body: values})};"
+    },
+    "baserow_find_row_ai": {
+      "label": "Find Row",
+      "description": "Finds the first row whose field equals a value.",
+      "audience": "ai",
+      "inputs": {
+        "table_id": {
+          "label": "Table ID",
+          "description": "The numeric Baserow table ID. Resolve it with List Tables.",
+          "type": "number",
+          "required": true
+        },
+        "field_name": {
+          "label": "Field Name",
+          "description": "Exact name of the field to match on. Resolve with Get Table Fields.",
+          "required": true
+        },
+        "value": {
+          "label": "Value",
+          "description": "The value the field must equal.",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://{{credential.apiUrl}}/api/database/fields/table/{{table_id}}/"
+      },
+      "afterResponse": "const field = response.find(item => item.name === inputs.field_name);\nif (!field) throw new Error('Field \"' + inputs.field_name + '\" was not found in table ' + inputs.table_id + '. Available fields: ' + response.map(item => item.name).join(', ') + '.');\nconst query = {size: '1'}; query['filter__field_' + field.id + '__equal'] = inputs.value; query.user_field_names = 'true';\nconst found = call({url: '/database/rows/table/' + inputs.table_id + '/', query});\nconst row = found.results[0] ?? null; return {found: row !== null, count: found.count, row};"
+    },
+    "baserow_upsert_row_ai": {
+      "label": "Upsert Row",
+      "description": "Updates the row matching a key field value, or creates it.",
+      "audience": "ai",
+      "inputs": {
+        "table_id": {
+          "label": "Table ID",
+          "description": "The numeric Baserow table ID. Resolve it with List Tables.",
+          "type": "number",
+          "required": true
+        },
+        "match_field": {
+          "label": "Match Field Name",
+          "description": "Exact name of the key field to match on. Must be a writable text, long text, number, rating, boolean, email, URL, phone number or single select field.",
+          "required": true
+        },
+        "match_value": {
+          "label": "Match Value",
+          "description": "The key value to look for. For a single select field, pass the option name, or its option ID when no option has that name.",
+          "required": true
+        },
+        "fields": {
+          "label": "Fields",
+          "type": "json",
+          "required": true,
+          "description": "JSON object of field name to value to write on the matched or new row. Formats match Create Row. The match field is not changed on an existing row."
+        },
+        "create_missing_select_options": {
+          "label": "Create Missing Select Options",
+          "type": "boolean",
+          "description": "Adds single/multiple select values that do not exist yet as new options before writing. Requires an Email & Password connection."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.apiUrl}}/api/database/fields/table/{{table_id}}/"
+      },
+      "beforeRequest": "if (inputs.create_missing_select_options === 'true') throw new Error('Creating missing select options edits the field and requires a Baserow connection that uses Email & Password. Turn the option off, or reconnect Baserow with Email & Password.');\nconst fields = JSON.parse(inputs.fields); if (typeof fields !== 'object' || fields === null || Array.isArray(fields)) throw new Error('Fields must be a JSON object.'); return request;",
+      "afterResponse": "const values = JSON.parse(inputs.fields); const name = inputs.match_field; const value = inputs.match_value; const rows = '/database/rows/table/' + inputs.table_id + '/';\nconst unmatchable = ['link_row', 'multiple_select', 'multiple_collaborators', 'file', 'rollup', 'lookup', 'count', 'last_modified_by', 'created_by', 'date', 'last_modified', 'created_on', 'duration', 'uuid', 'autonumber']; const matchable = item => !item.read_only && !unmatchable.includes(item.type);\nconst field = response.find(item => item.name === name);\nif (!field) throw new Error('Field \"' + name + '\" was not found in table ' + inputs.table_id + '. Available fields: ' + response.map(item => item.name).join(', ') + '.');\nif (!matchable(field)) throw new Error('Field \"' + name + '\" (' + field.type + (field.read_only ? ', read-only' : '') + ') cannot be used as a match field. Use a writable text, long text, number, rating, boolean, email, URL, phone number or single select field. Matchable fields: ' + response.filter(matchable).map(item => item.name).join(', ') + '.');\nconst option = field.type === 'single_select' ? (field.select_options.find(item => item.value === value) ?? field.select_options.find(item => String(item.id) === value.trim())) : undefined;\nlet filter = null; if (field.type !== 'single_select') { filter = {}; filter['filter__field_' + field.id + '__equal'] = value; } else if (option) { filter = {}; filter['filter__field_' + field.id + '__single_select_equal'] = String(option.id); }\nconst existing = filter ? call({url: rows, query: {size: '1', ...filter, user_field_names: 'true'}}).results[0] : undefined;\nif (existing) { const changes = Object.fromEntries(Object.entries(values).filter(([key]) => key !== field.name)); return {action: 'updated', row: call({method: 'PATCH', url: rows + existing.id + '/', query: {user_field_names: 'true'}, body: changes})}; }\nconst created = {...values}; created[field.name] = field.type !== 'single_select' ? value : (option ? option.id : value);\nreturn {action: 'created', row: call({method: 'POST', url: rows, query: {user_field_names: 'true'}, body: created})};"
     }
   }
 }

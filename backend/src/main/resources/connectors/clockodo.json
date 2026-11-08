@@ -175,6 +175,67 @@
       },
       "result": "$.entry"
     },
+    "list_entries": {
+      "label": "Get Entries",
+      "description": "Fetches entries from clockodo",
+      "audience": "both",
+      "inputs": {
+        "time_since": {
+          "label": "Start Date",
+          "required": true
+        },
+        "time_until": {
+          "label": "End Date",
+          "required": true
+        },
+        "user_id_filter": {
+          "label": "Customer ID Filter",
+          "description": "Filter entries by their user",
+          "type": "number"
+        },
+        "customer_id_filter": {
+          "label": "Customer ID Filter",
+          "description": "Filter entries by their customer",
+          "type": "number"
+        },
+        "project_id_filter": {
+          "label": "Project ID Filter",
+          "description": "Filter entries by their project",
+          "type": "number"
+        },
+        "service_id_filter": {
+          "label": "Service ID Filter",
+          "description": "Filter entries by their service",
+          "type": "number"
+        },
+        "billable_filter": {
+          "label": "Billable",
+          "description": "Only show entries that are billable",
+          "type": "boolean"
+        },
+        "billed_filter": {
+          "label": "Billed",
+          "description": "Only show entries that are already billed",
+          "type": "boolean"
+        },
+        "enhanced_list": {
+          "label": "Enhanced List",
+          "description": "Retrieves additional information about the entries",
+          "type": "boolean"
+        },
+        "page": {
+          "label": "Page",
+          "description": "Reads only the specified page",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://my.clockodo.com/api/v2/entries"
+      },
+      "beforeRequest": "const has = v => v !== undefined && v !== null && String(v) !== '';\nconst q = {};\nif (!has(inputs.page)) q.page = '1';\nq.time_since = String(inputs.time_since).replace(/\\.[0-9]{3}/, '');\nq.time_until = String(inputs.time_until).replace(/\\.[0-9]{3}/, '');\nif (has(inputs.page)) {\n  if (has(inputs.enhanced_list)) q.enhanced_list = String(inputs.enhanced_list);\n  q.page = String(inputs.page);\n}\nconst filter = {users_id: inputs.user_id_filter, customers_id: inputs.customer_id_filter, projects_id: inputs.project_id_filter, services_id: inputs.service_id_filter};\nObject.keys(filter).forEach(k => { if (has(filter[k])) q['filter[' + k + ']'] = String(filter[k]); });\nif (has(inputs.billable_filter) || has(inputs.billed_filter)) q['filter[billable]'] = String(inputs.billed_filter) === 'true' ? '2' : String(inputs.billable_filter) === 'true' ? '1' : '0';\nrequest.query = q;\nreturn request;",
+      "afterResponse": "const has = v => v !== undefined && v !== null && String(v) !== '';\nconst q = {};\nif (!has(inputs.page)) q.page = '1';\nq.time_since = String(inputs.time_since).replace(/\\.[0-9]{3}/, '');\nq.time_until = String(inputs.time_until).replace(/\\.[0-9]{3}/, '');\nif (has(inputs.page)) {\n  if (has(inputs.enhanced_list)) q.enhanced_list = String(inputs.enhanced_list);\n  q.page = String(inputs.page);\n}\nconst filter = {users_id: inputs.user_id_filter, customers_id: inputs.customer_id_filter, projects_id: inputs.project_id_filter, services_id: inputs.service_id_filter};\nObject.keys(filter).forEach(k => { if (has(filter[k])) q['filter[' + k + ']'] = String(filter[k]); });\nif (has(inputs.billable_filter) || has(inputs.billed_filter)) q['filter[billable]'] = String(inputs.billed_filter) === 'true' ? '2' : String(inputs.billable_filter) === 'true' ? '1' : '0';\nif (has(inputs.page)) return {pagination: response.paging, entries: response.entries};\nlet all = response.entries.slice();\nlet total = response.paging.count_pages;\nfor (let p = 2; p <= total; p++) {\n  q.page = String(p);\n  const next = call({method: 'GET', url: '/v2/entries', query: q});\n  total = next.paging.count_pages;\n  all = all.concat(next.entries);\n}\nreturn {entries: all};"
+    },
     "update_entry": {
       "label": "Update Entry",
       "description": "Updates an entry in clockodo",
@@ -409,6 +470,30 @@
       },
       "result": "$.customer"
     },
+    "list_customers": {
+      "label": "Get Customers",
+      "description": "Fetches customers from clockodo",
+      "audience": "both",
+      "inputs": {
+        "active_filter": {
+          "label": "Active Filter",
+          "description": "Filter customers by their active status",
+          "type": "boolean",
+          "defaultValue": "true"
+        },
+        "page": {
+          "label": "Page",
+          "description": "Reads only the specified page",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://my.clockodo.com/api/v2/customers"
+      },
+      "beforeRequest": "const has = v => v !== undefined && v !== null && String(v) !== '';\nconst q = {page: '1'};\nif (has(inputs.page)) q.page = String(inputs.page);\nif (has(inputs.active_filter)) q['filter[active]'] = String(inputs.active_filter);\nrequest.query = q;\nreturn request;",
+      "afterResponse": "const has = v => v !== undefined && v !== null && String(v) !== '';\nconst q = {page: '1'};\nif (has(inputs.page)) q.page = String(inputs.page);\nif (has(inputs.active_filter)) q['filter[active]'] = String(inputs.active_filter);\nif (has(inputs.page)) return {pagination: response.paging, customers: response.customers};\nlet all = response.customers.slice();\nlet total = response.paging.count_pages;\nfor (let p = 2; p <= total; p++) {\n  q.page = String(p);\n  const next = call({method: 'GET', url: '/v2/customers', query: q});\n  total = next.paging.count_pages;\n  all = all.concat(next.customers);\n}\nreturn {customers: all};"
+    },
     "update_customer": {
       "label": "Update Customer",
       "description": "Updates a customer in clockodo",
@@ -631,6 +716,35 @@
         "url": "https://my.clockodo.com/api/v2/projects/{{project_id}}"
       },
       "result": "$.project"
+    },
+    "list_projects": {
+      "label": "Get Projects",
+      "description": "Fetches projects from clockodo",
+      "audience": "both",
+      "inputs": {
+        "customer_id_filter": {
+          "label": "Customer ID Filter",
+          "description": "Filter projects by their customer",
+          "type": "number"
+        },
+        "active_filter": {
+          "label": "Active Filter",
+          "description": "Filter customers by their active status",
+          "type": "boolean",
+          "defaultValue": "true"
+        },
+        "page": {
+          "label": "Page",
+          "description": "Reads only the specified page",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://my.clockodo.com/api/v2/projects"
+      },
+      "beforeRequest": "const has = v => v !== undefined && v !== null && String(v) !== '';\nconst q = {page: '1'};\nif (has(inputs.page)) q.page = String(inputs.page);\nif (has(inputs.customer_id_filter)) q['filter[customers_id]'] = String(inputs.customer_id_filter);\nif (has(inputs.active_filter)) q['filter[active]'] = String(inputs.active_filter);\nrequest.query = q;\nreturn request;",
+      "afterResponse": "const has = v => v !== undefined && v !== null && String(v) !== '';\nconst q = {page: '1'};\nif (has(inputs.page)) q.page = String(inputs.page);\nif (has(inputs.customer_id_filter)) q['filter[customers_id]'] = String(inputs.customer_id_filter);\nif (has(inputs.active_filter)) q['filter[active]'] = String(inputs.active_filter);\nif (has(inputs.page)) return {pagination: response.paging, projects: response.projects};\nlet all = response.projects.slice();\nlet total = response.paging.count_pages;\nfor (let p = 2; p <= total; p++) {\n  q.page = String(p);\n  const next = call({method: 'GET', url: '/v2/projects', query: q});\n  total = next.paging.count_pages;\n  all = all.concat(next.projects);\n}\nreturn {projects: all};"
     },
     "update_project": {
       "label": "Update Project",
@@ -1507,6 +1621,36 @@
       },
       "beforeRequest": "['date_since', 'date_until'].forEach(k => { if (request.body[k]) request.body[k] = request.body[k].split('T', 2)[0]; }); [\"type\",\"status\"].forEach(k => { if (request.body[k] !== undefined) request.body[k] = Number(request.body[k]); }); request.body.count_days = inputs.half_days === 'true' ? 0.5 : 1; return request;",
       "result": "$.absence"
+    }
+  },
+  "triggers": {
+    "new_entry": {
+      "label": "New Entry",
+      "description": "Triggers when a new time entry is created",
+      "inputs": {},
+      "request": {
+        "method": "GET",
+        "url": "https://my.clockodo.com/api/v2/entries"
+      },
+      "beforeRequest": "const year = new Date().getFullYear();\nrequest.query = {time_since: (year - 1) + '-01-01T00:00:00Z', time_until: (year + 1) + '-12-31T23:59:59Z'};\nreturn request;",
+      "afterResponse": "let res = response;\nif (res.paging && res.paging.count_pages > 1) {\n  const year = new Date().getFullYear();\n  res = call({method: 'GET', url: '/v2/entries', query: {time_since: (year - 1) + '-01-01T00:00:00Z', time_until: (year + 1) + '-12-31T23:59:59Z', page: String(res.paging.count_pages)}});\n}\nreturn (res.entries || []).slice().sort((a, b) => b.id - a.id);",
+      "items": "$",
+      "newBy": "lastItem",
+      "key": "$.id"
+    },
+    "new_absence_enquiry": {
+      "label": "New Absence Enquiry",
+      "description": "Triggers when a new absence enquiry is created",
+      "inputs": {},
+      "request": {
+        "method": "GET",
+        "url": "https://my.clockodo.com/api/absences"
+      },
+      "beforeRequest": "request.query = {year: String(new Date().getFullYear())};\nreturn request;",
+      "afterResponse": "return (response.absences || []).slice().sort((a, b) => b.id - a.id);",
+      "items": "$",
+      "newBy": "lastItem",
+      "key": "$.id"
     }
   }
 }

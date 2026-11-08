@@ -1,0 +1,1814 @@
+{
+ "name": "discord",
+ "label": "Discord",
+ "description": "Instant messaging and VoIP social platform",
+ "icon": "",
+ "hosts": [
+  "discord.com"
+ ],
+ "baseUrl": "https://discord.com/api/v9",
+ "upstream": {
+  "package": "@activepieces/piece-discord",
+  "version": "0.8.5"
+ },
+ "credential": {
+  "fields": {
+   "token": {
+    "label": "Bot Token",
+    "description": "Create a bot at https://discord.com/developers/applications: in Bot, click Reset Token and copy it, and enable Server Members Intent and Message Content Intent. In OAuth2, URL Generator, pick the bot scope and the permissions you need, then open the URL to add the bot to your server.",
+    "secret": true,
+    "required": true
+   }
+  },
+  "headers": {
+   "Authorization": "Bot {{credential.token}}"
+  }
+ },
+ "actions": {
+  "add_role_to_member": {
+   "label": "Add Role to Member",
+   "description": "Give a member of a server a role.",
+   "audience": "human",
+   "inputs": {
+    "guild_id": {
+     "label": "Server",
+     "optionsFrom": {
+      "request": {
+       "method": "GET",
+       "url": "https://discord.com/api/v9/users/@me/guilds"
+      },
+      "list": "$",
+      "label": "$.name",
+      "value": "$.id"
+     },
+     "description": "Only servers the bot has been added to are listed.",
+     "required": true
+    },
+    "user_id": {
+     "label": "User ID",
+     "description": "Right-click the member and choose Copy User ID in Developer Mode.",
+     "required": true
+    },
+    "role_id": {
+     "label": "Role",
+     "optionsFrom": {
+      "request": {
+       "method": "GET",
+       "url": "https://discord.com/api/v9/guilds/{{guild_id}}/roles"
+      },
+      "list": "$",
+      "label": "$.name",
+      "value": "$.id"
+     },
+     "description": "Roles of the selected server.",
+     "required": true
+    }
+   },
+   "request": {
+    "method": "PUT",
+    "url": "https://discord.com/api/v9/guilds/{{guild_id}}/members/{{user_id}}/roles/{{role_id}}"
+   },
+   "afterResponse": "return {success: response == null || (typeof response === 'object' && Object.keys(response).length === 0)};"
+  },
+  "remove_role_from_member": {
+   "label": "Remove Role from Member",
+   "description": "Take a role away from a member of a server.",
+   "audience": "human",
+   "inputs": {
+    "guild_id": {
+     "label": "Server",
+     "optionsFrom": {
+      "request": {
+       "method": "GET",
+       "url": "https://discord.com/api/v9/users/@me/guilds"
+      },
+      "list": "$",
+      "label": "$.name",
+      "value": "$.id"
+     },
+     "description": "Only servers the bot has been added to are listed.",
+     "required": true
+    },
+    "user_id": {
+     "label": "User ID",
+     "description": "Right-click the member and choose Copy User ID in Developer Mode.",
+     "required": true
+    },
+    "role_id": {
+     "label": "Role",
+     "optionsFrom": {
+      "request": {
+       "method": "GET",
+       "url": "https://discord.com/api/v9/guilds/{{guild_id}}/roles"
+      },
+      "list": "$",
+      "label": "$.name",
+      "value": "$.id"
+     },
+     "description": "Roles of the selected server.",
+     "required": true
+    }
+   },
+   "request": {
+    "method": "DELETE",
+    "url": "https://discord.com/api/v9/guilds/{{guild_id}}/members/{{user_id}}/roles/{{role_id}}"
+   },
+   "afterResponse": "return {success: response == null || (typeof response === 'object' && Object.keys(response).length === 0)};"
+  },
+  "remove_member_from_guild": {
+   "label": "Remove Member from Server",
+   "description": "Kick a member; they can rejoin with an invite.",
+   "audience": "both",
+   "inputs": {
+    "guild_id": {
+     "label": "Server",
+     "optionsFrom": {
+      "request": {
+       "method": "GET",
+       "url": "https://discord.com/api/v9/users/@me/guilds"
+      },
+      "list": "$",
+      "label": "$.name",
+      "value": "$.id"
+     },
+     "description": "Only servers the bot has been added to are listed.",
+     "required": true
+    },
+    "user_id": {
+     "label": "User ID",
+     "description": "Right-click the member and choose Copy User ID in Developer Mode.",
+     "required": true
+    }
+   },
+   "request": {
+    "method": "DELETE",
+    "url": "https://discord.com/api/v9/guilds/{{guild_id}}/members/{{user_id}}"
+   },
+   "afterResponse": "return {success: response == null || (typeof response === 'object' && Object.keys(response).length === 0)};"
+  },
+  "list_guild_members": {
+   "label": "List Members",
+   "description": "List server members, optionally filtered by name.",
+   "audience": "human",
+   "inputs": {
+    "guild_id": {
+     "label": "Server",
+     "optionsFrom": {
+      "request": {
+       "method": "GET",
+       "url": "https://discord.com/api/v9/users/@me/guilds"
+      },
+      "list": "$",
+      "label": "$.name",
+      "value": "$.id"
+     },
+     "description": "Only servers the bot has been added to are listed.",
+     "required": true
+    },
+    "shortText": {
+     "label": "Search",
+     "description": "Only members whose username or nickname contains this text."
+    }
+   },
+   "request": {
+    "method": "GET",
+    "url": "https://discord.com/api/v9/guilds/{{guild_id}}/members",
+    "query": {
+     "limit": "1000"
+    }
+   },
+   "afterResponse": "let page = response, members = [];\nwhile (true) {\n  members = members.concat(page);\n  if (page.length !== 1000) break;\n  page = call({method: 'GET', url: '/guilds/' + encodeURIComponent(inputs.guild_id) + '/members', query: {limit: '1000', after: page[page.length - 1].user.id}});\n}\nconst search = inputs.shortText.trim().toLowerCase();\nconst matching = search ? members.filter(m => [m.user.username, m.user.global_name, m.nick].some(v => typeof v === 'string' && v.toLowerCase().includes(search))) : members;\nif (matching.length === 0) return {disabled: true, options: [], placeholder: 'No members found'};\nreturn {options: matching.map(m => ({value: m.user.id, label: m.user.username}))};"
+  },
+  "rename_channel": {
+   "label": "Rename Channel",
+   "description": "Give a channel a new name.",
+   "audience": "human",
+   "inputs": {
+    "channel_id": {
+     "label": "Channel",
+     "description": "The channel ID. Right-click the channel and choose Copy Channel ID in Developer Mode.",
+     "required": true
+    },
+    "name": {
+     "label": "Name",
+     "description": "Discord lowercases the name and turns spaces into dashes.",
+     "required": true
+    }
+   },
+   "request": {
+    "method": "PATCH",
+    "url": "https://discord.com/api/v9/channels/{{channel_id}}",
+    "body": {
+     "name": "{{name}}"
+    }
+   },
+   "afterResponse": "return {success: true};"
+  },
+  "create_channel": {
+   "label": "Create Channel",
+   "description": "Create a text channel in a server.",
+   "audience": "human",
+   "inputs": {
+    "guild_id": {
+     "label": "Server",
+     "optionsFrom": {
+      "request": {
+       "method": "GET",
+       "url": "https://discord.com/api/v9/users/@me/guilds"
+      },
+      "list": "$",
+      "label": "$.name",
+      "value": "$.id"
+     },
+     "description": "Only servers the bot has been added to are listed.",
+     "required": true
+    },
+    "name": {
+     "label": "Name",
+     "description": "Discord lowercases the name and turns spaces into dashes.",
+     "required": true
+    },
+    "topic": {
+     "label": "Topic",
+     "description": "Shown at the top of the channel.",
+     "type": "multiline"
+    }
+   },
+   "request": {
+    "method": "POST",
+    "url": "https://discord.com/api/v9/guilds/{{guild_id}}/channels",
+    "body": {
+     "name": "{{name}}",
+     "topic": "{{topic}}"
+    }
+   },
+   "afterResponse": "return {success: true, channel: {id: response.id, name: response.name}};"
+  },
+  "delete_channel": {
+   "label": "Delete Channel",
+   "description": "Permanently delete a channel and all of its messages.",
+   "audience": "human",
+   "inputs": {
+    "channel_id": {
+     "label": "Channel",
+     "description": "The channel ID. Right-click the channel and choose Copy Channel ID in Developer Mode.",
+     "required": true
+    }
+   },
+   "request": {
+    "method": "DELETE",
+    "url": "https://discord.com/api/v9/channels/{{channel_id}}"
+   }
+  },
+  "find_channel": {
+   "label": "Find Channel",
+   "description": "Look up a channel in a server by its exact name. The bot needs the View Channel permission on the channel to find it.",
+   "audience": "human",
+   "inputs": {
+    "guild_id": {
+     "label": "Server",
+     "optionsFrom": {
+      "request": {
+       "method": "GET",
+       "url": "https://discord.com/api/v9/users/@me/guilds"
+      },
+      "list": "$",
+      "label": "$.name",
+      "value": "$.id"
+     },
+     "description": "Only servers the bot has been added to are listed.",
+     "required": true
+    },
+    "name": {
+     "label": "Name",
+     "description": "Exact name without the leading #, case-sensitive.",
+     "required": true
+    }
+   },
+   "request": {
+    "method": "GET",
+    "url": "https://discord.com/api/v9/guilds/{{guild_id}}/channels"
+   },
+   "afterResponse": "const channel = response.find(c => c.name === inputs.name);\nreturn {success: !!channel, channel_id: channel ? channel.id : undefined, message: channel ? null : 'No channel named \"' + inputs.name + '\" was found. Either it does not exist, or the bot lacks the View Channel permission on it (Discord hides those channels from the bot). Check the name, or grant the bot\\'s role View Channel on that channel.'};"
+  },
+  "createGuildRole": {
+   "label": "Create Role",
+   "description": "Create a role in a server.",
+   "audience": "human",
+   "inputs": {
+    "guild_id": {
+     "label": "Server",
+     "optionsFrom": {
+      "request": {
+       "method": "GET",
+       "url": "https://discord.com/api/v9/users/@me/guilds"
+      },
+      "list": "$",
+      "label": "$.name",
+      "value": "$.id"
+     },
+     "description": "Only servers the bot has been added to are listed.",
+     "required": true
+    },
+    "role_name": {
+     "label": "Name",
+     "required": true
+    },
+    "role_color": {
+     "label": "Color",
+     "description": "Hex like #5865F2 or a decimal RGB number."
+    },
+    "display_separated": {
+     "label": "Show Separately",
+     "description": "Lists members with this role in their own sidebar group.",
+     "type": "boolean"
+    },
+    "role_mentionable": {
+     "label": "Mentionable",
+     "description": "Lets anyone @mention this role.",
+     "type": "boolean"
+    },
+    "creation_reason": {
+     "label": "Reason",
+     "description": "Recorded in the server audit log."
+    }
+   },
+   "request": {
+    "method": "POST",
+    "url": "https://discord.com/api/v9/guilds/{{guild_id}}/roles",
+    "headers": {
+     "X-Audit-Log-Reason": "{{creation_reason}}"
+    },
+    "body": {
+     "name": "{{role_name}}",
+     "hoist": "{{display_separated}}",
+     "mentionable": "{{role_mentionable}}"
+    }
+   },
+   "beforeRequest": "const color = inputs.role_color.trim();\nif (color) {\n  const hex = color.startsWith('#') ? color.slice(1) : color;\n  if (/^\\d+$/.test(color)) {\n    if (Number(color) > 16777215) throw new Error('Color must be between 0 and 16777215, received \"' + color + '\".');\n    request.body.color = Number(color);\n  } else if (/^[0-9a-fA-F]{6}$/.test(hex)) request.body.color = parseInt(hex, 16);\n  else throw new Error('Color must be a hex value like #5865F2 or a decimal RGB number, received \"' + color + '\".');\n}\nif (!inputs.creation_reason) { delete request.headers['X-Audit-Log-Reason']; }\nreturn request;",
+   "afterResponse": "return {success: true, role: {id: response.id, name: response.name}};"
+  },
+  "deleteGuildRole": {
+   "label": "Delete Role",
+   "description": "Delete a role from a server.",
+   "audience": "human",
+   "inputs": {
+    "guild_id": {
+     "label": "Server",
+     "optionsFrom": {
+      "request": {
+       "method": "GET",
+       "url": "https://discord.com/api/v9/users/@me/guilds"
+      },
+      "list": "$",
+      "label": "$.name",
+      "value": "$.id"
+     },
+     "description": "Only servers the bot has been added to are listed.",
+     "required": true
+    },
+    "role_id": {
+     "label": "Role",
+     "optionsFrom": {
+      "request": {
+       "method": "GET",
+       "url": "https://discord.com/api/v9/guilds/{{guild_id}}/roles"
+      },
+      "list": "$",
+      "label": "$.name",
+      "value": "$.id"
+     },
+     "description": "Roles of the selected server.",
+     "required": true
+    },
+    "deletion_reason": {
+     "label": "Reason",
+     "description": "Recorded in the server audit log."
+    }
+   },
+   "request": {
+    "method": "DELETE",
+    "url": "https://discord.com/api/v9/guilds/{{guild_id}}/roles/{{role_id}}",
+    "headers": {
+     "X-Audit-Log-Reason": "{{deletion_reason}}"
+    }
+   },
+   "beforeRequest": "if (!inputs.deletion_reason) { delete request.headers['X-Audit-Log-Reason']; }\nreturn request;",
+   "afterResponse": "return {success: response == null || (typeof response === 'object' && Object.keys(response).length === 0)};"
+  },
+  "ban_guild_member": {
+   "label": "Ban Member",
+   "description": "Ban a user from a server so they cannot rejoin.",
+   "audience": "both",
+   "inputs": {
+    "guild_id": {
+     "label": "Server",
+     "optionsFrom": {
+      "request": {
+       "method": "GET",
+       "url": "https://discord.com/api/v9/users/@me/guilds"
+      },
+      "list": "$",
+      "label": "$.name",
+      "value": "$.id"
+     },
+     "description": "Only servers the bot has been added to are listed.",
+     "required": true
+    },
+    "user_id": {
+     "label": "User ID",
+     "description": "Right-click the member and choose Copy User ID in Developer Mode.",
+     "required": true
+    },
+    "ban_reason": {
+     "label": "Reason",
+     "description": "Recorded in the server audit log."
+    }
+   },
+   "request": {
+    "method": "PUT",
+    "url": "https://discord.com/api/v9/guilds/{{guild_id}}/bans/{{user_id}}",
+    "headers": {
+     "X-Audit-Log-Reason": "{{ban_reason}}"
+    },
+    "body": {
+     "reason": "{{ban_reason}}"
+    }
+   },
+   "beforeRequest": "if (!inputs.ban_reason) { delete request.headers['X-Audit-Log-Reason']; request.body = null; }\nreturn request;",
+   "afterResponse": "return {success: response == null || (typeof response === 'object' && Object.keys(response).length === 0)};"
+  },
+  "discord_send_message": {
+   "label": "Send Message",
+   "description": "Post a message to a Discord channel or thread.",
+   "audience": "ai",
+   "inputs": {
+    "channel_id": {
+     "label": "Channel ID",
+     "description": "The numeric Discord channel or thread ID (e.g. \"1080123456789012345\"). Resolve a name to an ID with Find Channel or List Channels.",
+     "required": true
+    },
+    "content": {
+     "label": "Message",
+     "description": "The text content of the message. Up to 2000 characters.",
+     "type": "multiline"
+    }
+   },
+   "request": {
+    "method": "POST",
+    "url": "https://discord.com/api/v10/channels/{{channel_id}}/messages",
+    "body": {
+     "content": "{{content}}"
+    }
+   },
+   "beforeRequest": "if (inputs.content === '') throw new Error('Provide message content or at least one attachment — Discord rejects an empty message.');\nreturn request;"
+  },
+  "discord_create_channel": {
+   "label": "Create Channel",
+   "description": "Create a new channel in a guild.",
+   "audience": "ai",
+   "inputs": {
+    "guild_id": {
+     "label": "Guild ID",
+     "description": "The numeric guild (server) ID (e.g. \"974519864045756446\"). Find it in Discord server settings or via Get Guild / List ... actions.",
+     "required": true
+    },
+    "name": {
+     "label": "Name",
+     "description": "The name of the new channel (e.g. \"support\").",
+     "required": true
+    },
+    "topic": {
+     "label": "Topic",
+     "description": "Optional channel topic / description.",
+     "type": "multiline"
+    }
+   },
+   "request": {
+    "method": "POST",
+    "url": "https://discord.com/api/v9/guilds/{{guild_id}}/channels",
+    "body": {
+     "name": "{{name}}",
+     "topic": "{{topic}}"
+    }
+   },
+   "afterResponse": "return {success: true, channel: {id: response.id, name: response.name}};"
+  },
+  "discord_delete_channel": {
+   "label": "Delete Channel",
+   "description": "Permanently delete a channel by ID.",
+   "audience": "ai",
+   "inputs": {
+    "channel_id": {
+     "label": "Channel ID",
+     "description": "The numeric channel ID to delete (e.g. \"1080123456789012345\"). Resolve a name with Find Channel or List Channels.",
+     "required": true
+    }
+   },
+   "request": {
+    "method": "DELETE",
+    "url": "https://discord.com/api/v9/channels/{{channel_id}}"
+   }
+  },
+  "discord_rename_channel": {
+   "label": "Rename Channel",
+   "description": "Change the name of an existing channel.",
+   "audience": "ai",
+   "inputs": {
+    "channel_id": {
+     "label": "Channel ID",
+     "description": "The numeric channel ID to rename (e.g. \"1080123456789012345\"). Resolve a name with Find Channel or List Channels.",
+     "required": true
+    },
+    "name": {
+     "label": "New Name",
+     "description": "The new channel name.",
+     "required": true
+    }
+   },
+   "request": {
+    "method": "PATCH",
+    "url": "https://discord.com/api/v9/channels/{{channel_id}}",
+    "body": {
+     "name": "{{name}}"
+    }
+   },
+   "afterResponse": "return {success: true};"
+  },
+  "discord_find_channel": {
+   "label": "Find Channel",
+   "description": "Resolve a channel name to its ID within a guild.",
+   "audience": "ai",
+   "inputs": {
+    "guild_id": {
+     "label": "Guild ID",
+     "description": "The numeric guild (server) ID (e.g. \"974519864045756446\").",
+     "required": true
+    },
+    "name": {
+     "label": "Channel Name",
+     "description": "The exact channel name to find (e.g. \"general\").",
+     "required": true
+    }
+   },
+   "request": {
+    "method": "GET",
+    "url": "https://discord.com/api/v9/guilds/{{guild_id}}/channels"
+   },
+   "afterResponse": "const channel = response.find(c => c.name === inputs.name);\nreturn {found: !!channel, channel_id: channel ? channel.id : undefined, name: channel ? channel.name : undefined, message: channel ? null : 'No channel named \"' + inputs.name + '\" was found. Either it does not exist, or the bot lacks the View Channel permission on it (Discord hides those channels from the bot). Check the name, or grant the bot\\'s role View Channel on that channel.'};"
+  },
+  "discord_add_role": {
+   "label": "Add Role to Member",
+   "description": "Assign a role to a guild member.",
+   "audience": "ai",
+   "inputs": {
+    "guild_id": {
+     "label": "Guild ID",
+     "description": "The numeric guild (server) ID.",
+     "required": true
+    },
+    "user_id": {
+     "label": "User ID",
+     "description": "The numeric user ID of the member. Resolve from a username with Find Member.",
+     "required": true
+    },
+    "role_id": {
+     "label": "Role ID",
+     "description": "The numeric role ID. Resolve from a name with List Roles.",
+     "required": true
+    }
+   },
+   "request": {
+    "method": "PUT",
+    "url": "https://discord.com/api/v9/guilds/{{guild_id}}/members/{{user_id}}/roles/{{role_id}}"
+   },
+   "afterResponse": "return {success: response == null || (typeof response === 'object' && Object.keys(response).length === 0)};"
+  },
+  "discord_remove_role": {
+   "label": "Remove Role from Member",
+   "description": "Remove a role from a guild member.",
+   "audience": "ai",
+   "inputs": {
+    "guild_id": {
+     "label": "Guild ID",
+     "description": "The numeric guild (server) ID.",
+     "required": true
+    },
+    "user_id": {
+     "label": "User ID",
+     "description": "The numeric user ID of the member. Resolve from a username with Find Member.",
+     "required": true
+    },
+    "role_id": {
+     "label": "Role ID",
+     "description": "The numeric role ID. Resolve from a name with List Roles.",
+     "required": true
+    }
+   },
+   "request": {
+    "method": "DELETE",
+    "url": "https://discord.com/api/v9/guilds/{{guild_id}}/members/{{user_id}}/roles/{{role_id}}"
+   },
+   "afterResponse": "return {success: response == null || (typeof response === 'object' && Object.keys(response).length === 0)};"
+  },
+  "discord_create_role": {
+   "label": "Create Role",
+   "description": "Create a new role in a guild.",
+   "audience": "ai",
+   "inputs": {
+    "guild_id": {
+     "label": "Guild ID",
+     "description": "The numeric guild (server) ID.",
+     "required": true
+    },
+    "name": {
+     "label": "Role Name",
+     "description": "The name of the new role.",
+     "required": true
+    },
+    "color": {
+     "label": "Color",
+     "description": "Optional role color as an integer RGB value (e.g. 3447003 for blue). Omit for the default color.",
+     "type": "number"
+    },
+    "hoist": {
+     "label": "Display Separately",
+     "description": "Whether members with this role show separately in the sidebar.",
+     "type": "boolean"
+    },
+    "mentionable": {
+     "label": "Mentionable",
+     "description": "Whether the role can be mentioned by other members.",
+     "type": "boolean"
+    },
+    "reason": {
+     "label": "Reason",
+     "description": "Optional audit-log reason."
+    }
+   },
+   "request": {
+    "method": "POST",
+    "url": "https://discord.com/api/v9/guilds/{{guild_id}}/roles",
+    "headers": {
+     "X-Audit-Log-Reason": "{{reason}}"
+    },
+    "body": {
+     "name": "{{name}}",
+     "color": "{{color}}",
+     "hoist": "{{hoist}}",
+     "mentionable": "{{mentionable}}"
+    }
+   },
+   "afterResponse": "return {success: true, role: {id: response.id, name: response.name}};"
+  },
+  "discord_delete_role": {
+   "label": "Delete Role",
+   "description": "Permanently delete a role from a guild.",
+   "audience": "ai",
+   "inputs": {
+    "guild_id": {
+     "label": "Guild ID",
+     "description": "The numeric guild (server) ID.",
+     "required": true
+    },
+    "role_id": {
+     "label": "Role ID",
+     "description": "The numeric role ID to delete. Resolve from a name with List Roles.",
+     "required": true
+    },
+    "reason": {
+     "label": "Reason",
+     "description": "Optional audit-log reason."
+    }
+   },
+   "request": {
+    "method": "DELETE",
+    "url": "https://discord.com/api/v9/guilds/{{guild_id}}/roles/{{role_id}}",
+    "headers": {
+     "X-Audit-Log-Reason": "{{reason}}"
+    }
+   },
+   "afterResponse": "return {success: response == null || (typeof response === 'object' && Object.keys(response).length === 0)};"
+  },
+  "discord_find_member": {
+   "label": "Find Member",
+   "description": "Search guild members by username/nickname prefix.",
+   "audience": "ai",
+   "inputs": {
+    "guild_id": {
+     "label": "Guild ID",
+     "description": "The numeric guild (server) ID.",
+     "required": true
+    },
+    "query": {
+     "label": "Query",
+     "description": "Username or nickname prefix to match (e.g. \"jane\"). Matched against the start of the name.",
+     "required": true
+    },
+    "limit": {
+     "label": "Limit",
+     "description": "Max members to return, 1-1000. Defaults to 10.",
+     "type": "number",
+     "defaultValue": "10"
+    }
+   },
+   "request": {
+    "method": "GET",
+    "url": "https://discord.com/api/v9/guilds/{{guild_id}}/members/search"
+   },
+   "beforeRequest": "const form = v => encodeURIComponent(v).replace(/[!'()~]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nrequest.url += '?query=' + form(inputs.query) + '&limit=' + form(String(inputs.limit === '' ? 10 : Number(inputs.limit)));\nreturn request;",
+   "afterResponse": "const members = (response || []).map(m => ({user_id: m.user?.id, username: m.user?.username, global_name: m.user?.global_name ?? null, nick: m.nick ?? null, joined_at: m.joined_at ?? null, roles: m.roles ?? []}));\nreturn {members, count: members.length};"
+  },
+  "discord_list_messages": {
+   "label": "List Messages",
+   "description": "Read recent messages from a channel.",
+   "audience": "ai",
+   "inputs": {
+    "channel_id": {
+     "label": "Channel ID",
+     "description": "The numeric channel ID. Resolve a name with Find Channel.",
+     "required": true
+    },
+    "limit": {
+     "label": "Limit",
+     "description": "Max messages to return, 1-100. Defaults to 50.",
+     "type": "number",
+     "defaultValue": "50"
+    },
+    "before": {
+     "label": "Before Message ID",
+     "description": "Return messages before this message ID. Mutually exclusive with After and Around."
+    },
+    "after": {
+     "label": "After Message ID",
+     "description": "Return messages after this message ID. Mutually exclusive with Before and Around."
+    },
+    "around": {
+     "label": "Around Message ID",
+     "description": "Return messages around this message ID. Mutually exclusive with Before and After."
+    }
+   },
+   "request": {
+    "method": "GET",
+    "url": "https://discord.com/api/v9/channels/{{channel_id}}/messages",
+    "query": {
+     "before": "{{before}}",
+     "after": "{{after}}",
+     "around": "{{around}}"
+    }
+   },
+   "beforeRequest": "if ([inputs.before, inputs.after, inputs.around].filter(c => c).length > 1) throw new Error('before, after, and around are mutually exclusive — supply at most one.');\nlet limit = inputs.limit === '' ? 50 : Number(inputs.limit);\nif (limit < 1) limit = 1;\nif (limit > 100) limit = 100;\nrequest.query.limit = String(limit);\nreturn request;",
+   "afterResponse": "const messages = (response || []).map(m => ({id: m.id, content: m.content, author_id: m.author?.id, author_username: m.author?.username, pinned: m.pinned, timestamp: m.timestamp, edited_timestamp: m.edited_timestamp}));\nreturn {messages, count: messages.length};"
+  },
+  "discord_edit_message": {
+   "label": "Edit Message",
+   "description": "Edit the content of one of the bot's own messages.",
+   "audience": "ai",
+   "inputs": {
+    "channel_id": {
+     "label": "Channel ID",
+     "description": "The numeric channel ID containing the message.",
+     "required": true
+    },
+    "message_id": {
+     "label": "Message ID",
+     "description": "The numeric message ID to edit. Obtain from List Messages or the trigger payload.",
+     "required": true
+    },
+    "content": {
+     "label": "New Content",
+     "description": "The new message text. Up to 2000 characters.",
+     "type": "multiline",
+     "required": true
+    }
+   },
+   "request": {
+    "method": "PATCH",
+    "url": "https://discord.com/api/v9/channels/{{channel_id}}/messages/{{message_id}}",
+    "body": {
+     "content": "{{content}}"
+    }
+   },
+   "afterResponse": "return {success: true, id: response.id, content: response.content, edited_timestamp: response.edited_timestamp};"
+  },
+  "discord_delete_message": {
+   "label": "Delete Message",
+   "description": "Delete a single message from a channel.",
+   "audience": "ai",
+   "inputs": {
+    "channel_id": {
+     "label": "Channel ID",
+     "description": "The numeric channel ID containing the message.",
+     "required": true
+    },
+    "message_id": {
+     "label": "Message ID",
+     "description": "The numeric message ID to delete. Obtain from List Messages.",
+     "required": true
+    },
+    "reason": {
+     "label": "Reason",
+     "description": "Optional audit-log reason."
+    }
+   },
+   "request": {
+    "method": "DELETE",
+    "url": "https://discord.com/api/v9/channels/{{channel_id}}/messages/{{message_id}}",
+    "headers": {
+     "X-Audit-Log-Reason": "{{reason}}"
+    }
+   },
+   "afterResponse": "return {success: response == null || (typeof response === 'object' && Object.keys(response).length === 0)};"
+  },
+  "discord_bulk_delete_messages": {
+   "label": "Bulk Delete Messages",
+   "description": "Delete 2-100 recent messages from a channel in one call.",
+   "audience": "ai",
+   "inputs": {
+    "channel_id": {
+     "label": "Channel ID",
+     "description": "The numeric channel ID.",
+     "required": true
+    },
+    "message_ids": {
+     "label": "Message IDs",
+     "description": "A list of 2-100 message IDs to delete, all less than 14 days old. Obtain from List Messages.",
+     "type": "json",
+     "required": true
+    }
+   },
+   "request": {
+    "method": "POST",
+    "url": "https://discord.com/api/v9/channels/{{channel_id}}/messages/bulk-delete",
+    "body": {
+     "messages": "{{message_ids}}"
+    }
+   },
+   "beforeRequest": "const ids = request.body.messages || [];\nif (ids.length < 2 || ids.length > 100) throw new Error('Bulk delete requires between 2 and 100 message IDs.');\nreturn request;",
+   "afterResponse": "return {success: response == null || (typeof response === 'object' && Object.keys(response).length === 0), deleted_count: JSON.parse(inputs.message_ids).length};"
+  },
+  "discord_pin_message": {
+   "label": "Pin Message",
+   "description": "Pin a message in a channel.",
+   "audience": "ai",
+   "inputs": {
+    "channel_id": {
+     "label": "Channel ID",
+     "description": "The numeric channel ID.",
+     "required": true
+    },
+    "message_id": {
+     "label": "Message ID",
+     "description": "The numeric message ID to pin. Obtain from List Messages.",
+     "required": true
+    }
+   },
+   "request": {
+    "method": "PUT",
+    "url": "https://discord.com/api/v9/channels/{{channel_id}}/pins/{{message_id}}"
+   },
+   "afterResponse": "return {success: response == null || (typeof response === 'object' && Object.keys(response).length === 0)};"
+  },
+  "discord_unpin_message": {
+   "label": "Unpin Message",
+   "description": "Remove a pinned message from a channel.",
+   "audience": "ai",
+   "inputs": {
+    "channel_id": {
+     "label": "Channel ID",
+     "description": "The numeric channel ID.",
+     "required": true
+    },
+    "message_id": {
+     "label": "Message ID",
+     "description": "The numeric message ID to unpin.",
+     "required": true
+    }
+   },
+   "request": {
+    "method": "DELETE",
+    "url": "https://discord.com/api/v9/channels/{{channel_id}}/pins/{{message_id}}"
+   },
+   "afterResponse": "return {success: response == null || (typeof response === 'object' && Object.keys(response).length === 0)};"
+  },
+  "discord_list_pinned_messages": {
+   "label": "List Pinned Messages",
+   "description": "List the pinned messages in a channel.",
+   "audience": "ai",
+   "inputs": {
+    "channel_id": {
+     "label": "Channel ID",
+     "description": "The numeric channel ID.",
+     "required": true
+    }
+   },
+   "request": {
+    "method": "GET",
+    "url": "https://discord.com/api/v9/channels/{{channel_id}}/pins"
+   },
+   "afterResponse": "const messages = (response || []).map(m => ({id: m.id, content: m.content, author_id: m.author?.id, author_username: m.author?.username, timestamp: m.timestamp}));\nreturn {messages, count: messages.length};"
+  },
+  "discord_add_reaction": {
+   "label": "Add Reaction",
+   "description": "Add the bot's reaction emoji to a message.",
+   "audience": "ai",
+   "inputs": {
+    "channel_id": {
+     "label": "Channel ID",
+     "description": "The numeric channel ID.",
+     "required": true
+    },
+    "message_id": {
+     "label": "Message ID",
+     "description": "The numeric message ID to react to.",
+     "required": true
+    },
+    "emoji": {
+     "label": "Emoji",
+     "description": "Standard emoji as a unicode character (e.g. \"🔥\"), or a custom emoji as name:id (e.g. \"partyblob:123456789\"). Resolve custom emoji IDs with List Emojis.",
+     "required": true
+    }
+   },
+   "request": {
+    "method": "PUT",
+    "url": "https://discord.com/api/v9/channels/{{channel_id}}/messages/{{message_id}}/reactions/{{emoji}}/@me"
+   },
+   "beforeRequest": "const custom = /^(.+):(\\d+)$/.exec(inputs.emoji);\nconst emoji = custom ? encodeURIComponent(custom[1]) + ':' + custom[2] : encodeURIComponent(inputs.emoji);\nrequest.url = '/channels/' + encodeURIComponent(inputs.channel_id) + '/messages/' + encodeURIComponent(inputs.message_id) + '/reactions/' + emoji + '/@me';\nreturn request;",
+   "afterResponse": "return {success: response == null || (typeof response === 'object' && Object.keys(response).length === 0)};"
+  },
+  "discord_remove_reaction": {
+   "label": "Remove Own Reaction",
+   "description": "Remove the bot's own reaction from a message.",
+   "audience": "ai",
+   "inputs": {
+    "channel_id": {
+     "label": "Channel ID",
+     "description": "The numeric channel ID.",
+     "required": true
+    },
+    "message_id": {
+     "label": "Message ID",
+     "description": "The numeric message ID.",
+     "required": true
+    },
+    "emoji": {
+     "label": "Emoji",
+     "description": "Standard emoji as a unicode character (e.g. \"🔥\"), or a custom emoji as name:id. Resolve custom emoji IDs with List Emojis.",
+     "required": true
+    }
+   },
+   "request": {
+    "method": "DELETE",
+    "url": "https://discord.com/api/v9/channels/{{channel_id}}/messages/{{message_id}}/reactions/{{emoji}}/@me"
+   },
+   "beforeRequest": "const custom = /^(.+):(\\d+)$/.exec(inputs.emoji);\nconst emoji = custom ? encodeURIComponent(custom[1]) + ':' + custom[2] : encodeURIComponent(inputs.emoji);\nrequest.url = '/channels/' + encodeURIComponent(inputs.channel_id) + '/messages/' + encodeURIComponent(inputs.message_id) + '/reactions/' + emoji + '/@me';\nreturn request;",
+   "afterResponse": "return {success: response == null || (typeof response === 'object' && Object.keys(response).length === 0)};"
+  },
+  "discord_remove_user_reaction": {
+   "label": "Remove User Reaction",
+   "description": "Remove another user's reaction from a message (moderation).",
+   "audience": "ai",
+   "inputs": {
+    "channel_id": {
+     "label": "Channel ID",
+     "description": "The numeric channel ID.",
+     "required": true
+    },
+    "message_id": {
+     "label": "Message ID",
+     "description": "The numeric message ID.",
+     "required": true
+    },
+    "emoji": {
+     "label": "Emoji",
+     "description": "Standard emoji as a unicode character, or a custom emoji as name:id. Resolve custom emoji IDs with List Emojis.",
+     "required": true
+    },
+    "user_id": {
+     "label": "User ID",
+     "description": "The numeric user ID whose reaction to remove.",
+     "required": true
+    }
+   },
+   "request": {
+    "method": "DELETE",
+    "url": "https://discord.com/api/v9/channels/{{channel_id}}/messages/{{message_id}}/reactions/{{emoji}}/{{user_id}}"
+   },
+   "beforeRequest": "const custom = /^(.+):(\\d+)$/.exec(inputs.emoji);\nconst emoji = custom ? encodeURIComponent(custom[1]) + ':' + custom[2] : encodeURIComponent(inputs.emoji);\nrequest.url = '/channels/' + encodeURIComponent(inputs.channel_id) + '/messages/' + encodeURIComponent(inputs.message_id) + '/reactions/' + emoji + '/' + encodeURIComponent(inputs.user_id);\nreturn request;",
+   "afterResponse": "return {success: response == null || (typeof response === 'object' && Object.keys(response).length === 0)};"
+  },
+  "discord_list_reactions": {
+   "label": "List Reactions",
+   "description": "List users who reacted to a message with an emoji.",
+   "audience": "ai",
+   "inputs": {
+    "channel_id": {
+     "label": "Channel ID",
+     "description": "The numeric channel ID.",
+     "required": true
+    },
+    "message_id": {
+     "label": "Message ID",
+     "description": "The numeric message ID.",
+     "required": true
+    },
+    "emoji": {
+     "label": "Emoji",
+     "description": "Standard emoji as a unicode character, or a custom emoji as name:id. Resolve custom emoji IDs with List Emojis.",
+     "required": true
+    },
+    "after": {
+     "label": "After User ID",
+     "description": "Return users after this user ID for pagination."
+    },
+    "limit": {
+     "label": "Limit",
+     "description": "Max users to return, 1-100. Defaults to 25.",
+     "type": "number",
+     "defaultValue": "25"
+    }
+   },
+   "request": {
+    "method": "GET",
+    "url": "https://discord.com/api/v9/channels/{{channel_id}}/messages/{{message_id}}/reactions/{{emoji}}",
+    "query": {
+     "after": "{{after}}"
+    }
+   },
+   "beforeRequest": "const custom = /^(.+):(\\d+)$/.exec(inputs.emoji);\nconst emoji = custom ? encodeURIComponent(custom[1]) + ':' + custom[2] : encodeURIComponent(inputs.emoji);\nrequest.url = '/channels/' + encodeURIComponent(inputs.channel_id) + '/messages/' + encodeURIComponent(inputs.message_id) + '/reactions/' + emoji;\nlet limit = inputs.limit === '' ? 25 : Number(inputs.limit);\nif (limit < 1) limit = 1;\nif (limit > 100) limit = 100;\nrequest.query.limit = String(limit);\nreturn request;",
+   "afterResponse": "const users = (response || []).map(u => ({user_id: u.id, username: u.username, global_name: u.global_name ?? null}));\nreturn {users, count: users.length};"
+  },
+  "discord_clear_reactions": {
+   "label": "Clear All Reactions",
+   "description": "Remove all reactions from a message.",
+   "audience": "ai",
+   "inputs": {
+    "channel_id": {
+     "label": "Channel ID",
+     "description": "The numeric channel ID.",
+     "required": true
+    },
+    "message_id": {
+     "label": "Message ID",
+     "description": "The numeric message ID to clear reactions from.",
+     "required": true
+    }
+   },
+   "request": {
+    "method": "DELETE",
+    "url": "https://discord.com/api/v9/channels/{{channel_id}}/messages/{{message_id}}/reactions"
+   },
+   "afterResponse": "return {success: response == null || (typeof response === 'object' && Object.keys(response).length === 0)};"
+  },
+  "discord_create_thread_from_message": {
+   "label": "Create Thread from Message",
+   "description": "Start a thread attached to an existing message.",
+   "audience": "ai",
+   "inputs": {
+    "channel_id": {
+     "label": "Channel ID",
+     "description": "The numeric channel ID containing the message.",
+     "required": true
+    },
+    "message_id": {
+     "label": "Message ID",
+     "description": "The numeric message ID to anchor the thread to.",
+     "required": true
+    },
+    "name": {
+     "label": "Thread Name",
+     "description": "The name of the new thread. Up to 100 characters.",
+     "required": true
+    },
+    "auto_archive_duration": {
+     "label": "Auto Archive Duration",
+     "description": "Minutes of inactivity before the thread auto-archives.",
+     "type": "select",
+     "options": [
+      {
+       "value": "60",
+       "label": "1 hour"
+      },
+      {
+       "value": "1440",
+       "label": "24 hours"
+      },
+      {
+       "value": "4320",
+       "label": "3 days"
+      },
+      {
+       "value": "10080",
+       "label": "1 week"
+      }
+     ]
+    }
+   },
+   "request": {
+    "method": "POST",
+    "url": "https://discord.com/api/v9/channels/{{channel_id}}/messages/{{message_id}}/threads",
+    "body": {
+     "name": "{{name}}"
+    }
+   },
+   "beforeRequest": "if (inputs.auto_archive_duration !== '') request.body.auto_archive_duration = Number(inputs.auto_archive_duration);\nreturn request;",
+   "afterResponse": "return {success: true, thread: {id: response.id, name: response.name}};"
+  },
+  "discord_create_thread": {
+   "label": "Create Thread",
+   "description": "Create a standalone thread (or forum post) in a channel.",
+   "audience": "ai",
+   "inputs": {
+    "channel_id": {
+     "label": "Channel ID",
+     "description": "The numeric parent channel ID.",
+     "required": true
+    },
+    "name": {
+     "label": "Thread Name",
+     "description": "The name of the new thread. Up to 100 characters.",
+     "required": true
+    },
+    "type": {
+     "label": "Thread Type",
+     "description": "The channel type of the thread.",
+     "type": "select",
+     "options": [
+      {
+       "value": "11",
+       "label": "Public Thread"
+      },
+      {
+       "value": "12",
+       "label": "Private Thread"
+      },
+      {
+       "value": "10",
+       "label": "Announcement Thread"
+      }
+     ]
+    },
+    "auto_archive_duration": {
+     "label": "Auto Archive Duration",
+     "description": "Minutes of inactivity before the thread auto-archives.",
+     "type": "select",
+     "options": [
+      {
+       "value": "60",
+       "label": "1 hour"
+      },
+      {
+       "value": "1440",
+       "label": "24 hours"
+      },
+      {
+       "value": "4320",
+       "label": "3 days"
+      },
+      {
+       "value": "10080",
+       "label": "1 week"
+      }
+     ]
+    },
+    "message": {
+     "label": "Starter Message",
+     "description": "Required when the parent is a Forum or Media channel: the content of the initial post that starts the thread. Leave empty for text/announcement channel threads.",
+     "type": "multiline"
+    }
+   },
+   "request": {
+    "method": "POST",
+    "url": "https://discord.com/api/v9/channels/{{channel_id}}/threads",
+    "body": {
+     "name": "{{name}}"
+    }
+   },
+   "beforeRequest": "if (inputs.type !== '') request.body.type = Number(inputs.type);\nif (inputs.auto_archive_duration !== '') request.body.auto_archive_duration = Number(inputs.auto_archive_duration);\nif (inputs.message) request.body.message = {content: inputs.message};\nreturn request;",
+   "afterResponse": "return {success: true, thread: {id: response.id, name: response.name}};"
+  },
+  "discord_list_active_threads": {
+   "label": "List Active Threads",
+   "description": "List all active threads in a guild.",
+   "audience": "ai",
+   "inputs": {
+    "guild_id": {
+     "label": "Guild ID",
+     "description": "The numeric guild (server) ID.",
+     "required": true
+    }
+   },
+   "request": {
+    "method": "GET",
+    "url": "https://discord.com/api/v9/guilds/{{guild_id}}/threads/active"
+   },
+   "afterResponse": "const threads = (response?.threads ?? []).map(t => ({id: t.id, name: t.name, parent_id: t.parent_id ?? null, owner_id: t.owner_id ?? null, archived: t.thread_metadata?.archived ?? false}));\nreturn {threads, count: threads.length};"
+  },
+  "discord_list_archived_threads": {
+   "label": "List Archived Threads",
+   "description": "List public archived threads in a channel.",
+   "audience": "ai",
+   "inputs": {
+    "channel_id": {
+     "label": "Channel ID",
+     "description": "The numeric parent channel ID.",
+     "required": true
+    }
+   },
+   "request": {
+    "method": "GET",
+    "url": "https://discord.com/api/v9/channels/{{channel_id}}/threads/archived/public"
+   },
+   "afterResponse": "const threads = (response?.threads ?? []).map(t => ({id: t.id, name: t.name, parent_id: t.parent_id ?? null, owner_id: t.owner_id ?? null, archive_timestamp: t.thread_metadata?.archive_timestamp ?? null}));\nreturn {threads, count: threads.length};"
+  },
+  "discord_join_thread": {
+   "label": "Join Thread",
+   "description": "Have the bot join a thread.",
+   "audience": "ai",
+   "inputs": {
+    "channel_id": {
+     "label": "Thread ID",
+     "description": "The numeric thread (channel) ID to join.",
+     "required": true
+    }
+   },
+   "request": {
+    "method": "PUT",
+    "url": "https://discord.com/api/v9/channels/{{channel_id}}/thread-members/@me"
+   },
+   "afterResponse": "return {success: response == null || (typeof response === 'object' && Object.keys(response).length === 0)};"
+  },
+  "discord_leave_thread": {
+   "label": "Leave Thread",
+   "description": "Have the bot leave a thread.",
+   "audience": "ai",
+   "inputs": {
+    "channel_id": {
+     "label": "Thread ID",
+     "description": "The numeric thread (channel) ID to leave.",
+     "required": true
+    }
+   },
+   "request": {
+    "method": "DELETE",
+    "url": "https://discord.com/api/v9/channels/{{channel_id}}/thread-members/@me"
+   },
+   "afterResponse": "return {success: response == null || (typeof response === 'object' && Object.keys(response).length === 0)};"
+  },
+  "discord_add_thread_member": {
+   "label": "Add Thread Member",
+   "description": "Add a user to a thread.",
+   "audience": "ai",
+   "inputs": {
+    "channel_id": {
+     "label": "Thread ID",
+     "description": "The numeric thread (channel) ID.",
+     "required": true
+    },
+    "user_id": {
+     "label": "User ID",
+     "description": "The numeric user ID to add. Resolve from a username with Find Member.",
+     "required": true
+    }
+   },
+   "request": {
+    "method": "PUT",
+    "url": "https://discord.com/api/v9/channels/{{channel_id}}/thread-members/{{user_id}}"
+   },
+   "afterResponse": "return {success: response == null || (typeof response === 'object' && Object.keys(response).length === 0)};"
+  },
+  "discord_list_channels": {
+   "label": "List Channels",
+   "description": "Enumerate the channels in a guild that the bot can view.",
+   "audience": "ai",
+   "inputs": {
+    "guild_id": {
+     "label": "Guild ID",
+     "description": "The numeric guild (server) ID.",
+     "required": true
+    }
+   },
+   "request": {
+    "method": "GET",
+    "url": "https://discord.com/api/v9/guilds/{{guild_id}}/channels"
+   },
+   "afterResponse": "const channels = (response || []).map(c => ({id: c.id, name: c.name, type: c.type, parent_id: c.parent_id ?? null, position: c.position ?? null, topic: c.topic ?? null}));\nreturn {channels, count: channels.length};"
+  },
+  "discord_get_channel": {
+   "label": "Get Channel",
+   "description": "Fetch the details of a single channel.",
+   "audience": "ai",
+   "inputs": {
+    "channel_id": {
+     "label": "Channel ID",
+     "description": "The numeric channel ID.",
+     "required": true
+    }
+   },
+   "request": {
+    "method": "GET",
+    "url": "https://discord.com/api/v9/channels/{{channel_id}}"
+   },
+   "afterResponse": "const c = response ?? {};\nreturn {id: c.id, name: c.name, type: c.type, guild_id: c.guild_id ?? null, parent_id: c.parent_id ?? null, topic: c.topic ?? null, nsfw: c.nsfw ?? null};"
+  },
+  "discord_get_member": {
+   "label": "Get Member",
+   "description": "Fetch a single guild member by user ID.",
+   "audience": "ai",
+   "inputs": {
+    "guild_id": {
+     "label": "Guild ID",
+     "description": "The numeric guild (server) ID.",
+     "required": true
+    },
+    "user_id": {
+     "label": "User ID",
+     "description": "The numeric user ID. Resolve from a username with Find Member.",
+     "required": true
+    }
+   },
+   "request": {
+    "method": "GET",
+    "url": "https://discord.com/api/v9/guilds/{{guild_id}}/members/{{user_id}}"
+   },
+   "afterResponse": "const m = response ?? {};\nreturn {user_id: m.user?.id, username: m.user?.username, global_name: m.user?.global_name ?? null, nick: m.nick ?? null, roles: m.roles ?? [], joined_at: m.joined_at ?? null, communication_disabled_until: m.communication_disabled_until ?? null};"
+  },
+  "discord_list_bans": {
+   "label": "List Bans",
+   "description": "List the banned users of a guild.",
+   "audience": "ai",
+   "inputs": {
+    "guild_id": {
+     "label": "Guild ID",
+     "description": "The numeric guild (server) ID.",
+     "required": true
+    },
+    "limit": {
+     "label": "Limit",
+     "description": "Max bans to return, 1-1000. Defaults to 100.",
+     "type": "number",
+     "defaultValue": "100"
+    },
+    "before": {
+     "label": "Before User ID",
+     "description": "Return bans before this user ID for pagination."
+    },
+    "after": {
+     "label": "After User ID",
+     "description": "Return bans after this user ID for pagination."
+    }
+   },
+   "request": {
+    "method": "GET",
+    "url": "https://discord.com/api/v9/guilds/{{guild_id}}/bans",
+    "query": {
+     "before": "{{before}}",
+     "after": "{{after}}"
+    }
+   },
+   "beforeRequest": "let limit = inputs.limit === '' ? 100 : Number(inputs.limit);\nif (limit < 1) limit = 1;\nif (limit > 1000) limit = 1000;\nrequest.query.limit = String(limit);\nreturn request;",
+   "afterResponse": "const bans = (response || []).map(b => ({user_id: b.user?.id, username: b.user?.username, reason: b.reason ?? null}));\nreturn {bans, count: bans.length};"
+  },
+  "discord_list_roles": {
+   "label": "List Roles",
+   "description": "List the roles of a guild.",
+   "audience": "ai",
+   "inputs": {
+    "guild_id": {
+     "label": "Guild ID",
+     "description": "The numeric guild (server) ID.",
+     "required": true
+    }
+   },
+   "request": {
+    "method": "GET",
+    "url": "https://discord.com/api/v9/guilds/{{guild_id}}/roles"
+   },
+   "afterResponse": "const roles = (response || []).map(r => ({id: r.id, name: r.name, color: r.color ?? null, hoist: r.hoist ?? null, position: r.position ?? null, mentionable: r.mentionable ?? null}));\nreturn {roles, count: roles.length};"
+  },
+  "discord_update_role": {
+   "label": "Update Role",
+   "description": "Update a role's name, color, hoist, or mentionable settings.",
+   "audience": "ai",
+   "inputs": {
+    "guild_id": {
+     "label": "Guild ID",
+     "description": "The numeric guild (server) ID.",
+     "required": true
+    },
+    "role_id": {
+     "label": "Role ID",
+     "description": "The numeric role ID to update. Resolve from a name with List Roles.",
+     "required": true
+    },
+    "name": {
+     "label": "Name",
+     "description": "New role name. Leave empty to keep the current name."
+    },
+    "color": {
+     "label": "Color",
+     "description": "New role color as an integer RGB value (e.g. 3447003). Leave empty to keep the current color.",
+     "type": "number"
+    },
+    "hoist": {
+     "label": "Display Separately",
+     "description": "Show members separately in the sidebar. Leave unchanged to keep it.",
+     "type": "select",
+     "options": [
+      {
+       "value": "yes",
+       "label": "Yes"
+      },
+      {
+       "value": "no",
+       "label": "No"
+      },
+      {
+       "value": "unchanged",
+       "label": "Leave unchanged"
+      }
+     ]
+    },
+    "mentionable": {
+     "label": "Mentionable",
+     "description": "Let members mention this role. Leave unchanged to keep it.",
+     "type": "select",
+     "options": [
+      {
+       "value": "yes",
+       "label": "Yes"
+      },
+      {
+       "value": "no",
+       "label": "No"
+      },
+      {
+       "value": "unchanged",
+       "label": "Leave unchanged"
+      }
+     ]
+    },
+    "reason": {
+     "label": "Reason",
+     "description": "Optional audit-log reason."
+    }
+   },
+   "request": {
+    "method": "PATCH",
+    "url": "https://discord.com/api/v9/guilds/{{guild_id}}/roles/{{role_id}}",
+    "headers": {
+     "X-Audit-Log-Reason": "{{reason}}"
+    },
+    "body": {
+     "name": "{{name}}",
+     "color": "{{color}}"
+    }
+   },
+   "beforeRequest": "const tri = v => { const t = v.trim().toLowerCase(); if (t === 'yes' || t === 'true') return true; if (t === 'no' || t === 'false') return false; return undefined; };\nconst hoist = tri(inputs.hoist), mentionable = tri(inputs.mentionable);\nif (hoist !== undefined) request.body.hoist = hoist;\nif (mentionable !== undefined) request.body.mentionable = mentionable;\nreturn request;",
+   "afterResponse": "return {success: true, role: {id: response?.id, name: response?.name}};"
+  },
+  "discord_get_guild": {
+   "label": "Get Guild",
+   "description": "Fetch metadata about a guild.",
+   "audience": "ai",
+   "inputs": {
+    "guild_id": {
+     "label": "Guild ID",
+     "description": "The numeric guild (server) ID.",
+     "required": true
+    },
+    "with_counts": {
+     "label": "Include Member Counts",
+     "description": "Whether to include approximate member and presence counts.",
+     "type": "boolean",
+     "defaultValue": "false"
+    }
+   },
+   "request": {
+    "method": "GET",
+    "url": "https://discord.com/api/v9/guilds/{{guild_id}}"
+   },
+   "beforeRequest": "request.query.with_counts = inputs.with_counts === 'true' ? 'true' : 'false';\nreturn request;",
+   "afterResponse": "const g = response ?? {};\nreturn {id: g.id, name: g.name, owner_id: g.owner_id ?? null, description: g.description ?? null, approximate_member_count: g.approximate_member_count ?? null, approximate_presence_count: g.approximate_presence_count ?? null};"
+  },
+  "discord_list_emojis": {
+   "label": "List Emojis",
+   "description": "List a guild's custom emojis.",
+   "audience": "ai",
+   "inputs": {
+    "guild_id": {
+     "label": "Guild ID",
+     "description": "The numeric guild (server) ID.",
+     "required": true
+    }
+   },
+   "request": {
+    "method": "GET",
+    "url": "https://discord.com/api/v9/guilds/{{guild_id}}/emojis"
+   },
+   "afterResponse": "const emojis = (response || []).map(e => ({id: e.id, name: e.name, animated: e.animated ?? false, reaction_string: e.id && e.name ? e.name + ':' + e.id : e.name}));\nreturn {emojis, count: emojis.length};"
+  },
+  "discord_create_scheduled_event": {
+   "label": "Create Scheduled Event",
+   "description": "Create a scheduled event in a guild.",
+   "audience": "ai",
+   "inputs": {
+    "guild_id": {
+     "label": "Guild ID",
+     "description": "The numeric guild (server) ID.",
+     "required": true
+    },
+    "name": {
+     "label": "Name",
+     "description": "The event name.",
+     "required": true
+    },
+    "scheduled_start_time": {
+     "label": "Scheduled Start Time",
+     "description": "ISO 8601 start time (e.g. \"2026-07-01T18:00:00Z\").",
+     "required": true
+    },
+    "entity_type": {
+     "label": "Entity Type",
+     "description": "Where the event happens. EXTERNAL requires Location + Scheduled End Time; STAGE/VOICE require a Channel ID.",
+     "type": "select",
+     "required": true,
+     "options": [
+      {
+       "value": "1",
+       "label": "Stage Instance"
+      },
+      {
+       "value": "2",
+       "label": "Voice"
+      },
+      {
+       "value": "3",
+       "label": "External"
+      }
+     ]
+    },
+    "channel_id": {
+     "label": "Channel ID",
+     "description": "Required for STAGE_INSTANCE and VOICE entity types. The numeric voice/stage channel ID."
+    },
+    "location": {
+     "label": "Location",
+     "description": "Required for the EXTERNAL entity type. A free-text location (e.g. \"https://zoom.us/...\" or \"Main Hall\")."
+    },
+    "scheduled_end_time": {
+     "label": "Scheduled End Time",
+     "description": "ISO 8601 end time. Required for the EXTERNAL entity type (e.g. \"2026-07-01T20:00:00Z\")."
+    },
+    "description": {
+     "label": "Description",
+     "description": "Optional event description.",
+     "type": "multiline"
+    }
+   },
+   "request": {
+    "method": "POST",
+    "url": "https://discord.com/api/v9/guilds/{{guild_id}}/scheduled-events"
+   },
+   "beforeRequest": "const type = Number(inputs.entity_type);\nif (type === 3) {\n  if (!inputs.location || !inputs.scheduled_end_time) throw new Error('An EXTERNAL event requires both a Location and a Scheduled End Time.');\n} else if (!inputs.channel_id) throw new Error('A STAGE_INSTANCE or VOICE event requires a Channel ID.');\nconst body = {name: inputs.name, scheduled_start_time: inputs.scheduled_start_time, entity_type: type, privacy_level: 2};\nif (inputs.description) body.description = inputs.description;\nif (type === 3) {\n  body.entity_metadata = {location: inputs.location};\n  body.scheduled_end_time = inputs.scheduled_end_time;\n} else body.channel_id = inputs.channel_id;\nrequest.body = body;\nreturn request;",
+   "afterResponse": "return {success: true, event: {id: response?.id, name: response?.name}};"
+  },
+  "discord_list_scheduled_events": {
+   "label": "List Scheduled Events",
+   "description": "List the scheduled events of a guild.",
+   "audience": "ai",
+   "inputs": {
+    "guild_id": {
+     "label": "Guild ID",
+     "description": "The numeric guild (server) ID.",
+     "required": true
+    },
+    "with_user_count": {
+     "label": "Include User Count",
+     "description": "Whether to include the subscriber count for each event.",
+     "type": "boolean",
+     "defaultValue": "false"
+    }
+   },
+   "request": {
+    "method": "GET",
+    "url": "https://discord.com/api/v9/guilds/{{guild_id}}/scheduled-events"
+   },
+   "beforeRequest": "request.query.with_user_count = inputs.with_user_count === 'true' ? 'true' : 'false';\nreturn request;",
+   "afterResponse": "const events = (response || []).map(e => ({id: e.id, name: e.name, scheduled_start_time: e.scheduled_start_time ?? null, scheduled_end_time: e.scheduled_end_time ?? null, status: e.status ?? null, entity_type: e.entity_type ?? null, user_count: e.user_count ?? null}));\nreturn {events, count: events.length};"
+  },
+  "discord_update_scheduled_event": {
+   "label": "Update Scheduled Event",
+   "description": "Edit, start, or cancel a scheduled event.",
+   "audience": "ai",
+   "inputs": {
+    "guild_id": {
+     "label": "Guild ID",
+     "description": "The numeric guild (server) ID.",
+     "required": true
+    },
+    "event_id": {
+     "label": "Event ID",
+     "description": "The numeric scheduled event ID. Obtain from List Scheduled Events.",
+     "required": true
+    },
+    "name": {
+     "label": "Name",
+     "description": "New event name. Leave empty to keep the current name."
+    },
+    "description": {
+     "label": "Description",
+     "description": "New description. Leave empty to keep the current one.",
+     "type": "multiline"
+    },
+    "scheduled_start_time": {
+     "label": "Scheduled Start Time",
+     "description": "New ISO 8601 start time. Leave empty to keep the current one."
+    },
+    "status": {
+     "label": "Status",
+     "description": "Optionally change the event status.",
+     "type": "select",
+     "options": [
+      {
+       "value": "1",
+       "label": "Scheduled"
+      },
+      {
+       "value": "2",
+       "label": "Active (start)"
+      },
+      {
+       "value": "3",
+       "label": "Completed"
+      },
+      {
+       "value": "4",
+       "label": "Canceled"
+      }
+     ]
+    }
+   },
+   "request": {
+    "method": "PATCH",
+    "url": "https://discord.com/api/v9/guilds/{{guild_id}}/scheduled-events/{{event_id}}",
+    "body": {
+     "name": "{{name}}",
+     "description": "{{description}}",
+     "scheduled_start_time": "{{scheduled_start_time}}"
+    }
+   },
+   "beforeRequest": "if (!request.body) request.body = {};\nif (inputs.status !== '') request.body.status = Number(inputs.status);\nreturn request;",
+   "afterResponse": "return {success: true, event: {id: response?.id, name: response?.name, status: response?.status}};"
+  },
+  "discord_delete_scheduled_event": {
+   "label": "Delete Scheduled Event",
+   "description": "Delete a scheduled event.",
+   "audience": "ai",
+   "inputs": {
+    "guild_id": {
+     "label": "Guild ID",
+     "description": "The numeric guild (server) ID.",
+     "required": true
+    },
+    "event_id": {
+     "label": "Event ID",
+     "description": "The numeric scheduled event ID. Obtain from List Scheduled Events.",
+     "required": true
+    }
+   },
+   "request": {
+    "method": "DELETE",
+    "url": "https://discord.com/api/v9/guilds/{{guild_id}}/scheduled-events/{{event_id}}"
+   },
+   "afterResponse": "return {success: response == null || (typeof response === 'object' && Object.keys(response).length === 0)};"
+  },
+  "discord_list_invites": {
+   "label": "List Invites",
+   "description": "List the active invites of a guild.",
+   "audience": "ai",
+   "inputs": {
+    "guild_id": {
+     "label": "Guild ID",
+     "description": "The numeric guild (server) ID.",
+     "required": true
+    }
+   },
+   "request": {
+    "method": "GET",
+    "url": "https://discord.com/api/v9/guilds/{{guild_id}}/invites"
+   },
+   "afterResponse": "const invites = (response || []).map(i => ({code: i.code, uses: i.uses ?? null, max_uses: i.max_uses ?? null, channel_id: i.channel?.id ?? null, channel_name: i.channel?.name ?? null, inviter_id: i.inviter?.id ?? null, expires_at: i.expires_at ?? null}));\nreturn {invites, count: invites.length};"
+  },
+  "discord_revoke_invite": {
+   "label": "Revoke Invite",
+   "description": "Delete (revoke) an invite by its code.",
+   "audience": "ai",
+   "inputs": {
+    "invite_code": {
+     "label": "Invite Code",
+     "description": "The invite code (the part after discord.gg/, e.g. \"aBcDeF\"). Obtain from List Invites.",
+     "required": true
+    }
+   },
+   "request": {
+    "method": "DELETE",
+    "url": "https://discord.com/api/v9/invites/{{invite_code}}"
+   },
+   "afterResponse": "return {success: true, code: response?.code};"
+  },
+  "discord_create_dm": {
+   "label": "Create DM Channel",
+   "description": "Open (or fetch) a direct-message channel with a user.",
+   "audience": "ai",
+   "inputs": {
+    "user_id": {
+     "label": "User ID",
+     "description": "The numeric user ID to DM. Resolve from a username with Find Member.",
+     "required": true
+    }
+   },
+   "request": {
+    "method": "POST",
+    "url": "https://discord.com/api/v9/users/@me/channels",
+    "body": {
+     "recipient_id": "{{user_id}}"
+    }
+   },
+   "afterResponse": "return {success: true, channel_id: response?.id};"
+  },
+  "discord_get_user": {
+   "label": "Get User",
+   "description": "Fetch a global Discord user object by ID.",
+   "audience": "ai",
+   "inputs": {
+    "user_id": {
+     "label": "User ID",
+     "description": "The numeric user ID.",
+     "required": true
+    }
+   },
+   "request": {
+    "method": "GET",
+    "url": "https://discord.com/api/v9/users/{{user_id}}"
+   },
+   "afterResponse": "const u = response ?? {};\nreturn {id: u.id, username: u.username, global_name: u.global_name ?? null, bot: u.bot ?? false, avatar: u.avatar ?? null};"
+  }
+ },
+ "triggers": {
+  "new_message": {
+   "label": "New Message",
+   "description": "Fires when a message is posted in a channel.",
+   "inputs": {
+    "channel": {
+     "label": "Channel",
+     "description": "The channel ID. Right-click the channel and choose Copy Channel ID in Developer Mode.",
+     "required": true
+    },
+    "limit": {
+     "label": "Limit",
+     "description": "Most recent messages checked each poll, up to 100.",
+     "type": "number",
+     "defaultValue": "50"
+    }
+   },
+   "request": {
+    "method": "GET",
+    "url": "https://discord.com/api/v9/channels/{{channel}}/messages",
+    "query": {
+     "limit": "{{limit}}"
+    }
+   },
+   "items": "$",
+   "newBy": "time",
+   "key": "$.timestamp"
+  },
+  "new_member": {
+   "label": "New Member",
+   "description": "Fires when a member joins a server.",
+   "inputs": {
+    "guildId": {
+     "label": "Server ID",
+     "description": "Right-click the server and choose Copy Server ID in Developer Mode.",
+     "required": true
+    },
+    "limit": {
+     "label": "Limit",
+     "description": "Most recent members checked each poll, up to 1000.",
+     "type": "number",
+     "defaultValue": "50"
+    }
+   },
+   "request": {
+    "method": "GET",
+    "url": "https://discord.com/api/v9/guilds/{{guildId}}/members",
+    "query": {
+     "limit": "{{limit}}"
+    }
+   },
+   "items": "$",
+   "newBy": "time",
+   "key": "$.joined_at"
+  }
+ }
+}
