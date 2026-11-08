@@ -1072,6 +1072,46 @@
       "key": "$.createdTime",
       "beforeRequest": "const literal = (text) => String(text).replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"\\\\'\");\nconst pad = (number) => String(number).padStart(2, '0');\nconst local = (ms) => { const date = new Date(ms), offset = -date.getTimezoneOffset(), minutes = Math.abs(offset);\n  return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + 'T' + pad(date.getHours()) + ':' + pad(date.getMinutes()) + ':' + pad(date.getSeconds()) +\n    (offset < 0 ? '-' : '+') + pad(Math.floor(minutes / 60)) + ':' + pad(minutes % 60); };\nconst q = [\"mimeType='application/vnd.google-apps.folder'\"];\nif (inputs.folder_id) q.push(\"'\" + literal(inputs.folder_id) + \"' in parents\");\nif (Number(inputs.lastPollTime)) q.push(\"createdTime > '\" + local(Number(inputs.lastPollTime)) + \"'\");\nq.push('trashed = false');\nrequest.query.q = q.join(' and ');\nrequest.query.corpora = inputs.include_team_drives === 'true' ? 'allDrives' : 'user';\nreturn request;",
       "afterResponse": "const literal = (text) => String(text).replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"\\\\'\");\nconst pad = (number) => String(number).padStart(2, '0');\nconst local = (ms) => { const date = new Date(ms), offset = -date.getTimezoneOffset(), minutes = Math.abs(offset);\n  return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + 'T' + pad(date.getHours()) + ':' + pad(date.getMinutes()) + ':' + pad(date.getSeconds()) +\n    (offset < 0 ? '-' : '+') + pad(Math.floor(minutes / 60)) + ':' + pad(minutes % 60); };\nconst q = [\"mimeType='application/vnd.google-apps.folder'\"];\nif (inputs.folder_id) q.push(\"'\" + literal(inputs.folder_id) + \"' in parents\");\nif (Number(inputs.lastPollTime)) q.push(\"createdTime > '\" + local(Number(inputs.lastPollTime)) + \"'\");\nq.push('trashed = false');\nconst query = {q: q.join(' and '), fields: 'nextPageToken, files(id, name, createdTime)', orderBy: 'createdTime desc', supportsAllDrives: 'true', corpora: inputs.include_team_drives === 'true' ? 'allDrives' : 'user'};\nif (inputs.include_team_drives) query.includeItemsFromAllDrives = inputs.include_team_drives;\nlet files = response.files || [];\nfor (let pageToken = response.nextPageToken; pageToken;) {\n  const page = call({headers: {'x-goog-api-client': 'gdcl/8.0.2 gl-node/26.4.0'}, method: 'GET', url: '/files', query: Object.assign({}, query, {pageToken})});\n  files = files.concat(page.files || []);\n  pageToken = page.nextPageToken;\n}\nreturn files;"
+    },
+    "new_or_updated_file": {
+      "label": "New or Updated File",
+      "description": "Triggers when a file is created or edited. A rename counts; trashing or moving does not. Each item has a changeType of created or updated, and a chosen folder is watched one level deep.",
+      "inputs": {
+        "folder_id": {
+          "label": "Folder",
+          "description": "Leave empty to watch all of My Drive. Type to search by folder name.",
+          "list": "parent_folders"
+        },
+        "include_team_drives": {
+          "label": "Include Team Drives",
+          "description": "Also include shared drives, not only My Drive.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "file_types": {
+          "label": "File Types",
+          "description": "Leave empty to watch every type. A list of MIME types, such as [\"application/vnd.google-apps.spreadsheet\", \"application/pdf\"].",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/drive/v3/files",
+        "query": {
+          "fields": "nextPageToken, files(id, name, mimeType, webViewLink, kind, createdTime, modifiedTime)",
+          "orderBy": "modifiedTime desc",
+          "supportsAllDrives": "true",
+          "includeItemsFromAllDrives": "{{include_team_drives}}"
+        },
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "newBy": "time",
+      "key": "$.time",
+      "emit": "$.data",
+      "beforeRequest": "const literal = (text) => String(text).replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"\\\\'\");\nconst pad = (number) => String(number).padStart(2, '0');\nconst local = (ms) => { const date = new Date(ms), offset = -date.getTimezoneOffset(), minutes = Math.abs(offset);\n  return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + 'T' + pad(date.getHours()) + ':' + pad(date.getMinutes()) + ':' + pad(date.getSeconds()) +\n    (offset < 0 ? '-' : '+') + pad(Math.floor(minutes / 60)) + ':' + pad(minutes % 60); };\nconst types = inputs.file_types ? [].concat(JSON.parse(inputs.file_types)) : [];\nconst q = [];\nif (inputs.folder_id) q.push(\"'\" + literal(inputs.folder_id) + \"' in parents\");\nif (Number(inputs.lastPollTime)) { const since = local(Number(inputs.lastPollTime)); q.push(\"(modifiedTime > '\" + since + \"' or createdTime > '\" + since + \"')\"); }\nif (types.length) q.push('(' + types.map((type) => \"mimeType='\" + literal(type) + \"'\").join(' or ') + ')');\nq.push(\"mimeType!='application/vnd.google-apps.shortcut'\", 'trashed = false', \"mimeType!='application/vnd.google-apps.folder'\");\nrequest.query.q = q.join(' and ');\nrequest.query.corpora = inputs.include_team_drives === 'true' ? 'allDrives' : 'user';\nreturn request;",
+      "afterResponse": "const literal = (text) => String(text).replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"\\\\'\");\nconst pad = (number) => String(number).padStart(2, '0');\nconst local = (ms) => { const date = new Date(ms), offset = -date.getTimezoneOffset(), minutes = Math.abs(offset);\n  return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + 'T' + pad(date.getHours()) + ':' + pad(date.getMinutes()) + ':' + pad(date.getSeconds()) +\n    (offset < 0 ? '-' : '+') + pad(Math.floor(minutes / 60)) + ':' + pad(minutes % 60); };\nconst lastPoll = Number(inputs.lastPollTime) || 0;\nconst types = inputs.file_types ? [].concat(JSON.parse(inputs.file_types)) : [];\nconst q = [];\nif (inputs.folder_id) q.push(\"'\" + literal(inputs.folder_id) + \"' in parents\");\nif (lastPoll) { const since = local(lastPoll); q.push(\"(modifiedTime > '\" + since + \"' or createdTime > '\" + since + \"')\"); }\nif (types.length) q.push('(' + types.map((type) => \"mimeType='\" + literal(type) + \"'\").join(' or ') + ')');\nq.push(\"mimeType!='application/vnd.google-apps.shortcut'\", 'trashed = false', \"mimeType!='application/vnd.google-apps.folder'\");\nconst query = {q: q.join(' and '), fields: 'nextPageToken, files(id, name, mimeType, webViewLink, kind, createdTime, modifiedTime)', orderBy: 'modifiedTime desc', supportsAllDrives: 'true', corpora: inputs.include_team_drives === 'true' ? 'allDrives' : 'user'};\nif (inputs.include_team_drives) query.includeItemsFromAllDrives = inputs.include_team_drives;\nlet files = response.files || [];\n// The first check reads only the first page.\nfor (let pageToken = lastPoll ? response.nextPageToken : null; pageToken;) {\n  const page = call({headers: {'x-goog-api-client': 'gdcl/8.0.2 gl-node/26.4.0'}, method: 'GET', url: '/files', query: Object.assign({}, query, {pageToken})});\n  files = files.concat(page.files || []);\n  pageToken = page.nextPageToken;\n}\nconst epoch = (text) => (typeof text === 'string' && !isNaN(Date.parse(text)) ? Date.parse(text) : 0);\nconst now = Date.now();\nreturn files.filter((file) => file && typeof file.id === 'string' && typeof file.name === 'string')\n  .map((file) => ({time: Math.max(epoch(file.modifiedTime), epoch(file.createdTime)), file}))\n  .filter((entry) => entry.time > 0 && entry.time <= now)\n  .map(({time, file}) => ({time, data: Object.assign({}, file, {changeType: lastPoll ? (epoch(file.createdTime) > lastPoll ? 'created' : 'updated')\n    : (epoch(file.modifiedTime) > epoch(file.createdTime) ? 'updated' : 'created')})}));"
     }
   }
 }

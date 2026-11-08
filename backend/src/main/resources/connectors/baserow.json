@@ -563,5 +563,49 @@
       },
       "afterResponse": "const format = (values, types, skipEmpty) => { const out = {}; for (const name of Object.keys(values)) { const value = values[name]; const blank = value == null || value === ''; if (skipEmpty && (blank || (Array.isArray(value) && value.length === 0))) continue; switch (types[name]) { case 'link_row': out[name] = Array.isArray(value) && value.length > 0 ? value.map(id => parseInt(id, 10)) : []; break; case 'multiple_collaborators': out[name] = Array.isArray(value) && value.length > 0 ? value.map(id => ({id: parseInt(id, 10)})) : []; break; case 'single_select': out[name] = blank || (Array.isArray(value) && value.length === 0) ? null : value; break; case 'multiple_select': out[name] = blank ? [] : value; break; default: out[name] = blank ? null : value; } } return out; };\nconst colors = ['blue', 'green', 'orange', 'red', 'purple', 'pink', 'cyan', 'yellow', 'gray'];\nconst ensureOptions = (fields, payload) => { for (const field of fields) { if (field.type !== 'single_select' && field.type !== 'multiple_select') continue; const value = payload[field.name]; if (value == null || value === '') continue; const existing = new Set(field.select_options.map(option => option.value)); const missing = [...new Set((Array.isArray(value) ? value : [value]).filter(item => typeof item === 'string' && item.length > 0 && !existing.has(item)))]; if (missing.length === 0) continue; try { call({method: 'PATCH', url: '/database/fields/' + field.id + '/', body: {select_options: [...field.select_options, ...missing.map((item, index) => ({value: item, color: colors[index % colors.length]}))]}}); } catch (e) {} } };\nconst fields = response; const types = {}; for (const field of fields) types[field.name] = field.type;\nconst rows = '/database/rows/table/' + inputs.table_id + '/';\nconst values = format(JSON.parse(inputs.table_fields || '{}'), types, true);\nconst key = /^\\d+$/.test(inputs.match_field) ? 'field_' + inputs.match_field : inputs.match_field;\nconst matchField = fields.find(field => field.id === parseInt(key.replace('field_', ''), 10));\nconst query = {user_field_names: 'true', size: '1'}; query['filter__' + key + '__equal'] = inputs.match_value;\nconst found = call({url: rows, query}).results;\nif (found.length > 0) { if (matchField) delete values[matchField.name]; if (inputs.create_missing_select_options === 'true') ensureOptions(fields, values); return {action: 'updated', row: call({method: 'PATCH', url: rows + found[0].id + '/', query: {user_field_names: 'true'}, body: values})}; }\nif (matchField) { const raw = inputs.match_value; let typed = raw; if (matchField.type === 'boolean') typed = ['true', '1', 'yes'].includes(raw.trim().toLowerCase()); else if (matchField.type === 'number' || matchField.type === 'rating') { typed = Number(raw); if (Number.isNaN(typed)) throw new Error('Match Value \"' + raw + '\" is not a valid number for the selected ' + matchField.type + ' field.'); } values[matchField.name] = typed; }\nif (inputs.create_missing_select_options === 'true') ensureOptions(fields, values);\nreturn {action: 'created', row: call({method: 'POST', url: rows, query: {user_field_names: 'true'}, body: values})};"
     }
+  },
+  "triggers": {
+    "baserow_row_created": {
+      "label": "New Row",
+      "description": "Triggers when a new row is created in a Baserow table. In Baserow, open the ··· menu beside the table, choose Webhooks > Create webhook, set the method to POST, paste the trigger's address and select the event Rows created.",
+      "webhook": {},
+      "afterResponse": "return response.items ?? [];"
+    },
+    "baserow_row_updated": {
+      "label": "Updated Row",
+      "description": "Triggers when an existing row is updated in a Baserow table, with its new and previous values. In Baserow, open the ··· menu beside the table, choose Webhooks > Create webhook, set the method to POST, paste the trigger's address and select the event Rows updated.",
+      "webhook": {},
+      "afterResponse": "return (response.items ?? []).map((row, index) => ({row, previous: (response.old_items ?? [])[index] ?? null})).filter(({row, previous}) => !previous || JSON.stringify(row) !== JSON.stringify(previous));"
+    },
+    "baserow_row_deleted": {
+      "label": "Deleted Row",
+      "description": "Triggers when a row is deleted from a Baserow table, with its ID. In Baserow, open the ··· menu beside the table, choose Webhooks > Create webhook, set the method to POST, paste the trigger's address and select the event Rows deleted.",
+      "webhook": {},
+      "afterResponse": "return (response.row_ids ?? []).map((id) => ({id}));"
+    },
+    "baserow_row_event": {
+      "label": "Any Row Change",
+      "description": "Triggers when a row is created, updated or deleted in a table, with the kind of change. In Baserow, open the ··· menu beside the table, choose Webhooks > Create webhook, set the method to POST, paste the trigger's address and select the events Rows created, Rows updated and Rows deleted.",
+      "webhook": {},
+      "afterResponse": "const kind = response.event_type;\nif (kind === 'rows.created') return (response.items ?? []).map((row) => ({event_type: kind, row, previous_row: null}));\nif (kind === 'rows.updated') return (response.items ?? []).map((row, index) => ({event_type: kind, row, previous_row: (response.old_items ?? [])[index] ?? null}));\nif (kind === 'rows.deleted') return (response.row_ids ?? []).map((id) => ({event_type: kind, row: {id}, previous_row: null}));\nreturn [];"
+    },
+    "baserow_rows_created": {
+      "label": "New Rows (Batch)",
+      "description": "Triggers once with all the rows created together, as one list. In Baserow, open the ··· menu beside the table, choose Webhooks > Create webhook, set the method to POST, paste the trigger's address and select the event Rows created.",
+      "webhook": {},
+      "afterResponse": "const rows = response.items ?? []; return [{rows, count: rows.length}];"
+    },
+    "baserow_rows_updated": {
+      "label": "Updated Rows (Batch)",
+      "description": "Triggers once with all the rows updated together, as one list, each with its new and previous values. In Baserow, open the ··· menu beside the table, choose Webhooks > Create webhook, set the method to POST, paste the trigger's address and select the event Rows updated.",
+      "webhook": {},
+      "afterResponse": "const rows = (response.items ?? []).map((row, index) => ({row, previous: (response.old_items ?? [])[index] ?? null})); return [{rows, count: rows.length}];"
+    },
+    "baserow_rows_deleted": {
+      "label": "Deleted Rows (Batch)",
+      "description": "Triggers once with the IDs of all the rows deleted together. In Baserow, open the ··· menu beside the table, choose Webhooks > Create webhook, set the method to POST, paste the trigger's address and select the event Rows deleted.",
+      "webhook": {},
+      "afterResponse": "const rows = (response.row_ids ?? []).map((id) => ({id})); return [{rows, count: rows.length}];"
+    }
   }
 }

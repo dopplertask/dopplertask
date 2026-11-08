@@ -12,10 +12,28 @@
     "version": "0.23.1"
   },
   "credential": {
+    "fields": {
+      "signingSecret": {
+        "label": "Signing Secret",
+        "description": "From Basic Information in your Slack app. Triggers need it to check that each event comes from Slack.",
+        "secret": true
+      }
+    },
     "oauth2": {
       "authUrl": "https://slack.com/oauth/v2/authorize",
       "tokenUrl": "https://slack.com/api/oauth.v2.access",
       "scope": "channels:read,channels:manage,channels:history,chat:write,groups:read,groups:write,groups:history,reactions:read,mpim:read,mpim:write,mpim:history,im:write,im:read,im:history,users:read,files:write,files:read,users:read.email,reactions:write,usergroups:read,usergroups:write,chat:write.customize,links:read,links:write,emoji:read,users.profile:read,channels:write.invites,groups:write.invites,channels:join,conversations.connect:write"
+    }
+  },
+  "events": {
+    "reply": "return response && response.challenge ? response.challenge : null;",
+    "event": "$.event.type",
+    "identifier": "$.team_id",
+    "signature": {
+      "header": "x-slack-signature",
+      "key": "{{credential.signingSecret}}",
+      "text": "v0:{{headers.x-slack-request-timestamp}}:{{text}}",
+      "prefix": "v0="
     }
   },
   "lists": {
@@ -1339,6 +1357,389 @@
         }
       },
       "afterResponse": "if (!response.ok) throw new Error('An API error occurred: ' + response.error);\nif (response.response_metadata === undefined) response.response_metadata = {};\nreturn response;"
+    }
+  },
+  "triggers": {
+    "new-message": {
+      "label": "New Public Message Posted Anywhere",
+      "description": "Starts when a message is posted in any channel the app can see. Direct messages are left out.",
+      "inputs": {
+        "ignoreBots": {
+          "label": "Ignore Bot Messages",
+          "description": "Skip messages posted by bots and apps.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "webhook": {
+        "app": true,
+        "events": [
+          "message"
+        ],
+        "subscribe": {
+          "url": "https://slack.com/api/auth.test"
+        },
+        "afterResponse": "if (!response.ok) throw new Error('Failed to get team ID from Slack auth.test');\nreturn response.team_id;"
+      },
+      "afterResponse": "const event = response.event;\nif (!['channel', 'group'].includes(event.channel_type)) return [];\nif (inputs.ignoreBots === 'true' && event.bot_id) return [];\nreturn [event];",
+      "items": "$"
+    },
+    "new-message-in-channel": {
+      "label": "New Message Posted to Channel",
+      "description": "Starts when a message is posted in the channel you choose.",
+      "inputs": {
+        "channel": {
+          "label": "Channel",
+          "description": "Private channels appear only after the bot is added to them.",
+          "required": true,
+          "list": "channels"
+        },
+        "ignoreBots": {
+          "label": "Ignore Bot Messages",
+          "description": "Skip messages posted by bots and apps.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "webhook": {
+        "app": true,
+        "events": [
+          "message"
+        ],
+        "subscribe": {
+          "url": "https://slack.com/api/auth.test"
+        },
+        "afterResponse": "if (!response.ok) throw new Error('Failed to get team ID from Slack auth.test');\nreturn response.team_id;"
+      },
+      "afterResponse": "const event = response.event;\nif (!['channel', 'group'].includes(event.channel_type) || event.channel !== inputs.channel) return [];\nif (inputs.ignoreBots === 'true' && event.bot_id) return [];\nreturn [event];",
+      "items": "$"
+    },
+    "new-direct-message": {
+      "label": "New Direct Message",
+      "description": "Starts when someone sends the app a direct message.",
+      "inputs": {
+        "ignoreBots": {
+          "label": "Ignore Bot Messages",
+          "description": "Skip messages posted by bots and apps.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "ignoreSelfMessages": {
+          "label": "Ignore My Own Messages",
+          "description": "Skip messages sent by the connected bot user.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "webhook": {
+        "app": true,
+        "events": [
+          "message"
+        ],
+        "subscribe": {
+          "url": "https://slack.com/api/auth.test"
+        },
+        "afterResponse": "if (!response.ok) throw new Error('Failed to get team ID from Slack auth.test');\nreturn response.team_id;"
+      },
+      "afterResponse": "const me = call({method: 'GET', url: '/auth.test'});\nif (!me.ok) throw new Error('Failed to get user ID from Slack auth.test');\nconst event = response.event;\nif (event.channel_type !== 'im') return [];\nif ((inputs.ignoreBots === 'true' && event.bot_id) || (inputs.ignoreSelfMessages === 'true' && event.user === me.user_id)) return [];\nreturn [event];",
+      "items": "$"
+    },
+    "new_mention": {
+      "label": "New Mention in Channel",
+      "description": "Starts when a message in a channel mentions one of the users or user groups you choose.",
+      "inputs": {
+        "users": {
+          "label": "Users",
+          "description": "JSON array of user IDs, such as [\"U012AB3CD\"].",
+          "type": "json"
+        },
+        "usergroups": {
+          "label": "User Groups",
+          "description": "JSON array of user group IDs, such as [\"S012AB3CD\"].",
+          "type": "json"
+        },
+        "channels": {
+          "label": "Channels",
+          "description": "JSON array of channel IDs, such as [\"C012AB3CD\"]. Empty means every channel the bot is in.",
+          "type": "json"
+        },
+        "ignoreBots": {
+          "label": "Ignore Bot Messages",
+          "description": "Skip messages posted by bots and apps.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "removeMention": {
+          "label": "Remove Mention from Message",
+          "description": "Adds clean_text, the message without the mentions.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "webhook": {
+        "app": true,
+        "events": [
+          "message"
+        ],
+        "subscribe": {
+          "url": "https://slack.com/api/auth.test"
+        },
+        "beforeRequest": "const list = (value) => value ? JSON.parse(value) : [];\nif (list(inputs.users).length === 0 && list(inputs.usergroups).length === 0) throw new Error('Pick at least one user or user group; with both empty this trigger never fires.');\nreturn request;",
+        "afterResponse": "if (!response.ok) throw new Error('Failed to get team ID from Slack auth.test');\nreturn response.team_id;"
+      },
+      "afterResponse": "const list = (value) => value ? JSON.parse(value) : [];\nconst event = response.event;\nconst channels = list(inputs.channels);\nconst users = list(inputs.users);\nconst groups = list(inputs.usergroups);\nif (!['channel', 'group'].includes(event.channel_type)) return [];\nif (channels.length > 0 && !channels.includes(event.channel)) return [];\nif (inputs.ignoreBots === 'true' && event.bot_id) return [];\nconst text = event.text ?? '';\nconst groupMention = (group, flags) => new RegExp('<!subteam\\\\^' + group + '(\\\\|[^>]*)?>', flags);\nif (!users.some((user) => text.includes('<@' + user + '>')) && !groups.some((group) => groupMention(group).test(text))) return [];\nif (inputs.removeMention !== 'true') return [event];\nlet clean = text;\nusers.forEach((user) => { clean = clean.replace(new RegExp('<@' + user + '>', 'g'), ''); });\ngroups.forEach((group) => { clean = clean.replace(groupMention(group, 'g'), ''); });\nreturn [{...event, clean_text: clean.trim()}];",
+      "items": "$"
+    },
+    "new-mention-in-direct-message": {
+      "label": "New Mention in Direct Message",
+      "description": "Starts when a direct message mentions the user you choose.",
+      "inputs": {
+        "user": {
+          "label": "User",
+          "description": "Search by name or handle.",
+          "required": true,
+          "list": "users"
+        },
+        "ignoreBots": {
+          "label": "Ignore Bot Messages",
+          "description": "Skip messages posted by bots and apps.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "ignoreSelfMessages": {
+          "label": "Ignore My Own Messages",
+          "description": "Skip messages sent by the connected bot user.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "webhook": {
+        "app": true,
+        "events": [
+          "message"
+        ],
+        "subscribe": {
+          "url": "https://slack.com/api/auth.test"
+        },
+        "afterResponse": "if (!response.ok) throw new Error('Failed to get team ID from Slack auth.test');\nreturn response.team_id;"
+      },
+      "afterResponse": "const me = call({method: 'GET', url: '/auth.test'});\nif (!me.ok) throw new Error('Failed to get user ID from Slack auth.test');\nconst event = response.event;\nif (event.channel_type !== 'im') return [];\nif ((inputs.ignoreBots === 'true' && event.bot_id) || (inputs.ignoreSelfMessages === 'true' && event.user === me.user_id)) return [];\nreturn inputs.user && event.text?.includes('<@' + inputs.user + '>') ? [event] : [];",
+      "items": "$"
+    },
+    "new_reaction_added": {
+      "label": "New Reaction",
+      "description": "Starts when someone adds an emoji reaction to a message.",
+      "inputs": {
+        "emojis": {
+          "label": "Emojis",
+          "description": "JSON array of emoji names without colons. Empty means any emoji.",
+          "type": "json"
+        },
+        "user": {
+          "label": "User",
+          "description": "Only reactions by this user. Empty means anyone.",
+          "list": "users"
+        },
+        "channels": {
+          "label": "Channels",
+          "description": "JSON array of channel IDs, such as [\"C012AB3CD\"]. Empty means every channel the bot is in.",
+          "type": "json"
+        }
+      },
+      "webhook": {
+        "app": true,
+        "events": [
+          "reaction_added"
+        ],
+        "subscribe": {
+          "url": "https://slack.com/api/auth.test"
+        },
+        "afterResponse": "if (!response.ok) throw new Error('Failed to get team ID from Slack auth.test');\nreturn response.team_id;"
+      },
+      "afterResponse": "const list = (value) => value ? JSON.parse(value) : [];\nconst event = response.event;\nconst channels = list(inputs.channels);\nconst emojis = list(inputs.emojis);\nif (inputs.user && event.user !== inputs.user) return [];\nif (emojis.length > 0 && !emojis.includes(event.reaction)) return [];\nif (channels.length > 0 && !channels.includes(event.item.channel)) return [];\nreturn [event];",
+      "items": "$"
+    },
+    "new_reaction_removed": {
+      "label": "Reaction Removed",
+      "description": "Starts when someone removes an emoji reaction from a message.",
+      "inputs": {
+        "emojis": {
+          "label": "Emojis",
+          "description": "JSON array of emoji names without colons. Empty means any emoji.",
+          "type": "json"
+        },
+        "user": {
+          "label": "User",
+          "description": "Only reactions removed by this user. Empty means anyone.",
+          "list": "users"
+        },
+        "channels": {
+          "label": "Channels",
+          "description": "JSON array of channel IDs, such as [\"C012AB3CD\"]. Empty means every channel the bot is in.",
+          "type": "json"
+        }
+      },
+      "webhook": {
+        "app": true,
+        "events": [
+          "reaction_removed"
+        ],
+        "subscribe": {
+          "url": "https://slack.com/api/auth.test"
+        },
+        "afterResponse": "if (!response.ok) throw new Error('Failed to get team ID from Slack auth.test');\nreturn response.team_id;"
+      },
+      "afterResponse": "const list = (value) => value ? JSON.parse(value) : [];\nconst event = response.event;\nconst channels = list(inputs.channels);\nconst emojis = list(inputs.emojis);\nif (inputs.user && event.user !== inputs.user) return [];\nif (emojis.length > 0 && !emojis.includes(event.reaction)) return [];\nif (channels.length > 0 && !channels.includes(event.item.channel)) return [];\nreturn [event];",
+      "items": "$"
+    },
+    "channel_created": {
+      "label": "New Channel",
+      "description": "Starts when a channel is created.",
+      "webhook": {
+        "app": true,
+        "events": [
+          "channel_created"
+        ],
+        "subscribe": {
+          "url": "https://slack.com/api/auth.test"
+        },
+        "afterResponse": "if (!response.ok) throw new Error('Failed to get team ID from Slack auth.test');\nreturn response.team_id;"
+      },
+      "afterResponse": "return [response.event];",
+      "items": "$"
+    },
+    "new_command": {
+      "label": "New Command in Channel",
+      "description": "Starts when someone sends the bot one of your commands in a channel, such as @bot remind me tomorrow.",
+      "inputs": {
+        "user": {
+          "label": "Bot User",
+          "description": "The bot that is mentioned before the command, such as @bot help.",
+          "required": true,
+          "list": "users"
+        },
+        "commands": {
+          "label": "Commands",
+          "description": "JSON array of words the bot responds to, such as [\"help\", \"remind\"].",
+          "type": "json",
+          "required": true,
+          "defaultValue": "[\"help\"]"
+        },
+        "channels": {
+          "label": "Channels",
+          "description": "JSON array of channel IDs, such as [\"C012AB3CD\"]. Empty means every channel the bot is in.",
+          "type": "json"
+        },
+        "ignoreBots": {
+          "label": "Ignore Bot Messages",
+          "description": "Skip messages posted by bots and apps.",
+          "type": "boolean",
+          "defaultValue": "true"
+        }
+      },
+      "webhook": {
+        "app": true,
+        "events": [
+          "message"
+        ],
+        "subscribe": {
+          "url": "https://slack.com/api/auth.test"
+        },
+        "afterResponse": "if (!response.ok) throw new Error('Failed to get team ID from Slack auth.test');\nreturn response.team_id;"
+      },
+      "afterResponse": "const list = (value) => value ? JSON.parse(value) : [];\nconst commandOf = (text, user, commands) => {\n  const match = text.match(new RegExp('<@' + user + '>\\\\s+(.+)', 's'));\n  if (!match) return null;\n  const words = match[1].trim().split(/\\s+/);\n  const command = words[0].toLowerCase();\n  return commands.includes(command) ? {command, args: words.slice(1)} : null;\n};\nconst event = response.event;\nconst channels = list(inputs.channels);\nif (!['channel', 'group'].includes(event.channel_type)) return [];\nif (channels.length > 0 && !channels.includes(event.channel)) return [];\nif (inputs.ignoreBots === 'true' && event.bot_id) return [];\nconst parsed = inputs.user && event.text ? commandOf(event.text, inputs.user, list(inputs.commands)) : null;\nreturn parsed ? [{...event, parsed_command: parsed}] : [];",
+      "items": "$"
+    },
+    "new-command-in-direct-message": {
+      "label": "New Command in Direct Message",
+      "description": "Starts when someone sends the bot one of your commands in a direct message, such as @bot remind me tomorrow.",
+      "inputs": {
+        "user": {
+          "label": "Bot User",
+          "description": "The bot that is mentioned before the command, such as @bot help.",
+          "required": true,
+          "list": "users"
+        },
+        "commands": {
+          "label": "Commands",
+          "description": "JSON array of words the bot responds to, such as [\"help\", \"remind\"].",
+          "type": "json",
+          "required": true,
+          "defaultValue": "[\"help\"]"
+        },
+        "ignoreBots": {
+          "label": "Ignore Bot Messages",
+          "description": "Skip messages posted by bots and apps.",
+          "type": "boolean",
+          "defaultValue": "true"
+        },
+        "ignoreSelfMessages": {
+          "label": "Ignore My Own Messages",
+          "description": "Skip messages sent by the connected bot user.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "webhook": {
+        "app": true,
+        "events": [
+          "message"
+        ],
+        "subscribe": {
+          "url": "https://slack.com/api/auth.test"
+        },
+        "afterResponse": "if (!response.ok) throw new Error('Failed to get team ID from Slack auth.test');\nreturn response.team_id;"
+      },
+      "afterResponse": "const list = (value) => value ? JSON.parse(value) : [];\nconst commandOf = (text, user, commands) => {\n  const match = text.match(new RegExp('<@' + user + '>\\\\s+(.+)', 's'));\n  if (!match) return null;\n  const words = match[1].trim().split(/\\s+/);\n  const command = words[0].toLowerCase();\n  return commands.includes(command) ? {command, args: words.slice(1)} : null;\n};\nconst me = call({method: 'GET', url: '/auth.test'});\nif (!me.ok) throw new Error('Failed to get user ID from Slack auth.test');\nconst event = response.event;\nif (event.channel_type !== 'im') return [];\nif ((inputs.ignoreBots === 'true' && event.bot_id) || (inputs.ignoreSelfMessages === 'true' && event.user === me.user_id)) return [];\nconst parsed = inputs.user && event.text ? commandOf(event.text, inputs.user, list(inputs.commands)) : null;\nreturn parsed ? [{...event, parsed_command: parsed}] : [];",
+      "items": "$"
+    },
+    "new-user": {
+      "label": "New User",
+      "description": "Starts when a person joins the workspace.",
+      "webhook": {
+        "app": true,
+        "events": [
+          "team_join"
+        ],
+        "subscribe": {
+          "url": "https://slack.com/api/auth.test"
+        },
+        "afterResponse": "if (!response.ok) throw new Error('Failed to get team ID from Slack auth.test');\nreturn response.team_id;"
+      },
+      "afterResponse": "return response.event.type === 'team_join' ? [response.event.user] : [];",
+      "items": "$"
+    },
+    "new-saved-message": {
+      "label": "New Saved Message",
+      "description": "Starts when someone saves a message.",
+      "webhook": {
+        "app": true,
+        "events": [
+          "star_added"
+        ],
+        "subscribe": {
+          "url": "https://slack.com/api/auth.test"
+        },
+        "afterResponse": "if (!response.ok) throw new Error('Failed to get team ID from Slack auth.test');\nreturn response.team_id;"
+      },
+      "afterResponse": "const event = response.event;\nreturn event.type === 'star_added' && event.item.type === 'message' ? [event.item] : [];",
+      "items": "$"
+    },
+    "new-team-custom-emoji": {
+      "label": "New Team Custom Emoji",
+      "description": "Starts when a custom emoji is added to the workspace.",
+      "webhook": {
+        "app": true,
+        "events": [
+          "emoji_changed"
+        ],
+        "subscribe": {
+          "url": "https://slack.com/api/auth.test"
+        },
+        "afterResponse": "if (!response.ok) throw new Error('Failed to get team ID from Slack auth.test');\nreturn response.team_id;"
+      },
+      "afterResponse": "const event = response.event;\nreturn event.type === 'emoji_changed' && event.subtype === 'add' ? [{id: event.name, image: event.value}] : [];",
+      "items": "$"
     }
   }
 }

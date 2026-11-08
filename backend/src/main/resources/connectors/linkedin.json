@@ -1,7 +1,7 @@
 {
   "name": "linkedin",
   "label": "LinkedIn",
-  "description": "Post on LinkedIn Company Pages, edit posts, and read your profile and pages",
+  "description": "Post on LinkedIn profiles and Company Pages, edit posts, and read your profile and pages",
   "icon": "linkedin",
   "hosts": [
     "api.linkedin.com"
@@ -73,6 +73,69 @@
         "postUrn": "$.post_urn"
       },
       "beforeRequest": "var company = String(inputs.company);\nvar post = {\n  author: 'urn:li:organization:' + company.substring(company.lastIndexOf(':') + 1),\n  lifecycleState: 'PUBLISHED',\n  commentary: inputs.text.replace(/[\\(*\\)\\[\\]\\{\\}<>@|~_]/gm, (x) => '\\\\' + x),\n  distribution: { feedDistribution: 'MAIN_FEED' },\n  visibility: 'PUBLIC',\n  isReshareDisabledByAuthor: false\n};\nif (inputs.link) post.content = { article: { source: inputs.link, title: inputs.linkTitle || undefined, description: inputs.linkDescription || undefined } };\nrequest.body = post;\nreturn request;",
+      "afterResponse": "var id = Object.entries(received.headers || {}).find(([key]) => key.toLowerCase() === 'x-restli-id');\nreturn { success: true, post_urn: id === undefined || typeof id[1] !== 'string' ? null : id[1] };"
+    },
+    "create_member_post": {
+      "label": "Create Member Post",
+      "description": "Post on your own LinkedIn profile",
+      "inputs": {
+        "member_urn": {
+          "label": "Member URN",
+          "description": "Your member URN, which Get Current Member Profile gives. Posts always appear as the member who connected the account.",
+          "required": true
+        },
+        "text": {
+          "label": "Text",
+          "description": "Plain text; an @ does not tag anyone.",
+          "type": "multiline",
+          "required": true
+        },
+        "visibility": {
+          "label": "Visibility",
+          "description": "Who can see the post.",
+          "type": "select",
+          "required": true,
+          "defaultValue": "PUBLIC",
+          "options": [
+            {
+              "label": "Public",
+              "value": "PUBLIC"
+            },
+            {
+              "label": "Connections Only",
+              "value": "CONNECTIONS"
+            }
+          ]
+        },
+        "link": {
+          "label": "Link URL",
+          "description": "A page to show as an article preview."
+        },
+        "link_title": {
+          "label": "Link Title",
+          "description": "Shows only when a Link URL is set."
+        },
+        "link_description": {
+          "label": "Link Description",
+          "description": "Shows only when a Link URL is set."
+        },
+        "image_urn": {
+          "label": "Image URN",
+          "description": "An image already uploaded to LinkedIn, such as the one Create Image Upload URL reserves. With a Link URL it is the preview image."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.linkedin.com/rest/posts",
+        "headers": {
+          "X-Restli-Protocol-Version": "2.0.0",
+          "LinkedIn-Version": "202511"
+        }
+      },
+      "outputs": {
+        "postUrn": "$.post_urn"
+      },
+      "beforeRequest": "var post = {\n  author: inputs.member_urn,\n  lifecycleState: 'PUBLISHED',\n  commentary: inputs.text.replace(/[\\(*\\)\\[\\]\\{\\}<>@|~_]/gm, (x) => '\\\\' + x),\n  distribution: { feedDistribution: 'MAIN_FEED' },\n  visibility: inputs.visibility,\n  isReshareDisabledByAuthor: false\n};\nvar image = inputs.image_urn || undefined;\nif (inputs.link) post.content = { article: { source: inputs.link, title: inputs.link_title || undefined, description: inputs.link_description || undefined, thumbnail: image } };\nelse if (image) post.content = { media: { id: image } };\nrequest.body = post;\nreturn request;",
       "afterResponse": "var id = Object.entries(received.headers || {}).find(([key]) => key.toLowerCase() === 'x-restli-id');\nreturn { success: true, post_urn: id === undefined || typeof id[1] !== 'string' ? null : id[1] };"
     },
     "get_current_member_profile": {

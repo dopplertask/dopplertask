@@ -905,6 +905,44 @@
       "items": "$",
       "newBy": "time",
       "key": "$.createdTime"
+    },
+    "updated_record": {
+      "label": "New or Updated Record",
+      "description": "Triggers when a record is created or changed in the selected table.",
+      "inputs": {
+        "base": {
+          "label": "Base",
+          "required": true,
+          "list": "bases"
+        },
+        "tableId": {
+          "label": "Table",
+          "required": true,
+          "list": "tables"
+        },
+        "sortFields": {
+          "label": "Trigger Field",
+          "description": "The name of a Last Modified Time field of the table. Add one if none exists.",
+          "required": true
+        },
+        "view": {
+          "label": "View",
+          "description": "Only records in this view are used. Empty: the whole table."
+        }
+      },
+      "request": {
+        "url": "https://api.airtable.com/v0/{{base}}/{{tableId}}",
+        "headers": {
+          "x-airtable-application-id": "{{base}}",
+          "x-api-version": "0.1.0"
+        }
+      },
+      "beforeRequest": "// Encoded as the original's library does, with + for a space. Every page asks with the same search.\nconst since = new Date(inputs.lastPollTime ? Number(inputs.lastPollTime) : Date.now() - 86400000).toISOString();\nconst formula = 'IS_AFTER({' + inputs.sortFields + '},DATETIME_PARSE(\"' + since + '\",\"YYYY-MM-DD HH:mm:ss.SSS\"))';\nmemory.search = '?filterByFormula=' + encodeURIComponent(formula).replace(/%20/g, '+') + (inputs.view ? '&view=' + encodeURIComponent(inputs.view) : '');\nrequest.url += memory.search;\nreturn request;",
+      "afterResponse": "const search = memory.search;\ndelete memory.search;\nlet records = response.records;\nlet offset = response.offset;\nwhile (offset) {\n  const page = call({method: 'GET', url: '/' + encodeURIComponent(inputs.base) + '/' + encodeURIComponent(inputs.tableId) + search + '&offset=' + encodeURIComponent(offset), headers: {'x-airtable-application-id': inputs.base, 'x-api-version': '0.1.0'}});\n  records = records.concat(page.records);\n  offset = page.offset;\n}\nreturn records.map(record => ({time: record.fields[inputs.sortFields], data: record}));",
+      "items": "$",
+      "newBy": "time",
+      "key": "$.time",
+      "emit": "$.data"
     }
   }
 }

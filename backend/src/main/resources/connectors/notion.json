@@ -766,5 +766,80 @@
       "beforeRequest": "var properties = inputs.properties ? JSON.parse(inputs.properties) : undefined;\nif (properties != null && (typeof properties != 'object' || Array.isArray(properties))) throw new Error('Properties must be a Notion property-schema JSON object (a map of property name to a type-config object, or null to remove a column).');\nif (!inputs.title && properties == null) throw new Error('Provide a new title and/or a properties schema patch — nothing to update.');\nrequest.body = Object.assign({}, inputs.title ? { title: [{ type: 'text', text: { content: inputs.title } }] } : {}, properties != null ? { properties: properties } : {});\nreturn request;",
       "afterResponse": "return { success: true, database: response };"
     }
+  },
+  "triggers": {
+    "new_database_item": {
+      "label": "New Database Item",
+      "description": "Triggers when an item is added to a database.",
+      "inputs": {
+        "database_id": {
+          "label": "Database",
+          "description": "Only databases shared with your integration are listed.",
+          "required": true,
+          "list": "databases"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.notion.com/v1/databases/{{database_id}}/query"
+      },
+      "beforeRequest": "// After the newest item seen, whose key holds its time.\nvar since = inputs.lastItem ? new Date(Number(inputs.lastItem.split('|')[1])).toISOString() : undefined;\nrequest.body = { sorts: [{ timestamp: 'created_time', direction: 'descending' }], filter: since ? { timestamp: 'created_time', created_time: { on_or_after: since } } : undefined };\nreturn request;",
+      "afterResponse": "// Each page with its title and its fields as plain values, as the original gives it.\nvar plain = (parts) => Array.isArray(parts) ? parts.map((part) => part?.plain_text ?? part?.text?.content ?? '').join('').trim() : '';\nvar range = (date) => date?.start ? (date.end ? date.start + ' → ' + date.end : date.start) : null;\nvar flat = (value) => {\n  if (!value || typeof value != 'object') return null;\n  var type = value.type, inner = value[type];\n  switch (type) {\n    case 'title': case 'rich_text': return plain(inner);\n    case 'select': case 'status': return inner?.name ?? null;\n    case 'multi_select': return (inner ?? []).map((choice) => choice?.name ?? '').join(', ');\n    case 'date': return range(inner);\n    case 'people': return (inner ?? []).map((user) => user?.name ?? user?.id ?? '').join(', ');\n    case 'created_by': case 'last_edited_by': return inner?.name ?? inner?.id ?? null;\n    case 'created_time': case 'last_edited_time': case 'number': case 'checkbox': case 'url': case 'email': case 'phone_number': return inner ?? null;\n    case 'files': return (inner ?? []).map((file) => file?.name ?? '').join(', ');\n    case 'formula': return !inner ? null : inner.type === 'date' ? range(inner.date) : ['string', 'number', 'boolean'].includes(inner.type) ? inner[inner.type] ?? null : null;\n    case 'rollup': return !inner ? null : inner.type === 'number' ? inner.number ?? null : inner.type === 'date' ? range(inner.date)\n      : inner.type === 'array' ? (inner.array ?? []).map(flat).filter((part) => part !== null && part !== '').join(', ') : null;\n    case 'relation': return value.has_more === true ? (inner ?? []).length + '+' : (inner ?? []).length;\n    case 'unique_id': return !inner || inner.number == null ? null : inner.prefix ? inner.prefix + '-' + inner.number : String(inner.number);\n    case 'verification': return inner?.state ?? null;\n    case 'place': { if (!inner) return null; var lat = inner.latitude ?? inner.lat, lon = inner.longitude ?? inner.lon; return inner.name ?? inner.address ?? (lat != null && lon != null ? lat + ', ' + lon : null); }\n    default: return null;\n  }\n};\nvar enrich = (page) => {\n  if (!page || typeof page != 'object') return page;\n  var properties = page.properties && typeof page.properties == 'object' ? page.properties : {}, names = Object.keys(properties);\n  var title = names.find((name) => properties[name]?.type === 'title');\n  return Object.assign({}, page, { title: title ? plain(properties[title].title) : '', property_values: Object.fromEntries(names.map((name) => [name, flat(properties[name])])) });\n};\nvar since = inputs.lastItem ? new Date(Number(inputs.lastItem.split('|')[1])).toISOString() : undefined;\nvar items = [...response.results], page = response;\nwhile (page.has_more && since) {\n  page = call({ method: 'POST', url: '/databases/' + encodeURIComponent(inputs.database_id) + '/query', body: { sorts: [{ timestamp: 'created_time', direction: 'descending' }], filter: { timestamp: 'created_time', created_time: { on_or_after: since } }, start_cursor: page.next_cursor ?? undefined } });\n  items.push(...page.results);\n}\nreturn items.map((item) => ({ id: item.id + '|' + Date.parse(item.created_time), data: enrich(item) }));",
+      "newBy": "lastItem",
+      "emit": "$.data"
+    },
+    "updated_database_item": {
+      "label": "Updated Database Item",
+      "description": "Triggers when an item is updated in a database.",
+      "inputs": {
+        "database_id": {
+          "label": "Database",
+          "description": "Only databases shared with your integration are listed.",
+          "required": true,
+          "list": "databases"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.notion.com/v1/databases/{{database_id}}/query"
+      },
+      "beforeRequest": "// After the newest item seen, whose key holds its time.\nvar since = inputs.lastItem ? new Date(Number(inputs.lastItem.split('|')[1])).toISOString() : undefined;\nrequest.body = { sorts: [{ timestamp: 'last_edited_time', direction: 'descending' }], filter: since ? { timestamp: 'last_edited_time', last_edited_time: { on_or_after: since } } : undefined };\nreturn request;",
+      "afterResponse": "// Each page with its title and its fields as plain values, as the original gives it.\nvar plain = (parts) => Array.isArray(parts) ? parts.map((part) => part?.plain_text ?? part?.text?.content ?? '').join('').trim() : '';\nvar range = (date) => date?.start ? (date.end ? date.start + ' → ' + date.end : date.start) : null;\nvar flat = (value) => {\n  if (!value || typeof value != 'object') return null;\n  var type = value.type, inner = value[type];\n  switch (type) {\n    case 'title': case 'rich_text': return plain(inner);\n    case 'select': case 'status': return inner?.name ?? null;\n    case 'multi_select': return (inner ?? []).map((choice) => choice?.name ?? '').join(', ');\n    case 'date': return range(inner);\n    case 'people': return (inner ?? []).map((user) => user?.name ?? user?.id ?? '').join(', ');\n    case 'created_by': case 'last_edited_by': return inner?.name ?? inner?.id ?? null;\n    case 'created_time': case 'last_edited_time': case 'number': case 'checkbox': case 'url': case 'email': case 'phone_number': return inner ?? null;\n    case 'files': return (inner ?? []).map((file) => file?.name ?? '').join(', ');\n    case 'formula': return !inner ? null : inner.type === 'date' ? range(inner.date) : ['string', 'number', 'boolean'].includes(inner.type) ? inner[inner.type] ?? null : null;\n    case 'rollup': return !inner ? null : inner.type === 'number' ? inner.number ?? null : inner.type === 'date' ? range(inner.date)\n      : inner.type === 'array' ? (inner.array ?? []).map(flat).filter((part) => part !== null && part !== '').join(', ') : null;\n    case 'relation': return value.has_more === true ? (inner ?? []).length + '+' : (inner ?? []).length;\n    case 'unique_id': return !inner || inner.number == null ? null : inner.prefix ? inner.prefix + '-' + inner.number : String(inner.number);\n    case 'verification': return inner?.state ?? null;\n    case 'place': { if (!inner) return null; var lat = inner.latitude ?? inner.lat, lon = inner.longitude ?? inner.lon; return inner.name ?? inner.address ?? (lat != null && lon != null ? lat + ', ' + lon : null); }\n    default: return null;\n  }\n};\nvar enrich = (page) => {\n  if (!page || typeof page != 'object') return page;\n  var properties = page.properties && typeof page.properties == 'object' ? page.properties : {}, names = Object.keys(properties);\n  var title = names.find((name) => properties[name]?.type === 'title');\n  return Object.assign({}, page, { title: title ? plain(properties[title].title) : '', property_values: Object.fromEntries(names.map((name) => [name, flat(properties[name])])) });\n};\nvar since = inputs.lastItem ? new Date(Number(inputs.lastItem.split('|')[1])).toISOString() : undefined;\nvar items = [...response.results], page = response;\nwhile (page.has_more && since) {\n  page = call({ method: 'POST', url: '/databases/' + encodeURIComponent(inputs.database_id) + '/query', body: { sorts: [{ timestamp: 'last_edited_time', direction: 'descending' }], filter: { timestamp: 'last_edited_time', last_edited_time: { on_or_after: since } }, start_cursor: page.next_cursor ?? undefined } });\n  items.push(...page.results);\n}\nreturn items.map((item) => ({ id: item.id + '|' + Date.parse(item.last_edited_time), data: enrich(item) }));",
+      "newBy": "lastItem",
+      "emit": "$.data"
+    },
+    "new_comment": {
+      "label": "New Comment",
+      "description": "Triggers when a comment is added to a page.",
+      "inputs": {
+        "page_id": {
+          "label": "Page",
+          "description": "Your 100 most recently edited pages shared with the integration.",
+          "required": true,
+          "list": "pages"
+        }
+      },
+      "request": {
+        "url": "https://api.notion.com/v1/comments",
+        "query": {
+          "block_id": "{{page_id}}"
+        }
+      },
+      "afterResponse": "// Like the original: reads pages until a comment is not after the newest one seen, then lists the newest first.\nvar since = inputs.lastItem ? Number(inputs.lastItem.split('|')[1]) : null, comments = [], page = response, more = true;\nfor (;;) {\n  for (var comment of page.results) { if (since != null && !(Date.parse(comment.created_time) > since)) { more = false; break; } comments.push(comment); }\n  if (!page.has_more || !more) break;\n  page = call({ method: 'GET', url: '/comments', query: { block_id: inputs.page_id, start_cursor: page.next_cursor ?? undefined } });\n}\nreturn comments.sort((first, second) => Date.parse(second.created_time) - Date.parse(first.created_time)).map((item) => ({ id: item.id + '|' + Date.parse(item.created_time), data: item }));",
+      "newBy": "lastItem",
+      "emit": "$.data"
+    },
+    "updated_page": {
+      "label": "Updated Page",
+      "description": "Triggers when any page shared with the integration is edited.",
+      "request": {
+        "method": "POST",
+        "url": "https://api.notion.com/v1/search"
+      },
+      "beforeRequest": "// Pages edited after the newest one seen, whose key holds its time.\nvar page = { property: 'object', value: 'page' };\nvar since = inputs.lastItem ? new Date(Number(inputs.lastItem.split('|')[1])).toISOString() : undefined;\nrequest.body = { filter: since ? { and: [page, { timestamp: 'last_edited_time', last_edited_time: { after: since } }] } : page, sort: { direction: 'descending', timestamp: 'last_edited_time' } };\nreturn request;",
+      "afterResponse": "// Each page with its title and its fields as plain values, as the original gives it.\nvar plain = (parts) => Array.isArray(parts) ? parts.map((part) => part?.plain_text ?? part?.text?.content ?? '').join('').trim() : '';\nvar range = (date) => date?.start ? (date.end ? date.start + ' → ' + date.end : date.start) : null;\nvar flat = (value) => {\n  if (!value || typeof value != 'object') return null;\n  var type = value.type, inner = value[type];\n  switch (type) {\n    case 'title': case 'rich_text': return plain(inner);\n    case 'select': case 'status': return inner?.name ?? null;\n    case 'multi_select': return (inner ?? []).map((choice) => choice?.name ?? '').join(', ');\n    case 'date': return range(inner);\n    case 'people': return (inner ?? []).map((user) => user?.name ?? user?.id ?? '').join(', ');\n    case 'created_by': case 'last_edited_by': return inner?.name ?? inner?.id ?? null;\n    case 'created_time': case 'last_edited_time': case 'number': case 'checkbox': case 'url': case 'email': case 'phone_number': return inner ?? null;\n    case 'files': return (inner ?? []).map((file) => file?.name ?? '').join(', ');\n    case 'formula': return !inner ? null : inner.type === 'date' ? range(inner.date) : ['string', 'number', 'boolean'].includes(inner.type) ? inner[inner.type] ?? null : null;\n    case 'rollup': return !inner ? null : inner.type === 'number' ? inner.number ?? null : inner.type === 'date' ? range(inner.date)\n      : inner.type === 'array' ? (inner.array ?? []).map(flat).filter((part) => part !== null && part !== '').join(', ') : null;\n    case 'relation': return value.has_more === true ? (inner ?? []).length + '+' : (inner ?? []).length;\n    case 'unique_id': return !inner || inner.number == null ? null : inner.prefix ? inner.prefix + '-' + inner.number : String(inner.number);\n    case 'verification': return inner?.state ?? null;\n    case 'place': { if (!inner) return null; var lat = inner.latitude ?? inner.lat, lon = inner.longitude ?? inner.lon; return inner.name ?? inner.address ?? (lat != null && lon != null ? lat + ', ' + lon : null); }\n    default: return null;\n  }\n};\nvar enrich = (page) => {\n  if (!page || typeof page != 'object') return page;\n  var properties = page.properties && typeof page.properties == 'object' ? page.properties : {}, names = Object.keys(properties);\n  var title = names.find((name) => properties[name]?.type === 'title');\n  return Object.assign({}, page, { title: title ? plain(properties[title].title) : '', property_values: Object.fromEntries(names.map((name) => [name, flat(properties[name])])) });\n};\nreturn response.results.map((item) => ({ id: item.id + '|' + Date.parse(item.last_edited_time), data: enrich(item) }));",
+      "newBy": "lastItem",
+      "emit": "$.data"
+    }
   }
 }

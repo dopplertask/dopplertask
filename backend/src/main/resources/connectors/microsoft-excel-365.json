@@ -2067,6 +2067,177 @@
       "newBy": "lastItem",
       "beforeRequest": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D=inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId),W=D+'/items/'+e(inputs.workbookId)+'/workbook';\nrequest.url=W+'/worksheets';\nreturn request;",
       "afterResponse": "const known=memory.worksheet_ids??[],worksheets=response.value??[];\nmemory.worksheet_ids=worksheets.map(worksheet=>worksheet.id);\nreturn worksheets.filter(worksheet=>!known.includes(worksheet.id)).reverse();"
+    },
+    "new_row": {
+      "label": "New Row",
+      "description": "Trigger when a new row is added, and it can include existing rows as well.",
+      "inputs": {
+        "storageSource": {
+          "label": "Excel File Source",
+          "type": "select",
+          "required": true,
+          "defaultValue": "onedrive",
+          "options": [
+            {
+              "value": "onedrive",
+              "label": "OneDrive"
+            },
+            {
+              "value": "sharepoint",
+              "label": "SharePoint"
+            }
+          ]
+        },
+        "siteId": {
+          "label": "SharePoint Site",
+          "list": "sites"
+        },
+        "documentId": {
+          "label": "SharePoint Document Library",
+          "list": "documents"
+        },
+        "workbookId": {
+          "label": "Workbook",
+          "required": true,
+          "description": "The workbook ID. The choices list the OneDrive workbooks.",
+          "list": "workbooks"
+        },
+        "worksheetId": {
+          "label": "Worksheet",
+          "required": true,
+          "description": "The worksheet name.",
+          "list": "worksheets"
+        },
+        "max_rows_to_poll": {
+          "label": "Max Rows to Poll",
+          "type": "number",
+          "defaultValue": "10",
+          "description": "The maximum number of rows to poll, the rest will be polled on the next run."
+        }
+      },
+      "request": {
+        "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets/{{worksheetId}}/usedRange(valuesOnly=true)"
+      },
+      "newBy": "lastItem",
+      "key": "$.id",
+      "emit": "$.data",
+      "beforeRequest": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D=inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId),W=D+'/items/'+e(inputs.workbookId)+'/workbook';\nrequest.url=W+'/worksheets/'+e(inputs.worksheetId)+'/usedRange(valuesOnly=true)';\nreturn request;",
+      "afterResponse": "const last=inputs.lastItem?Number(inputs.lastItem):null,most=Math.max(1,Math.min(10,inputs.max_rows_to_poll?Number(inputs.max_rows_to_poll):10));\nconst rows=(response.values??[]).map((cells,i)=>{const values={};cells.forEach((cell,j)=>values[String.fromCharCode(65+j)]=cell);return {row:i+1,values};})\n  .filter(row=>Object.keys(row.values).length>0).map((data,i)=>({id:i+1,data})).filter(row=>last===null||row.data.row>last).reverse();\n// The first check notes the newest row, or row 0 for an empty sheet, so that the next check takes every row, as the original does.\nif(last===null)return rows.length?rows:[{id:0}];\nconst seen=rows.findIndex(row=>row.id===last);\nreturn (seen===-1?rows:rows.slice(0,seen)).slice(-most);"
+    },
+    "new_row_in_table": {
+      "label": "New Row in Table",
+      "description": "Fires when a new row is added to a table within a worksheet.",
+      "inputs": {
+        "storageSource": {
+          "label": "Excel File Source",
+          "type": "select",
+          "required": true,
+          "defaultValue": "onedrive",
+          "options": [
+            {
+              "value": "onedrive",
+              "label": "OneDrive"
+            },
+            {
+              "value": "sharepoint",
+              "label": "SharePoint"
+            }
+          ]
+        },
+        "siteId": {
+          "label": "SharePoint Site",
+          "list": "sites"
+        },
+        "documentId": {
+          "label": "SharePoint Document Library",
+          "list": "documents"
+        },
+        "workbookId": {
+          "label": "Workbook",
+          "required": true,
+          "description": "The workbook ID. The choices list the OneDrive workbooks.",
+          "list": "workbooks"
+        },
+        "worksheetId": {
+          "label": "Worksheet",
+          "required": true,
+          "description": "The worksheet name.",
+          "list": "worksheets"
+        },
+        "tableId": {
+          "label": "Table",
+          "required": true,
+          "list": "tables"
+        }
+      },
+      "request": {
+        "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/tables/{{tableId}}/rows",
+        "headers": {
+          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        }
+      },
+      "newBy": "lastItem",
+      "key": "$.id",
+      "emit": "$.data",
+      "beforeRequest": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D=inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId),W=D+'/items/'+e(inputs.workbookId)+'/workbook';\nrequest.url=W+'/tables/'+encodeURIComponent(inputs.tableId)+'/rows';\nreturn request;",
+      "afterResponse": "const col=n=>{let s='';while(n>0){const m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=Math.floor((n-m)/26);}return s;};\nconst last=inputs.lastItem?Number(inputs.lastItem):null,rows=response.value??[];\n// The first check of an empty table notes row -1, so that the next check takes every row, as the original does.\nif(rows.length===0)return last===null?[{id:-1}]:[];\nreturn rows.map(row=>({id:row.index,data:{rowIndex:row.index,values:(row.values[0]??[]).reduce((values,cell,j)=>(values[col(j+1)]=cell,values),{})}}))\n  .filter(row=>last===null||row.id>last);"
+    },
+    "updated_row": {
+      "label": "Updated Row",
+      "description": "Fires when a row (in a worksheet) is added or updated.",
+      "inputs": {
+        "storageSource": {
+          "label": "Excel File Source",
+          "type": "select",
+          "required": true,
+          "defaultValue": "onedrive",
+          "options": [
+            {
+              "value": "onedrive",
+              "label": "OneDrive"
+            },
+            {
+              "value": "sharepoint",
+              "label": "SharePoint"
+            }
+          ]
+        },
+        "siteId": {
+          "label": "SharePoint Site",
+          "list": "sites"
+        },
+        "documentId": {
+          "label": "SharePoint Document Library",
+          "list": "documents"
+        },
+        "workbookId": {
+          "label": "Workbook",
+          "required": true,
+          "description": "The workbook ID. The choices list the OneDrive workbooks.",
+          "list": "workbooks"
+        },
+        "worksheetId": {
+          "label": "Worksheet",
+          "required": true,
+          "description": "The worksheet name.",
+          "list": "worksheets"
+        },
+        "has_headers": {
+          "label": "First row has headers",
+          "type": "boolean",
+          "required": true,
+          "defaultValue": "false",
+          "description": "Enable this if the first row of your worksheet should be treated as headers."
+        }
+      },
+      "request": {
+        "url": "https://graph.microsoft.com/v1.0/me/drive/items/{{workbookId}}/workbook/worksheets/{{worksheetId}}/usedRange(valuesOnly=true)"
+      },
+      "newBy": "time",
+      "key": "$.epochMilliSeconds",
+      "emit": "$.data",
+      "beforeRequest": "const e=v=>String(v).replace(/[^\\x21-\\x7e]|[\"<>`{}]/gu,c=>encodeURIComponent(c));\nif(inputs.storageSource!=='onedrive'&&(!inputs.siteId||!inputs.documentId))throw new Error('please select SharePoint site and document library.');\nconst D=inputs.storageSource==='onedrive'?'/me/drive':'/sites/'+e(inputs.siteId)+'/drives/'+e(inputs.documentId),W=D+'/items/'+e(inputs.workbookId)+'/workbook';\nrequest.url=W+'/worksheets/'+e(inputs.worksheetId)+'/usedRange(valuesOnly=true)';\nreturn request;",
+      "afterResponse": "const col=n=>{let s='';while(n>0){const m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=Math.floor((n-m)/26);}return s;};\nconst bytes=s=>Array.from(unescape(encodeURIComponent(s)),c=>c.charCodeAt(0)),rot=(v,n)=>v<<n|v>>>(32-n);\nconst sha1=m=>{const bits=m.length*8,w=[];m=m.concat(0x80);while(m.length%64!==56)m.push(0);m.push(0,0,0,0,bits>>>24,bits>>>16&255,bits>>>8&255,bits&255);\n  let h=[0x67452301,0xEFCDAB89,0x98BADCFE,0x10325476,0xC3D2E1F0];\n  for(let i=0;i<m.length;i+=64){for(let t=0;t<80;t++)w[t]=t<16?m[i+4*t]<<24|m[i+4*t+1]<<16|m[i+4*t+2]<<8|m[i+4*t+3]:rot(w[t-3]^w[t-8]^w[t-14]^w[t-16],1);\n    let [a,b,c,d,e]=h;for(let t=0;t<80;t++){const f=t<20?(b&c|~b&d)+0x5A827999:t<40?(b^c^d)+0x6ED9EBA1:t<60?(b&c|b&d|c&d)+0x8F1BBCDC:(b^c^d)+0xCA62C1D6,x=rot(a,5)+f+e+w[t]|0;e=d;d=c;c=rot(b,30);b=a;a=x;}\n    h=h.map((v,j)=>v+[a,b,c,d,e][j]|0);}\n  return h.flatMap(v=>[v>>>24,v>>>16&255,v>>>8&255,v&255]);};\n// The original keeps each row's HMAC-SHA1 with the key activepieces, in hex.\nconst key=bytes('activepieces').concat(new Array(52).fill(0)),hash=text=>sha1(key.map(k=>k^0x5c).concat(sha1(key.map(k=>k^0x36).concat(bytes(text))))).map(v=>v.toString(16).padStart(2,'0')).join('');\n// The original's first check only notes the time, so its next check takes every row as added.\nconst rows=response.values??[];if(!inputs.lastPollTime||rows.length===0)return [];\nconst headed=inputs.has_headers==='true',head=headed?rows[0]:[],known=memory.row_hashes??{},hashes={},now=Date.now(),changed=[];\n(headed?rows.slice(1):rows).forEach((cells,i)=>{const index=headed?i+1:i,digest=hash(JSON.stringify(cells));hashes[index]=digest;if(known[index]===digest)return;\n  const values={};if(headed&&head.length>0)head.forEach((name,j)=>values[String(name)]=cells[j]??null);else cells.forEach((cell,j)=>values[col(j+1)]=cell);\n  changed.push({epochMilliSeconds:now,data:{rowIndex:index+1,values,changeType:known[index]?'updated':'added'}});});\nmemory.row_hashes=hashes;\nreturn changed;"
     }
   }
 }

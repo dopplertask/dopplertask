@@ -2979,6 +2979,26 @@
       "beforeRequest": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar soql = (q) => '/services/data/v56.0/query?q=' + form(q);\nvar since = new Date(Number(inputs.lastPollTime || 0)).toISOString();\nif (!inputs.lastPollTime) request.url = soql(`SELECT FIELDS(ALL) FROM Case WHERE OwnerId = '${inputs.case_queue_id}' ORDER BY CreatedDate DESC LIMIT 10`);\nelse request.url = soql(`SELECT CaseId, CreatedDate, NewValue FROM CaseHistory WHERE Field = 'Owner' AND CreatedDate > ${since}`);\nreturn request;",
       "afterResponse": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar soql = (q) => '/services/data/v56.0/query?q=' + form(q);\nvar since = new Date(Number(inputs.lastPollTime || 0)).toISOString();\nif (!inputs.lastPollTime) return response?.records ?? [];\nvar queue = inputs.case_queue_id, moved = (response?.records ?? []).filter((h) => h.NewValue === queue);\nvar created = call({method: 'GET', url: soql(`SELECT Id, CreatedDate FROM Case WHERE OwnerId = '${queue}' AND CreatedDate > ${since}`)})?.records ?? [];\nvar ids = Object.keys(Object.fromEntries(created.map((c) => [c.Id, true]).concat(moved.map((h) => [h.CaseId, true]))));\nvar cases = [];\nfor (var i = 0; i < ids.length; i += 200) cases.push(...(call({method: 'GET', url: soql(`SELECT FIELDS(ALL) FROM Case WHERE Id IN (${ids.slice(i, i + 200).map((id) => `'${id}'`).join(',')}) LIMIT 200`)})?.records ?? []));\nreturn cases;",
       "key": "$.LastModifiedDate"
+    },
+    "new_contact": {
+      "label": "New Contact",
+      "description": "Fires when a new Contact record is created in Salesforce.",
+      "request": {
+        "url": "https://{{credential.instanceUrl}}/services/data/v56.0/query"
+      },
+      "beforeRequest": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar soql = (q) => '/services/data/v56.0/query?q=' + form(q);\nvar since = new Date(Number(inputs.lastPollTime || 0)).toISOString();\nrequest.url = soql(`\n            SELECT FIELDS(ALL)\n            FROM Contact\n            WHERE CreatedDate > ${since}\n            ORDER BY CreatedDate ASC\n            LIMIT 200\n        `);\nreturn request;",
+      "afterResponse": "return response.records;",
+      "key": "$.CreatedDate"
+    },
+    "new_lead": {
+      "label": "New Lead",
+      "description": "Fires when a new Lead record is created in Salesforce.",
+      "request": {
+        "url": "https://{{credential.instanceUrl}}/services/data/v56.0/query"
+      },
+      "beforeRequest": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar soql = (q) => '/services/data/v56.0/query?q=' + form(q);\nvar since = new Date(Number(inputs.lastPollTime || 0)).toISOString();\nrequest.url = soql(`\n            SELECT FIELDS(ALL)\n            FROM Lead\n            WHERE CreatedDate > ${since}\n            ORDER BY CreatedDate ASC\n            LIMIT 200\n        `);\nreturn request;",
+      "afterResponse": "return response.records;",
+      "key": "$.CreatedDate"
     }
   }
 }

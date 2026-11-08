@@ -123,6 +123,12 @@
       },
       "items": "$.lists",
       "value": "$.listId"
+    },
+    "workflows": {
+      "request": {
+        "url": "https://api.hubapi.com/automation/v2/workflows"
+      },
+      "items": "$.workflows"
     }
   },
   "actions": {
@@ -1125,6 +1131,29 @@
         }
       },
       "afterResponse": "if (response.results.length === 0) throw new Error(\"No contact with email '\" + inputs.email + \"' was found. Unable to remove unknown contact from list.\");\nconst answer = call({method: 'POST', url: '/contacts/v1/lists/' + encodeURIComponent(inputs.listId) + '/remove', body: {vids: [response.results[0].id]}});\nif (answer.updated.length === 0) throw new Error(\"Contact with email '\" + inputs.email + \"' wasn't a member of list with id '\" + inputs.listId + \"'.\");\nreturn answer;"
+    },
+    "add-contact-to-workflow": {
+      "label": "Add Contact to Workflow",
+      "description": "Adds a contact to a specified workflow in your HubSpot account.",
+      "group": "Contacts",
+      "inputs": {
+        "workflowId": {
+          "label": "Workflow",
+          "required": true,
+          "description": "Choose a workflow that is turned on.",
+          "list": "workflows"
+        },
+        "email": {
+          "label": "Contact Email",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/automation/v2/workflows/{{workflowId}}/enrollments/contacts"
+      },
+      "beforeRequest": "request.url += '/' + encodeURI(inputs.email);\nreturn request;",
+      "afterResponse": "const type = Object.entries(received.headers).find(([name]) => name.toLowerCase() === 'content-type')?.[1];\nconst answer = {status: received.status, headers: type ? {'content-type': type} : {}};\nreturn response == null ? answer : {...answer, body: response};"
     },
     "remove-email-subscription": {
       "label": "Remove Email Subscription",
@@ -2438,6 +2467,39 @@
       },
       "afterResponse": "let changes = response.timeline ?? [];\nlet page = response;\nwhile (page.hasMore) {\n  const query = {limit: '100', offset: String(page.offset)};\n  if (inputs.lastPollTime) query.startTimestamp = inputs.lastPollTime;\n  page = call({method: 'GET', url: '/email/public/v1/subscriptions/timeline', query});\n  changes = changes.concat(page.timeline ?? []);\n}\nreturn changes;",
       "key": "$.timestamp"
+    },
+    "new-blog-article": {
+      "label": "New Blog Post",
+      "description": "Triggers when a post is added to your HubSpot blog.",
+      "inputs": {
+        "articleState": {
+          "label": "Post Status",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "PUBLISHED",
+              "label": "Published Only"
+            },
+            {
+              "value": "DRAFT",
+              "label": "Draft Only"
+            },
+            {
+              "value": "BOTH",
+              "label": "Both"
+            }
+          ],
+          "description": "Published posts are new by their publish date, drafts by the date they were made."
+        }
+      },
+      "request": {
+        "url": "https://api.hubapi.com/cms/v3/blogs/posts"
+      },
+      "beforeRequest": "const since = Number(inputs.lastPollTime) || 0;\nconst query = {limit: '100', sort: '-createdAt'};\nif (inputs.articleState !== 'BOTH') query.state = inputs.articleState;\nif (since) query[inputs.articleState === 'PUBLISHED' ? 'publishDate__gt' : 'createdAt__gt'] = String(since);\nrequest.query = query;\nreturn request;",
+      "afterResponse": "const since = Number(inputs.lastPollTime) || 0;\nconst query = {limit: '100', sort: '-createdAt'};\nif (inputs.articleState !== 'BOTH') query.state = inputs.articleState;\nif (since) query[inputs.articleState === 'PUBLISHED' ? 'publishDate__gt' : 'createdAt__gt'] = String(since);\nlet posts = response.results ?? [];\nlet after = response.paging?.next?.after;\nwhile (since && after) {\n  query.after = after;\n  const page = call({method: 'GET', url: '/cms/v3/blogs/posts', query});\n  posts = posts.concat(page.results ?? []);\n  after = page.paging?.next?.after;\n}\nreturn posts.map((post) => ({time: inputs.articleState === 'PUBLISHED' ? post.publishDate : post.createdAt, post}));",
+      "key": "$.time",
+      "emit": "$.post"
     }
   }
 }

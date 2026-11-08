@@ -814,6 +814,34 @@
       "beforeRequest": "const since = Number(inputs.lastPollTime) ? new Date(Number(inputs.lastPollTime)) : new Date(Date.now() - 1 * 86400000);\nconst events = '/calendars/' + inputs.calendar_id + '/events';\nconst query = (pageToken) => ({updatedMin: since.toISOString(), maxResults: '2500', orderBy: 'updated', singleEvents: 'true', showDeleted: 'true', pageToken});\nif (inputs.specific_event !== 'true') {\n  request.url = events;\n  request.query = query('');\n} else if (inputs.event_id) request.url = events + '/' + inputs.event_id;\nelse throw new Error('Choose the event to watch, or turn off Target Specific Event.');\nreturn request;",
       "afterResponse": "const since = Number(inputs.lastPollTime) ? new Date(Number(inputs.lastPollTime)) : new Date(Date.now() - 1 * 86400000);\nconst events = '/calendars/' + inputs.calendar_id + '/events';\nconst query = (pageToken) => ({updatedMin: since.toISOString(), maxResults: '2500', orderBy: 'updated', singleEvents: 'true', showDeleted: 'true', pageToken});\nlet cancelled;\nif (inputs.specific_event === 'true') {\n  cancelled = new Date(response.updated || 0).getTime() > (Number(inputs.lastPollTime) || 0) && response.status === 'cancelled' ? [response] : [];\n} else {\n  const items = [...response.items];\n  for (let page = response; page.nextPageToken;) {\n    page = call({method: 'GET', url: events, query: query(page.nextPageToken)});\n    items.push(...page.items);\n  }\n  cancelled = items.filter((event) => event.status === 'cancelled');\n}\nconst reasons = JSON.parse(inputs.cancellation_reason || '[]');\nconst lower = (text) => (text || '').toLowerCase();\nconst because = {\n  deleted: (event) => !event.summary || event.summary.includes('Deleted'),\n  declined: (event) => (event.attendees || []).some((attendee) => attendee.responseStatus === 'declined'),\n  rescheduled: (event) => lower(event.summary).includes('rescheduled') || lower(event.description).includes('rescheduled')\n};\nreturn reasons.length === 0 ? cancelled : cancelled.filter((event) => reasons.some((reason) => (because[reason] || (() => true))(event)));"
     },
+    "event_ends": {
+      "label": "Event Ends",
+      "description": "Fires when an event ends.",
+      "inputs": {
+        "calendar_id": {
+          "label": "Calendar",
+          "required": true,
+          "list": "writable_calendars"
+        },
+        "specific_event": {
+          "label": "Target Specific Event",
+          "description": "Watch one event instead of the whole calendar.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "event_id": {
+          "label": "Event ID",
+          "description": "The event to watch with Target Specific Event. Paste the ID from the event URL or a previous step."
+        }
+      },
+      "request": {
+        "url": "https://www.googleapis.com/calendar/v3/calendars/{{calendar_id}}/events"
+      },
+      "key": "$.time",
+      "emit": "$.data",
+      "beforeRequest": "const events = '/calendars/' + inputs.calendar_id + '/events';\nif (inputs.specific_event !== 'true') {\n  request.url = events;\n  request.query = {singleEvents: 'true', orderBy: 'startTime', timeMin: new Date(Number(inputs.lastPollTime) || Date.now()).toISOString()};\n} else if (inputs.event_id) request.url = events + '/' + inputs.event_id;\nelse throw new Error('Choose the event to watch, or turn off Target Specific Event.');\nreturn request;",
+      "afterResponse": "const since = Number(inputs.lastPollTime) || 0, now = Date.now();\nconst events = inputs.specific_event === 'true' ? [response] : response.items || [];\n// An all-day event ends on a date alone.\nreturn events.map((event) => ({time: new Date(event.end?.dateTime ?? event.end?.date).getTime(), data: event}))\n  .filter((ended) => ended.time > since && ended.time <= now);"
+    },
     "new_calendar": {
       "label": "New Calendar",
       "description": "Fires when a new calendar is created or shared with you.",

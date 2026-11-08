@@ -11967,6 +11967,20 @@
           "url": "https://{{credential.shopName}}.myshopify.com/admin/api/2026-10/webhooks/{{webhookId}}.json"
         }
       }
+    },
+    "new_abandoned_checkout": {
+      "label": "New Abandoned Checkout",
+      "description": "Triggers when a checkout is abandoned.",
+      "request": {
+        "url": "https://{{credential.shopName}}.myshopify.com/admin/api/2026-10/checkouts.json",
+        "query": {
+          "limit": "250",
+          "since_id": "{{lastItem}}"
+        }
+      },
+      "newBy": "lastItem",
+      "beforeRequest": "// Where the first check left off while it still looks for the newest checkout, as the original's scan does.\nif (memory.newestCheckoutScanCursor) request.query.since_id = String(memory.newestCheckoutScanCursor);\nreturn request;",
+      "afterResponse": "// Like the original: the first check pages up to 40 times more for the newest checkout and goes on at the next check when there are more.\nconst newestFirst = (checkouts) => checkouts.slice().sort((a, b) => b.id - a.id);\nif (inputs.lastItem) return newestFirst(response.checkouts);\nconst maxId = (checkouts) => Math.max(...checkouts.map((checkout) => checkout.id));\nlet page = response.checkouts, newest = page.length ? maxId(page) : memory.newestCheckoutScanCursor;\nfor (let turn = 0; turn < 40 && page.length >= 250; turn++) {\n  page = call({ method: 'GET', url: '/checkouts.json', query: { limit: '250', since_id: String(newest) } }).checkouts;\n  if (page.length) newest = maxId(page);\n}\nif (page.length >= 250) { memory.newestCheckoutScanCursor = newest; return []; }\ndelete memory.newestCheckoutScanCursor;\n// A shop without checkouts starts from id 0, as the original does, so that its first checkout is new.\nreturn [{ id: newest ?? 0 }];"
     }
   }
 }
