@@ -582,16 +582,21 @@ export default function boot() {
 
   function openCredentialsDialog(store) {
     const usedBy = ({ usedBy: names }) => (names.length ? `Used by ${names.join(', ')}` : 'Not used by a task');
-    const types = [...new Set(Object.values(ACTIONS).flatMap((action) => action.fields).filter((field) => field.type === 'credential').map((field) => field.credentialType))]
-      .sort((first, second) => typeLabel(first).localeCompare(typeLabel(second)));
+    /* There is a kind for every service, so the kind is searched for by name, and the kinds already in use come first. */
+    const used = new Set(store.credentials.map((credential) => credential.type));
+    const kinds = [...new Set(Object.values(ACTIONS).flatMap((action) => action.fields).filter((field) => field.type === 'credential').map((field) => field.credentialType))]
+      .map((type) => [typeLabel(type), type])
+      .sort(([first, firstType], [second, secondType]) => used.has(secondType) - used.has(firstType) || first.localeCompare(second));
+    const kindByLabel = new Map(kinds);
     const dialog = openDialog(`${dialogHeader('Credentials', 'What steps sign in with. Tasks only hold the name, so they can be shared and exported safely.')}
       <div class="ui-task-list">${store.credentials.length ? store.credentials.map((credential) => `<div class="ui-task-row" data-credential="${escapeHtml(credential.name)}"><span><b>${escapeHtml(credential.name)}</b><small>${escapeHtml(typeLabel(credential.type))}. ${escapeHtml(usedBy(credential))}</small></span><button type="button" class="ui-button" data-edit>Edit</button><button type="button" class="ui-button" data-delete>Delete</button></div>`).join('') : '<p class="ui-hint">No credentials yet. Create one here, or from a step that needs it.</p>'}</div>
-      <footer class="ui-dialog-foot"><div class="ui-select"><select id="credential-kind" aria-label="Kind of credential">${types.map((type) => `<option value="${escapeHtml(type)}">${escapeHtml(typeLabel(type))}</option>`).join('')}</select>${icon('chevronDown')}</div><button type="button" class="ui-button is-primary" data-new>New credential</button><button type="button" class="ui-button" data-dialog-close>Close</button></footer>`);
+      <footer class="ui-dialog-foot"><input class="ui-input" id="credential-kind" list="credential-kinds" autocomplete="off" placeholder="Kind, such as Slack" aria-label="Kind of credential"><datalist id="credential-kinds">${kinds.map(([label]) => `<option value="${escapeHtml(label)}">`).join('')}</datalist><button type="button" class="ui-button is-primary" data-new>New credential</button><button type="button" class="ui-button" data-dialog-close>Close</button></footer>`);
     dialog.addEventListener('click', (event) => {
       const name = event.target.closest('[data-credential]')?.dataset.credential;
       const credential = store.credentials.find((candidate) => candidate.name === name);
       if (event.target.closest('[data-new]')) {
-        const type = dialog.querySelector('#credential-kind').value;
+        const type = kindByLabel.get(dialog.querySelector('#credential-kind').value.trim());
+        if (!type) { toast('Choose a kind from the list, such as Slack.', { tone: 'danger' }); return; }
         dialog.close();
         openCredentialDialog(store, credentialFieldOf(type), null);
       }
@@ -600,6 +605,9 @@ export default function boot() {
         dialog.close();
         store.deleteCredential(name).then(() => toast(`Deleted ${name}`), (error) => toast(error.message, { tone: 'danger' }));
       }
+    });
+    dialog.querySelector('#credential-kind').addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') dialog.querySelector('[data-new]').click();
     });
   }
 
