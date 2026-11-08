@@ -49,14 +49,14 @@ const PRESENTATION = {
   S3Action: ['s3', 'S3', 'documents', 's3', ['accessKeyId', 'secretAccessKey', 'bucket', 'key']],
   TeamsAction: ['teams', 'Microsoft Teams', 'messages', 'teams', ['webhookUrl', 'message']],
   MattermostAction: ['mattermost', 'Mattermost', 'messages', 'mattermost', ['siteUrl', 'token', 'channelId', 'message']],
-  TwilioAction: ['twilio', 'SMS (Twilio)', 'messages', 'twilio', ['accountSid', 'token', 'sender', 'to', 'message']],
+  TwilioAction: ['twilioSms', 'SMS (Twilio)', 'messages', 'twilio', ['accountSid', 'token', 'sender', 'to', 'message']],
   GoogleSheetsAction: ['googleSheets', 'Google Sheets', 'documents', 'googleSheets', ['serviceAccountKey', 'spreadsheet', 'rowValues']],
   ClaudeAction: ['claude', 'Claude', 'ai', 'claude', ['apiKey', 'userInput']],
   ReadEmailAction: ['readEmail', 'Read email', 'messages', 'mail', ['hostname', 'username']],
   MailchimpAction: ['mailchimp', 'Mailchimp', 'sales', 'mailchimp', ['apiKey', 'audienceId', 'email', 'tagName']],
-  StripeAction: ['stripe', 'Stripe', 'sales', 'stripe', ['secretKey', 'email', 'priceId', 'paymentId']],
+  StripeAction: ['stripePayments', 'Stripe payments', 'sales', 'stripe', ['secretKey', 'email', 'priceId', 'paymentId']],
   WooCommerceAction: ['wooCommerce', 'WooCommerce', 'sales', 'wooCommerce', ['siteUrl', 'consumerKey', 'consumerSecret', 'orderNumber', 'orderStatus', 'note', 'productId', 'stockQuantity']],
-  FreshdeskAction: ['freshdesk', 'Freshdesk', 'work', 'tags', ['siteUrl', 'apiKey', 'ticketNumber', 'email', 'subject', 'ticketDescription', 'comment']],
+  FreshdeskAction: ['freshdeskTickets', 'Freshdesk tickets', 'work', 'tags', ['siteUrl', 'apiKey', 'ticketNumber', 'email', 'subject', 'ticketDescription', 'comment']],
   ClickUpAction: ['clickUp', 'ClickUp', 'work', 'clickUp', ['token', 'listId', 'taskId', 'title', 'comment', 'taskStatus']],
   WhatsAppAction: ['whatsApp', 'WhatsApp', 'messages', 'whatsApp', ['token', 'phoneNumberId', 'to', 'message', 'templateName']],
   GoogleDriveAction: ['googleDrive', 'Google Drive', 'documents', 'googleDrive', ['serviceAccountKey', 'fileName', 'fileId', 'folderId', 'email']],
@@ -93,6 +93,8 @@ const TRIGGER_ACTIONS = { webhook: 'Webhook', schedule: 'ScheduleTrigger', inter
 const TRIGGER_KINDS = Object.fromEntries(Object.entries(TRIGGER_ACTIONS).map(([kind, backend]) => [backend, kind]));
 /* A connector's trigger is one more way to start, chosen by app, since there is one for every service. */
 const APP_TRIGGER = 'app';
+/* The icon of a connector with no free logo: its name, which the form draws as initials. */
+const INITIALS = 'initials:';
 const isAppTrigger = (backend) => backend?.endsWith('.trigger');
 const triggerBackend = (config) => (config.trigger === APP_TRIGGER ? config.app : TRIGGER_ACTIONS[config.trigger]);
 const TRIGGER_DEFAULTS = { webhook: { method: 'POST', authentication: 'none' }, schedule: { rule: 'DAYS', every: '1', atHour: '9', atMinute: '0' }, interval: { time: '1', timeUnit: 'MINUTES' }, activemq: {} };
@@ -168,7 +170,7 @@ function loadCatalogue(actions) {
   actions.forEach((action) => {
     const backend = action.name;
     /* A connector names its own label and icon, since it is described in a file and not here. */
-    const [type, label, category, iconName, required] = PRESENTATION[backend] || [backend, action.label || backend.replace(/Action$/, ''), isAppTrigger(backend) ? 'starts' : 'integration', action.icon || 'workflow'];
+    const [type, label, category, iconName, required] = PRESENTATION[backend] || [backend, action.label || backend.replace(/Action$/, ''), isAppTrigger(backend) ? 'starts' : 'integration', action.icon || `${INITIALS}${backend.replace(/\.trigger$/, '')}`];
     const fields = fieldsOf(action.propertyInformationList.filter((information) => information.name !== STEP_ACTION_NAME));
     if (!FAILURE_FIELDS.length) FAILURE_FIELDS.push(...fields.filter((field) => FAILURE_FIELD_NAMES.includes(field.key)));
     const own = withCredentialField(fields.filter((field) => !FAILURE_FIELD_NAMES.includes(field.key)).map((field) => ({ ...field, required: field.required || !!required?.includes(field.key) })), action.credentialType);
@@ -330,7 +332,7 @@ function describeNode(node) {
     case 's3': return [config.operation === 'write' ? 'Write ' : config.operation === 'delete' ? 'Delete ' : 'Read ', value(inlineVariables(config.key), 'a file'), ' in ', value(config.bucket, 'a bucket')];
     case 'teams': return ['Send ', value(inlineVariables(config.message), 'a message'), ' to Teams'];
     case 'mattermost': return ['Send ', value(inlineVariables(config.message), 'a message'), ' to Mattermost'];
-    case 'twilio': return ['Send SMS to ', value(inlineVariables(config.to), 'a number')];
+    case 'twilioSms': return ['Send SMS to ', value(inlineVariables(config.to), 'a number')];
     case 'googleSheets': return config.operation === 'addRow' ? ['Add a row to ', value(config.sheet, 'a sheet')] : ['Read the rows of ', value(config.sheet, 'a sheet')];
     case 'claude': return ['Ask Claude: ', value(inlineVariables(config.userInput), 'no prompt yet')];
     case 'readEmail': return ['Read ', value(config.folder, 'INBOX'), config.onlyUnread === false ? '' : ' (unread)'];
@@ -1138,7 +1140,7 @@ function formatAgo(timestamp) {
 export default async function bootEngine() {
   loadCatalogue((await request('/task/actions')).actions);
   window.DT = {
-    ACTIONS, CATEGORIES, FAILURE_FIELDS,
+    ACTIONS, CATEGORIES, FAILURE_FIELDS, INITIALS,
     createStore, stepsMatching, portsOf, edgeFrom, nodeById, rootNode,
     describeNode, summaryText, fieldVisible, interpolate,
     formatDuration, formatAgo, intervalText, scheduleText,

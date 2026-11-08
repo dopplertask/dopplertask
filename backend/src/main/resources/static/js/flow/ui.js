@@ -2,7 +2,7 @@
 import { BRAND_ICONS } from './brand-icons';
 
 export default function boot() {
-  const { ACTIONS, FAILURE_FIELDS, formatDuration, formatAgo } = window.DT;
+  const { ACTIONS, FAILURE_FIELDS, INITIALS, formatDuration, formatAgo } = window.DT;
 
   const ICON_PATHS = {
     logOut: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
@@ -49,8 +49,17 @@ export default function boot() {
     webhook: '<circle cx="12" cy="6" r="3"/><circle cx="6" cy="17" r="3"/><circle cx="18" cy="17" r="3"/><path d="m10.5 8.6-3 5.8M9 17h6M13.5 8.6l3 5.8"/>',
   };
 
+  /* A service without a free logo shows its initials, in a colour that stays the same for its name. */
+  const initialsOf = (name) => {
+    const words = name.replace(/([a-z])([A-Z])/g, '$1 $2').split(/[\s\-_.]+/).filter(Boolean);
+    return words.length > 1 ? (words[0][0] + words[1][0]).toUpperCase() : name.slice(0, 1).toUpperCase() + name.slice(1, 2).toLowerCase();
+  };
+  const hueOf = (name) => [...name].reduce((hash, character) => (hash * 31 + character.charCodeAt(0)) % 360, 7);
+  const initialsIcon = (connector, className) => `<svg class="icon brand-icon ${className}" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="6" fill="hsl(${hueOf(connector)} 52% 42%)"/><text x="12" y="16" text-anchor="middle" font-size="10.5" font-weight="600" font-family="inherit" fill="#fff">${escapeHtml(initialsOf(ACTIONS[connector]?.label ?? connector))}</text></svg>`;
+
   const icon = (name, className = '') => {
     if (BRAND_ICONS[name]) return `<svg class="icon brand-icon ${className}" viewBox="${BRAND_ICONS[name].viewBox}" aria-hidden="true">${BRAND_ICONS[name].body}</svg>`;
+    if (name.startsWith(INITIALS)) return initialsIcon(name.slice(INITIALS.length), className);
     if (!ICON_PATHS[name]) console.error(`There is no icon called ${name}.`);
     return `<svg class="icon ${className}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[name] || ''}</svg>`;
   };
