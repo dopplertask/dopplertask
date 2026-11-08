@@ -1,6 +1,7 @@
 package com.dopplertask.dopplertask.domain.action
 
 import com.dopplertask.dopplertask.domain.action.connector.ConnectorAction
+import com.dopplertask.dopplertask.domain.action.connector.ConnectorTrigger
 import com.dopplertask.dopplertask.domain.action.connector.Connectors
 import com.fasterxml.jackson.annotation.JsonSubTypes
 import com.fasterxml.jackson.annotation.JsonTypeInfo
@@ -19,11 +20,12 @@ object StepTypes {
         .associate { it.name to it.value.java.asSubclass(Action::class.java) }
 
     val names: Set<String>
-        get() = classes.keys + Connectors.all().map { it.name }
+        get() = classes.keys + Connectors.all().map { it.name } + Connectors.all().filter { it.triggers.isNotEmpty() }.map { it.name + ConnectorTrigger.KIND_SUFFIX }
 
     /** A new, empty step of a kind, which describes the kind. */
     fun newStep(name: String?): Action? = classes[name]?.getDeclaredConstructor()?.newInstance()
-        ?: Connectors.find(name)?.let { ConnectorAction(it.name) }
+        ?: Connectors.find(name)?.let { ConnectorAction.of(it.name) }
+        ?: Connectors.find(name?.removeSuffix(ConnectorTrigger.KIND_SUFFIX))?.takeIf { name!!.endsWith(ConnectorTrigger.KIND_SUFFIX) }?.let { ConnectorTrigger.of(it.name) }
 
     fun all(): List<Action> = names.mapNotNull(::newStep)
 }
@@ -36,8 +38,7 @@ class StepTypeIdResolver : TypeIdResolverBase() {
         (value as? Action)?.stepTypeName ?: suggestedType.simpleName
 
     override fun typeFromId(context: DatabindContext, id: String): JavaType? {
-        val kind = StepTypes.classes[id] ?: (if (Connectors.find(id) != null) ConnectorAction::class.java else return null)
-        return context.constructType(kind)
+        return StepTypes.newStep(id)?.let { context.constructType(it.javaClass) }
     }
 
     override fun getMechanism(): JsonTypeInfo.Id = JsonTypeInfo.Id.NAME

@@ -25,7 +25,7 @@ import java.util.regex.Pattern;
 @Component
 public class AccessFilter extends OncePerRequestFilter {
 
-    private static final Pattern OPEN_PATHS = Pattern.compile("^(/|/public/.*|/webhook/.*|/sso/.*|/health|/oauth/callback)$");
+    private static final Pattern OPEN_PATHS = Pattern.compile("^(/|/public/.*|/webhook/.*|/hooks/.*|/sso/.*|/health|/oauth/callback)$");
     private static final String BEARER = "Bearer ";
     private static final String AGENT_ENDPOINT = "/mcp";
     public static final String SESSION_COOKIE = "dopplertask_session";

@@ -160,6 +160,8 @@ public class VariableExtractorUtil {
                 .allowEnvironmentAccess(EnvironmentAccess.NONE)
                 .allowPolyglotAccess(PolyglotAccess.NONE)
                 .resourceLimits(ResourceLimits.newBuilder().statementLimit(RESTRICTED_SCRIPT_STATEMENTS, null).build())
+                // Scripts are short, so a JVM without Graal's compiler runs them well enough, and saying so on every script is noise.
+                .option("engine.WarnInterpreterOnly", "false")
                 .build();
     }
 

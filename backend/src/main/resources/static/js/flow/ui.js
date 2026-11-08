@@ -172,14 +172,18 @@ export default function boot() {
       case 'toggle': return wrap(`<label class="ui-toggle"><input type="checkbox" ${common} ${fieldValue ? 'checked' : ''}><span class="ui-toggle-track"></span><span>${escapeHtml(field.label)}</span></label>`);
       case 'code': return wrap(`${label}<textarea class="ui-input is-mono" rows="${Math.min(8, Math.max(3, String(fieldValue ?? '').split('\n').length + 1))}" spellcheck="false" data-variables ${common} ${placeholder}>${escapeHtml(fieldValue ?? '')}</textarea><p class="ui-hint">Type <code>$</code> to insert a parameter or earlier output.</p>`);
       case 'expression': {
-        /* Which task to run is picked from the saved ones, rather than typed from memory. */
-        const taskChoices = node.type === 'linkedTask' && field.key === 'name'
-          ? `<datalist id="${inputId}-tasks">${DT.canvas.store.tasks.filter((task) => task.name !== DT.canvas.store.task.name).map((task) => `<option value="${escapeHtml(task.name)}">`).join('')}</datalist>`
-          : '';
+        /* Which task to run is picked from the saved ones, and a connector reads the choices of a field from its service
+           when the field is entered, rather than a person typing an id from memory. */
+        const savedTasks = node.type === 'linkedTask' && field.key === 'name'
+          ? DT.canvas.store.tasks.filter((task) => task.name !== DT.canvas.store.task.name).map((task) => `<option value="${escapeHtml(task.name)}">`).join('')
+          : null;
+        const suggestions = field.suggestions?.map((choice) => `<option value="${escapeHtml(choice.value)}" label="${escapeHtml(choice.label)}">`).join('');
+        const choices = savedTasks ?? suggestions ?? (field.choices ? '' : null);
+        const list = choices === null ? '' : `<datalist id="${inputId}-choices">${choices}</datalist>`;
         const control = field.multiline
           ? `<textarea class="ui-input is-mono" rows="3" spellcheck="false" data-variables ${common} ${placeholder}>${escapeHtml(fieldValue ?? '')}</textarea>`
-          : `<input class="ui-input is-mono" spellcheck="false" autocomplete="off" data-variables ${taskChoices ? `list="${inputId}-tasks"` : ''} ${common} ${placeholder} value="${escapeHtml(fieldValue ?? '')}">`;
-        return wrap(`${label}${control}${taskChoices}<p class="ui-preview" data-preview="${field.key}"></p>`);
+          : `<input class="ui-input is-mono" spellcheck="false" autocomplete="off" data-variables ${list ? `list="${inputId}-choices"` : ''} ${field.choices ? 'data-choices' : ''} ${common} ${placeholder} value="${escapeHtml(fieldValue ?? '')}">`;
+        return wrap(`${label}${control}${list}<p class="ui-preview" data-preview="${field.key}"></p>`);
       }
       case 'map': {
         const rows = fieldValue || [];
@@ -284,12 +288,21 @@ export default function boot() {
         button.setAttribute('aria-label', revealing ? 'Hide value' : 'Show value');
       } else if (button.dataset.copy) { navigator.clipboard?.writeText(button.dataset.copy); toast('Webhook URL copied'); }
     };
+    const onFocus = async (event) => {
+      const input = event.target;
+      if (input.dataset.choices === undefined || input.list?.options.length) return;
+      try {
+        const choices = await store.connectorChoices(currentNode(), input.dataset.field);
+        input.list.innerHTML = choices.map((choice) => `<option value="${escapeHtml(choice.value)}" label="${escapeHtml(choice.label)}">`).join('');
+      } catch (error) { toast(error.message, { tone: 'danger' }); }
+    };
     const onVariableKey = attachVariableMenu(root, store);
+    root.addEventListener('focusin', onFocus);
     root.addEventListener('input', onInput);
     root.addEventListener('change', onInput);
     root.addEventListener('click', onClick);
     render();
-    return { render, dispose() { root.removeEventListener('input', onInput); root.removeEventListener('change', onInput); root.removeEventListener('click', onClick); onVariableKey(); } };
+    return { render, dispose() { root.removeEventListener('focusin', onFocus); root.removeEventListener('input', onInput); root.removeEventListener('change', onInput); root.removeEventListener('click', onClick); onVariableKey(); } };
   }
 
   /* `$` in any expression-capable input opens a menu of what is available at this point. */
@@ -582,16 +595,21 @@ export default function boot() {
 
   function openCredentialsDialog(store) {
     const usedBy = ({ usedBy: names }) => (names.length ? `Used by ${names.join(', ')}` : 'Not used by a task');
-    const types = [...new Set(Object.values(ACTIONS).flatMap((action) => action.fields).filter((field) => field.type === 'credential').map((field) => field.credentialType))]
-      .sort((first, second) => typeLabel(first).localeCompare(typeLabel(second)));
+    /* There is a kind for every service, so the kind is searched for by name, and the kinds already in use come first. */
+    const used = new Set(store.credentials.map((credential) => credential.type));
+    const kinds = [...new Set(Object.values(ACTIONS).flatMap((action) => action.fields).filter((field) => field.type === 'credential').map((field) => field.credentialType))]
+      .map((type) => [typeLabel(type), type])
+      .sort(([first, firstType], [second, secondType]) => used.has(secondType) - used.has(firstType) || first.localeCompare(second));
+    const kindByLabel = new Map(kinds);
     const dialog = openDialog(`${dialogHeader('Credentials', 'What steps sign in with. Tasks only hold the name, so they can be shared and exported safely.')}
       <div class="ui-task-list">${store.credentials.length ? store.credentials.map((credential) => `<div class="ui-task-row" data-credential="${escapeHtml(credential.name)}"><span><b>${escapeHtml(credential.name)}</b><small>${escapeHtml(typeLabel(credential.type))}. ${escapeHtml(usedBy(credential))}</small></span><button type="button" class="ui-button" data-edit>Edit</button><button type="button" class="ui-button" data-delete>Delete</button></div>`).join('') : '<p class="ui-hint">No credentials yet. Create one here, or from a step that needs it.</p>'}</div>
-      <footer class="ui-dialog-foot"><div class="ui-select"><select id="credential-kind" aria-label="Kind of credential">${types.map((type) => `<option value="${escapeHtml(type)}">${escapeHtml(typeLabel(type))}</option>`).join('')}</select>${icon('chevronDown')}</div><button type="button" class="ui-button is-primary" data-new>New credential</button><button type="button" class="ui-button" data-dialog-close>Close</button></footer>`);
+      <footer class="ui-dialog-foot"><input class="ui-input" id="credential-kind" list="credential-kinds" autocomplete="off" placeholder="Kind, such as Slack" aria-label="Kind of credential"><datalist id="credential-kinds">${kinds.map(([label]) => `<option value="${escapeHtml(label)}">`).join('')}</datalist><button type="button" class="ui-button is-primary" data-new>New credential</button><button type="button" class="ui-button" data-dialog-close>Close</button></footer>`);
     dialog.addEventListener('click', (event) => {
       const name = event.target.closest('[data-credential]')?.dataset.credential;
       const credential = store.credentials.find((candidate) => candidate.name === name);
       if (event.target.closest('[data-new]')) {
-        const type = dialog.querySelector('#credential-kind').value;
+        const type = kindByLabel.get(dialog.querySelector('#credential-kind').value.trim());
+        if (!type) { toast('Choose a kind from the list, such as Slack.', { tone: 'danger' }); return; }
         dialog.close();
         openCredentialDialog(store, credentialFieldOf(type), null);
       }
@@ -600,6 +618,9 @@ export default function boot() {
         dialog.close();
         store.deleteCredential(name).then(() => toast(`Deleted ${name}`), (error) => toast(error.message, { tone: 'danger' }));
       }
+    });
+    dialog.querySelector('#credential-kind').addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') dialog.querySelector('[data-new]').click();
     });
   }
 

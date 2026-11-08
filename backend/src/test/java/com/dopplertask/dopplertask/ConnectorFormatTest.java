@@ -64,6 +64,32 @@ public class ConnectorFormatTest {
     }
 
     @Test
+    public void testAScriptAsksForEveryPageSuccess() {
+        java.util.List<String> asked = new java.util.ArrayList<>();
+        String script = "let items = response.items, cursor = response.next;\n"
+                + "while (cursor) { const page = call({method: 'GET', url: '/items', query: {cursor}}); items = items.concat(page.items); cursor = page.next; }\n"
+                + "return items;";
+        var result = com.dopplertask.dopplertask.domain.action.connector.ConnectorScripts.INSTANCE.run(script, Map.of(), null,
+                JsonApi.INSTANCE.getMapper().readTree("{\"items\": [1], \"next\": \"b\"}"), spec -> {
+                    asked.add(spec.path("query").path("cursor").asText());
+                    return JsonApi.INSTANCE.getMapper().readTree(spec.path("query").path("cursor").asText().equals("b") ? "{\"items\": [2], \"next\": \"c\"}" : "{\"items\": [3]}");
+                });
+        Assert.assertEquals("[1,2,3]", result.toString());
+        Assert.assertEquals(java.util.List.of("b", "c"), asked);
+    }
+
+    @Test
+    public void testAScriptCannotReachJavaFail() {
+        try {
+            com.dopplertask.dopplertask.domain.action.connector.ConnectorScripts.INSTANCE.run("return Java.type('java.lang.System').getenv();", Map.of(), null, null,
+                    spec -> { throw new AssertionError("no request expected"); });
+            Assert.fail();
+        } catch (IllegalArgumentException e) {
+            Assert.assertTrue(e.getMessage(), e.getMessage().startsWith("The connector's script failed"));
+        }
+    }
+
+    @Test
     public void testHeaderWithALineBreakIsRefusedFail() {
         Connector connector = connector("""
                 {"name": "lines", "label": "Lines", "hosts": ["api.lines.com"],
@@ -94,6 +120,16 @@ public class ConnectorFormatTest {
         Assert.assertTrue(problems, problems.contains("steered has an input in its host"));
         Assert.assertTrue(problems, problems.contains("other.com, which is not in the connector's hosts"));
         Assert.assertTrue(problems, problems.contains("Credential values belong in the credential's headers or query"));
+    }
+
+    @Test
+    public void testEveryConnectorFileIsValidAndItsLogoExistsSuccess() throws java.io.IOException {
+        String logos = java.nio.file.Files.readString(java.nio.file.Path.of("src/main/resources/static/js/flow/brand-icons.js"));
+        Connectors.INSTANCE.all().forEach(connector -> {
+            Assert.assertEquals(connector.getName(), java.util.List.of(), Connectors.INSTANCE.problemsOf(connector));
+            Assert.assertTrue(connector.getName() + " names the logo " + connector.getIcon() + ", which the editor does not have",
+                    connector.getIcon().isEmpty() || logos.contains("\"" + connector.getIcon() + "\": {"));
+        });
     }
 
     private static Connector connector(String json) {

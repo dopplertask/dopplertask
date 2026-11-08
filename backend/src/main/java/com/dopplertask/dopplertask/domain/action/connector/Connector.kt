@@ -23,6 +23,9 @@ class Connector {
     var credential: ConnectorCredential? = null
     var actions: LinkedHashMap<String, ConnectorOperation> = linkedMapOf()
 
+    /** What starts a task: the service is asked every few minutes for what is new. */
+    var triggers: LinkedHashMap<String, ConnectorPoll> = linkedMapOf()
+
     /** Where the file was copied from, so that a later copy can be compared with it. */
     var upstream: Map<String, String> = emptyMap()
 }
@@ -71,8 +74,49 @@ class ConnectorOperation {
     /** JavaScript that gets inputs and request, and returns the request to send, such as with a field left out. */
     var beforeRequest: String? = null
 
-    /** JavaScript that gets inputs, request and response, and returns what the step gives, such as one field of the answer. */
+    /**
+     * JavaScript that gets inputs, request and response, and returns what the step gives, such as one field of the answer.
+     * Both scripts can send more requests with call({method, url, query, headers, body}), such as for the next page.
+     */
     var afterResponse: String? = null
+}
+
+/**
+ * A trigger that starts the task once for each new item. It asks the service for its newest items every few minutes,
+ * or, with webhook, has the service send each event to this server.
+ */
+class ConnectorPoll {
+    var label: String = ""
+    var description: String = ""
+    var inputs: LinkedHashMap<String, ConnectorInput> = linkedMapOf()
+    var request: ConnectorRequest = ConnectorRequest()
+
+    /** Where the list of items is in the answer. */
+    var items: String = "$"
+
+    /**
+     * What makes an item new. "time": its time at key is later than the last check. "lastItem": it comes before the
+     * newest item already seen, by its id at key, in a list that starts with the newest.
+     */
+    var newBy: String = "time"
+    var key: String = "$.id"
+
+    /** Scripts as on an action, such as afterResponse asking for every page with call(...) and returning the items. */
+    var beforeRequest: String? = null
+    var afterResponse: String? = null
+
+    /** Instead of asking: the service sends events to {{webhookUrl}}, and items and afterResponse read each event. */
+    var webhook: ConnectorWebhook? = null
+}
+
+/** How a trigger subscribes to a service's events when its task is turned on, and unsubscribes when it is turned off. */
+class ConnectorWebhook {
+    /** The request that subscribes, with {{webhookUrl}} where the service should send events. */
+    var subscribe: ConnectorRequest = ConnectorRequest()
+
+    /** Where the subscription's id is in the answer, which unsubscribe can name as {{webhookId}}. */
+    var id: String = "$.id"
+    var unsubscribe: ConnectorRequest? = null
 }
 
 class ConnectorInput {

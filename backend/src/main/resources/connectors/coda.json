@@ -778,7 +778,7 @@
     },
     "list_controls": {
       "label": "List Controls",
-      "description": "Lists the controls (sliders, pickers, buttons…) in a doc, one page at a time.",
+      "description": "Lists the controls (sliders, pickers, buttons\u2026) in a doc, one page at a time.",
       "inputs": {
         "docId": {
           "label": "Doc ID or Link",
@@ -963,6 +963,37 @@
         "tableId": "$.tableId"
       },
       "beforeRequest": "Object.keys(request.query).forEach((key) => {\n  var value = String(request.query[key]).trim();\n  if (value === '') delete request.query[key]; else request.query[key] = value;\n});\nif (!/^https:\\/\\/([a-z0-9-]+\\.)*(coda\\.io|docs\\.superhuman\\.com)\\//i.test(inputs.url.trim())) throw new Error('Link must be a https://coda.io or https://docs.superhuman.com URL.');\nreturn request;"
+    }
+  },
+  "icon": "coda",
+  "triggers": {
+    "new-row-created": {
+      "label": "New Row Created",
+      "description": "Triggers when a new row is added to the selected table.",
+      "inputs": {
+        "docId": {
+          "label": "Doc",
+          "required": true
+        },
+        "tableId": {
+          "label": "Table",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://coda.io/apis/v1/docs/{{docId}}/tables/{{tableId}}/rows",
+        "query": {
+          "sortBy": "createdAt",
+          "valueFormat": "simpleWithArrays",
+          "useColumnNames": "true",
+          "limit": "500"
+        }
+      },
+      "afterResponse": "let rows = response.items || [];\nlet pageToken = response.nextPageToken;\nwhile (pageToken) {\n  const page = call({method: 'GET', url: '/docs/' + encodeURIComponent(inputs.docId) + '/tables/' + encodeURIComponent(inputs.tableId) + '/rows', query: {sortBy: 'createdAt', valueFormat: 'simpleWithArrays', useColumnNames: 'true', limit: '500', pageToken}});\n  rows = rows.concat(page.items || []);\n  pageToken = page.nextPageToken;\n}\nreturn rows;",
+      "items": "$",
+      "newBy": "time",
+      "key": "$.createdAt"
     }
   }
 }

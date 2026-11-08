@@ -40,6 +40,7 @@ public class AccessFilterTest {
     public void testThePageAndWebhooksNeedNoTokenSuccess() throws Exception {
         Assert.assertEquals(200, statusOf(WITH_TOKENS, "GET", "/public/index.html", null));
         Assert.assertEquals(200, statusOf(WITH_TOKENS, "POST", "/webhook/task/Webhook/suffix/path", null));
+        Assert.assertEquals(200, statusOf(WITH_TOKENS, "POST", "/hooks/3f2a", null));
     }
 
     @Test
@@ -54,6 +55,11 @@ public class AccessFilterTest {
         Assert.assertEquals(200, statusOf(WITH_TOKENS, "GET", "/execution/12", "agent-token"));
         Assert.assertEquals(200, statusOf(WITH_TOKENS, "POST", "/task", "agent-token"));
         Assert.assertEquals(200, statusOf(WITH_TOKENS, "POST", "/schedule/task", "agent-token"));
+    }
+
+    @Test
+    public void testAnAgentCannotReadChoicesWithACredentialFail() throws Exception {
+        Assert.assertEquals(403, statusOf(WITH_TOKENS, "POST", "/connectors/slack/choices", "agent-token"));
     }
 
     @Test

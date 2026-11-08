@@ -1,0 +1,147 @@
+package com.dopplertask.dopplertask;
+
+import com.dopplertask.dopplertask.domain.action.Action;
+import com.dopplertask.dopplertask.domain.action.connector.ConnectorTrigger;
+import com.dopplertask.dopplertask.domain.action.connector.ConnectorWebhooks;
+import com.dopplertask.dopplertask.domain.action.connector.Connectors;
+import com.dopplertask.dopplertask.domain.action.integration.JsonApi;
+import com.sun.net.httpserver.HttpServer;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
+
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
+
+/** A connector trigger starts the task once for each new item, oldest first, and never for what existed before. */
+public class ConnectorTriggerTest {
+
+    private HttpServer service;
+    private final AtomicReference<String> answer = new AtomicReference<>("{}");
+    private final AtomicReference<String> signedInWith = new AtomicReference<>();
+    private final List<String> asked = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+    @Before
+    public void startService() throws IOException {
+        service = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        service.createContext("/", exchange -> {
+            signedInWith.set(exchange.getRequestHeaders().getFirst("Authorization"));
+            asked.add(exchange.getRequestMethod() + " " + exchange.getRequestURI().getPath() + " " + new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            byte[] body = answer.get().getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, body.length);
+            try (OutputStream out = exchange.getResponseBody()) {
+                out.write(body);
+            }
+        });
+        service.start();
+        Connectors.INSTANCE.setLocalServerForTests("http://127.0.0.1:" + service.getAddress().getPort());
+    }
+
+    @After
+    public void stopService() {
+        Connectors.INSTANCE.setLocalServerForTests(null);
+        service.stop(0);
+    }
+
+    @Test
+    public void testNewByTimeSkipsWhatExistedAndStartsOldestFirstSuccess() {
+        ConnectorTrigger trigger = trigger("new_order");
+        answer.set("{\"orders\": [{\"id\": 1, \"created\": \"2020-01-01T00:00:00Z\"}]}");
+        Assert.assertEquals(List.of(), newItems(trigger));
+        String later = Instant.now().plusSeconds(60).toString();
+        String latest = Instant.now().plusSeconds(120).toString();
+        answer.set("{\"orders\": [{\"id\": 3, \"created\": \"" + latest + "\"}, {\"id\": 2, \"created\": \"" + later + "\"}, {\"id\": 1, \"created\": \"2020-01-01T00:00:00Z\"}]}");
+        Assert.assertEquals(List.of("2", "3"), newItems(trigger));
+        Assert.assertEquals("Bearer poll-key", signedInWith.get());
+    }
+
+    @Test
+    public void testNewByLastItemStartsForWhatCameAfterSuccess() {
+        ConnectorTrigger trigger = trigger("new_contact");
+        answer.set("{\"data\": [{\"id\": \"c2\"}, {\"id\": \"c1\"}]}");
+        Assert.assertEquals(List.of(), newItems(trigger));
+        answer.set("{\"data\": [{\"id\": \"c4\"}, {\"id\": \"c3\"}, {\"id\": \"c2\"}, {\"id\": \"c1\"}]}");
+        Assert.assertEquals(List.of("c3", "c4"), newItems(trigger));
+        Assert.assertEquals("c4", trigger.getPollState());
+        Assert.assertEquals(List.of(), newItems(trigger));
+    }
+
+    @Test
+    public void testATriggerIsSavedByItsConnectorSuccess() {
+        Action read = JsonApi.INSTANCE.getMapper().readValue("{\"@type\": \"poll-test.trigger\", \"operation\": \"new_order\", \"every\": \"10\"}", Action.class);
+        Assert.assertTrue(read instanceof ConnectorTrigger);
+        Assert.assertEquals("poll-test", ((ConnectorTrigger) read).getConnector());
+        Assert.assertTrue(JsonApi.INSTANCE.getMapper().writeValueAsString(read).contains("\"@type\":\"poll-test.trigger\""));
+        Assert.assertNull(((ConnectorTrigger) read).problem());
+        ((ConnectorTrigger) read).setEvery("0");
+        Assert.assertTrue(((ConnectorTrigger) read).problem().contains("from 1"));
+    }
+
+    @Test
+    public void testASecretTypedIntoATriggerMovesToACredentialSuccess() {
+        ConnectorTrigger trigger = ConnectorTrigger.of("poll-test");
+        trigger.setSetting("key", "typed-secret");
+        Assert.assertEquals(Map.of("key", "typed-secret"), trigger.inlineCredentialValues(java.util.Set.of("key")));
+        trigger.forgetCredentialValues(java.util.Set.of("key"));
+        Assert.assertEquals(Map.of(), trigger.settingValues());
+    }
+
+    @Test
+    public void testAWebhookTriggerSubscribesTakesEventsAndUnsubscribesSuccess() throws Exception {
+        ConnectorWebhooks.INSTANCE.setPublicUrl("https://tasks.example.com");
+        try {
+            ConnectorTrigger trigger = trigger("new_event");
+            trigger.setSetting("list_id", "l1");
+            Assert.assertNull(trigger.problem());
+            answer.set("{\"hook\": {\"id\": \"h1\"}}");
+            var started = java.util.concurrent.CompletableFuture.supplyAsync(trigger::trigger);
+            while (trigger.getPollState() == null) {
+                Thread.sleep(20);
+            }
+            Assert.assertEquals("h1", trigger.getPollState());
+            Assert.assertTrue(asked.get(0), asked.get(0).startsWith("POST /hooks {\"url\":\"https://tasks.example.com/hooks/" + trigger.getHookKey() + "\",\"list\":\"l1\"}"));
+            ConnectorWebhooks.INSTANCE.deliver(trigger.getHookKey(), JsonApi.INSTANCE.getMapper().readTree("{\"type\": \"deleted\", \"data\": {\"id\": \"x\"}}"));
+            ConnectorWebhooks.INSTANCE.deliver(trigger.getHookKey(), JsonApi.INSTANCE.getMapper().readTree("{\"type\": \"created\", \"data\": {\"id\": \"e1\"}}"));
+            Assert.assertEquals("{\"id\":\"e1\"}", started.get(5, java.util.concurrent.TimeUnit.SECONDS).getResultMap().get("item"));
+            trigger.stop();
+            Assert.assertTrue(asked.toString(), asked.contains("DELETE /hooks/h1 "));
+            Assert.assertNull(trigger.getPollState());
+            Assert.assertFalse(ConnectorWebhooks.INSTANCE.deliver(trigger.getHookKey(), JsonApi.INSTANCE.getMapper().readTree("{}")));
+        } finally {
+            ConnectorWebhooks.INSTANCE.setPublicUrl("");
+        }
+    }
+
+    @Test
+    public void testAWebhookTriggerNeedsThePublicAddressFail() {
+        Assert.assertTrue(trigger("new_event").problem().contains("DOPPLERTASK_PUBLIC_URL"));
+    }
+
+    private static ConnectorTrigger trigger(String operation) {
+        ConnectorTrigger trigger = ConnectorTrigger.of("poll-test");
+        trigger.setOperation(operation);
+        trigger.useCredentialValues(Map.of("key", "poll-key"));
+        return trigger;
+    }
+
+    /** The ids of what one check found, in the order the task would start for them. */
+    private static List<String> newItems(ConnectorTrigger trigger) {
+        trigger.lookForNewItems();
+        List<String> ids = new ArrayList<>();
+        while (true) {
+            String item = trigger.nextWaiting();
+            if (item == null) {
+                return ids;
+            }
+            ids.add(JsonApi.INSTANCE.getMapper().readTree(item).path("id").asText());
+        }
+    }
+}
