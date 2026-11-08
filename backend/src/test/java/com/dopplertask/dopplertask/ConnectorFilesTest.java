@@ -36,7 +36,12 @@ public class ConnectorFilesTest {
         service.createContext("/", exchange -> {
             received.set(exchange.getRequestBody().readAllBytes());
             contentType.set(exchange.getRequestHeaders().getFirst("Content-Type"));
-            byte[] answer = exchange.getRequestURI().getPath().equals("/report") ? PDF : "{\"ok\": true}".getBytes(StandardCharsets.UTF_8);
+            byte[] answer = switch (exchange.getRequestURI().getPath()) {
+                case "/report" -> PDF;
+                case "/report.csv" -> "a,b\n1,2".getBytes(StandardCharsets.UTF_8);
+                case "/attachment" -> ("{\"data\": \"" + Base64.getEncoder().encodeToString(PDF) + "\"}").getBytes(StandardCharsets.UTF_8);
+                default -> "{\"ok\": true}".getBytes(StandardCharsets.UTF_8);
+            };
             exchange.sendResponseHeaders(200, answer.length);
             try (OutputStream out = exchange.getResponseBody()) {
                 out.write(answer);
@@ -61,9 +66,9 @@ public class ConnectorFilesTest {
         String boundary = contentType.get().replaceAll(".*boundary=", "");
         Assert.assertTrue(contentType.get(), contentType.get().startsWith("multipart/form-data; boundary="));
         String body = new String(received.get(), StandardCharsets.ISO_8859_1);
-        Assert.assertTrue(body, body.contains("--" + boundary + "\r\nContent-Disposition: form-data; name=\"title\"\r\n\r\nJune\r\n"));
-        Assert.assertTrue(body, body.contains("Content-Disposition: form-data; name=\"file\"; filename=\"june.pdf\"\r\nContent-Type: application/pdf\r\n\r\n"
-                + new String(PDF, StandardCharsets.ISO_8859_1) + "\r\n--" + boundary + "--"));
+        // The parts come in the order of the body: the file, then the title.
+        Assert.assertEquals("--" + boundary + "\r\nContent-Disposition: form-data; name=\"file\"; filename=\"june.pdf\"\r\nContent-Type: application/pdf\r\n\r\n"
+                + new String(PDF, StandardCharsets.ISO_8859_1) + "\r\n--" + boundary + "\r\nContent-Disposition: form-data; name=\"title\"\r\n\r\nJune\r\n--" + boundary + "--\r\n", body);
     }
 
     @Test
@@ -87,6 +92,41 @@ public class ConnectorFilesTest {
     public void testAFileTheRunDoesNotHaveExplainsWhyFail() {
         ActionResult result = step("upload", Map.of("document", "missing.pdf")).perform(new TaskExecution(), variables);
         Assert.assertTrue(result.getErrorMsg(), result.getErrorMsg().contains("no file called \"missing.pdf\""));
+    }
+
+    @Test
+    public void testABodyThatIsAFileIsTheFilesBytesSuccess() {
+        TaskExecution run = new TaskExecution();
+        RunFiles.INSTANCE.keep(run, "june.pdf", PDF);
+        step("replace", Map.of("document", "june.pdf")).perform(run, variables);
+        Assert.assertArrayEquals(PDF, received.get());
+        Assert.assertEquals("application/pdf", contentType.get());
+    }
+
+    @Test
+    public void testARelatedMultipartBodyTypesEachPartInItsOrderSuccess() {
+        TaskExecution run = new TaskExecution();
+        RunFiles.INSTANCE.keep(run, "june.pdf", PDF);
+        step("upload_related", Map.of("document", "june.pdf", "title", "June")).perform(run, variables);
+        String boundary = contentType.get().replaceAll(".*boundary=", "");
+        Assert.assertTrue(contentType.get(), contentType.get().startsWith("multipart/related; boundary="));
+        Assert.assertEquals("--" + boundary + "\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{\"name\":\"June\"}\r\n--" + boundary
+                + "\r\nContent-Type: application/pdf\r\n\r\n" + new String(PDF, StandardCharsets.ISO_8859_1) + "\r\n--" + boundary + "--\r\n",
+                new String(received.get(), StandardCharsets.ISO_8859_1));
+    }
+
+    @Test
+    public void testATextBodyAndATextAnswerStayTextSuccess() {
+        step("send_csv", Map.of("rows", "a,b\n1,2")).perform(new TaskExecution(), variables);
+        Assert.assertEquals("a,b\n1,2", new String(received.get(), StandardCharsets.UTF_8));
+        Assert.assertEquals("{\"status\":200,\"csv\":\"a,b\\n1,2\"}", step("read_csv", Map.of()).perform(new TaskExecution(), variables).getOutput());
+    }
+
+    @Test
+    public void testAScriptKeepsAFileFromTheAnswerForTheRunSuccess() {
+        TaskExecution run = new TaskExecution();
+        Assert.assertEquals("{\"file\":\"scan.pdf\"}", step("attachment", Map.of()).perform(run, variables).getOutput());
+        Assert.assertArrayEquals(PDF, RunFiles.INSTANCE.read(run, "scan.pdf"));
     }
 
     private static ConnectorAction step(String operation, Map<String, String> settings) {

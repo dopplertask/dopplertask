@@ -25,6 +25,9 @@ object ConnectorRequests {
     private val HOST_PART = Regex("[A-Za-z0-9.-]+")
 
     private const val CREDENTIAL = "credential."
+
+    /** The part name of a file that is the whole body, such as an upload of a file's content. */
+    const val WHOLE_BODY = ""
     private val METHODS_WITH_BODY = setOf("POST", "PUT", "PATCH")
 
     @JvmOverloads
@@ -39,10 +42,11 @@ object ConnectorRequests {
         draft.set("headers", JsonApi.mapper.valueToTree(request.headers.mapValues { Connectors.fill(it.value) { name -> values[name].orEmpty() } }))
         draft.set("body", request.body?.let { bodyOf(it, operation, values, files) } ?: NODES.nullNode())
         val ready = operation.beforeRequest?.let { ConnectorScripts.run(it, values, draft, null, send, memory = memory) } ?: draft
-        // In a multipart body a file goes in its own part, so the part is named by the body's field.
-        val parts = request.body?.properties()?.filter { it.value.isTextual }?.mapNotNull { (part, template) ->
-            Connectors.placeholdersIn(template.asText()).singleOrNull()?.let { files[it] }?.let { part to it }
-        }?.toMap().orEmpty()
+        // In a multipart body a file goes in its own part, so the part is named by the body's field. A body that is
+        // only a file is the file's bytes.
+        val fileIn = { template: JsonNode -> template.takeIf { it.isTextual }?.let { Connectors.placeholdersIn(it.asText()).singleOrNull() }?.let { files[it] } }
+        val whole = request.body?.let(fileIn)?.let { mapOf(WHOLE_BODY to it) }
+        val parts = whole ?: request.body?.properties()?.mapNotNull { (part, template) -> fileIn(template)?.let { part to it } }?.toMap().orEmpty()
         return sign(connector, ready, credential, parts)
     }
 

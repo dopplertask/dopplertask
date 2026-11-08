@@ -258,7 +258,8 @@ class ConnectorTrigger : Trigger() {
         val remembered = remembered()
         val answer = sender.send(ConnectorRequests.build(connector, lookup, values, credentialValues, sender::answerFor, memory = remembered))
         check(answer.statusCode == StatusCode.SUCCESS) { answer.errorMsg }
-        val reply = poll.afterResponse?.let { ConnectorScripts.run(it, values, null, JsonApi.parsed(answer), sender::answerFor, memory = remembered) } ?: JsonApi.parsed(answer)
+        val reply = poll.afterResponse?.let { ConnectorScripts.run(it, values, null, ConnectorSender.answerOf(answer), sender::answerFor, ConnectorSender.receivedOf(answer), remembered) }
+            ?: ConnectorSender.answerOf(answer)
         memory = remembered.toString()
         val items = JsonPaths.read(reply, poll.items)?.toList().orEmpty()
         val fresh = when (poll.newBy) {

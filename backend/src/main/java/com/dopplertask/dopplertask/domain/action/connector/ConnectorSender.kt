@@ -29,31 +29,39 @@ class ConnectorSender(private val step: Action, private val connector: Connector
         // JSON, as most services and the originals send, unless the connector names another type, such as a form or JSON Patch.
         val named = headers.entries.firstOrNull { it.key.equals(CONTENT_TYPE, ignoreCase = true) }?.value ?: "application/json"
         val boundary = "dopplertask-" + UUID.randomUUID()
+        val whole = request.files[ConnectorRequests.WHOLE_BODY]
         val (contentType, body) = when {
-            named.startsWith(MULTIPART) -> "$MULTIPART; boundary=$boundary" to multipartOf(request, boundary)
+            whole != null -> (headers.entries.firstOrNull { it.key.equals(CONTENT_TYPE, ignoreCase = true) }?.value ?: whole.mimeType) to whole.bytes
+            named.startsWith(MULTIPART) -> "${named.substringBefore(';')}; boundary=$boundary" to multipartOf(request, boundary, named.startsWith(FORM_DATA))
             named.startsWith(FORM) -> named to request.body?.let(::formOf).orEmpty().toByteArray()
+            // A body in another type, such as CSV, is sent as the text it is.
+            "json" !in named && request.body?.isTextual == true -> named to request.body.asText().toByteArray()
             else -> named to request.body?.toString().orEmpty().toByteArray()
         }
         val typed = headers.filterKeys { !it.equals(CONTENT_TYPE, ignoreCase = true) } + (CONTENT_TYPE to contentType)
         return JsonApi.send(connector.label, request.method, address, typed, body, answer = answer)
     }
 
-    /** Each field of the body as a part, and each file as a part with its name and type. */
-    private fun multipartOf(request: ConnectorRequests.Built, boundary: String): ByteArray {
+    /**
+     * Each field of the body as a part, in the order of the body, and each file as a part with its name and type; a
+     * file that the body does not name comes last. A form names its parts; other multipart bodies, such as
+     * multipart/related, give each part its type instead.
+     */
+    private fun multipartOf(request: ConnectorRequests.Built, boundary: String, isForm: Boolean): ByteArray {
         val out = ByteArrayOutputStream()
         fun line(text: String) = out.write("$text\r\n".toByteArray())
-        request.body?.properties()?.filter { it.key !in request.files }?.forEach { (name, value) ->
+        val fields = request.body?.properties()?.associate { it.key to it.value }.orEmpty()
+        val parts = fields + (request.files.keys - fields.keys).associateWith { JsonApi.mapper.nullNode() }
+        parts.forEach { (name, value) ->
+            val file = request.files[name]
             line("--$boundary")
-            line("Content-Disposition: form-data; name=\"$name\"")
+            if (isForm) line("Content-Disposition: form-data; name=\"$name\"" + (file?.let { "; filename=\"${it.name}\"" } ?: ""))
+            when {
+                file != null -> line("Content-Type: ${file.mimeType}")
+                !isForm -> line("Content-Type: " + if (value.isValueNode) "text/plain; charset=UTF-8" else "application/json; charset=UTF-8")
+            }
             line("")
-            line(if (value.isValueNode) value.asText() else value.toString())
-        }
-        request.files.forEach { (name, file) ->
-            line("--$boundary")
-            line("Content-Disposition: form-data; name=\"$name\"; filename=\"${file.name}\"")
-            line("Content-Type: ${file.mimeType}")
-            line("")
-            out.write(file.bytes)
+            if (file != null) out.write(file.bytes) else out.write((if (value.isValueNode) value.asText() else value.toString()).toByteArray())
             line("")
         }
         line("--$boundary--")
@@ -67,7 +75,20 @@ class ConnectorSender(private val step: Action, private val connector: Connector
     companion object {
         private const val CONTENT_TYPE = "Content-Type"
         private const val FORM = "application/x-www-form-urlencoded"
-        private const val MULTIPART = "multipart/form-data"
+        private const val MULTIPART = "multipart/"
+        private const val FORM_DATA = "multipart/form-data"
+
+        /** An answer as JSON, as its text when it is not JSON, such as CSV, or null when it is empty. */
+        fun answerOf(result: ActionResult): JsonNode = when {
+            result.output.isNullOrBlank() -> JsonApi.mapper.nullNode()
+            else -> runCatching { JsonApi.mapper.readTree(result.output) }.getOrElse { JsonApi.mapper.getNodeFactory().textNode(result.output) }
+        }
+
+        /** What came with an answer, for scripts: its status, its headers, each with its first value, and its text. */
+        fun receivedOf(result: ActionResult): JsonNode = JsonApi.mapper.valueToTree(mapOf(
+            "status" to result.outputVariables["statusCode"],
+            "headers" to result.outputVariables.filterKeys { it != "statusCode" }.mapValues { (it.value as? List<*>)?.firstOrNull() ?: it.value },
+            "text" to result.output.orEmpty()))
 
         /** What a step signing in with an account reads from its own fields, as every step that offers it does. */
         fun accountFields(connector: Connector, values: Map<String, String>): Map<String, String> =
@@ -78,6 +99,6 @@ class ConnectorSender(private val step: Action, private val connector: Connector
     fun answerFor(spec: JsonNode): JsonNode {
         val answer = send(ConnectorRequests.sign(connector, spec, credential))
         require(answer.statusCode == StatusCode.SUCCESS) { answer.errorMsg }
-        return JsonApi.parsed(answer)
+        return answerOf(answer)
     }
 }

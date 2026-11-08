@@ -22,6 +22,7 @@ import jakarta.persistence.Lob
 import jakarta.persistence.Table
 import jakarta.persistence.Transient
 import tools.jackson.databind.JsonNode
+import java.util.Base64
 
 /**
  * A step of a connector file. Its kind is the connector's name, so a task says Slack rather than ConnectorAction, and
@@ -157,13 +158,15 @@ class ConnectorAction : Action() {
             result.outputVariables.putAll(about)
             return result
         }
-        var answer = JsonApi.parsed(result)
+        var answer = ConnectorSender.answerOf(result)
         if (chosen.result.isNotEmpty()) {
             answer = JsonPaths.read(answer, chosen.result) ?: JsonApi.mapper.nullNode()
             result.output = if (answer.isValueNode) answer.asText() else answer.toString()
         }
         chosen.afterResponse?.let { script ->
-            answer = ConnectorScripts.run(script, values, request.unsigned, answer, sender::answerFor)
+            // A script may keep a file it finds in the answer, such as an attachment sent as base64, for later steps.
+            val keepFile = { name: String, base64: String -> name.also { RunFiles.keep(execution, it, Base64.getDecoder().decode(base64)) } }
+            answer = ConnectorScripts.run(script, values, request.unsigned, answer, sender::answerFor, ConnectorSender.receivedOf(result), keepFile = keepFile)
             result.output = if (answer.isValueNode) answer.asText() else answer.toString()
         }
         chosen.outputs.forEach { (name, path) -> JsonPaths.read(answer, path)?.let { result.outputVariables[name] = if (it.isValueNode) it.asText() else it.toString() } }
