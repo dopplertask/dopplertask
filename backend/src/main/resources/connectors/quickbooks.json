@@ -1,7 +1,7 @@
 {
   "name": "quickbooks",
-  "label": "Quickbooks Online",
-  "description": "",
+  "label": "QuickBooks Online",
+  "description": "Create invoices, bills, expenses, vendors and payments in QuickBooks Online, find records, read aging reports, and start tasks on new ones.",
   "icon": "quickbooks",
   "hosts": [
     "quickbooks.api.intuit.com"
@@ -52,7 +52,7 @@
       "label": "$.Name",
       "value": "$.Id"
     },
-    "entity_refs": {
+    "vendor_refs": {
       "request": {
         "method": "GET",
         "url": "https://quickbooks.api.intuit.com/v3/company/{{credential.companyId}}/query",
@@ -84,7 +84,7 @@
       "label": "Find Invoice",
       "description": "Search for an invoice by its number in QuickBooks.",
       "inputs": {
-        "invoice_number": {
+        "invoiceNumber": {
           "label": "Invoice Number",
           "description": "The document number (DocNumber) of the invoice to search for.",
           "required": true
@@ -94,7 +94,7 @@
         "method": "GET",
         "url": "https://quickbooks.api.intuit.com/v3/company/{{credential.companyId}}/query"
       },
-      "beforeRequest": "const form = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst quoted = (value) => value.replace(/'/g, \"\\\\'\");\nconst query = \"SELECT * FROM Invoice WHERE DocNumber = '\" + quoted(inputs.invoice_number) + \"' MAXRESULTS 1\";\nrequest.url += '?minorversion=75&query=' + form(query);\nreturn request;",
+      "beforeRequest": "const form = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst quoted = (value) => value.replace(/'/g, \"\\\\'\");\nconst query = \"SELECT * FROM Invoice WHERE DocNumber = '\" + quoted(inputs.invoiceNumber) + \"' MAXRESULTS 1\";\nrequest.url += '?minorversion=75&query=' + form(query);\nreturn request;",
       "afterResponse": "const found = (response.QueryResponse || {})['Invoice'];\nreturn found && found.length > 0 ? {found: true, result: found[0]} : {found: false, result: {}};",
       "outputs": {
         "found": "$.found",
@@ -105,7 +105,7 @@
       "label": "Find Customer",
       "description": "Search for a customer by display name in QuickBooks.",
       "inputs": {
-        "search_term": {
+        "searchTerm": {
           "label": "Customer Name",
           "description": "The display name of the customer to search for.",
           "required": true
@@ -115,7 +115,7 @@
         "method": "GET",
         "url": "https://quickbooks.api.intuit.com/v3/company/{{credential.companyId}}/query"
       },
-      "beforeRequest": "const form = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst quoted = (value) => value.replace(/'/g, \"\\\\'\");\nconst query = \"SELECT * FROM Customer WHERE DisplayName = '\" + quoted(inputs.search_term) + \"' MAXRESULTS 1\";\nrequest.url += '?minorversion=75&query=' + form(query);\nreturn request;",
+      "beforeRequest": "const form = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst quoted = (value) => value.replace(/'/g, \"\\\\'\");\nconst query = \"SELECT * FROM Customer WHERE DisplayName = '\" + quoted(inputs.searchTerm) + \"' MAXRESULTS 1\";\nrequest.url += '?minorversion=75&query=' + form(query);\nreturn request;",
       "afterResponse": "const found = (response.QueryResponse || {})['Customer'];\nreturn found && found.length > 0 ? {found: true, result: found[0]} : {found: false, result: {}};",
       "outputs": {
         "found": "$.found",
@@ -126,9 +126,9 @@
       "label": "Find Payment",
       "description": "Finds an existing payment in QuickBooks.",
       "inputs": {
-        "customerId": {
-          "label": "Customer ID",
-          "description": "The ID of the customer to find payments for.",
+        "customerRef": {
+          "label": "Customer",
+          "description": "The customer to find payments for.",
           "required": true,
           "list": "customer_refs"
         }
@@ -137,7 +137,7 @@
         "method": "GET",
         "url": "https://quickbooks.api.intuit.com/v3/company/{{credential.companyId}}/query"
       },
-      "beforeRequest": "const form = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst query = \"SELECT * FROM Payment WHERE CustomerRef = '\" + inputs.customerId + \"'\";\nrequest.url += '?minorversion=75&query=' + form(query);\nreturn request;",
+      "beforeRequest": "const form = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst query = \"SELECT * FROM Payment WHERE CustomerRef = '\" + inputs.customerRef + \"'\";\nrequest.url += '?minorversion=75&query=' + form(query);\nreturn request;",
       "afterResponse": "const found = (response.QueryResponse || {}).Payment;\nreturn found && found.length > 0 ? {found: true, result: found} : {found: false, result: []};",
       "outputs": {
         "found": "$.found"
@@ -206,8 +206,7 @@
         "url": "https://quickbooks.api.intuit.com/v3/company/{{credential.companyId}}/invoice",
         "query": {
           "minorversion": "75"
-        },
-        "body": {}
+        }
       },
       "beforeRequest": "const list = (value) => (typeof value === 'string' ? (value.trim() ? JSON.parse(value) : []) : value || []);\nconst day = (value) => value.split('T')[0];\nif (inputs.emailStatus === 'NeedToSend' && !inputs.billEmail) throw new Error('Billing Email Address is required when Email Status is \"Needs To Be Sent\".');\nconst lines = list(inputs.lineItems).map((line) => {\n  if (line.detailType !== 'SalesItemLineDetail') return {Amount: line.amount, DetailType: line.detailType, Description: line.description};\n  if (!line.itemId) throw new Error('Item ID is required for Sales Item Line Detail.');\n  const detail = {ItemRef: {value: line.itemId}};\n  if (line.quantity != null) detail.Qty = line.quantity;\n  if (line.unitPrice != null) detail.UnitPrice = line.unitPrice;\n  return {Amount: line.amount, DetailType: line.detailType, Description: line.description, SalesItemLineDetail: detail};\n});\nif (lines.length === 0) throw new Error('At least one line item is required to create an invoice.');\nconst body = {Line: lines, CustomerRef: {value: inputs.customerRef}};\nif (inputs.emailStatus) body.EmailStatus = inputs.emailStatus;\nif (inputs.billEmail) body.BillEmail = {Address: inputs.billEmail};\nif (inputs.dueDate) body.DueDate = day(inputs.dueDate);\nif (inputs.docNumber) body.DocNumber = inputs.docNumber;\nif (inputs.txnDate) body.TxnDate = day(inputs.txnDate);\nif (inputs.privateNote) body.PrivateNote = inputs.privateNote;\nif (inputs.customerMemo) body.CustomerMemo = {value: inputs.customerMemo};\nrequest.body = body;\nreturn request;",
       "afterResponse": "if (response.Fault) throw new Error('QuickBooks API Error: ' + response.Fault.Error.map((e) => e.Message).join(', ') + ' - ' + response.Fault.Error.map((e) => e.Detail).join(', '));\nreturn response.Invoice;",
@@ -250,7 +249,7 @@
         "entityRef": {
           "label": "Payee (Vendor)",
           "description": "Optional - The vendor the expense was paid to.",
-          "list": "entity_refs"
+          "list": "vendor_refs"
         },
         "txnDate": {
           "label": "Payment Date",
@@ -273,8 +272,7 @@
         "url": "https://quickbooks.api.intuit.com/v3/company/{{credential.companyId}}/purchase",
         "query": {
           "minorversion": "75"
-        },
-        "body": {}
+        }
       },
       "beforeRequest": "const list = (value) => (typeof value === 'string' ? (value.trim() ? JSON.parse(value) : []) : value || []);\nconst day = (value) => value.split('T')[0];\nconst lines = list(inputs.lineItems).map((line) => {\n  const out = {Amount: line.amount, Description: line.description, DetailType: line.detailType};\n  if (line.detailType === 'AccountBasedExpenseLineDetail') {\n    if (!line.expenseAccountId) throw new Error('Expense Category/Account ID is required for Account Based Expense Line Detail.');\n    out.AccountBasedExpenseLineDetail = {AccountRef: {value: line.expenseAccountId}};\n  }\n  return out;\n});\nif (lines.length === 0) throw new Error('At least one line item is required.');\nconst body = {AccountRef: {value: inputs.accountRef}, PaymentType: inputs.paymentType, Line: lines};\nif (inputs.entityRef) body.EntityRef = {value: inputs.entityRef};\nif (inputs.txnDate) body.TxnDate = day(inputs.txnDate);\nif (inputs.privateNote) body.PrivateNote = inputs.privateNote;\nrequest.body = body;\nreturn request;",
       "afterResponse": "if (response.Fault) throw new Error('QuickBooks API Error creating expense: ' + response.Fault.Error.map((e) => e.Message).join(', ') + ' - Detail: ' + response.Fault.Error.map((e) => e.Detail).join(', '));\nreturn response.Purchase;",
@@ -290,7 +288,7 @@
         "vendorRef": {
           "label": "Vendor",
           "required": true,
-          "list": "entity_refs"
+          "list": "vendor_refs"
         },
         "lineItems": {
           "label": "Line Items",
@@ -321,8 +319,7 @@
         "url": "https://quickbooks.api.intuit.com/v3/company/{{credential.companyId}}/bill",
         "query": {
           "minorversion": "75"
-        },
-        "body": {}
+        }
       },
       "beforeRequest": "const list = (value) => (typeof value === 'string' ? (value.trim() ? JSON.parse(value) : []) : value || []);\nconst day = (value) => value.split('T')[0];\nlet classPerLine = false;\ntry {\n  const preferences = call({method: 'GET', url: '/preferences', query: {minorversion: '75'}}).Preferences;\n  classPerLine = !!(preferences && preferences.AccountingInfoPrefs && preferences.AccountingInfoPrefs.ClassTrackingPerTxnLine);\n} catch (error) {\n  classPerLine = false;\n}\nconst lines = list(inputs.lineItems).map((line) => {\n  if (!line.expenseAccountId) throw new Error('Expense Category/Account ID is required for each line.');\n  const detail = {AccountRef: {value: line.expenseAccountId}};\n  if (classPerLine && line.classId) detail.ClassRef = {value: line.classId};\n  return {Amount: line.amount, Description: line.description, DetailType: line.detailType, AccountBasedExpenseLineDetail: detail};\n});\nif (lines.length === 0) throw new Error('At least one line item is required.');\nconst body = {VendorRef: {value: inputs.vendorRef}, Line: lines};\nif (inputs.txnDate) body.TxnDate = day(inputs.txnDate);\nif (inputs.dueDate) body.DueDate = day(inputs.dueDate);\nif (inputs.docNumber) body.DocNumber = inputs.docNumber;\nif (inputs.privateNote) body.PrivateNote = inputs.privateNote;\nrequest.body = body;\nreturn request;",
       "afterResponse": "if (response.Fault) throw new Error('QuickBooks API Error creating bill: ' + response.Fault.Error.map((e) => e.Message).join(', ') + ' - Detail: ' + response.Fault.Error.map((e) => e.Detail).join(', '));\nreturn response.Bill;",
@@ -386,8 +383,7 @@
         "url": "https://quickbooks.api.intuit.com/v3/company/{{credential.companyId}}/vendor",
         "query": {
           "minorversion": "75"
-        },
-        "body": {}
+        }
       },
       "beforeRequest": "const body = {DisplayName: inputs.displayName};\nif (inputs.companyName) body.CompanyName = inputs.companyName;\nif (inputs.email) body.PrimaryEmailAddr = {Address: inputs.email};\nif (inputs.phone) body.PrimaryPhone = {FreeFormNumber: inputs.phone};\nif (inputs.billAddrLine1 || inputs.billAddrCity || inputs.billAddrState || inputs.billAddrPostalCode) {\n  const address = {};\n  if (inputs.billAddrLine1) address.Line1 = inputs.billAddrLine1;\n  if (inputs.billAddrCity) address.City = inputs.billAddrCity;\n  if (inputs.billAddrState) address.CountrySubDivisionCode = inputs.billAddrState;\n  if (inputs.billAddrPostalCode) address.PostalCode = inputs.billAddrPostalCode;\n  body.BillAddr = address;\n}\nif (inputs.vendor1099 !== undefined && inputs.vendor1099 !== '') body.Vendor1099 = inputs.vendor1099 === 'true';\nif (inputs.taxIdentifier) body.TaxIdentifier = inputs.taxIdentifier;\nif (inputs.acctNum) body.AcctNum = inputs.acctNum;\nif (inputs.termRef) body.TermRef = {value: inputs.termRef};\nrequest.body = body;\nreturn request;",
       "afterResponse": "if (response.Fault) throw new Error('QuickBooks API Error creating vendor: ' + response.Fault.Error.map((e) => e.Message).join(', ') + ' - Detail: ' + response.Fault.Error.map((e) => e.Detail).join(', '));\nreturn response.Vendor;",
@@ -415,7 +411,7 @@
             }
           ]
         },
-        "search_term": {
+        "searchTerm": {
           "label": "Search Value",
           "description": "The exact vendor display name or account number to search for, depending on Search By.",
           "required": true
@@ -425,7 +421,7 @@
         "method": "GET",
         "url": "https://quickbooks.api.intuit.com/v3/company/{{credential.companyId}}/query"
       },
-      "beforeRequest": "const form = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst quoted = (value) => value.replace(/'/g, \"\\\\'\");\nconst field = inputs.searchBy === 'AcctNum' ? 'AcctNum' : 'DisplayName';\nconst query = 'SELECT * FROM Vendor WHERE ' + field + \" = '\" + quoted(inputs.search_term) + \"' MAXRESULTS 1\";\nrequest.url += '?minorversion=75&query=' + form(query);\nreturn request;",
+      "beforeRequest": "const form = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst quoted = (value) => value.replace(/'/g, \"\\\\'\");\nconst field = inputs.searchBy === 'AcctNum' ? 'AcctNum' : 'DisplayName';\nconst query = 'SELECT * FROM Vendor WHERE ' + field + \" = '\" + quoted(inputs.searchTerm) + \"' MAXRESULTS 1\";\nrequest.url += '?minorversion=75&query=' + form(query);\nreturn request;",
       "afterResponse": "const vendor = ((response.QueryResponse || {}).Vendor || [])[0];\nreturn vendor ? {found: true, result: vendor} : {found: false, result: {}};",
       "outputs": {
         "found": "$.found",
@@ -436,7 +432,7 @@
       "label": "Find Account",
       "description": "List or search the chart of accounts to get an account Id (e.g. an expense account for a bill).",
       "inputs": {
-        "search_term": {
+        "searchTerm": {
           "label": "Account Name Contains",
           "description": "Optional. Filter accounts whose name contains this text."
         },
@@ -512,7 +508,7 @@
         "method": "GET",
         "url": "https://quickbooks.api.intuit.com/v3/company/{{credential.companyId}}/query"
       },
-      "beforeRequest": "const form = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst quoted = (value) => value.replace(/'/g, \"\\\\'\");\nconst where = ['Active = true'];\nif (inputs.search_term) where.push(\"Name LIKE '%\" + quoted(inputs.search_term) + \"%'\");\nif (inputs.accountType) where.push(\"AccountType = '\" + inputs.accountType + \"'\");\nconst query = 'SELECT * FROM Account WHERE ' + where.join(' AND ') + ' MAXRESULTS 1000';\nrequest.url += '?minorversion=75&query=' + form(query);\nreturn request;",
+      "beforeRequest": "const form = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst quoted = (value) => value.replace(/'/g, \"\\\\'\");\nconst where = ['Active = true'];\nif (inputs.searchTerm) where.push(\"Name LIKE '%\" + quoted(inputs.searchTerm) + \"%'\");\nif (inputs.accountType) where.push(\"AccountType = '\" + inputs.accountType + \"'\");\nconst query = 'SELECT * FROM Account WHERE ' + where.join(' AND ') + ' MAXRESULTS 1000';\nrequest.url += '?minorversion=75&query=' + form(query);\nreturn request;",
       "afterResponse": "const accounts = (response.QueryResponse || {}).Account || [];\nreturn {found: accounts.length > 0, result: accounts};",
       "outputs": {
         "found": "$.found"
@@ -538,8 +534,8 @@
           "description": "Optional. Apply this payment to specific invoices, as a JSON list of {invoiceId, amount}. Leave empty to keep the amount unapplied.",
           "type": "json"
         },
-        "depositToAccountId": {
-          "label": "Deposit To Account ID",
+        "depositToAccountRef": {
+          "label": "Deposit To Account",
           "description": "Optional. The account to deposit the payment into. Defaults to Undeposited Funds if empty.",
           "list": "account_refs"
         },
@@ -562,10 +558,9 @@
         "url": "https://quickbooks.api.intuit.com/v3/company/{{credential.companyId}}/payment",
         "query": {
           "minorversion": "75"
-        },
-        "body": {}
+        }
       },
-      "beforeRequest": "const list = (value) => (typeof value === 'string' ? (value.trim() ? JSON.parse(value) : []) : value || []);\nconst day = (value) => value.split('T')[0];\nconst lines = list(inputs.lineItems).map((line) => ({Amount: line.amount, LinkedTxn: [{TxnId: line.invoiceId, TxnType: 'Invoice'}]}));\nconst body = {CustomerRef: {value: inputs.customerRef}, TotalAmt: Number(inputs.totalAmount)};\nif (lines.length > 0) body.Line = lines;\nif (inputs.depositToAccountId) body.DepositToAccountRef = {value: inputs.depositToAccountId};\nif (inputs.txnDate) body.TxnDate = day(inputs.txnDate);\nif (inputs.paymentRefNum) body.PaymentRefNum = inputs.paymentRefNum;\nif (inputs.privateNote) body.PrivateNote = inputs.privateNote;\nrequest.body = body;\nreturn request;",
+      "beforeRequest": "const list = (value) => (typeof value === 'string' ? (value.trim() ? JSON.parse(value) : []) : value || []);\nconst day = (value) => value.split('T')[0];\nconst lines = list(inputs.lineItems).map((line) => ({Amount: line.amount, LinkedTxn: [{TxnId: line.invoiceId, TxnType: 'Invoice'}]}));\nconst body = {CustomerRef: {value: inputs.customerRef}, TotalAmt: Number(inputs.totalAmount)};\nif (lines.length > 0) body.Line = lines;\nif (inputs.depositToAccountRef) body.DepositToAccountRef = {value: inputs.depositToAccountRef};\nif (inputs.txnDate) body.TxnDate = day(inputs.txnDate);\nif (inputs.paymentRefNum) body.PaymentRefNum = inputs.paymentRefNum;\nif (inputs.privateNote) body.PrivateNote = inputs.privateNote;\nrequest.body = body;\nreturn request;",
       "afterResponse": "if (response.Fault) throw new Error('QuickBooks API Error recording payment: ' + response.Fault.Error.map((e) => e.Message).join(', ') + ' - Detail: ' + response.Fault.Error.map((e) => e.Detail).join(', '));\nreturn response.Payment;",
       "outputs": {
         "id": "$.Id",
@@ -579,7 +574,7 @@
         "vendorRef": {
           "label": "Vendor",
           "required": true,
-          "list": "entity_refs"
+          "list": "vendor_refs"
         },
         "payType": {
           "label": "Pay With",
@@ -598,8 +593,8 @@
           ]
         },
         "payFromAccountRef": {
-          "label": "Pay From Account ID",
-          "description": "The ID of the checking/savings account (for Check) or credit card account (for Credit Card) the payment is made from.",
+          "label": "Pay From Account",
+          "description": "The checking/savings account (for Check) or credit card account (for Credit Card) the payment is made from.",
           "required": true,
           "list": "account_refs"
         },
@@ -626,8 +621,7 @@
         "url": "https://quickbooks.api.intuit.com/v3/company/{{credential.companyId}}/billpayment",
         "query": {
           "minorversion": "75"
-        },
-        "body": {}
+        }
       },
       "beforeRequest": "const list = (value) => (typeof value === 'string' ? (value.trim() ? JSON.parse(value) : []) : value || []);\nconst day = (value) => value.split('T')[0];\nconst bills = list(inputs.billLines);\nif (bills.length === 0) throw new Error('At least one bill is required.');\nconst lines = bills.map((bill) => ({Amount: bill.amount, LinkedTxn: [{TxnId: bill.billId, TxnType: 'Bill'}]}));\nconst account = {value: inputs.payFromAccountRef};\nconst body = {VendorRef: {value: inputs.vendorRef}, PayType: inputs.payType, TotalAmt: lines.reduce((sum, line) => sum + line.Amount, 0), Line: lines};\nif (inputs.payType === 'Check') body.CheckPayment = {BankAccountRef: account};\nif (inputs.payType === 'CreditCard') body.CreditCardPayment = {CCAccountRef: account};\nif (inputs.txnDate) body.TxnDate = day(inputs.txnDate);\nif (inputs.docNumber) body.DocNumber = inputs.docNumber;\nif (inputs.privateNote) body.PrivateNote = inputs.privateNote;\nrequest.body = body;\nreturn request;",
       "afterResponse": "if (response.Fault) throw new Error('QuickBooks API Error recording bill payment: ' + response.Fault.Error.map((e) => e.Message).join(', ') + ' - Detail: ' + response.Fault.Error.map((e) => e.Detail).join(', '));\nreturn response.BillPayment;",
@@ -701,11 +695,7 @@
       },
       "request": {
         "method": "GET",
-        "url": "https://quickbooks.api.intuit.com/v3/company/{{credential.companyId}}/reports/{{reportType}}",
-        "query": {
-          "minorversion": "75",
-          "aging_method": "{{agingMethod}}"
-        }
+        "url": "https://quickbooks.api.intuit.com/v3/company/{{credential.companyId}}/reports/{{reportType}}"
       },
       "beforeRequest": "const day = (value) => value.split('T')[0];\nconst query = {minorversion: '75'};\nif (inputs.reportDate) query.report_date = day(inputs.reportDate);\nif (inputs.agingPeriod !== '') query.aging_period = String(Number(inputs.agingPeriod));\nif (inputs.numPeriods !== '') query.num_periods = String(Number(inputs.numPeriods));\nif (inputs.agingMethod) query.aging_method = inputs.agingMethod;\nif (inputs.pastDue !== '') query.past_due = String(Number(inputs.pastDue));\nrequest.query = query;\nreturn request;",
       "afterResponse": "if (response.Fault) throw new Error('QuickBooks API Error fetching report: ' + response.Fault.Error.map((e) => e.Message).join(', '));\nconst keyOf = (title, index) => (title ? title.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'column_' + index : 'column_' + index);\nconst keys = ((response.Columns || {}).Column || []).map((column, index) => keyOf(column.ColTitle ?? column.ColType, index));\nconst rows = [];\nconst push = (cells, type) => {\n  if (!cells || cells.length === 0) return;\n  const row = {row_type: type};\n  cells.forEach((cell, index) => {\n    const key = keys[index] ?? 'column_' + index;\n    row[key] = cell.value ?? '';\n    if (cell.id) row[key + '_id'] = cell.id;\n  });\n  rows.push(row);\n};\nconst walk = (list) => {\n  if (!list) return;\n  for (const item of list) {\n    push(item.ColData, 'Data');\n    walk(item.Rows && item.Rows.Row);\n    push(item.Summary && item.Summary.ColData, 'Summary');\n  }\n};\nwalk(response.Rows && response.Rows.Row);\nreturn Object.assign({}, response, {rows: rows});",
@@ -717,11 +707,12 @@
   "triggers": {
     "new_invoice": {
       "label": "New Invoice",
-      "description": "Triggers when an invoice is created .",
+      "description": "Triggers when an invoice is created.",
       "request": {
         "method": "GET",
-        "url": "https://quickbooks.api.intuit.com/v3/company/{{credential.companyId}}/query?minorversion=75&query=SELECT+*+FROM+Invoice+ORDERBY+Metadata.CreateTime+DESC+MAXRESULTS+10"
+        "url": "https://quickbooks.api.intuit.com/v3/company/{{credential.companyId}}/query"
       },
+      "beforeRequest": "const form = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\n// The first check asks for the newest 10, later ones for everything created since the last check.\nconst since = Number(inputs.lastPollTime || 0);\nconst query = since ? \"SELECT * FROM Invoice WHERE Metadata.CreateTime >= '\" + new Date(since).toISOString() + \"' ORDERBY Metadata.CreateTime DESC\" : 'SELECT * FROM Invoice ORDERBY Metadata.CreateTime DESC MAXRESULTS 10';\nrequest.url += '?minorversion=75&query=' + form(query);\nreturn request;",
       "afterResponse": "return (response.QueryResponse || {}).Invoice || [];",
       "items": "$",
       "newBy": "time",
@@ -732,8 +723,9 @@
       "description": "Triggers when an Expense (Purchase) is created.",
       "request": {
         "method": "GET",
-        "url": "https://quickbooks.api.intuit.com/v3/company/{{credential.companyId}}/query?minorversion=75&query=SELECT+*+FROM+Purchase+ORDERBY+Metadata.CreateTime+DESC+MAXRESULTS+10"
+        "url": "https://quickbooks.api.intuit.com/v3/company/{{credential.companyId}}/query"
       },
+      "beforeRequest": "const form = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\n// The first check asks for the newest 10, later ones for everything created since the last check.\nconst since = Number(inputs.lastPollTime || 0);\nconst query = since ? \"SELECT * FROM Purchase WHERE Metadata.CreateTime >= '\" + new Date(since).toISOString() + \"' ORDERBY Metadata.CreateTime DESC\" : 'SELECT * FROM Purchase ORDERBY Metadata.CreateTime DESC MAXRESULTS 10';\nrequest.url += '?minorversion=75&query=' + form(query);\nreturn request;",
       "afterResponse": "return (response.QueryResponse || {}).Purchase || [];",
       "items": "$",
       "newBy": "time",
@@ -744,8 +736,9 @@
       "description": "Triggers when a new customer is created.",
       "request": {
         "method": "GET",
-        "url": "https://quickbooks.api.intuit.com/v3/company/{{credential.companyId}}/query?minorversion=75&query=SELECT+*+FROM+Customer+ORDERBY+Metadata.CreateTime+DESC+MAXRESULTS+10"
+        "url": "https://quickbooks.api.intuit.com/v3/company/{{credential.companyId}}/query"
       },
+      "beforeRequest": "const form = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\n// The first check asks for the newest 10, later ones for everything created since the last check.\nconst since = Number(inputs.lastPollTime || 0);\nconst query = since ? \"SELECT * FROM Customer WHERE Metadata.CreateTime >= '\" + new Date(since).toISOString() + \"' ORDERBY Metadata.CreateTime DESC\" : 'SELECT * FROM Customer ORDERBY Metadata.CreateTime DESC MAXRESULTS 10';\nrequest.url += '?minorversion=75&query=' + form(query);\nreturn request;",
       "afterResponse": "return (response.QueryResponse || {}).Customer || [];",
       "items": "$",
       "newBy": "time",
@@ -756,8 +749,9 @@
       "description": "Triggers when a Deposit is created.",
       "request": {
         "method": "GET",
-        "url": "https://quickbooks.api.intuit.com/v3/company/{{credential.companyId}}/query?minorversion=75&query=SELECT+*+FROM+Deposit+ORDERBY+Metadata.CreateTime+DESC+MAXRESULTS+10"
+        "url": "https://quickbooks.api.intuit.com/v3/company/{{credential.companyId}}/query"
       },
+      "beforeRequest": "const form = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\n// The first check asks for the newest 10, later ones for everything created since the last check.\nconst since = Number(inputs.lastPollTime || 0);\nconst query = since ? \"SELECT * FROM Deposit WHERE Metadata.CreateTime >= '\" + new Date(since).toISOString() + \"' ORDERBY Metadata.CreateTime DESC\" : 'SELECT * FROM Deposit ORDERBY Metadata.CreateTime DESC MAXRESULTS 10';\nrequest.url += '?minorversion=75&query=' + form(query);\nreturn request;",
       "afterResponse": "return (response.QueryResponse || {}).Deposit || [];",
       "items": "$",
       "newBy": "time",
@@ -768,8 +762,9 @@
       "description": "Triggers when a Transfer is created.",
       "request": {
         "method": "GET",
-        "url": "https://quickbooks.api.intuit.com/v3/company/{{credential.companyId}}/query?minorversion=75&query=SELECT+*+FROM+Transfer+ORDERBY+Metadata.CreateTime+DESC+MAXRESULTS+10"
+        "url": "https://quickbooks.api.intuit.com/v3/company/{{credential.companyId}}/query"
       },
+      "beforeRequest": "const form = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\n// The first check asks for the newest 10, later ones for everything created since the last check.\nconst since = Number(inputs.lastPollTime || 0);\nconst query = since ? \"SELECT * FROM Transfer WHERE Metadata.CreateTime >= '\" + new Date(since).toISOString() + \"' ORDERBY Metadata.CreateTime DESC\" : 'SELECT * FROM Transfer ORDERBY Metadata.CreateTime DESC MAXRESULTS 10';\nrequest.url += '?minorversion=75&query=' + form(query);\nreturn request;",
       "afterResponse": "return (response.QueryResponse || {}).Transfer || [];",
       "items": "$",
       "newBy": "time",
@@ -780,9 +775,10 @@
       "description": "Triggers when an invoice is created or updated in QuickBooks.",
       "request": {
         "method": "GET",
-        "url": "https://quickbooks.api.intuit.com/v3/company/{{credential.companyId}}/query?minorversion=75&query=SELECT+*+FROM+Invoice+ORDERBY+Metadata.LastUpdatedTime+DESC+MAXRESULTS+10"
+        "url": "https://quickbooks.api.intuit.com/v3/company/{{credential.companyId}}/query"
       },
-      "afterResponse": "return ((response.QueryResponse || {}).Invoice || []).filter((item) => item.status !== 'Deleted');",
+      "beforeRequest": "const form = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\n// The first check asks for the 10 last changed. Later ones ask for the changes since the last check: within 30 days from the change feed, before that page by page.\nconst since = Number(inputs.lastPollTime || 0);\nif (since && Date.now() - since <= 2592000000) {\n  request.url = '/cdc?minorversion=75&entities=Invoice&changedSince=' + form(new Date(since).toISOString());\n  return request;\n}\nconst query = since ? \"SELECT * FROM Invoice WHERE Metadata.LastUpdatedTime >= '\" + new Date(since).toISOString() + \"' ORDERBY Metadata.LastUpdatedTime ASC STARTPOSITION 1 MAXRESULTS 1000\" : 'SELECT * FROM Invoice ORDERBY Metadata.LastUpdatedTime DESC MAXRESULTS 10';\nrequest.url += '?minorversion=75&query=' + form(query);\nreturn request;",
+      "afterResponse": "const form = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst since = Number(inputs.lastPollTime || 0);\nlet items;\nif (response.CDCResponse) items = ((response.CDCResponse[0] || {}).QueryResponse || []).flatMap((part) => part.Invoice || []);\nelse {\n  items = (response.QueryResponse || {}).Invoice || [];\n  for (let start = 1001, page = items; since && page.length === 1000 && start <= 49001; start += 1000) {\n    const query = \"SELECT * FROM Invoice WHERE Metadata.LastUpdatedTime >= '\" + new Date(since).toISOString() + \"' ORDERBY Metadata.LastUpdatedTime ASC STARTPOSITION \" + start + ' MAXRESULTS 1000';\n    page = (call({method: 'GET', url: '/query?minorversion=75&query=' + form(query)}).QueryResponse || {}).Invoice || [];\n    items = items.concat(page);\n  }\n}\nreturn items.filter((item) => item.status !== 'Deleted');",
       "items": "$",
       "newBy": "time",
       "key": "$.MetaData.LastUpdatedTime"
@@ -792,9 +788,10 @@
       "description": "Triggers when a new customer payment is recorded in QuickBooks.",
       "request": {
         "method": "GET",
-        "url": "https://quickbooks.api.intuit.com/v3/company/{{credential.companyId}}/query?minorversion=75&query=SELECT+*+FROM+Payment+ORDERBY+Metadata.LastUpdatedTime+DESC+MAXRESULTS+10"
+        "url": "https://quickbooks.api.intuit.com/v3/company/{{credential.companyId}}/query"
       },
-      "afterResponse": "return ((response.QueryResponse || {}).Payment || []).filter((item) => item.status !== 'Deleted' && item.MetaData && item.MetaData.CreateTime);",
+      "beforeRequest": "const form = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\n// The first check asks for the 10 last changed. Later ones ask for the changes since the last check: within 30 days from the change feed, before that page by page.\nconst since = Number(inputs.lastPollTime || 0);\nif (since && Date.now() - since <= 2592000000) {\n  request.url = '/cdc?minorversion=75&entities=Payment&changedSince=' + form(new Date(since).toISOString());\n  return request;\n}\nconst query = since ? \"SELECT * FROM Payment WHERE Metadata.LastUpdatedTime >= '\" + new Date(since).toISOString() + \"' ORDERBY Metadata.LastUpdatedTime ASC STARTPOSITION 1 MAXRESULTS 1000\" : 'SELECT * FROM Payment ORDERBY Metadata.LastUpdatedTime DESC MAXRESULTS 10';\nrequest.url += '?minorversion=75&query=' + form(query);\nreturn request;",
+      "afterResponse": "const form = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst since = Number(inputs.lastPollTime || 0);\nlet items;\nif (response.CDCResponse) items = ((response.CDCResponse[0] || {}).QueryResponse || []).flatMap((part) => part.Payment || []);\nelse {\n  items = (response.QueryResponse || {}).Payment || [];\n  for (let start = 1001, page = items; since && page.length === 1000 && start <= 49001; start += 1000) {\n    const query = \"SELECT * FROM Payment WHERE Metadata.LastUpdatedTime >= '\" + new Date(since).toISOString() + \"' ORDERBY Metadata.LastUpdatedTime ASC STARTPOSITION \" + start + ' MAXRESULTS 1000';\n    page = (call({method: 'GET', url: '/query?minorversion=75&query=' + form(query)}).QueryResponse || {}).Payment || [];\n    items = items.concat(page);\n  }\n}\nreturn items.filter((item) => item.status !== 'Deleted' && item.MetaData && item.MetaData.CreateTime && new Date(item.MetaData.CreateTime).getTime() > since);",
       "items": "$",
       "newBy": "time",
       "key": "$.MetaData.CreateTime"
@@ -804,9 +801,10 @@
       "description": "Triggers when a new bill (accounts payable) is created in QuickBooks.",
       "request": {
         "method": "GET",
-        "url": "https://quickbooks.api.intuit.com/v3/company/{{credential.companyId}}/query?minorversion=75&query=SELECT+*+FROM+Bill+ORDERBY+Metadata.LastUpdatedTime+DESC+MAXRESULTS+10"
+        "url": "https://quickbooks.api.intuit.com/v3/company/{{credential.companyId}}/query"
       },
-      "afterResponse": "return ((response.QueryResponse || {}).Bill || []).filter((item) => item.status !== 'Deleted' && item.MetaData && item.MetaData.CreateTime);",
+      "beforeRequest": "const form = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\n// The first check asks for the 10 last changed. Later ones ask for the changes since the last check: within 30 days from the change feed, before that page by page.\nconst since = Number(inputs.lastPollTime || 0);\nif (since && Date.now() - since <= 2592000000) {\n  request.url = '/cdc?minorversion=75&entities=Bill&changedSince=' + form(new Date(since).toISOString());\n  return request;\n}\nconst query = since ? \"SELECT * FROM Bill WHERE Metadata.LastUpdatedTime >= '\" + new Date(since).toISOString() + \"' ORDERBY Metadata.LastUpdatedTime ASC STARTPOSITION 1 MAXRESULTS 1000\" : 'SELECT * FROM Bill ORDERBY Metadata.LastUpdatedTime DESC MAXRESULTS 10';\nrequest.url += '?minorversion=75&query=' + form(query);\nreturn request;",
+      "afterResponse": "const form = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst since = Number(inputs.lastPollTime || 0);\nlet items;\nif (response.CDCResponse) items = ((response.CDCResponse[0] || {}).QueryResponse || []).flatMap((part) => part.Bill || []);\nelse {\n  items = (response.QueryResponse || {}).Bill || [];\n  for (let start = 1001, page = items; since && page.length === 1000 && start <= 49001; start += 1000) {\n    const query = \"SELECT * FROM Bill WHERE Metadata.LastUpdatedTime >= '\" + new Date(since).toISOString() + \"' ORDERBY Metadata.LastUpdatedTime ASC STARTPOSITION \" + start + ' MAXRESULTS 1000';\n    page = (call({method: 'GET', url: '/query?minorversion=75&query=' + form(query)}).QueryResponse || {}).Bill || [];\n    items = items.concat(page);\n  }\n}\nreturn items.filter((item) => item.status !== 'Deleted' && item.MetaData && item.MetaData.CreateTime && new Date(item.MetaData.CreateTime).getTime() > since);",
       "items": "$",
       "newBy": "time",
       "key": "$.MetaData.CreateTime"

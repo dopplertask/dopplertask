@@ -43,7 +43,7 @@
       "label": "Find File or Folder",
       "description": "Find files or folders by name, content or type.",
       "inputs": {
-        "queryTerm": {
+        "query_term": {
           "label": "Search By",
           "description": "Match the file name, the text inside it, or its type.",
           "type": "select",
@@ -106,7 +106,7 @@
             }
           ]
         },
-        "parentFolder": {
+        "folder_id": {
           "label": "Search in Folder",
           "description": "Leave empty to search all of Drive. Type to search by folder name.",
           "list": "parent_folders"
@@ -131,21 +131,21 @@
           "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
         }
       },
-      "beforeRequest": "const literal = (text) => String(text).replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"\\\\'\");\nlet q = (inputs.queryTerm || 'name') + ' ' + (inputs.operator || 'contains') + \" '\" + literal(inputs.query) + \"'\";\nif (inputs.parentFolder) q += \" and '\" + literal(inputs.parentFolder) + \"' in parents\";\nif (inputs.type === 'file') q += \" and mimeType!='application/vnd.google-apps.folder'\";\nif (inputs.type === 'folder') q += \" and mimeType='application/vnd.google-apps.folder'\";\nconst corpora = inputs.include_team_drives === 'true' ? 'allDrives' : 'user';\nrequest.query.q = q;\nrequest.query.corpora = corpora;\nreturn request;",
-      "afterResponse": "const literal = (text) => String(text).replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"\\\\'\");\nlet q = (inputs.queryTerm || 'name') + ' ' + (inputs.operator || 'contains') + \" '\" + literal(inputs.query) + \"'\";\nif (inputs.parentFolder) q += \" and '\" + literal(inputs.parentFolder) + \"' in parents\";\nif (inputs.type === 'file') q += \" and mimeType!='application/vnd.google-apps.folder'\";\nif (inputs.type === 'folder') q += \" and mimeType='application/vnd.google-apps.folder'\";\nconst corpora = inputs.include_team_drives === 'true' ? 'allDrives' : 'user';\nconst query = {q, fields: 'nextPageToken, files(id, name, mimeType, createdTime, modifiedTime)', supportsAllDrives: 'true', corpora, pageSize: '1000'};\nif (inputs.include_team_drives) query.includeItemsFromAllDrives = inputs.include_team_drives;\nlet files = response.files || [];\nlet pageToken = response.nextPageToken;\nwhile (pageToken) {\n  const page = call({headers: {'x-goog-api-client': 'gdcl/8.0.2 gl-node/26.4.0'}, method: 'GET', url: '/files', query: Object.assign(query, {pageToken})});\n  files = files.concat(page.files || []);\n  pageToken = page.nextPageToken;\n}\nreturn files;"
+      "beforeRequest": "const literal = (text) => String(text).replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"\\\\'\");\nlet q = (inputs.query_term || 'name') + ' ' + (inputs.operator || 'contains') + \" '\" + literal(inputs.query) + \"'\";\nif (inputs.folder_id) q += \" and '\" + literal(inputs.folder_id) + \"' in parents\";\nif (inputs.type === 'file') q += \" and mimeType!='application/vnd.google-apps.folder'\";\nif (inputs.type === 'folder') q += \" and mimeType='application/vnd.google-apps.folder'\";\nrequest.query.q = q;\nrequest.query.corpora = inputs.include_team_drives === 'true' ? 'allDrives' : 'user';\nreturn request;",
+      "afterResponse": "let files = response.files || [];\nfor (let pageToken = response.nextPageToken; pageToken;) {\n  const page = call({headers: {'x-goog-api-client': 'gdcl/8.0.2 gl-node/26.4.0'}, method: 'GET', url: '/files', query: Object.assign({}, request.query, {pageToken})});\n  files = files.concat(page.files || []);\n  pageToken = page.nextPageToken;\n}\nreturn files;"
     },
     "drive_create_folder": {
       "label": "Create Folder",
-      "description": "Create a new empty folder in your Google Drive",
+      "description": "Create a new empty folder in your Google Drive.",
       "inputs": {
         "folder_name": {
-          "label": "Folder name",
-          "description": "The name of the new folder",
+          "label": "Folder Name",
+          "description": "The name of the new folder.",
           "required": true
         },
-        "parent_folder_id": {
+        "folder_id": {
           "label": "Parent Folder ID",
-          "description": "The ID of the folder to create the new folder inside. Leave empty to create it in the root of My Drive. Resolve a folder ID with `search-folder`.",
+          "description": "The folder to create the new folder in. Leave empty for the root of My Drive. Type to search by folder name.",
           "list": "parent_folders"
         }
       },
@@ -159,22 +159,22 @@
           "mimeType": "application/vnd.google-apps.folder",
           "name": "{{folder_name}}",
           "parents": [
-            "{{parent_folder_id}}"
+            "{{folder_id}}"
           ]
         },
         "headers": {
           "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
         }
       },
-      "beforeRequest": "if (!inputs.parent_folder_id) delete request.body.parents;\nreturn request;"
+      "beforeRequest": "if (!inputs.folder_id) delete request.body.parents;\nreturn request;"
     },
     "drive_get_file": {
       "label": "Get File or Folder",
-      "description": "Get a file folder for files/sub-folders",
+      "description": "Get the details of a file or folder by its ID.",
       "inputs": {
         "file_id": {
-          "label": "File / Folder ID",
-          "description": "The ID of the file/folder to fetch. Resolve it via `search-folder` or `drive_list_files`.",
+          "label": "File or Folder ID",
+          "description": "The ID of the file or folder to get. Find it with Find File or Folder or List Folder Contents.",
           "required": true
         }
       },
@@ -191,17 +191,17 @@
     },
     "drive_list_files": {
       "label": "List Folder Contents",
-      "description": "List files from a Google Drive folder",
+      "description": "List the files in a Google Drive folder.",
       "inputs": {
         "folder_id": {
           "label": "Folder ID",
-          "description": "The ID of the folder to list. Resolve it via `search-folder` (or any other source).",
+          "description": "The folder to list. Type to search by folder name.",
           "required": true,
           "list": "parent_folders"
         },
         "include_trashed": {
           "label": "Include Trashed",
-          "description": "Include new files that have been trashed.",
+          "description": "Also list files that are in the trash.",
           "type": "boolean",
           "defaultValue": "false"
         },
@@ -213,7 +213,7 @@
         },
         "include_team_drives": {
           "label": "Include Team Drives",
-          "description": "Determines if folders from Team Drives should be included in the results.",
+          "description": "Also include shared drives, not only My Drive.",
           "type": "boolean",
           "defaultValue": "false"
         }
@@ -222,8 +222,8 @@
         "method": "GET",
         "url": "https://www.googleapis.com/drive/v3/files"
       },
-      "beforeRequest": "const team = inputs.include_team_drives === 'true';\nconst form = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst pageOf = (q, pageToken) => '/files?' + [['q', q], ['fields', 'nextPageToken,files(id,kind,mimeType,name,trashed,parents)'], ['supportsAllDrives', 'true'],\n  ['includeItemsFromAllDrives', team ? 'true' : 'false'], ['corpora', team ? 'allDrives' : 'user'], ['pageSize', '1000']]\n  .concat(pageToken ? [['pageToken', pageToken]] : []).map(([key, value]) => key + '=' + form(value)).join('&');\nconst queryOf = (ids) => { const any = ids.map((id) => \"'\" + id + \"' in parents\").join(' or '); const scope = ids.length > 1 ? '(' + any + ')' : any; return inputs.include_trashed === 'true' ? scope : scope + ' and trashed=false'; };\nrequest.url = pageOf(queryOf([inputs.folder_id]));\nreturn request;",
-      "afterResponse": "const team = inputs.include_team_drives === 'true';\nconst form = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst pageOf = (q, pageToken) => '/files?' + [['q', q], ['fields', 'nextPageToken,files(id,kind,mimeType,name,trashed,parents)'], ['supportsAllDrives', 'true'],\n  ['includeItemsFromAllDrives', team ? 'true' : 'false'], ['corpora', team ? 'allDrives' : 'user'], ['pageSize', '1000']]\n  .concat(pageToken ? [['pageToken', pageToken]] : []).map(([key, value]) => key + '=' + form(value)).join('&');\nconst queryOf = (ids) => { const any = ids.map((id) => \"'\" + id + \"' in parents\").join(' or '); const scope = ids.length > 1 ? '(' + any + ')' : any; return inputs.include_trashed === 'true' ? scope : scope + ' and trashed=false'; };\nlet first = response;\nconst files = [];\nlet level = [inputs.folder_id];\nfor (let depth = 0; depth < (Number(inputs.depth_level) || 1) && level.length > 0; depth++) {\n  const next = [];\n  for (let start = 0; start < level.length; start += 50) {\n    const q = queryOf(level.slice(start, start + 50));\n    let pageToken;\n    do {\n      const page = first || call({method: 'GET', url: pageOf(q, pageToken)});\n      first = null;\n      (page.files || []).forEach((file) => { files.push(file); if (file.mimeType === 'application/vnd.google-apps.folder') next.push(file.id); });\n      pageToken = page.nextPageToken;\n    } while (pageToken);\n  }\n  level = next;\n}\nreturn {type: 'drive#fileList', incompleteSearch: false, files: files};"
+      "beforeRequest": "const form = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst team = inputs.include_team_drives === 'true';\nconst q = \"'\" + inputs.folder_id + \"' in parents\" + (inputs.include_trashed === 'true' ? '' : ' and trashed=false');\nrequest.url = '/files?' + [['q', q], ['fields', 'nextPageToken,files(id,kind,mimeType,name,trashed,parents)'], ['supportsAllDrives', 'true'],\n  ['includeItemsFromAllDrives', team ? 'true' : 'false'], ['corpora', team ? 'allDrives' : 'user'], ['pageSize', '1000']]\n  .map(([key, value]) => key + '=' + form(value)).join('&');\nreturn request;",
+      "afterResponse": "const form = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\n// Every later page asks with the first page's settings, which follow its q.\nconst settings = request.url.slice(request.url.indexOf('&'));\nconst queryOf = (ids) => { const any = ids.map((id) => \"'\" + id + \"' in parents\").join(' or '); const scope = ids.length > 1 ? '(' + any + ')' : any; return inputs.include_trashed === 'true' ? scope : scope + ' and trashed=false'; };\nlet first = response;\nconst files = [];\nlet level = [inputs.folder_id];\nfor (let depth = 0; depth < (Number(inputs.depth_level) || 1) && level.length > 0; depth++) {\n  const next = [];\n  for (let start = 0; start < level.length; start += 50) {\n    const q = queryOf(level.slice(start, start + 50));\n    let pageToken;\n    do {\n      const page = first || call({method: 'GET', url: '/files?q=' + form(q) + settings + (pageToken ? '&pageToken=' + form(pageToken) : '')});\n      first = null;\n      (page.files || []).forEach((file) => { files.push(file); if (file.mimeType === 'application/vnd.google-apps.folder') next.push(file.id); });\n      pageToken = page.nextPageToken;\n    } while (pageToken);\n  }\n  level = next;\n}\nreturn {type: 'drive#fileList', incompleteSearch: false, files: files};"
     },
     "drive_copy_file": {
       "label": "Copy File",
@@ -231,23 +231,23 @@
       "inputs": {
         "file_id": {
           "label": "File ID",
-          "description": "The ID of the file to duplicate. Resolve it via `search-folder`.",
+          "description": "The ID of the file to duplicate. Find it with Find File or Folder.",
           "required": true
         },
         "name": {
           "label": "Name",
-          "description": "The name of the new file",
+          "description": "The name of the new file.",
           "required": true
         },
         "folder_id": {
           "label": "Folder ID",
-          "description": "The ID of the folder where the file will be duplicated. Resolve it via `search-folder`.",
+          "description": "The folder to put the copy in. Type to search by folder name.",
           "required": true,
           "list": "parent_folders"
         },
         "convert_to": {
-          "label": "Duplicate as",
-          "description": "If left unselected the file will be duplicated as it is",
+          "label": "Duplicate As",
+          "description": "Leave empty to copy the file as it is.",
           "type": "select",
           "options": [
             {
@@ -285,12 +285,12 @@
       "inputs": {
         "file_id": {
           "label": "File ID",
-          "description": "The ID of the file to move. Resolve it via search-folder or drive_get_file.",
+          "description": "The ID of the file to move. Find it with Find File or Folder.",
           "required": true
         },
         "folder_id": {
           "label": "Destination Folder ID",
-          "description": "The ID of the folder to move the file into. Resolve it via search-folder; leave empty for the root of My Drive.",
+          "description": "The folder to move the file into. Type to search by folder name.",
           "required": true,
           "list": "parent_folders"
         }
@@ -309,12 +309,12 @@
       "afterResponse": "return call({headers: {'x-goog-api-client': 'gdcl/8.0.2 gl-node/26.4.0'}, method: 'PATCH', url: '/files/' + encodeURIComponent(inputs.file_id) + '?fields=%2A', query: Object.assign({}, response.parents ? {removeParents: response.parents.join(',')} : {}, inputs.folder_id ? {addParents: inputs.folder_id} : {}, {supportsAllDrives: 'true'})});"
     },
     "drive_update_file_metadata": {
-      "label": "Update File Metadata (Rename)",
-      "description": "Rename a Drive file/folder or update its description or starred flag (metadata only).",
+      "label": "Update File Metadata",
+      "description": "Rename a Drive file or folder, or change its description or starred flag.",
       "inputs": {
         "file_id": {
           "label": "File or Folder ID",
-          "description": "The ID of the file or folder to update. Resolve it via `search-folder` or `drive_get_file`.",
+          "description": "The ID of the file or folder to update. Find it with Find File or Folder.",
           "required": true
         },
         "name": {
@@ -361,13 +361,47 @@
       },
       "beforeRequest": "const starred = String(inputs.starred || '').trim().toLowerCase();\nif (starred === 'yes' || starred === 'true') request.body.starred = true;\nif (starred === 'no' || starred === 'false') request.body.starred = false;\nreturn request;"
     },
+    "drive_replace_file_content": {
+      "label": "Replace File Content",
+      "description": "Replace an existing Drive file's content, keeping its ID and name.",
+      "inputs": {
+        "file_id": {
+          "label": "File ID",
+          "description": "The ID of the file whose content to replace. Find it with Find File or Folder.",
+          "required": true
+        },
+        "file": {
+          "label": "New File Content",
+          "description": "The file whose content replaces the current content.",
+          "type": "file",
+          "required": true
+        },
+        "mime_type": {
+          "label": "MIME Type",
+          "description": "The type of the new content, such as application/pdf. Leave empty to take it from the file's extension."
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://www.googleapis.com/upload/drive/v3/files/{{file_id}}",
+        "query": {
+          "uploadType": "media",
+          "supportsAllDrives": "true"
+        },
+        "headers": {
+          "Content-Type": "{{mime_type}}"
+        },
+        "body": "{{file}}"
+      },
+      "beforeRequest": "if (!inputs.mime_type) {\n  if (/\\.[^.]+$/.test(inputs.file)) delete request.headers['Content-Type'];\n  else request.headers['Content-Type'] = 'application/octet-stream';\n}\nreturn request;"
+    },
     "drive_trash_file": {
       "label": "Trash File",
       "description": "Move a Drive file to the trash by ID (reversible deletion).",
       "inputs": {
         "file_id": {
           "label": "File ID",
-          "description": "The ID of the file to trash. Resolve it via search-folder or drive_get_file.",
+          "description": "The ID of the file to trash. Find it with Find File or Folder.",
           "required": true
         }
       },
@@ -391,7 +425,7 @@
       "inputs": {
         "file_id": {
           "label": "File ID",
-          "description": "The ID of the trashed file to restore. Resolve it via search-folder or drive_get_file.",
+          "description": "The ID of the trashed file to restore. Find it with Find File or Folder.",
           "required": true
         }
       },
@@ -415,7 +449,7 @@
       "inputs": {
         "file_id": {
           "label": "File ID",
-          "description": "The ID of the file to permanently delete. Resolve it via search-folder or drive_get_file.",
+          "description": "The ID of the file to permanently delete. Find it with Find File or Folder.",
           "required": true
         }
       },
@@ -437,7 +471,7 @@
       "inputs": {
         "drive_id": {
           "label": "Shared Drive ID",
-          "description": "Optional. Restrict the purge to a single shared drive's trash (resolve via drive_list_shared_drives). Leave empty to empty the entire My Drive trash for the connected account."
+          "description": "Optional. Restrict the purge to a single shared drive's trash (find it with List Shared Drives). Leave empty to empty the entire My Drive trash for the connected account."
         }
       },
       "request": {
@@ -458,7 +492,7 @@
       "inputs": {
         "file_id": {
           "label": "File or Folder ID",
-          "description": "The ID of the file or folder to share. Resolve it via search-folder or drive_get_file.",
+          "description": "The ID of the file or folder to share. Find it with Find File or Folder.",
           "required": true
         },
         "user_email": {
@@ -474,15 +508,15 @@
           "options": [
             {
               "value": "organizer",
-              "label": "Organizer"
+              "label": "Manager"
             },
             {
               "value": "fileOrganizer",
-              "label": "File Organizer"
+              "label": "Content Manager"
             },
             {
               "value": "writer",
-              "label": "Writer"
+              "label": "Editor"
             },
             {
               "value": "commenter",
@@ -490,7 +524,7 @@
             },
             {
               "value": "reader",
-              "label": "Reader"
+              "label": "Viewer"
             }
           ]
         },
@@ -524,7 +558,7 @@
       "inputs": {
         "file_id": {
           "label": "File or Folder ID",
-          "description": "The ID of the file or folder whose permissions to list. Resolve it via search-folder or drive_get_file.",
+          "description": "The ID of the file or folder whose permissions to list. Find it with Find File or Folder.",
           "required": true
         }
       },
@@ -547,15 +581,15 @@
       "inputs": {
         "file_id": {
           "label": "File or Folder ID",
-          "description": "The ID of the file or folder whose permission to update. Resolve it via search-folder or drive_get_file.",
+          "description": "The ID of the file or folder whose permission to update. Find it with Find File or Folder.",
           "required": true
         },
         "user_email": {
           "label": "User Email",
-          "description": "The email address of the collaborator whose role to change. The existing permission is matched by this email; list current grants via drive_list_permissions.",
+          "description": "The email address of the collaborator whose role to change. The existing permission is matched by this email; List Permissions shows the current ones.",
           "required": true
         },
-        "new_role": {
+        "role": {
           "label": "New Role",
           "description": "The role to set for the user. See https://developers.google.com/drive/api/guides/ref-roles",
           "type": "select",
@@ -563,15 +597,15 @@
           "options": [
             {
               "value": "organizer",
-              "label": "Organizer"
+              "label": "Manager"
             },
             {
               "value": "fileOrganizer",
-              "label": "File Organizer"
+              "label": "Content Manager"
             },
             {
               "value": "writer",
-              "label": "Writer"
+              "label": "Editor"
             },
             {
               "value": "commenter",
@@ -579,7 +613,7 @@
             },
             {
               "value": "reader",
-              "label": "Reader"
+              "label": "Viewer"
             }
           ]
         }
@@ -595,7 +629,7 @@
           "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
         }
       },
-      "afterResponse": "const match = (response.permissions || []).find((permission) => permission.emailAddress === inputs.user_email);\nif (!match || !match.id) return {updated: false, message: 'No existing permission found for ' + inputs.user_email + '. Use drive_share_file to grant new access.'};\nreturn {updated: true, permission: call({headers: {'x-goog-api-client': 'gdcl/8.0.2 gl-node/26.4.0'}, method: 'PATCH', url: '/files/' + encodeURIComponent(inputs.file_id) + '/permissions/' + encodeURIComponent(match.id), query: {supportsAllDrives: 'true'}, body: {role: inputs.new_role}})};"
+      "afterResponse": "const match = (response.permissions || []).find((permission) => permission.emailAddress === inputs.user_email);\nif (!match || !match.id) return {updated: false, message: 'No existing permission found for ' + inputs.user_email + '. Use Share File with User to grant new access.'};\nreturn {updated: true, permission: call({headers: {'x-goog-api-client': 'gdcl/8.0.2 gl-node/26.4.0'}, method: 'PATCH', url: '/files/' + encodeURIComponent(inputs.file_id) + '/permissions/' + encodeURIComponent(match.id), query: {supportsAllDrives: 'true'}, body: {role: inputs.role}})};"
     },
     "drive_remove_permission": {
       "label": "Remove Permission",
@@ -603,7 +637,7 @@
       "inputs": {
         "file_id": {
           "label": "File or Folder ID",
-          "description": "The ID of the file or folder to remove the permission from. Resolve it via search-folder or drive_get_file.",
+          "description": "The ID of the file or folder to remove the permission from. Find it with Find File or Folder.",
           "required": true
         },
         "user_email": {
@@ -619,15 +653,15 @@
           "options": [
             {
               "value": "organizer",
-              "label": "Organizer"
+              "label": "Manager"
             },
             {
               "value": "fileOrganizer",
-              "label": "File Organizer"
+              "label": "Content Manager"
             },
             {
               "value": "writer",
-              "label": "Writer"
+              "label": "Editor"
             },
             {
               "value": "commenter",
@@ -635,7 +669,7 @@
             },
             {
               "value": "reader",
-              "label": "Reader"
+              "label": "Viewer"
             }
           ]
         }
@@ -687,7 +721,7 @@
       "inputs": {
         "drive_id": {
           "label": "Shared Drive ID",
-          "description": "The ID of the shared drive. Resolve it via drive_list_shared_drives.",
+          "description": "The ID of the shared drive. Find it with List Shared Drives.",
           "required": true
         }
       },
@@ -705,7 +739,7 @@
       "inputs": {
         "drive_id": {
           "label": "Shared Drive ID",
-          "description": "The ID of the shared drive to update. Resolve it via drive_list_shared_drives.",
+          "description": "The ID of the shared drive to update. Find it with List Shared Drives.",
           "required": true
         },
         "name": {
@@ -730,7 +764,7 @@
       "inputs": {
         "drive_id": {
           "label": "Shared Drive ID",
-          "description": "The ID of the shared drive to delete. Resolve it via drive_list_shared_drives.",
+          "description": "The ID of the shared drive to delete. Find it with List Shared Drives.",
           "required": true
         }
       },
@@ -749,7 +783,7 @@
       "inputs": {
         "file_id": {
           "label": "File ID",
-          "description": "The ID of the file to comment on. Resolve it via search-folder or drive_get_file.",
+          "description": "The ID of the file to comment on. Find it with Find File or Folder.",
           "required": true
         },
         "content": {
@@ -776,7 +810,7 @@
       "inputs": {
         "file_id": {
           "label": "File ID",
-          "description": "The ID of the file whose comments to list. Resolve it via search-folder or drive_get_file.",
+          "description": "The ID of the file whose comments to list. Find it with Find File or Folder.",
           "required": true
         }
       },
@@ -795,12 +829,12 @@
       "inputs": {
         "file_id": {
           "label": "File ID",
-          "description": "The ID of the file the comment belongs to. Resolve it via search-folder or drive_get_file.",
+          "description": "The ID of the file the comment belongs to. Find it with Find File or Folder.",
           "required": true
         },
         "comment_id": {
           "label": "Comment ID",
-          "description": "The ID of the comment to reply to. Resolve it via drive_list_comments.",
+          "description": "The ID of the comment to reply to. Find it with List Comments.",
           "required": true
         },
         "content": {
@@ -843,17 +877,17 @@
       "inputs": {
         "file_id": {
           "label": "File ID",
-          "description": "The ID of the file the comment belongs to. Resolve it via search-folder or drive_get_file.",
+          "description": "The ID of the file the comment belongs to. Find it with Find File or Folder.",
           "required": true
         },
         "comment_id": {
           "label": "Comment ID",
-          "description": "The ID of the parent comment. Resolve it via drive_list_comments.",
+          "description": "The ID of the parent comment. Find it with List Comments.",
           "required": true
         },
         "reply_id": {
           "label": "Reply ID",
-          "description": "The ID of the reply to fetch. Resolve it via drive_list_replies.",
+          "description": "The ID of the reply to fetch. Find it with List Replies.",
           "required": true
         }
       },
@@ -871,12 +905,12 @@
       "inputs": {
         "file_id": {
           "label": "File ID",
-          "description": "The ID of the file the comment belongs to. Resolve it via search-folder or drive_get_file.",
+          "description": "The ID of the file the comment belongs to. Find it with Find File or Folder.",
           "required": true
         },
         "comment_id": {
           "label": "Comment ID",
-          "description": "The ID of the comment whose replies to list. Resolve it via drive_list_comments.",
+          "description": "The ID of the comment whose replies to list. Find it with List Comments.",
           "required": true
         }
       },
@@ -895,17 +929,17 @@
       "inputs": {
         "file_id": {
           "label": "File ID",
-          "description": "The ID of the file the comment belongs to. Resolve it via search-folder or drive_get_file.",
+          "description": "The ID of the file the comment belongs to. Find it with Find File or Folder.",
           "required": true
         },
         "comment_id": {
           "label": "Comment ID",
-          "description": "The ID of the parent comment. Resolve it via drive_list_comments.",
+          "description": "The ID of the parent comment. Find it with List Comments.",
           "required": true
         },
         "reply_id": {
           "label": "Reply ID",
-          "description": "The ID of the reply to update. Resolve it via drive_list_replies.",
+          "description": "The ID of the reply to update. Find it with List Replies.",
           "required": true
         },
         "content": {
@@ -932,17 +966,17 @@
       "inputs": {
         "file_id": {
           "label": "File ID",
-          "description": "The ID of the file the comment belongs to. Resolve it via search-folder or drive_get_file.",
+          "description": "The ID of the file the comment belongs to. Find it with Find File or Folder.",
           "required": true
         },
         "comment_id": {
           "label": "Comment ID",
-          "description": "The ID of the parent comment. Resolve it via drive_list_comments.",
+          "description": "The ID of the parent comment. Find it with List Comments.",
           "required": true
         },
         "reply_id": {
           "label": "Reply ID",
-          "description": "The ID of the reply to delete. Resolve it via drive_list_replies.",
+          "description": "The ID of the reply to delete. Find it with List Replies.",
           "required": true
         }
       },
@@ -960,7 +994,10 @@
       "description": "Get the authenticated Drive account, storage quota, and supported formats.",
       "request": {
         "method": "GET",
-        "url": "https://www.googleapis.com/drive/v3/about?fields=user%2CstorageQuota%2CmaxImportSizes%2CexportFormats",
+        "url": "https://www.googleapis.com/drive/v3/about",
+        "query": {
+          "fields": "user,storageQuota,maxImportSizes,exportFormats"
+        },
         "headers": {
           "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
         }
@@ -972,7 +1009,7 @@
       "label": "New File",
       "description": "Triggers when a new file is added to Drive or the chosen folder.",
       "inputs": {
-        "parentFolder": {
+        "folder_id": {
           "label": "Folder",
           "description": "Leave empty to watch all of My Drive. Type to search by folder name.",
           "list": "parent_folders"
@@ -999,14 +1036,14 @@
       },
       "newBy": "time",
       "key": "$.createdTime",
-      "beforeRequest": "const literal = (text) => String(text).replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"\\\\'\");\nconst pad = (number) => String(number).padStart(2, '0');\nconst local = (ms) => { const date = new Date(ms), offset = -date.getTimezoneOffset(), minutes = Math.abs(offset);\n  return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + 'T' + pad(date.getHours()) + ':' + pad(date.getMinutes()) + ':' + pad(date.getSeconds()) +\n    (offset < 0 ? '-' : '+') + pad(Math.floor(minutes / 60)) + ':' + pad(minutes % 60); };\nconst q = [];\nif (inputs.parentFolder) q.push(\"'\" + literal(inputs.parentFolder) + \"' in parents\");\nif (Number(inputs.lastPollTime)) q.push(\"createdTime > '\" + local(Number(inputs.lastPollTime)) + \"'\");\nq.push('trashed = false', \"mimeType!='application/vnd.google-apps.folder'\");\nconst corpora = inputs.include_team_drives === 'true' ? 'allDrives' : 'user';\nrequest.query.q = q.join(' and ');\nrequest.query.corpora = corpora;\nreturn request;",
-      "afterResponse": "const literal = (text) => String(text).replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"\\\\'\");\nconst pad = (number) => String(number).padStart(2, '0');\nconst local = (ms) => { const date = new Date(ms), offset = -date.getTimezoneOffset(), minutes = Math.abs(offset);\n  return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + 'T' + pad(date.getHours()) + ':' + pad(date.getMinutes()) + ':' + pad(date.getSeconds()) +\n    (offset < 0 ? '-' : '+') + pad(Math.floor(minutes / 60)) + ':' + pad(minutes % 60); };\nconst q = [];\nif (inputs.parentFolder) q.push(\"'\" + literal(inputs.parentFolder) + \"' in parents\");\nif (Number(inputs.lastPollTime)) q.push(\"createdTime > '\" + local(Number(inputs.lastPollTime)) + \"'\");\nq.push('trashed = false', \"mimeType!='application/vnd.google-apps.folder'\");\nconst corpora = inputs.include_team_drives === 'true' ? 'allDrives' : 'user';\nconst query = {q: q.join(' and '), fields: 'nextPageToken, files(id, name, mimeType, webViewLink, kind, createdTime, modifiedTime)', orderBy: 'createdTime desc', supportsAllDrives: 'true', corpora};\nif (inputs.include_team_drives) query.includeItemsFromAllDrives = inputs.include_team_drives;\nlet files = response.files || [];\nlet pageToken = response.nextPageToken;\nwhile (pageToken) {\n  const page = call({headers: {'x-goog-api-client': 'gdcl/8.0.2 gl-node/26.4.0'}, method: 'GET', url: '/files', query: Object.assign(query, {pageToken})});\n  files = files.concat(page.files || []);\n  pageToken = page.nextPageToken;\n}\nreturn files;"
+      "beforeRequest": "const literal = (text) => String(text).replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"\\\\'\");\nconst pad = (number) => String(number).padStart(2, '0');\nconst local = (ms) => { const date = new Date(ms), offset = -date.getTimezoneOffset(), minutes = Math.abs(offset);\n  return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + 'T' + pad(date.getHours()) + ':' + pad(date.getMinutes()) + ':' + pad(date.getSeconds()) +\n    (offset < 0 ? '-' : '+') + pad(Math.floor(minutes / 60)) + ':' + pad(minutes % 60); };\nconst q = [];\nif (inputs.folder_id) q.push(\"'\" + literal(inputs.folder_id) + \"' in parents\");\nif (Number(inputs.lastPollTime)) q.push(\"createdTime > '\" + local(Number(inputs.lastPollTime)) + \"'\");\nq.push('trashed = false', \"mimeType!='application/vnd.google-apps.folder'\");\nrequest.query.q = q.join(' and ');\nrequest.query.corpora = inputs.include_team_drives === 'true' ? 'allDrives' : 'user';\nreturn request;",
+      "afterResponse": "const literal = (text) => String(text).replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"\\\\'\");\nconst pad = (number) => String(number).padStart(2, '0');\nconst local = (ms) => { const date = new Date(ms), offset = -date.getTimezoneOffset(), minutes = Math.abs(offset);\n  return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + 'T' + pad(date.getHours()) + ':' + pad(date.getMinutes()) + ':' + pad(date.getSeconds()) +\n    (offset < 0 ? '-' : '+') + pad(Math.floor(minutes / 60)) + ':' + pad(minutes % 60); };\nconst q = [];\nif (inputs.folder_id) q.push(\"'\" + literal(inputs.folder_id) + \"' in parents\");\nif (Number(inputs.lastPollTime)) q.push(\"createdTime > '\" + local(Number(inputs.lastPollTime)) + \"'\");\nq.push('trashed = false', \"mimeType!='application/vnd.google-apps.folder'\");\nconst query = {q: q.join(' and '), fields: 'nextPageToken, files(id, name, mimeType, webViewLink, kind, createdTime, modifiedTime)', orderBy: 'createdTime desc', supportsAllDrives: 'true', corpora: inputs.include_team_drives === 'true' ? 'allDrives' : 'user'};\nif (inputs.include_team_drives) query.includeItemsFromAllDrives = inputs.include_team_drives;\nlet files = response.files || [];\nfor (let pageToken = response.nextPageToken; pageToken;) {\n  const page = call({headers: {'x-goog-api-client': 'gdcl/8.0.2 gl-node/26.4.0'}, method: 'GET', url: '/files', query: Object.assign({}, query, {pageToken})});\n  files = files.concat(page.files || []);\n  pageToken = page.nextPageToken;\n}\nreturn files;"
     },
     "new_folder": {
       "label": "New Folder",
       "description": "Triggers when a new folder is created in Drive or the chosen folder.",
       "inputs": {
-        "parentFolder": {
+        "folder_id": {
           "label": "Folder",
           "description": "Leave empty to watch all of My Drive. Type to search by folder name.",
           "list": "parent_folders"
@@ -1033,8 +1070,8 @@
       },
       "newBy": "time",
       "key": "$.createdTime",
-      "beforeRequest": "const literal = (text) => String(text).replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"\\\\'\");\nconst pad = (number) => String(number).padStart(2, '0');\nconst local = (ms) => { const date = new Date(ms), offset = -date.getTimezoneOffset(), minutes = Math.abs(offset);\n  return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + 'T' + pad(date.getHours()) + ':' + pad(date.getMinutes()) + ':' + pad(date.getSeconds()) +\n    (offset < 0 ? '-' : '+') + pad(Math.floor(minutes / 60)) + ':' + pad(minutes % 60); };\nconst q = [\"mimeType='application/vnd.google-apps.folder'\"];\nif (inputs.parentFolder) q.push(\"'\" + literal(inputs.parentFolder) + \"' in parents\");\nif (Number(inputs.lastPollTime)) q.push(\"createdTime > '\" + local(Number(inputs.lastPollTime)) + \"'\");\nq.push('trashed = false');\nconst corpora = inputs.include_team_drives === 'true' ? 'allDrives' : 'user';\nrequest.query.q = q.join(' and ');\nrequest.query.corpora = corpora;\nreturn request;",
-      "afterResponse": "const literal = (text) => String(text).replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"\\\\'\");\nconst pad = (number) => String(number).padStart(2, '0');\nconst local = (ms) => { const date = new Date(ms), offset = -date.getTimezoneOffset(), minutes = Math.abs(offset);\n  return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + 'T' + pad(date.getHours()) + ':' + pad(date.getMinutes()) + ':' + pad(date.getSeconds()) +\n    (offset < 0 ? '-' : '+') + pad(Math.floor(minutes / 60)) + ':' + pad(minutes % 60); };\nconst q = [\"mimeType='application/vnd.google-apps.folder'\"];\nif (inputs.parentFolder) q.push(\"'\" + literal(inputs.parentFolder) + \"' in parents\");\nif (Number(inputs.lastPollTime)) q.push(\"createdTime > '\" + local(Number(inputs.lastPollTime)) + \"'\");\nq.push('trashed = false');\nconst corpora = inputs.include_team_drives === 'true' ? 'allDrives' : 'user';\nconst query = {q: q.join(' and '), fields: 'nextPageToken, files(id, name, createdTime)', orderBy: 'createdTime desc', supportsAllDrives: 'true', corpora};\nif (inputs.include_team_drives) query.includeItemsFromAllDrives = inputs.include_team_drives;\nlet files = response.files || [];\nlet pageToken = response.nextPageToken;\nwhile (pageToken) {\n  const page = call({headers: {'x-goog-api-client': 'gdcl/8.0.2 gl-node/26.4.0'}, method: 'GET', url: '/files', query: Object.assign(query, {pageToken})});\n  files = files.concat(page.files || []);\n  pageToken = page.nextPageToken;\n}\nreturn files;"
+      "beforeRequest": "const literal = (text) => String(text).replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"\\\\'\");\nconst pad = (number) => String(number).padStart(2, '0');\nconst local = (ms) => { const date = new Date(ms), offset = -date.getTimezoneOffset(), minutes = Math.abs(offset);\n  return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + 'T' + pad(date.getHours()) + ':' + pad(date.getMinutes()) + ':' + pad(date.getSeconds()) +\n    (offset < 0 ? '-' : '+') + pad(Math.floor(minutes / 60)) + ':' + pad(minutes % 60); };\nconst q = [\"mimeType='application/vnd.google-apps.folder'\"];\nif (inputs.folder_id) q.push(\"'\" + literal(inputs.folder_id) + \"' in parents\");\nif (Number(inputs.lastPollTime)) q.push(\"createdTime > '\" + local(Number(inputs.lastPollTime)) + \"'\");\nq.push('trashed = false');\nrequest.query.q = q.join(' and ');\nrequest.query.corpora = inputs.include_team_drives === 'true' ? 'allDrives' : 'user';\nreturn request;",
+      "afterResponse": "const literal = (text) => String(text).replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"\\\\'\");\nconst pad = (number) => String(number).padStart(2, '0');\nconst local = (ms) => { const date = new Date(ms), offset = -date.getTimezoneOffset(), minutes = Math.abs(offset);\n  return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + 'T' + pad(date.getHours()) + ':' + pad(date.getMinutes()) + ':' + pad(date.getSeconds()) +\n    (offset < 0 ? '-' : '+') + pad(Math.floor(minutes / 60)) + ':' + pad(minutes % 60); };\nconst q = [\"mimeType='application/vnd.google-apps.folder'\"];\nif (inputs.folder_id) q.push(\"'\" + literal(inputs.folder_id) + \"' in parents\");\nif (Number(inputs.lastPollTime)) q.push(\"createdTime > '\" + local(Number(inputs.lastPollTime)) + \"'\");\nq.push('trashed = false');\nconst query = {q: q.join(' and '), fields: 'nextPageToken, files(id, name, createdTime)', orderBy: 'createdTime desc', supportsAllDrives: 'true', corpora: inputs.include_team_drives === 'true' ? 'allDrives' : 'user'};\nif (inputs.include_team_drives) query.includeItemsFromAllDrives = inputs.include_team_drives;\nlet files = response.files || [];\nfor (let pageToken = response.nextPageToken; pageToken;) {\n  const page = call({headers: {'x-goog-api-client': 'gdcl/8.0.2 gl-node/26.4.0'}, method: 'GET', url: '/files', query: Object.assign({}, query, {pageToken})});\n  files = files.concat(page.files || []);\n  pageToken = page.nextPageToken;\n}\nreturn files;"
     }
   }
 }

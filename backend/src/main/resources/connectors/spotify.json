@@ -53,9 +53,27 @@
         },
         "types": {
           "label": "Object Types",
-          "description": "A JSON list of artist, playlist and track. Albums is sent as an empty type, as the original does.",
+          "description": "A JSON list of the types to search for, such as [\"track\", \"artist\"].",
           "type": "json",
-          "required": true
+          "required": true,
+          "options": [
+            {
+              "value": "",
+              "label": "Albums"
+            },
+            {
+              "value": "artist",
+              "label": "Artists"
+            },
+            {
+              "value": "playlist",
+              "label": "Playlists"
+            },
+            {
+              "value": "track",
+              "label": "Tracks"
+            }
+          ]
         },
         "limit": {
           "label": "Limit",
@@ -192,7 +210,7 @@
         }
       },
       "beforeRequest": "if (inputs.all === 'true') request.query = {limit: '50', offset: '0'};\nreturn request;",
-      "afterResponse": "if (inputs.all !== 'true') return response;\nconst items = response.items.slice();\nlet total = response.total;\nwhile (items.length < total) {\n  const page = call({method: 'GET', url: '/me/playlists', query: {limit: '50', offset: String(items.length)}});\n  total = page.total;\n  items.push(...page.items);\n}\nreturn {total: items.length, items};"
+      "afterResponse": "if (inputs.all !== 'true') return response;\nconst items = response.items.slice();\nlet total = response.total;\nwhile (items.length < total) {\n  const page = call({method: 'GET', url: request.url, query: {limit: '50', offset: String(items.length)}});\n  total = page.total;\n  items.push(...page.items);\n}\nreturn {total: items.length, items};"
     },
     "get_playlist_info": {
       "label": "Get Playlist Info",
@@ -241,7 +259,7 @@
         }
       },
       "beforeRequest": "if (inputs.all === 'true') request.query = {limit: '50', offset: '0'};\nreturn request;",
-      "afterResponse": "if (inputs.all !== 'true') return response;\nconst items = response.items.slice();\nlet total = response.total;\nwhile (items.length < total) {\n  const page = call({method: 'GET', url: '/playlists/' + encodeURIComponent(inputs.playlist_id) + '/tracks', query: {limit: '50', offset: String(items.length)}});\n  total = page.total;\n  items.push(...page.items);\n}\nreturn {total: items.length, items};"
+      "afterResponse": "if (inputs.all !== 'true') return response;\nconst items = response.items.slice();\nlet total = response.total;\nwhile (items.length < total) {\n  const page = call({method: 'GET', url: request.url, query: {limit: '50', offset: String(items.length)}});\n  total = page.total;\n  items.push(...page.items);\n}\nreturn {total: items.length, items};"
     },
     "get_saved_tracks": {
       "label": "Get Saved Tracks",
@@ -270,7 +288,7 @@
         }
       },
       "beforeRequest": "if (inputs.all === 'true') request.query = {limit: '50', offset: '0'};\nreturn request;",
-      "afterResponse": "if (inputs.all !== 'true') return response;\nconst items = response.items.slice();\nlet total = response.total;\nwhile (items.length < total) {\n  const page = call({method: 'GET', url: '/me/tracks', query: {limit: '50', offset: String(items.length)}});\n  total = page.total;\n  items.push(...page.items);\n}\nreturn {total: items.length, items};"
+      "afterResponse": "if (inputs.all !== 'true') return response;\nconst items = response.items.slice();\nlet total = response.total;\nwhile (items.length < total) {\n  const page = call({method: 'GET', url: request.url, query: {limit: '50', offset: String(items.length)}});\n  total = page.total;\n  items.push(...page.items);\n}\nreturn {total: items.length, items};"
     },
     "create_playlist": {
       "label": "Create Playlist",
@@ -294,7 +312,7 @@
       },
       "request": {
         "method": "POST",
-        "url": "https://api.spotify.com/v1/me/playlists",
+        "url": "https://api.spotify.com/v1/users",
         "body": {
           "name": "{{name}}",
           "description": "{{description}}",
@@ -302,7 +320,7 @@
           "collaborative": "{{collaborative}}"
         }
       },
-      "beforeRequest": "const me = call({method: 'GET', url: '/me'});\nrequest.url = '/users/' + encodeURIComponent(me.id) + '/playlists';\nreturn request;"
+      "beforeRequest": "const me = call({method: 'GET', url: '/me'});\nrequest.url += '/' + encodeURIComponent(me.id) + '/playlists';\nreturn request;"
     },
     "update_playlist": {
       "label": "Update Playlist",
@@ -341,7 +359,7 @@
       "afterResponse": "return null;"
     },
     "add_playlist_items": {
-      "label": "Add items to playlist",
+      "label": "Add Items to Playlist",
       "description": "Adds tracks or episodes to the playlist",
       "inputs": {
         "playlist_id": {
@@ -351,7 +369,7 @@
         },
         "items": {
           "label": "Items",
-          "description": "URI's of the items to add (a JSON list).",
+          "description": "URIs of the items to add (a JSON list).",
           "type": "json",
           "required": true
         },
@@ -371,7 +389,7 @@
       "afterResponse": "return null;"
     },
     "remove_playlist_items": {
-      "label": "Remove items from playlist",
+      "label": "Remove Items from Playlist",
       "description": "Removes tracks or episodes from the playlist",
       "inputs": {
         "playlist_id": {
@@ -381,7 +399,7 @@
         },
         "items": {
           "label": "Items",
-          "description": "URI's of the items to remove (a JSON list).",
+          "description": "URIs of the items to remove (a JSON list).",
           "type": "json",
           "required": true
         }
@@ -397,7 +415,7 @@
       "afterResponse": "return null;"
     },
     "reorder_playlist": {
-      "label": "Reorder playlist",
+      "label": "Reorder Playlist",
       "description": "Reorders items in the playlist",
       "inputs": {
         "playlist_id": {
@@ -430,6 +448,29 @@
         }
       },
       "afterResponse": "return null;"
+    }
+  },
+  "triggers": {
+    "playlist_items_changed": {
+      "label": "Playlist Items Changed",
+      "description": "Triggers when the items of a playlist change",
+      "inputs": {
+        "playlist_id": {
+          "label": "Playlist",
+          "required": true,
+          "list": "playlists"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.spotify.com/v1/playlists/{{playlist_id}}/tracks",
+        "query": {
+          "limit": "50",
+          "offset": "0"
+        }
+      },
+      "newBy": "unseen",
+      "afterResponse": "const md5 = (text) => {\n  const shifts = [7, 12, 17, 22, 5, 9, 14, 20, 4, 11, 16, 23, 6, 10, 15, 21];\n  const bytes = [...unescape(encodeURIComponent(text))].map((character) => character.charCodeAt(0));\n  const bits = bytes.length * 8;\n  bytes.push(0x80);\n  while (bytes.length % 64 !== 56) bytes.push(0);\n  for (let index = 0; index < 8; index++) bytes.push(Math.floor(bits / 2 ** (8 * index)) & 255);\n  const state = [0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476];\n  for (let offset = 0; offset < bytes.length; offset += 64) {\n    const words = [];\n    for (let index = 0; index < 16; index++) words.push(bytes[offset + 4 * index] | bytes[offset + 4 * index + 1] << 8 | bytes[offset + 4 * index + 2] << 16 | bytes[offset + 4 * index + 3] << 24);\n    let [a, b, c, d] = state;\n    for (let round = 0; round < 64; round++) {\n      const quarter = round >> 4;\n      const mixed = [(b & c) | (~b & d), (d & b) | (~d & c), b ^ c ^ d, c ^ (b | ~d)][quarter];\n      const word = words[[round, 5 * round + 1, 3 * round + 5, 7 * round][quarter] % 16];\n      const sum = (mixed + a + (Math.floor(Math.abs(Math.sin(round + 1)) * 2 ** 32) | 0) + word) | 0;\n      const shift = shifts[quarter * 4 + round % 4];\n      [a, d, c] = [d, c, b];\n      b = (b + (sum << shift | sum >>> (32 - shift))) | 0;\n    }\n    [a, b, c, d].forEach((value, index) => { state[index] = (state[index] + value) | 0; });\n  }\n  return state.map((value) => [0, 8, 16, 24].map((shift) => (value >>> shift & 255).toString(16).padStart(2, '0')).join('')).join('');\n};\nconst items = response.items.slice();\nlet total = response.total;\nwhile (items.length < total) {\n  const page = call({method: 'GET', url: '/playlists/' + encodeURIComponent(inputs.playlist_id) + '/tracks', query: {limit: '50', offset: String(items.length)}});\n  total = page.total;\n  items.push(...page.items);\n}\n// A fingerprint of the track order, so that adds, removals and moves are all a change.\nconst hash = md5(items.map((item) => item.track.id).join(','));\nif (memory.playlist_changed_trigger_hash === hash) return [];\nmemory.playlist_changed_trigger_hash = hash;\nreturn [{total: items.length, items}];"
     }
   }
 }

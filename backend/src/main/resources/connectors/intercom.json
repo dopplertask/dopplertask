@@ -46,51 +46,39 @@
     }
   },
   "lists": {
-    "froms": {
+    "admins": {
       "request": {
-        "method": "GET",
         "url": "https://api.{{credential.region}}.io/admins"
       },
-      "items": "$.admins",
-      "label": "$.name",
-      "value": "$.id"
+      "items": "$.admins"
     },
     "conversations": {
       "request": {
-        "method": "GET",
         "url": "https://api.{{credential.region}}.io/conversations"
       },
       "items": "$.conversations",
-      "label": "$.title",
-      "value": "$.id"
+      "label": "$.source.author.email"
     },
     "tags": {
       "request": {
-        "method": "GET",
         "url": "https://api.{{credential.region}}.io/tags"
       },
-      "items": "$.data",
-      "label": "$.name",
-      "value": "$.id"
+      "items": "$.data"
     },
     "ticket_types": {
       "request": {
-        "method": "GET",
         "url": "https://api.{{credential.region}}.io/ticket_types"
       },
-      "items": "$.data",
-      "label": "$.name",
-      "value": "$.id"
+      "items": "$.data"
     }
   },
   "actions": {
     "add-note-to-user": {
-      "label": "Add Note to Contact (by Email)",
-      "description": "Add a note to a user",
+      "label": "Add Note to Contact Found by Email",
+      "description": "Adds an internal note to the contact with this email address.",
       "inputs": {
         "email": {
           "label": "Email",
-          "type": "string",
           "required": true
         },
         "body": {
@@ -122,24 +110,21 @@
       "label": "Assign Conversation with Message",
       "description": "(Re)assign conversation to a specific admin or team.",
       "inputs": {
-        "from": {
-          "label": "From (Admin)",
-          "type": "string",
+        "adminId": {
+          "label": "Admin ID",
+          "description": "The admin who makes the assignment.",
           "required": true,
-          "list": "froms"
+          "list": "admins"
         },
         "conversationId": {
           "label": "Conversation ID",
-          "type": "string",
           "required": true,
           "list": "conversations"
         },
         "assigneeId": {
           "label": "Assignee ID",
           "description": "The ID of the admin or team to assign this conversation to",
-          "type": "string",
-          "required": true,
-          "list": "froms"
+          "required": true
         },
         "body": {
           "label": "Message Body",
@@ -159,7 +144,7 @@
         "body": {
           "type": "admin",
           "message_type": "assignment",
-          "admin_id": "{{from}}",
+          "admin_id": "{{adminId}}",
           "assignee_id": "{{assigneeId}}",
           "body": "{{body}}"
         }
@@ -172,7 +157,7 @@
       "label": "Create Data Event",
       "description": "Submits a data event for a contact.",
       "inputs": {
-        "identifierType": {
+        "lookupBy": {
           "label": "Identify Contact By",
           "type": "select",
           "required": true,
@@ -192,21 +177,19 @@
             }
           ]
         },
-        "identifierValue": {
-          "label": "Identifier Value",
-          "type": "string",
+        "value": {
+          "label": "Value",
+          "description": "The contact email, Intercom contact ID or User ID, matching Identify Contact By.",
           "required": true
         },
         "eventName": {
           "label": "Event Name",
           "description": "The name of the event that occurred.",
-          "type": "string",
           "required": true
         },
         "createdAt": {
           "label": "Created At",
-          "description": "When the event happened. Defaults to now if left empty.",
-          "type": "string"
+          "description": "When the event happened. Defaults to now if left empty."
         },
         "metadata": {
           "label": "Metadata",
@@ -225,58 +208,8 @@
           "X-Fern-SDK-Version": "6.2.0"
         }
       },
-      "beforeRequest": "const key = inputs.identifierType === 'id' ? 'id' : inputs.identifierType === 'user_id' ? 'user_id' : 'email';\nconst metadata = inputs.metadata ? JSON.parse(inputs.metadata) : undefined;\nrequest.body = {\n  [key]: inputs.identifierValue,\n  event_name: inputs.eventName,\n  created_at: Math.floor((inputs.createdAt ? Date.parse(inputs.createdAt) : Date.now()) / 1000),\n  metadata: metadata && Object.fromEntries(Object.entries(metadata).map(([name, value]) => [name, String(value)]))\n};\nreturn request;",
+      "beforeRequest": "const key = inputs.lookupBy === 'id' ? 'id' : inputs.lookupBy === 'user_id' ? 'user_id' : 'email';\nconst metadata = inputs.metadata ? JSON.parse(inputs.metadata) : undefined;\nrequest.body = {\n  [key]: inputs.value,\n  event_name: inputs.eventName,\n  created_at: Math.floor((inputs.createdAt ? Date.parse(inputs.createdAt) : Date.now()) / 1000),\n  metadata: metadata && Object.fromEntries(Object.entries(metadata).map(([name, value]) => [name, String(value)]))\n};\nreturn request;",
       "afterResponse": "return {success: true};"
-    },
-    "create-user": {
-      "label": "Create User",
-      "description": "Creates a new user.",
-      "inputs": {
-        "email": {
-          "label": "Email",
-          "type": "string",
-          "required": true
-        },
-        "createdAt": {
-          "label": "Created At",
-          "description": "An ISO 8601 date and time, such as 2026-01-02T10:00:00Z.",
-          "type": "string"
-        },
-        "userId": {
-          "label": "User ID",
-          "type": "string"
-        },
-        "name": {
-          "label": "Full Name",
-          "type": "string"
-        },
-        "customAttributes": {
-          "label": "Custom Attributes",
-          "type": "json"
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://api.{{credential.region}}.io/contacts",
-        "headers": {
-          "X-Fern-Language": "JavaScript",
-          "X-Fern-Runtime": "node",
-          "X-Fern-Runtime-Version": "26.4.0",
-          "X-Fern-SDK-Name": "intercom-client",
-          "X-Fern-SDK-Version": "6.2.0"
-        },
-        "body": {
-          "role": "user",
-          "email": "{{email}}",
-          "name": "{{name}}",
-          "custom_attributes": "{{customAttributes}}",
-          "external_id": "{{userId}}"
-        }
-      },
-      "outputs": {
-        "id": "$.id"
-      },
-      "beforeRequest": "if (inputs.createdAt) request.body.signed_up_at = Math.floor(Date.parse(inputs.createdAt) / 1000);\nreturn request;"
     },
     "create-or-update-company": {
       "label": "Create or Update Company",
@@ -284,16 +217,13 @@
       "inputs": {
         "companyId": {
           "label": "Company ID",
-          "description": "The company ID you have defined for the company. Cannot be updated later.",
-          "type": "string"
+          "description": "The company ID you have defined for the company. Cannot be updated later."
         },
         "name": {
-          "label": "Name",
-          "type": "string"
+          "label": "Name"
         },
         "plan": {
-          "label": "Plan",
-          "type": "string"
+          "label": "Plan"
         },
         "size": {
           "label": "Size",
@@ -301,12 +231,10 @@
           "type": "number"
         },
         "website": {
-          "label": "Website",
-          "type": "string"
+          "label": "Website"
         },
         "industry": {
-          "label": "Industry",
-          "type": "string"
+          "label": "Industry"
         },
         "monthlySpend": {
           "label": "Monthly Spend",
@@ -315,8 +243,7 @@
         },
         "remoteCreatedAt": {
           "label": "Created At",
-          "description": "The time the company was created by you.",
-          "type": "string"
+          "description": "The time the company was created by you."
         },
         "customAttributes": {
           "label": "Custom Attributes",
@@ -351,23 +278,19 @@
     },
     "create-or-update-lead": {
       "label": "Create or Update Lead",
-      "description": "Create or update an Intercom lead.If an ID is provided, the lead will be updated.",
+      "description": "Creates a lead, or updates the lead with this Lead ID.",
       "inputs": {
         "leadId": {
-          "label": "Lead ID",
-          "type": "string"
+          "label": "Lead ID"
         },
         "name": {
-          "label": "Full Name",
-          "type": "string"
+          "label": "Full Name"
         },
         "email": {
-          "label": "Email",
-          "type": "string"
+          "label": "Email"
         },
         "phone": {
-          "label": "Phone",
-          "type": "string"
+          "label": "Phone"
         },
         "unsubscribe": {
           "label": "Unsubscribed From Emails",
@@ -375,8 +298,7 @@
         },
         "createdAt": {
           "label": "Created At",
-          "description": "An ISO 8601 date and time, such as 2026-01-02T10:00:00Z.",
-          "type": "string"
+          "description": "An ISO 8601 date and time, such as 2026-01-02T10:00:00Z."
         },
         "customAttributes": {
           "label": "Custom Attributes",
@@ -408,30 +330,25 @@
       "beforeRequest": "if (inputs.createdAt) request.body.signed_up_at = Math.floor(Date.parse(inputs.createdAt) / 1000);\nif (inputs.leadId) {\n  const found = call({method: 'POST', url: '/contacts/search', headers: request.headers, body: {query: {operator: 'AND', value: [{field: 'id', operator: '=', value: inputs.leadId}, {field: 'role', operator: '=', value: 'lead'}]}, pagination: {per_page: 1}}}).data;\n  if (found.length === 0) throw new Error('Could not find lead with this id.');\n  request.method = 'PUT';\n  request.url = '/contacts/' + encodeURIComponent(found[0].id);\n  delete request.body.role;\n}\nreturn request;"
     },
     "create-or-update-user": {
-      "label": "Create/Update User",
-      "description": "Update a user within intercom given an email address.",
+      "label": "Create or Update User",
+      "description": "Creates a user, or updates the user with this email address.",
       "inputs": {
         "email": {
           "label": "Lookup Email",
-          "type": "string",
           "required": true
         },
         "name": {
-          "label": "Full Name",
-          "type": "string"
+          "label": "Full Name"
         },
-        "userId": {
-          "label": "User ID",
-          "type": "string"
+        "externalId": {
+          "label": "User ID"
         },
         "phone": {
-          "label": "Phone",
-          "type": "string"
+          "label": "Phone"
         },
         "createdAt": {
           "label": "Created At",
-          "description": "An ISO 8601 date and time, such as 2026-01-02T10:00:00Z.",
-          "type": "string"
+          "description": "An ISO 8601 date and time, such as 2026-01-02T10:00:00Z."
         },
         "customAttributes": {
           "label": "Custom Attributes",
@@ -453,7 +370,7 @@
           "email": "{{email}}",
           "name": "{{name}}",
           "custom_attributes": "{{customAttributes}}",
-          "external_id": "{{userId}}",
+          "external_id": "{{externalId}}",
           "phone": "{{phone}}"
         }
       },
@@ -483,12 +400,10 @@
         },
         "searchValue": {
           "label": "Search Value",
-          "type": "string",
           "required": true
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.{{credential.region}}.io/companies"
       },
       "outputs": {
@@ -500,7 +415,7 @@
     },
     "find-conversation": {
       "label": "Find Conversation",
-      "description": "Searches for conversations using various criteria",
+      "description": "Finds the first conversation that matches a field, with optional state and update dates.",
       "inputs": {
         "searchField": {
           "label": "Search Field",
@@ -559,7 +474,6 @@
         "searchTerm": {
           "label": "Search Term",
           "description": "Conversation ID, Assigned Admin, Team and Tag IDs only support Equals.",
-          "type": "string",
           "required": true
         },
         "status": {
@@ -580,15 +494,13 @@
             }
           ]
         },
-        "updateAfter": {
-          "label": "Update After",
-          "description": "Intercom compares dates by calendar day in your workspace time zone.",
-          "type": "string"
+        "updatedAfter": {
+          "label": "Updated After",
+          "description": "Intercom compares dates by calendar day in your workspace time zone."
         },
-        "updateBefore": {
-          "label": "Update Before",
-          "description": "An ISO 8601 date and time, such as 2026-01-02T10:00:00Z.",
-          "type": "string"
+        "updatedBefore": {
+          "label": "Updated Before",
+          "description": "An ISO 8601 date and time, such as 2026-01-02T10:00:00Z."
         }
       },
       "request": {
@@ -606,7 +518,7 @@
         "found": "$.found",
         "id": "$.conversation.id"
       },
-      "beforeRequest": "if (inputs.matchType !== 'equals' && ['id', 'admin_assignee_id', 'team_assignee_id', 'tag_ids'].includes(inputs.searchField)) throw new Error('Conversation ID, Assigned Admin, Team and Tag IDs can only be matched with Equals.');\nconst value = [{field: inputs.searchField, operator: inputs.matchType === 'contains' ? '~' : inputs.matchType === 'starts_with' ? '^' : '=', value: inputs.searchTerm}];\nif (inputs.status) value.push({field: 'state', operator: '=', value: inputs.status});\nif (inputs.updateAfter) value.push({field: 'updated_at', operator: '>', value: String(Math.floor(Date.parse(inputs.updateAfter) / 1000))});\nif (inputs.updateBefore) value.push({field: 'updated_at', operator: '<', value: String(Math.floor(Date.parse(inputs.updateBefore) / 1000))});\nrequest.body = {query: {operator: 'AND', value}};\nreturn request;",
+      "beforeRequest": "if (inputs.matchType !== 'equals' && ['id', 'admin_assignee_id', 'team_assignee_id', 'tag_ids'].includes(inputs.searchField)) throw new Error('Conversation ID, Assigned Admin, Team and Tag IDs can only be matched with Equals.');\nconst value = [{field: inputs.searchField, operator: inputs.matchType === 'contains' ? '~' : inputs.matchType === 'starts_with' ? '^' : '=', value: inputs.searchTerm}];\nif (inputs.status) value.push({field: 'state', operator: '=', value: inputs.status});\nif (inputs.updatedAfter) value.push({field: 'updated_at', operator: '>', value: String(Math.floor(Date.parse(inputs.updatedAfter) / 1000))});\nif (inputs.updatedBefore) value.push({field: 'updated_at', operator: '<', value: String(Math.floor(Date.parse(inputs.updatedBefore) / 1000))});\nrequest.body = {query: {operator: 'AND', value}};\nreturn request;",
       "afterResponse": "const found = response.conversations ?? [];\nreturn {found: found.length > 0, conversation: found.length > 0 ? found[0] : {}};"
     },
     "find-lead": {
@@ -634,7 +546,6 @@
         },
         "searchValue": {
           "label": "Search Value",
-          "type": "string",
           "required": true
         }
       },
@@ -681,29 +592,24 @@
       "inputs": {
         "companyId": {
           "label": "Company ID",
-          "description": "The company ID you have defined for the company. Used to look up and create.",
-          "type": "string"
+          "description": "The company ID you have defined for the company. Used to look up and create."
         },
         "name": {
           "label": "Name",
-          "description": "Used to look up by name when no Company ID is given, and when creating.",
-          "type": "string"
+          "description": "Used to look up by name when no Company ID is given, and when creating."
         },
         "plan": {
-          "label": "Plan",
-          "type": "string"
+          "label": "Plan"
         },
         "size": {
           "label": "Size",
           "type": "number"
         },
         "website": {
-          "label": "Website",
-          "type": "string"
+          "label": "Website"
         },
         "industry": {
-          "label": "Industry",
-          "type": "string"
+          "label": "Industry"
         },
         "customAttributes": {
           "label": "Custom Attributes",
@@ -711,7 +617,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.{{credential.region}}.io/companies"
       },
       "outputs": {
@@ -747,16 +652,13 @@
         },
         "searchValue": {
           "label": "Search Value",
-          "type": "string",
           "required": true
         },
         "name": {
-          "label": "Full Name",
-          "type": "string"
+          "label": "Full Name"
         },
         "phone": {
-          "label": "Phone",
-          "type": "string"
+          "label": "Phone"
         },
         "customAttributes": {
           "label": "Custom Attributes",
@@ -798,7 +700,7 @@
         "created": "$.created",
         "id": "$.lead.id"
       },
-      "afterResponse": "const F = {\"X-Fern-Language\": \"JavaScript\", \"X-Fern-Runtime\": \"node\", \"X-Fern-Runtime-Version\": \"26.4.0\", \"X-Fern-SDK-Name\": \"intercom-client\", \"X-Fern-SDK-Version\": \"6.2.0\"};\nif (response.data.length > 0) return {created: false, lead: response.data[0]};\nif (inputs.searchField === 'id') throw new Error('No lead found with that Intercom ID. Intercom assigns IDs itself, so a lead can only be created when searching by Email or User ID.');\nconst body = {role: 'lead', email: inputs.searchField === 'email' ? inputs.searchValue : undefined, external_id: inputs.searchField === 'external_id' ? inputs.searchValue : undefined,\n  name: inputs.name || undefined, phone: inputs.phone || undefined, custom_attributes: inputs.customAttributes ? JSON.parse(inputs.customAttributes) : undefined};\nreturn {created: true, lead: call({method: 'POST', url: '/contacts', headers: F, body})};"
+      "afterResponse": "if (response.data.length > 0) return {created: false, lead: response.data[0]};\nif (inputs.searchField === 'id') throw new Error('No lead found with that Intercom ID. Intercom assigns IDs itself, so a lead can only be created when searching by Email or User ID.');\nconst body = {role: 'lead', email: inputs.searchField === 'email' ? inputs.searchValue : undefined, external_id: inputs.searchField === 'external_id' ? inputs.searchValue : undefined,\n  name: inputs.name || undefined, phone: inputs.phone || undefined, custom_attributes: inputs.customAttributes ? JSON.parse(inputs.customAttributes) : undefined};\nreturn {created: true, lead: call({method: 'POST', url: '/contacts', headers: request.headers, body})};"
     },
     "find-user": {
       "label": "Find User",
@@ -825,7 +727,6 @@
         },
         "searchValue": {
           "label": "Search Value",
-          "type": "string",
           "required": true
         }
       },
@@ -868,9 +769,8 @@
     },
     "list-all-tags": {
       "label": "List Tags",
-      "description": "List all tags.",
+      "description": "Lists all tags.",
       "request": {
-        "method": "GET",
         "url": "https://api.{{credential.region}}.io/tags",
         "headers": {
           "X-Fern-Language": "JavaScript",
@@ -882,18 +782,16 @@
       }
     },
     "get-conversation": {
-      "label": "Get Conversation (Full Record)",
-      "description": "Retrieves a specific conversation by ID.",
+      "label": "Get Conversation",
+      "description": "Gets a conversation with all of its parts as Intercom gives them.",
       "inputs": {
         "conversationId": {
           "label": "Conversation ID",
-          "type": "string",
           "required": true,
           "list": "conversations"
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.{{credential.region}}.io/conversations/{{conversationId}}",
         "headers": {
           "X-Fern-Language": "JavaScript",
@@ -909,13 +807,12 @@
       }
     },
     "get_conversation_by_id": {
-      "label": "Get Conversation with Simplified Messages",
-      "description": "Gets a conversation and its messages by conversation ID.",
+      "label": "Get Conversation Messages",
+      "description": "Gets a conversation with its messages as a short list, in plain text by default.",
       "inputs": {
         "conversationId": {
           "label": "Conversation ID",
           "description": "The Intercom conversation ID, for example from Search Conversations.",
-          "type": "string",
           "required": true,
           "list": "conversations"
         },
@@ -927,7 +824,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.{{credential.region}}.io/conversations/{{conversationId}}"
       },
       "outputs": {
@@ -938,13 +834,12 @@
       "afterResponse": "const {conversation_parts, ...conversation} = response;\nconst parts = conversation_parts && Array.isArray(conversation_parts.conversation_parts) ? conversation_parts.conversation_parts.map((each) => {\n  const part = each && typeof each === 'object' ? each : {};\n  const author = part.author && typeof part.author === 'object' ? part.author : {};\n  return {id: String(part.id ?? ''), part_type: typeof part.part_type === 'string' ? part.part_type : null, author_type: typeof author.type === 'string' ? author.type : null,\n    author_id: author.id === undefined || author.id === null ? null : String(author.id), author_name: typeof author.name === 'string' ? author.name : null,\n    body: typeof part.body === 'string' ? part.body : null, created_at: typeof part.created_at === 'number' ? part.created_at : null};\n}) : [];\nreturn {...conversation, parts};"
     },
     "reply_to_conversation_by_id": {
-      "label": "Reply to Conversation (by ID)",
+      "label": "Reply to Conversation",
       "description": "Posts an admin reply that the customer sees in a conversation.",
       "inputs": {
         "conversationId": {
           "label": "Conversation ID",
           "description": "The Intercom conversation ID.",
-          "type": "string",
           "required": true,
           "list": "conversations"
         },
@@ -957,8 +852,7 @@
         "adminId": {
           "label": "Admin ID",
           "description": "The admin who replies. Leave empty to reply as the admin who owns this connection (see List Admins).",
-          "type": "string",
-          "list": "froms"
+          "list": "admins"
         },
         "attachmentUrls": {
           "label": "Attachment URLs",
@@ -980,13 +874,12 @@
       "beforeRequest": "const text = (value, label) => { const trimmed = (value || '').trim(); if (trimmed === '') throw new Error(label + ' is required.'); return trimmed; };\nconst urlsOf = (text) => {\n  if (!text) return undefined;\n  const urls = [].concat(JSON.parse(text)).map((url) => typeof url === 'string' ? url.trim() : '').filter((url) => url.length > 0);\n  if (urls.length === 0) return undefined;\n  if (urls.length > 10) throw new Error('Intercom accepts at most 10 attachment URLs; ' + urls.length + ' were given.');\n  urls.forEach((url) => { if (!/^https?:\\/\\/\\S+$/i.test(url)) throw new Error('Attachment URL must be a public http(s) link: ' + url); });\n  return urls;\n};\nconst me = (id) => (id || '').trim() || String(call({method: 'GET', url: '/me'}).id);\nrequest.body.body = text(inputs.body, 'Reply');\nconst urls = urlsOf(inputs.attachmentUrls);\nrequest.body.admin_id = me(inputs.adminId);\nrequest.body.attachment_urls = urls;\nreturn request;"
     },
     "add_note_to_conversation_by_id": {
-      "label": "Add Note to Conversation (by ID)",
+      "label": "Add Note to Conversation",
       "description": "Adds an internal note, visible only to your team, to a conversation.",
       "inputs": {
         "conversationId": {
           "label": "Conversation ID",
           "description": "The Intercom conversation ID.",
-          "type": "string",
           "required": true,
           "list": "conversations"
         },
@@ -999,8 +892,7 @@
         "adminId": {
           "label": "Admin ID",
           "description": "The admin who writes the note. Leave empty to use the admin who owns this connection.",
-          "type": "string",
-          "list": "froms"
+          "list": "admins"
         }
       },
       "request": {
@@ -1023,7 +915,6 @@
         "conversationId": {
           "label": "Conversation ID",
           "description": "The Intercom conversation ID.",
-          "type": "string",
           "required": true,
           "list": "conversations"
         },
@@ -1046,15 +937,12 @@
         "assigneeId": {
           "label": "Assignee ID",
           "description": "The admin or team ID. Use 0 to unassign.",
-          "type": "string",
-          "required": true,
-          "list": "froms"
+          "required": true
         },
         "adminId": {
           "label": "Acting Admin ID",
           "description": "The admin who performs the assignment. Leave empty to use the admin who owns this connection.",
-          "type": "string",
-          "list": "froms"
+          "list": "admins"
         }
       },
       "request": {
@@ -1099,19 +987,16 @@
         "recordId": {
           "label": "Record ID",
           "description": "The Intercom ID of the contact, conversation, company (Intercom company ID, not your Company ID) or ticket.",
-          "type": "string",
           "required": true
         },
         "tagId": {
           "label": "Tag ID",
           "description": "The tag ID from List Tags. Give either Tag ID or Tag Name.",
-          "type": "string",
           "list": "tags"
         },
         "tagName": {
           "label": "Tag Name",
-          "description": "The tag name (case-insensitive). Give either Tag ID or Tag Name.",
-          "type": "string"
+          "description": "The tag name (case-insensitive). Give either Tag ID or Tag Name."
         },
         "remove": {
           "label": "Remove Tag",
@@ -1121,7 +1006,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.{{credential.region}}.io/tags"
       },
       "beforeRequest": "const text = (value, label) => { const trimmed = (value || '').trim(); if (trimmed === '') throw new Error(label + ' is required.'); return trimmed; };\nconst tagId = (inputs.tagId || '').trim() || undefined;\nconst tagName = (inputs.tagName || '').trim() || undefined;\nconst remove = inputs.remove === 'true';\nif (!['contact', 'conversation', 'company', 'ticket'].includes(inputs.target)) throw new Error('Record Type must be contact, conversation, company or ticket.');\ntext(inputs.recordId, 'Record ID');\nif ((tagId === undefined) === (tagName === undefined)) throw new Error('Give exactly one of Tag ID or Tag Name.');\nif (!remove && tagId !== undefined) request.url = '/tags/' + encodeURIComponent(tagId);\nreturn request;",
@@ -1133,13 +1017,11 @@
       "inputs": {
         "contactId": {
           "label": "Contact ID",
-          "description": "The Intercom contact ID. Give either Contact ID or Contact Email.",
-          "type": "string"
+          "description": "The Intercom contact ID. Give either Contact ID or Contact Email."
         },
         "email": {
           "label": "Contact Email",
-          "description": "Used when no Contact ID is given. Fails if several contacts share this email.",
-          "type": "string"
+          "description": "Used when no Contact ID is given. Fails if several contacts share this email."
         },
         "messageType": {
           "label": "Message Type",
@@ -1159,8 +1041,7 @@
         },
         "subject": {
           "label": "Subject",
-          "description": "Required for email.",
-          "type": "string"
+          "description": "Required for email."
         },
         "template": {
           "label": "Email Template",
@@ -1186,8 +1067,7 @@
         "adminId": {
           "label": "From Admin ID",
           "description": "The sending admin. Leave empty to send as the admin who owns this connection.",
-          "type": "string",
-          "list": "froms"
+          "list": "admins"
         },
         "openConversation": {
           "label": "Open Conversation Right Away",
@@ -1206,13 +1086,12 @@
       "beforeRequest": "const text = (value, label) => { const trimmed = (value || '').trim(); if (trimmed === '') throw new Error(label + ' is required.'); return trimmed; };\nconst contactBy = (by, raw) => {\n  const value = (raw || '').trim();\n  if (value === '') throw new Error('Provide the contact ID, email or external ID to look up.');\n  if (by === 'id') return call({method: 'GET', url: '/contacts/' + encodeURIComponent(value)});\n  const found = call({method: 'POST', url: '/contacts/search', body: {query: {field: by, operator: '=', value}, pagination: {per_page: 2}}}).data ?? [];\n  const what = by === 'email' ? 'the email' : 'the external ID';\n  if (found.length === 0) throw new Error('No Intercom contact has ' + what + ' ' + value + '. Use Search Contacts to look it up by other fields.');\n  if (found.length > 1) throw new Error('More than one Intercom contact has ' + what + ' ' + value + '. Use Search Contacts and pass the contact ID instead.');\n  return found[0];\n};\nconst me = (id) => (id || '').trim() || String(call({method: 'GET', url: '/me'}).id);\nconst body = text(inputs.body, 'Message');\nconst email = inputs.messageType !== 'in_app';\nif (email && !(inputs.subject || '').trim()) throw new Error('Subject is required for an email message.');\nconst byId = !!(inputs.contactId || '').trim();\nif (byId === !!(inputs.email || '').trim()) throw new Error('Give exactly one of Contact ID or Contact Email.');\nconst contact = contactBy(byId ? 'id' : 'email', byId ? inputs.contactId : inputs.email);\nrequest.body = {\n  message_type: email ? 'email' : 'inapp',\n  subject: email ? inputs.subject.trim() : undefined,\n  template: email ? inputs.template || 'plain' : undefined,\n  body,\n  from: {type: 'admin', id: Number(me(inputs.adminId))},\n  to: {type: contact.role === 'user' ? 'user' : 'lead', id: String(contact.id)},\n  create_conversation_without_contact_reply: inputs.openConversation === 'true'\n};\nreturn request;"
     },
     "create_ticket_by_type_id": {
-      "label": "Create Ticket (by Type ID)",
+      "label": "Create Ticket",
       "description": "Creates a ticket of a given ticket type for one contact.",
       "inputs": {
         "ticketTypeId": {
           "label": "Ticket Type ID",
           "description": "From List Ticket Types.",
-          "type": "string",
           "required": true,
           "list": "ticket_types"
         },
@@ -1239,12 +1118,10 @@
         "contactValue": {
           "label": "Contact",
           "description": "The contact ID, email or external ID, matching Identify Contact By. An unknown email creates a new contact.",
-          "type": "string",
           "required": true
         },
         "title": {
-          "label": "Title",
-          "type": "string"
+          "label": "Title"
         },
         "description": {
           "label": "Description",
@@ -1255,10 +1132,9 @@
           "description": "Ticket type attributes by name, for example {\"Priority\": \"<list option ID>\", \"Due\": \"2026-10-20T12:00:00Z\"}.",
           "type": "json"
         },
-        "companyId": {
-          "label": "Company ID",
-          "description": "Optional Intercom company ID to link.",
-          "type": "string"
+        "intercomCompanyId": {
+          "label": "Intercom Company ID",
+          "description": "Optional Intercom \"id\" of a company to link, not your own Company ID."
         }
       },
       "request": {
@@ -1268,16 +1144,15 @@
       "outputs": {
         "id": "$.id"
       },
-      "beforeRequest": "const text = (value, label) => { const trimmed = (value || '').trim(); if (trimmed === '') throw new Error(label + ' is required.'); return trimmed; };\nconst attributesOf = (typeId) => call({method: 'GET', url: '/ticket_types/' + encodeURIComponent(typeId)}).ticket_type_attributes?.data ?? [];\nconst convert = (attributes, values) => {\n  const types = {};\n  attributes.forEach((attribute) => { types[attribute.name] = attribute.data_type; });\n  const out = {};\n  Object.entries(values).forEach(([name, value]) => { if (value !== undefined) out[name] = value === null ? null : valueOf(name, value, types[name]); });\n  return out;\n};\nconst valueOf = (name, value, type) => {\n  const fail = (what) => { throw new Error('Ticket attribute \"' + name + '\" expects ' + what + '; got ' + JSON.stringify(value) + '.'); };\n  if (type === 'datetime') {\n    if (typeof value === 'number' && isFinite(value)) return value > 1e11 ? Math.floor(value / 1000) : Math.floor(value);\n    if (typeof value === 'string') {\n      const text = value.trim();\n      if (/^\\d+$/.test(text)) { const number = Number(text); return number > 1e11 ? Math.floor(number / 1000) : number; }\n      const time = Date.parse(text);\n      if (text.length > 0 && !isNaN(time)) return Math.floor(time / 1000);\n    }\n    fail('a date and time (ISO 8601 or Unix seconds)');\n  }\n  if (type === 'integer' || type === 'decimal') {\n    const number = typeof value === 'number' ? value : typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN;\n    if (!isFinite(number) || (type === 'integer' && !Number.isInteger(number))) fail(type === 'integer' ? 'a whole number' : 'a number');\n    return number;\n  }\n  if (type === 'boolean') {\n    if (typeof value === 'boolean') return value;\n    if (value === 'true' || value === 'false') return value === 'true';\n    fail('true or false');\n  }\n  return value;\n};\nconst typeId = text(inputs.ticketTypeId, 'Ticket Type ID');\nconst contact = text(inputs.contactValue, 'Contact');\nconst by = inputs.contactLookupBy === 'email' ? 'email' : inputs.contactLookupBy === 'external_id' ? 'external_id' : 'id';\nconst title = (inputs.title || '').trim(), description = (inputs.description || '').trim();\nconst values = {...(inputs.attributes ? JSON.parse(inputs.attributes) : {}), ...(title ? {_default_title_: title} : {}), ...(description ? {_default_description_: description} : {})};\nconst attributes = attributesOf(typeId);\nconst missing = attributes.filter((each) => each.required_to_create === true && each.archived !== true).map((each) => each.name).filter((name) => values[name] === undefined || values[name] === '');\nif (missing.length > 0) throw new Error('This ticket type requires: ' + missing.join(', ') + '.');\nrequest.body = {ticket_type_id: typeId, contacts: [{[by]: contact}], company_id: (inputs.companyId || '').trim() || undefined, ticket_attributes: convert(attributes, values)};\nreturn request;"
+      "beforeRequest": "const text = (value, label) => { const trimmed = (value || '').trim(); if (trimmed === '') throw new Error(label + ' is required.'); return trimmed; };\nconst attributesOf = (typeId) => call({method: 'GET', url: '/ticket_types/' + encodeURIComponent(typeId)}).ticket_type_attributes?.data ?? [];\nconst convert = (attributes, values) => {\n  const types = {};\n  attributes.forEach((attribute) => { types[attribute.name] = attribute.data_type; });\n  const out = {};\n  Object.entries(values).forEach(([name, value]) => { if (value !== undefined) out[name] = value === null ? null : valueOf(name, value, types[name]); });\n  return out;\n};\nconst valueOf = (name, value, type) => {\n  const fail = (what) => { throw new Error('Ticket attribute \"' + name + '\" expects ' + what + '; got ' + JSON.stringify(value) + '.'); };\n  if (type === 'datetime') {\n    if (typeof value === 'number' && isFinite(value)) return value > 1e11 ? Math.floor(value / 1000) : Math.floor(value);\n    if (typeof value === 'string') {\n      const text = value.trim();\n      if (/^\\d+$/.test(text)) { const number = Number(text); return number > 1e11 ? Math.floor(number / 1000) : number; }\n      const time = Date.parse(text);\n      if (text.length > 0 && !isNaN(time)) return Math.floor(time / 1000);\n    }\n    fail('a date and time (ISO 8601 or Unix seconds)');\n  }\n  if (type === 'integer' || type === 'decimal') {\n    const number = typeof value === 'number' ? value : typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN;\n    if (!isFinite(number) || (type === 'integer' && !Number.isInteger(number))) fail(type === 'integer' ? 'a whole number' : 'a number');\n    return number;\n  }\n  if (type === 'boolean') {\n    if (typeof value === 'boolean') return value;\n    if (value === 'true' || value === 'false') return value === 'true';\n    fail('true or false');\n  }\n  return value;\n};\nconst typeId = text(inputs.ticketTypeId, 'Ticket Type ID');\nconst contact = text(inputs.contactValue, 'Contact');\nconst by = inputs.contactLookupBy === 'email' ? 'email' : inputs.contactLookupBy === 'external_id' ? 'external_id' : 'id';\nconst title = (inputs.title || '').trim(), description = (inputs.description || '').trim();\nconst values = {...(inputs.attributes ? JSON.parse(inputs.attributes) : {}), ...(title ? {_default_title_: title} : {}), ...(description ? {_default_description_: description} : {})};\nconst attributes = attributesOf(typeId);\nconst missing = attributes.filter((each) => each.required_to_create === true && each.archived !== true).map((each) => each.name).filter((name) => values[name] === undefined || values[name] === '');\nif (missing.length > 0) throw new Error('This ticket type requires: ' + missing.join(', ') + '.');\nrequest.body = {ticket_type_id: typeId, contacts: [{[by]: contact}], company_id: (inputs.intercomCompanyId || '').trim() || undefined, ticket_attributes: convert(attributes, values)};\nreturn request;"
     },
     "update_ticket_by_id": {
-      "label": "Update Ticket (by ID)",
+      "label": "Update Ticket",
       "description": "Changes a ticket's state, assignee, snooze time or attributes.",
       "inputs": {
         "ticketId": {
           "label": "Ticket ID",
           "description": "The ticket \"id\" from Intercom, not the inbox ticket number.",
-          "type": "string",
           "required": true
         },
         "state": {
@@ -1328,20 +1203,17 @@
         },
         "snoozedUntil": {
           "label": "Snooze Until",
-          "description": "An ISO 8601 date and time, such as 2026-01-02T10:00:00Z.",
-          "type": "string"
+          "description": "An ISO 8601 date and time, such as 2026-01-02T10:00:00Z."
         },
         "assigneeId": {
           "label": "Assignee Admin ID",
           "description": "Assign the ticket to this admin (see List Admins). Use 0 to unassign.",
-          "type": "string",
-          "list": "froms"
+          "list": "admins"
         },
         "adminId": {
           "label": "Acting Admin ID",
           "description": "The admin who makes the assignment. Leave empty to use the admin who owns this connection.",
-          "type": "string",
-          "list": "froms"
+          "list": "admins"
         },
         "attributes": {
           "label": "Attributes",
@@ -1385,12 +1257,10 @@
         "value": {
           "label": "Value",
           "description": "The contact ID, email or external ID.",
-          "type": "string",
           "required": true
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.{{credential.region}}.io/contacts"
       },
       "outputs": {
@@ -1404,12 +1274,10 @@
       "description": "Finds contacts (users and leads) by email, name, tag, segment, update time or a custom attribute.",
       "inputs": {
         "email": {
-          "label": "Email Is",
-          "type": "string"
+          "label": "Email Is"
         },
         "nameContains": {
-          "label": "Name Contains",
-          "type": "string"
+          "label": "Name Contains"
         },
         "role": {
           "label": "Role",
@@ -1428,31 +1296,25 @@
         "tagId": {
           "label": "Tag ID",
           "description": "From List Tags.",
-          "type": "string",
           "list": "tags"
         },
         "segmentId": {
-          "label": "Segment ID",
-          "type": "string"
+          "label": "Segment ID"
         },
         "updatedAfter": {
           "label": "Updated After",
-          "description": "Intercom compares dates by calendar day in your workspace time zone.",
-          "type": "string"
+          "description": "Intercom compares dates by calendar day in your workspace time zone."
         },
         "updatedBefore": {
           "label": "Updated Before",
-          "description": "An ISO 8601 date and time, such as 2026-01-02T10:00:00Z.",
-          "type": "string"
+          "description": "An ISO 8601 date and time, such as 2026-01-02T10:00:00Z."
         },
         "customAttribute": {
           "label": "Custom Attribute Name",
-          "description": "Match contacts whose custom attribute equals Custom Attribute Value.",
-          "type": "string"
+          "description": "Match contacts whose custom attribute equals Custom Attribute Value."
         },
         "customValue": {
-          "label": "Custom Attribute Value",
-          "type": "string"
+          "label": "Custom Attribute Value"
         },
         "advancedQuery": {
           "label": "Advanced Query",
@@ -1466,8 +1328,7 @@
         },
         "startingAfter": {
           "label": "Starting After",
-          "description": "The next_starting_after value from the previous page.",
-          "type": "string"
+          "description": "The next_starting_after value from the previous page."
         }
       },
       "request": {
@@ -1484,7 +1345,6 @@
         "contactId": {
           "label": "Contact ID",
           "description": "The Intercom contact ID (see Search Contacts or Get Contact).",
-          "type": "string",
           "required": true
         },
         "role": {
@@ -1502,25 +1362,20 @@
           ]
         },
         "email": {
-          "label": "Email",
-          "type": "string"
+          "label": "Email"
         },
         "name": {
-          "label": "Name",
-          "type": "string"
+          "label": "Name"
         },
         "phone": {
-          "label": "Phone",
-          "type": "string"
+          "label": "Phone"
         },
         "externalId": {
-          "label": "External ID",
-          "type": "string"
+          "label": "External ID"
         },
         "ownerId": {
           "label": "Owner Admin ID",
-          "type": "string",
-          "list": "froms"
+          "list": "admins"
         },
         "unsubscribed": {
           "label": "Email Subscription",
@@ -1562,13 +1417,11 @@
       "inputs": {
         "contactId": {
           "label": "Contact ID",
-          "type": "string",
           "required": true
         },
-        "companyId": {
+        "intercomCompanyId": {
           "label": "Intercom Company ID",
           "description": "The Intercom \"id\" of the company, not your own Company ID.",
-          "type": "string",
           "required": true
         }
       },
@@ -1576,7 +1429,7 @@
         "method": "POST",
         "url": "https://api.{{credential.region}}.io/contacts/{{contactId}}/companies",
         "body": {
-          "id": "{{companyId}}"
+          "id": "{{intercomCompanyId}}"
         }
       },
       "outputs": {
@@ -1589,7 +1442,6 @@
       "inputs": {
         "contactId": {
           "label": "Contact ID",
-          "type": "string",
           "required": true
         },
         "page": {
@@ -1604,7 +1456,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.{{credential.region}}.io/contacts/{{contactId}}/notes"
       },
       "beforeRequest": "const perPage = (value) => {\n  if (value === '' || value === undefined) return 50;\n  const number = Number(value);\n  if (!Number.isInteger(number) || number < 1 || number > 150) throw new Error('Results Per Page must be a whole number from 1 to 150.');\n  return number;\n};\nconst page = inputs.page === '' || inputs.page === undefined ? 1 : Number(inputs.page);\nif (!Number.isInteger(page) || page < 1) throw new Error('Page must be a whole number of 1 or more.');\nrequest.query = {page, per_page: perPage(inputs.perPage)};\nreturn request;",
@@ -1634,54 +1485,43 @@
         },
         "adminAssigneeId": {
           "label": "Assigned Admin ID",
-          "type": "string",
-          "list": "froms"
+          "list": "admins"
         },
         "teamAssigneeId": {
-          "label": "Assigned Team ID",
-          "type": "string"
+          "label": "Assigned Team ID"
         },
         "contactId": {
-          "label": "Contact ID",
-          "type": "string"
+          "label": "Contact ID"
         },
         "tagId": {
           "label": "Tag ID",
-          "type": "string",
           "list": "tags"
         },
         "authorEmail": {
-          "label": "Author Email",
-          "type": "string"
+          "label": "Author Email"
         },
         "bodyContains": {
           "label": "First Message Contains",
-          "description": "Intercom matches single words of the first message best.",
-          "type": "string"
+          "description": "Intercom matches single words of the first message best."
         },
         "subjectContains": {
-          "label": "Subject Contains",
-          "type": "string"
+          "label": "Subject Contains"
         },
         "createdAfter": {
           "label": "Created After",
-          "description": "Intercom compares dates by calendar day in your workspace time zone.",
-          "type": "string"
+          "description": "Intercom compares dates by calendar day in your workspace time zone."
         },
         "createdBefore": {
           "label": "Created Before",
-          "description": "An ISO 8601 date and time, such as 2026-01-02T10:00:00Z.",
-          "type": "string"
+          "description": "An ISO 8601 date and time, such as 2026-01-02T10:00:00Z."
         },
         "updatedAfter": {
           "label": "Updated After",
-          "description": "An ISO 8601 date and time, such as 2026-01-02T10:00:00Z.",
-          "type": "string"
+          "description": "An ISO 8601 date and time, such as 2026-01-02T10:00:00Z."
         },
         "updatedBefore": {
           "label": "Updated Before",
-          "description": "An ISO 8601 date and time, such as 2026-01-02T10:00:00Z.",
-          "type": "string"
+          "description": "An ISO 8601 date and time, such as 2026-01-02T10:00:00Z."
         },
         "advancedQuery": {
           "label": "Advanced Query",
@@ -1695,8 +1535,7 @@
         },
         "startingAfter": {
           "label": "Starting After",
-          "description": "The next_starting_after value from the previous page.",
-          "type": "string"
+          "description": "The next_starting_after value from the previous page."
         }
       },
       "request": {
@@ -1712,7 +1551,6 @@
       "inputs": {
         "conversationId": {
           "label": "Conversation ID",
-          "type": "string",
           "required": true,
           "list": "conversations"
         },
@@ -1737,8 +1575,7 @@
         },
         "snoozedUntil": {
           "label": "Snooze Until",
-          "description": "Required for Snooze; must be in the future.",
-          "type": "string"
+          "description": "Required for Snooze; must be in the future."
         },
         "closingMessage": {
           "label": "Closing Message",
@@ -1748,8 +1585,7 @@
         "adminId": {
           "label": "Acting Admin ID",
           "description": "Leave empty to act as the admin who owns this connection.",
-          "type": "string",
-          "list": "froms"
+          "list": "admins"
         }
       },
       "request": {
@@ -1767,14 +1603,12 @@
       "inputs": {
         "conversationId": {
           "label": "Conversation ID",
-          "type": "string",
           "required": true,
           "list": "conversations"
         },
         "ticketTypeId": {
           "label": "Ticket Type ID",
           "description": "From List Ticket Types.",
-          "type": "string",
           "required": true,
           "list": "ticket_types"
         },
@@ -1800,12 +1634,10 @@
         "ticketId": {
           "label": "Ticket ID",
           "description": "The ticket \"id\" from Intercom, not the inbox ticket number.",
-          "type": "string",
           "required": true
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.{{credential.region}}.io/tickets/{{ticketId}}"
       },
       "outputs": {
@@ -1818,7 +1650,6 @@
       "inputs": {
         "ticketTypeId": {
           "label": "Ticket Type ID",
-          "type": "string",
           "list": "ticket_types"
         },
         "state": {
@@ -1858,37 +1689,30 @@
           ]
         },
         "contactId": {
-          "label": "Contact ID",
-          "type": "string"
+          "label": "Contact ID"
         },
         "adminAssigneeId": {
           "label": "Assigned Admin ID",
-          "type": "string",
-          "list": "froms"
+          "list": "admins"
         },
         "titleContains": {
-          "label": "Title Contains",
-          "type": "string"
+          "label": "Title Contains"
         },
         "createdAfter": {
           "label": "Created After",
-          "description": "Intercom compares dates by calendar day in your workspace time zone.",
-          "type": "string"
+          "description": "Intercom compares dates by calendar day in your workspace time zone."
         },
         "createdBefore": {
           "label": "Created Before",
-          "description": "An ISO 8601 date and time, such as 2026-01-02T10:00:00Z.",
-          "type": "string"
+          "description": "An ISO 8601 date and time, such as 2026-01-02T10:00:00Z."
         },
         "updatedAfter": {
           "label": "Updated After",
-          "description": "An ISO 8601 date and time, such as 2026-01-02T10:00:00Z.",
-          "type": "string"
+          "description": "An ISO 8601 date and time, such as 2026-01-02T10:00:00Z."
         },
         "updatedBefore": {
           "label": "Updated Before",
-          "description": "An ISO 8601 date and time, such as 2026-01-02T10:00:00Z.",
-          "type": "string"
+          "description": "An ISO 8601 date and time, such as 2026-01-02T10:00:00Z."
         },
         "advancedQuery": {
           "label": "Advanced Query",
@@ -1902,8 +1726,7 @@
         },
         "startingAfter": {
           "label": "Starting After",
-          "description": "The next_starting_after value from the previous page.",
-          "type": "string"
+          "description": "The next_starting_after value from the previous page."
         }
       },
       "request": {
@@ -1920,7 +1743,6 @@
         "ticketId": {
           "label": "Ticket ID",
           "description": "The ticket \"id\" from Intercom, not the inbox ticket number.",
-          "type": "string",
           "required": true
         },
         "messageType": {
@@ -1947,8 +1769,7 @@
         "adminId": {
           "label": "Admin ID",
           "description": "Leave empty to reply as the admin who owns this connection.",
-          "type": "string",
-          "list": "froms"
+          "list": "admins"
         },
         "attachmentUrls": {
           "label": "Attachment URLs",
@@ -1979,7 +1800,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.{{credential.region}}.io/ticket_types"
       },
       "afterResponse": "const all = inputs.includeArchived === 'true';\nconst isRecord = (value) => typeof value === 'object' && value !== null && !Array.isArray(value);\nreturn {items: (response.data ?? response.ticket_types ?? []).filter((type) => all || type.archived !== true).map((type) => ({\n  id: type.id, name: type.name, description: type.description ?? null, category: type.category ?? null, archived: type.archived === true,\n  attributes: (type.ticket_type_attributes?.data ?? []).filter(isRecord).filter((attribute) => all || attribute.archived !== true).map((attribute) => ({\n    name: attribute.name, data_type: attribute.data_type, required_to_create: attribute.required_to_create === true, visible_to_contacts: attribute.visible_to_contacts === true,\n    options: !isRecord(attribute.input_options) || !Array.isArray(attribute.input_options.list_options) ? [] : attribute.input_options.list_options.filter(isRecord).map((option) => ({id: option.id, label: option.label}))\n  }))\n}))};"
@@ -1988,7 +1808,6 @@
       "label": "List Admins",
       "description": "Lists the admins (teammates) in the workspace.",
       "request": {
-        "method": "GET",
         "url": "https://api.{{credential.region}}.io/admins"
       },
       "outputs": {
@@ -2000,7 +1819,6 @@
       "label": "List Teams",
       "description": "Lists the teams in the workspace.",
       "request": {
-        "method": "GET",
         "url": "https://api.{{credential.region}}.io/teams"
       },
       "afterResponse": "return {items: (response.teams ?? []).map((team) => ({id: team.id, name: team.name ?? null, admin_ids: Array.isArray(team.admin_ids) ? team.admin_ids : []}))};"
@@ -2034,7 +1852,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.{{credential.region}}.io/data_attributes",
         "query": {
           "model": "{{model}}"
@@ -2049,12 +1866,10 @@
       "inputs": {
         "name": {
           "label": "Tag Name",
-          "type": "string",
           "required": true
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.{{credential.region}}.io/tags"
       },
       "outputs": {
@@ -2085,12 +1900,10 @@
         },
         "value": {
           "label": "Value",
-          "type": "string",
           "required": true
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.{{credential.region}}.io/companies"
       },
       "outputs": {
@@ -2105,12 +1918,10 @@
       "inputs": {
         "tagId": {
           "label": "Tag ID",
-          "type": "string",
           "list": "tags"
         },
         "segmentId": {
-          "label": "Segment ID",
-          "type": "string"
+          "label": "Segment ID"
         },
         "page": {
           "label": "Page",
@@ -2124,7 +1935,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.{{credential.region}}.io/companies"
       },
       "beforeRequest": "const perPage = (value) => {\n  if (value === '' || value === undefined) return 50;\n  const number = Number(value);\n  if (!Number.isInteger(number) || number < 1 || number > 150) throw new Error('Results Per Page must be a whole number from 1 to 150.');\n  return number;\n};\nconst page = inputs.page === '' || inputs.page === undefined ? 1 : Number(inputs.page);\nif (!Number.isInteger(page) || page < 1) throw new Error('Page must be a whole number of 1 or more.');\nconst tag = (inputs.tagId || '').trim() || undefined, segment = (inputs.segmentId || '').trim() || undefined;\nif (tag && segment) throw new Error('Filter by Tag ID or Segment ID, not both.');\nconst size = perPage(inputs.perPage);\nif (tag || segment) request.query = {...(tag ? {tag_id: tag} : {}), ...(segment ? {segment_id: segment} : {}), page, per_page: size};\nelse {\n  request.method = 'POST';\n  request.url = '/companies/list';\n  request.query = {page, per_page: size, order: 'desc'};\n}\nreturn request;",
@@ -2136,7 +1946,6 @@
       "inputs": {
         "phrase": {
           "label": "Phrase",
-          "type": "string",
           "required": true
         },
         "state": {
@@ -2160,12 +1969,10 @@
         },
         "helpCenterId": {
           "label": "Help Center ID",
-          "description": "Only needed when the workspace has several Help Centers.",
-          "type": "string"
+          "description": "Only needed when the workspace has several Help Centers."
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.{{credential.region}}.io/articles/search"
       },
       "beforeRequest": "const text = (value, label) => { const trimmed = (value || '').trim(); if (trimmed === '') throw new Error(label + ' is required.'); return trimmed; };\nrequest.query = {phrase: text(inputs.phrase, 'Phrase'), state: inputs.state || 'published', ...((inputs.helpCenterId || '').trim() ? {help_center_id: inputs.helpCenterId.trim()} : {})};\nreturn request;",
@@ -2183,20 +1990,18 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.{{credential.region}}.io/segments"
       },
       "beforeRequest": "if (inputs.includeCount === 'true') request.query.include_count = 'true';\nreturn request;",
       "afterResponse": "return {items: (response.segments ?? []).map((segment) => ({id: segment.id, name: segment.name ?? null, person_type: segment.person_type ?? null, count: segment.count ?? null,\n  created_at: segment.created_at ?? null, updated_at: segment.updated_at ?? null}))};"
     },
     "add_note_to_contact": {
-      "label": "Add Note to Contact (by ID)",
+      "label": "Add Note to Contact",
       "description": "Adds an internal note to a contact by contact ID.",
       "inputs": {
         "contactId": {
           "label": "Contact ID",
           "description": "The Intercom contact ID.",
-          "type": "string",
           "required": true
         },
         "body": {
@@ -2208,8 +2013,7 @@
         "adminId": {
           "label": "Author Admin ID",
           "description": "The admin shown as the author. Leave empty to use the admin who owns this connection.",
-          "type": "string",
-          "list": "froms"
+          "list": "admins"
         }
       },
       "request": {
@@ -2228,7 +2032,6 @@
         "contactId": {
           "label": "Contact ID",
           "description": "The Intercom contact ID (user or lead).",
-          "type": "string",
           "required": true
         },
         "body": {
@@ -2254,12 +2057,10 @@
       "inputs": {
         "title": {
           "label": "Title",
-          "type": "string",
           "required": true
         },
         "description": {
-          "label": "Description",
-          "type": "string"
+          "label": "Description"
         },
         "body": {
           "label": "Body",
@@ -2269,8 +2070,7 @@
         "authorId": {
           "label": "Author Admin ID",
           "description": "Leave empty to use the admin who owns this connection.",
-          "type": "string",
-          "list": "froms"
+          "list": "admins"
         },
         "state": {
           "label": "State",
@@ -2289,8 +2089,7 @@
         },
         "collectionId": {
           "label": "Parent Collection ID",
-          "description": "The Help Center collection to put the article in. Leave empty for none.",
-          "type": "string"
+          "description": "The Help Center collection to put the article in. Leave empty for none."
         }
       },
       "request": {

@@ -791,7 +791,8 @@
         "template": {
           "label": "Template",
           "description": "The approved template to send, as JSON {\"name\", \"language\"}, such as {\"name\":\"order_update\",\"language\":\"en_US\"}.",
-          "required": true
+          "required": true,
+          "type": "json"
         },
         "headerType": {
           "label": "Header Type",
@@ -882,6 +883,50 @@
         "messageId": "$.messages[0].id"
       },
       "afterResponse": "const camel = (v) => Array.isArray(v) ? v.map(camel) : v && Object.prototype.toString.call(v) === '[object Object]' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k.replace(/[\\-_]([a-z0-9])/gi, (m, l) => l.toUpperCase()), camel(x)])) : v; return camel(response);"
+    }
+  },
+  "triggers": {
+    "new_message_received": {
+      "label": "New Message Received",
+      "description": "Triggers when a new WhatsApp message is received. Copy the trigger's address into your [Kapso dashboard](https://app.kapso.ai) as the Webhook destination URL of your WhatsApp number.",
+      "webhook": {},
+      "afterResponse": "let phoneNumberId, displayPhoneNumber; const contacts = [], messages = [];\nfor (const e of Array.isArray(response?.entry) ? response.entry : []) for (const c of Array.isArray(e.changes) ? e.changes : []) { const v = c.value; if (!v) continue;\n  if (v.metadata) { phoneNumberId = v.metadata.phone_number_id; displayPhoneNumber = v.metadata.display_phone_number; }\n  if (Array.isArray(v.contacts)) contacts.push(...v.contacts); if (Array.isArray(v.messages)) messages.push(...v.messages); }\nreturn messages.map((m) => ({ ...m, phoneNumberId, displayPhoneNumber, contacts }));"
+    },
+    "message_status_update": {
+      "label": "Message Status Update",
+      "description": "Triggers when a message status changes (sent, delivered, read). Copy the trigger's address into your [Kapso dashboard](https://app.kapso.ai) as the Webhook destination URL of your WhatsApp number.",
+      "inputs": {
+        "statusFilter": {
+          "label": "Status Filter",
+          "description": "Only trigger for a specific status. Leave as All to trigger for any status change.",
+          "type": "select",
+          "defaultValue": "all",
+          "options": [
+            {
+              "value": "all",
+              "label": "All"
+            },
+            {
+              "value": "sent",
+              "label": "Sent"
+            },
+            {
+              "value": "delivered",
+              "label": "Delivered"
+            },
+            {
+              "value": "read",
+              "label": "Read"
+            },
+            {
+              "value": "failed",
+              "label": "Failed"
+            }
+          ]
+        }
+      },
+      "webhook": {},
+      "afterResponse": "let phoneNumberId, displayPhoneNumber; const statuses = [], filter = inputs.statusFilter;\nfor (const e of Array.isArray(response?.entry) ? response.entry : []) for (const c of Array.isArray(e.changes) ? e.changes : []) { const v = c.value; if (!v) continue;\n  if (v.metadata) { phoneNumberId = v.metadata.phone_number_id; displayPhoneNumber = v.metadata.display_phone_number; }\n  if (Array.isArray(v.statuses)) statuses.push(...v.statuses); }\nreturn statuses.filter((s) => !filter || filter === 'all' || s.status === filter).map((s) => ({ ...s, phoneNumberId, displayPhoneNumber }));"
     }
   }
 }

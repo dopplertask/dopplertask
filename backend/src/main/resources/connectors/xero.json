@@ -60,18 +60,6 @@
       "label": "$.Name",
       "value": "$.ContactID"
     },
-    "from_bank_accounts": {
-      "request": {
-        "method": "GET",
-        "url": "https://api.xero.com/api.xro/2.0/Accounts",
-        "headers": {
-          "Xero-Tenant-Id": "{{tenant_id}}"
-        }
-      },
-      "items": "$.Accounts",
-      "label": "$.Name",
-      "value": "$.AccountID"
-    },
     "authorised_invoices": {
       "request": {
         "method": "GET",
@@ -157,21 +145,48 @@
       "items": "$.CreditNotes",
       "label": "$.CreditNoteNumber",
       "value": "$.CreditNoteID"
+    },
+    "bank_accounts": {
+      "request": {
+        "method": "GET",
+        "url": "https://api.xero.com/api.xro/2.0/Accounts",
+        "headers": {
+          "Xero-Tenant-Id": "{{tenant_id}}"
+        },
+        "query": {
+          "where": "Type==\"BANK\" OR EnablePaymentsToAccount==true"
+        }
+      },
+      "items": "$.Accounts",
+      "label": "$.Name",
+      "value": "$.AccountID"
+    },
+    "account_codes": {
+      "request": {
+        "method": "GET",
+        "url": "https://api.xero.com/api.xro/2.0/Accounts",
+        "headers": {
+          "Xero-Tenant-Id": "{{tenant_id}}"
+        }
+      },
+      "items": "$.Accounts",
+      "label": "$.Name",
+      "value": "$.Code"
     }
   },
   "actions": {
     "xero_create_contact": {
       "label": "Create or Update Contact",
-      "description": "Create Xero Contact",
+      "description": "Creates a contact, or updates the contact with the given Contact ID.",
       "inputs": {
         "tenant_id": {
-          "label": "Organization",
+          "label": "Organisation",
           "required": true,
           "list": "tenants"
         },
         "contact_id": {
           "label": "Contact ID",
-          "description": "ID of the contact to create invoice for.",
+          "description": "Leave empty to create a contact; give an ID to update that contact.",
           "list": "contacts"
         },
         "name": {
@@ -195,10 +210,10 @@
     },
     "xero_create_invoice": {
       "label": "Create or Update Invoice",
-      "description": "Create Xero Invoice",
+      "description": "Creates a sales invoice with one line, or updates the invoice with the given Invoice ID.",
       "inputs": {
         "tenant_id": {
-          "label": "Organization",
+          "label": "Organisation",
           "required": true,
           "list": "tenants"
         },
@@ -283,7 +298,7 @@
       "description": "Transfers money between two bank accounts in Xero.",
       "inputs": {
         "tenant_id": {
-          "label": "Organization",
+          "label": "Organisation",
           "required": true,
           "list": "tenants"
         },
@@ -291,13 +306,13 @@
           "label": "From Bank Account",
           "description": "The bank account the money leaves.",
           "required": true,
-          "list": "from_bank_accounts"
+          "list": "bank_accounts"
         },
         "to_bank_account_id": {
           "label": "To Bank Account",
           "description": "The bank account the money arrives in.",
           "required": true,
-          "list": "from_bank_accounts"
+          "list": "bank_accounts"
         },
         "amount": {
           "label": "Amount",
@@ -340,7 +355,7 @@
       "description": "Applies a payment to an invoice.",
       "inputs": {
         "tenant_id": {
-          "label": "Organization",
+          "label": "Organisation",
           "required": true,
           "list": "tenants"
         },
@@ -354,7 +369,7 @@
           "label": "Bank Account",
           "description": "Select a bank account",
           "required": true,
-          "list": "from_bank_accounts"
+          "list": "bank_accounts"
         },
         "amount": {
           "label": "Amount",
@@ -391,7 +406,7 @@
       "description": "Creates a new purchase order for a contact.",
       "inputs": {
         "tenant_id": {
-          "label": "Organization",
+          "label": "Organisation",
           "required": true,
           "list": "tenants"
         },
@@ -505,7 +520,7 @@
       "description": "Updates details of an existing purchase order.",
       "inputs": {
         "tenant_id": {
-          "label": "Organization",
+          "label": "Organisation",
           "required": true,
           "list": "tenants"
         },
@@ -573,12 +588,109 @@
       },
       "beforeRequest": "const flag = (v) => v === 'true' ? true : v === 'false' ? false : undefined;\nconst optional = {Status: inputs.status, DeliveryAddress: inputs.delivery_address, AttentionTo: inputs.attention_to, Telephone: inputs.telephone,\n  DeliveryInstructions: inputs.delivery_instructions, ExpectedArrivalDate: inputs.expected_arrival_date};\nconst sent = flag(inputs.sent_to_contact);\nrequest.body = {PurchaseOrders: [{PurchaseOrderID: inputs.purchase_order_id, ...Object.fromEntries(Object.entries(optional).filter(([, v]) => v)),\n  ...(typeof sent === 'boolean' ? {SentToContact: sent} : {})}]};\nreturn request;"
     },
+    "xero_upload_attachment": {
+      "label": "Upload Attachment",
+      "description": "Uploads an attachment to a specific Xero resource.",
+      "inputs": {
+        "tenant_id": {
+          "label": "Organisation",
+          "required": true,
+          "list": "tenants"
+        },
+        "resource_type": {
+          "label": "Resource Type",
+          "description": "The Xero resource to attach the file to. Receipt works only on connections that were granted the accounting.classicexpenses permission.",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "Invoices",
+              "label": "Invoice"
+            },
+            {
+              "value": "CreditNotes",
+              "label": "Credit Note"
+            },
+            {
+              "value": "PurchaseOrders",
+              "label": "Purchase Order"
+            },
+            {
+              "value": "Quotes",
+              "label": "Quote"
+            },
+            {
+              "value": "BankTransfers",
+              "label": "Bank Transfer"
+            },
+            {
+              "value": "BankTransactions",
+              "label": "Bank Transaction"
+            },
+            {
+              "value": "Contacts",
+              "label": "Contact"
+            },
+            {
+              "value": "Accounts",
+              "label": "Account"
+            },
+            {
+              "value": "ManualJournals",
+              "label": "Manual Journal"
+            },
+            {
+              "value": "Receipts",
+              "label": "Receipt"
+            },
+            {
+              "value": "RepeatingInvoices",
+              "label": "Repeating Invoice"
+            }
+          ]
+        },
+        "resource_id": {
+          "label": "Resource ID",
+          "description": "Xero ID (a GUID) of the record to attach the file to, such as the InvoiceID.",
+          "required": true
+        },
+        "file": {
+          "label": "File",
+          "description": "The file to upload. Max 10MB per Xero limits.",
+          "type": "file",
+          "required": true
+        },
+        "file_name": {
+          "label": "File Name (override)",
+          "description": "Optional file name to use in Xero. Avoid characters: < > : \" / \\ | ? *"
+        },
+        "content_type": {
+          "label": "Content Type",
+          "description": "MIME type of the file (e.g., image/png). If not set, will be inferred or default to application/octet-stream."
+        },
+        "include_online": {
+          "label": "Include with Online Invoice",
+          "description": "Only applicable to ACCREC invoices and ACCREC credit notes. Adds IncludeOnline=true query parameter.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.xero.com/api.xro/2.0/{{resource_type}}/{{resource_id}}/Attachments",
+        "headers": {
+          "Xero-Tenant-Id": "{{tenant_id}}"
+        },
+        "body": "{{file}}"
+      },
+      "beforeRequest": "const types = {pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', bmp: 'image/bmp', tif: 'image/tiff', tiff: 'image/tiff', webp: 'image/webp',\n  csv: 'text/csv', txt: 'text/plain', rtf: 'application/rtf', xml: 'application/xml', json: 'application/json', doc: 'application/msword',\n  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',\n  ppt: 'application/vnd.ms-powerpoint', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', odt: 'application/vnd.oasis.opendocument.text',\n  ods: 'application/vnd.oasis.opendocument.spreadsheet', zip: 'application/zip', eml: 'message/rfc822', msg: 'application/vnd.ms-outlook'};\nconst extensionOf = (v) => v.includes('.') ? v.split('.').pop() || undefined : undefined;\nconst name = inputs.file_name || inputs.file, extension = (extensionOf(inputs.file) ?? extensionOf(name) ?? '').replace(/^\\./, '').toLowerCase();\nconst online = inputs.include_online === 'true' && (inputs.resource_type === 'Invoices' || inputs.resource_type === 'CreditNotes');\nrequest.url += '/' + encodeURIComponent(name) + (online ? '?IncludeOnline=true' : '');\nrequest.headers['Content-Type'] = inputs.content_type || types[extension] || 'application/octet-stream';\nreturn request;"
+    },
     "xero_add_items_to_sales_invoice": {
       "label": "Add Items to Existing Sales Invoice",
       "description": "Adds line items to an existing sales invoice (ACCREC).",
       "inputs": {
         "tenant_id": {
-          "label": "Organization",
+          "label": "Organisation",
           "required": true,
           "list": "tenants"
         },
@@ -614,7 +726,7 @@
       "description": "Creates a new credit note for a contact.",
       "inputs": {
         "tenant_id": {
-          "label": "Organization",
+          "label": "Organisation",
           "required": true,
           "list": "tenants"
         },
@@ -707,86 +819,12 @@
       },
       "beforeRequest": "const has = (v) => v !== undefined && v !== null && v !== '';\nconst json = (v) => has(v) ? JSON.parse(v) : undefined;\nconst lines = json(inputs.line_items);\nrequest.body = {CreditNotes: [{Type: inputs.type, Contact: {ContactID: inputs.contact_id}, ...(inputs.date ? {Date: inputs.date} : {}),\n  ...(inputs.status ? {Status: inputs.status} : {}), ...(inputs.line_amount_types ? {LineAmountTypes: inputs.line_amount_types} : {}),\n  ...(inputs.currency_code ? {CurrencyCode: inputs.currency_code} : {}), ...(inputs.credit_note_number ? {CreditNoteNumber: inputs.credit_note_number} : {}),\n  ...(inputs.reference && inputs.type === 'ACCRECCREDIT' ? {Reference: inputs.reference} : {}), ...(inputs.branding_theme_id ? {BrandingThemeID: inputs.branding_theme_id} : {}),\n  ...(Array.isArray(lines) && lines.length > 0 ? {LineItems: lines} : {})}]};\nreturn request;"
     },
-    "xero_create_inventory_item": {
-      "label": "Create Inventory Item",
-      "description": "Creates a new inventory item in Xero.",
-      "inputs": {
-        "tenant_id": {
-          "label": "Organization",
-          "required": true,
-          "list": "tenants"
-        },
-        "code": {
-          "label": "Item Code",
-          "required": true
-        },
-        "name": {
-          "label": "Name"
-        },
-        "description": {
-          "label": "Sales Description",
-          "type": "multiline"
-        },
-        "purchase_description": {
-          "label": "Purchase Description",
-          "type": "multiline"
-        },
-        "is_sold": {
-          "label": "Is Sold",
-          "type": "boolean",
-          "defaultValue": "true"
-        },
-        "is_purchased": {
-          "label": "Is Purchased",
-          "type": "boolean",
-          "defaultValue": "true"
-        },
-        "sales_details": {
-          "label": "Sales Details",
-          "type": "json",
-          "defaultValue": "{\"UnitPrice\": 0}"
-        },
-        "sales_account_id": {
-          "label": "Account",
-          "description": "Select an account",
-          "list": "from_bank_accounts"
-        },
-        "purchase_details": {
-          "label": "Purchase Details",
-          "type": "json",
-          "defaultValue": "{\"UnitPrice\": 0}"
-        },
-        "purchase_account_id": {
-          "label": "Account",
-          "description": "Select an account",
-          "list": "from_bank_accounts"
-        },
-        "cogs_account_id": {
-          "label": "Account",
-          "description": "Select an account",
-          "list": "from_bank_accounts"
-        },
-        "inventory_asset_account_id": {
-          "label": "Account",
-          "description": "Select an account",
-          "list": "from_bank_accounts"
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://api.xero.com/api.xro/2.0/Items",
-        "headers": {
-          "Xero-Tenant-Id": "{{tenant_id}}"
-        }
-      },
-      "beforeRequest": "const has = (v) => v !== undefined && v !== null && v !== '';\nconst json = (v) => has(v) ? JSON.parse(v) : undefined;\nconst flag = (v) => v === 'true' ? true : v === 'false' ? false : undefined;\nconst text = (v) => typeof v === 'string' && v.trim().length > 0 ? v.trim() : undefined;\nconst isRecord = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst records = (body, key) => isRecord(body) && Array.isArray(body[key]) ? body[key].filter(isRecord) : [];\nconst ids = [inputs.sales_account_id, inputs.purchase_account_id, inputs.cogs_account_id, inputs.inventory_asset_account_id];\nconst codes = new Map();\nif (ids.some((v) => typeof v === 'string' && v.trim().length > 0)) {\n  const body = call({method: 'GET', url: '/Accounts', headers: request.headers});\n  records(body, 'Accounts').forEach((a) => { const id = text(a.AccountID) && a.AccountID, code = text(a.Code) && a.Code; if (id && code) codes.set(id, code); });\n}\nconst codeOf = (v) => { if (typeof v !== 'string' || v.trim().length === 0) return undefined; const t = v.trim(); if (codes.get(t)) return codes.get(t); if ([...codes.values()].includes(t)) return t;\n  throw new Error('Xero account ' + t + ' was not found or has no account code; items can only use accounts that have a code.'); };\nconst [sales, purchase, cogs, inventory] = ids.map(codeOf);\nconst sold = flag(inputs.is_sold), bought = flag(inputs.is_purchased), salesDetails = json(inputs.sales_details), purchaseDetails = json(inputs.purchase_details);\nrequest.body = {Code: inputs.code, ...(inputs.name ? {Name: inputs.name} : {}), ...(typeof sold === 'boolean' ? {IsSold: sold} : {}),\n  ...(typeof bought === 'boolean' ? {IsPurchased: bought} : {}), ...(inputs.description ? {Description: inputs.description} : {}),\n  ...(inputs.purchase_description ? {PurchaseDescription: inputs.purchase_description} : {}),\n  ...(salesDetails || sales ? {SalesDetails: {...(salesDetails || {}), ...(sales ? {AccountCode: sales} : {})}} : {}),\n  ...(purchaseDetails || purchase || cogs ? {PurchaseDetails: {...(purchaseDetails || {}), ...(purchase ? {AccountCode: purchase} : {}), ...(cogs ? {COGSAccountCode: cogs} : {})}} : {}),\n  ...(inventory ? {InventoryAssetAccountCode: inventory, IsTrackedAsInventory: true} : {})};\nreturn request;"
-    },
     "xero_create_project": {
       "label": "Create Project",
       "description": "Creates a new project for a contact.",
       "inputs": {
         "tenant_id": {
-          "label": "Organization",
+          "label": "Organisation",
           "required": true,
           "list": "tenants"
         },
@@ -824,7 +862,7 @@
       "description": "Updates details of an existing sales invoice (ACCREC).",
       "inputs": {
         "tenant_id": {
-          "label": "Organization",
+          "label": "Organisation",
           "required": true,
           "list": "tenants"
         },
@@ -918,7 +956,7 @@
       "description": "Creates a repeating sales invoice (Accounts Receivable).",
       "inputs": {
         "tenant_id": {
-          "label": "Organization",
+          "label": "Organisation",
           "required": true,
           "list": "tenants"
         },
@@ -1076,7 +1114,7 @@
       "description": "Finds a contact by name or account number (or SearchTerm).",
       "inputs": {
         "tenant_id": {
-          "label": "Organization",
+          "label": "Organisation",
           "required": true,
           "list": "tenants"
         },
@@ -1136,7 +1174,7 @@
       "description": "Finds an invoice by number or reference.",
       "inputs": {
         "tenant_id": {
-          "label": "Organization",
+          "label": "Organisation",
           "required": true,
           "list": "tenants"
         },
@@ -1203,7 +1241,7 @@
       "description": "Finds an item by name or code.",
       "inputs": {
         "tenant_id": {
-          "label": "Organization",
+          "label": "Organisation",
           "required": true,
           "list": "tenants"
         },
@@ -1247,7 +1285,7 @@
       "description": "Finds a purchase order by given parameters.",
       "inputs": {
         "tenant_id": {
-          "label": "Organization",
+          "label": "Organisation",
           "required": true,
           "list": "tenants"
         },
@@ -1339,7 +1377,7 @@
       "description": "Returns a list of history records for a given invoice ID.",
       "inputs": {
         "tenant_id": {
-          "label": "Organization",
+          "label": "Organisation",
           "required": true,
           "list": "tenants"
         },
@@ -1363,7 +1401,7 @@
       "description": "Finds or creates a specific contact.",
       "inputs": {
         "tenant_id": {
-          "label": "Organization",
+          "label": "Organisation",
           "required": true,
           "list": "tenants"
         },
@@ -1402,7 +1440,7 @@
       "description": "Gets the settings of a Xero organisation, such as base currency, tax settings and financial year end.",
       "inputs": {
         "tenant_id": {
-          "label": "Organization",
+          "label": "Organisation",
           "required": true,
           "list": "tenants"
         }
@@ -1421,7 +1459,7 @@
       "description": "Gets one invoice or bill by its ID or invoice number, including line items.",
       "inputs": {
         "tenant_id": {
-          "label": "Organization",
+          "label": "Organisation",
           "required": true,
           "list": "tenants"
         },
@@ -1447,7 +1485,7 @@
       "description": "Searches sales invoices and bills by type, status, contact, date range or text, one page at a time.",
       "inputs": {
         "tenant_id": {
-          "label": "Organization",
+          "label": "Organisation",
           "required": true,
           "list": "tenants"
         },
@@ -1545,7 +1583,7 @@
       "description": "Gets one contact by ID, with addresses and phone numbers.",
       "inputs": {
         "tenant_id": {
-          "label": "Organization",
+          "label": "Organisation",
           "required": true,
           "list": "tenants"
         },
@@ -1571,7 +1609,7 @@
       "description": "Archives a contact so it no longer appears in contact lists.",
       "inputs": {
         "tenant_id": {
-          "label": "Organization",
+          "label": "Organisation",
           "required": true,
           "list": "tenants"
         },
@@ -1597,7 +1635,7 @@
       "description": "Creates a product or service item, or updates the item that already has this code.",
       "inputs": {
         "tenant_id": {
-          "label": "Organization",
+          "label": "Organisation",
           "required": true,
           "list": "tenants"
         },
@@ -1633,7 +1671,8 @@
         },
         "sales_account_code": {
           "label": "Sales Account Code",
-          "description": "Revenue account code, e.g. 200. Use List Accounts to find codes."
+          "description": "Revenue account code, e.g. 200.",
+          "list": "account_codes"
         },
         "sales_tax_type": {
           "label": "Sales Tax Type",
@@ -1646,7 +1685,8 @@
         },
         "purchase_account_code": {
           "label": "Purchase Account Code",
-          "description": "Expense account code, e.g. 400. Not used for tracked inventory items."
+          "description": "Expense account code, e.g. 400. Not used for tracked inventory items.",
+          "list": "account_codes"
         },
         "purchase_tax_type": {
           "label": "Purchase Tax Type",
@@ -1654,11 +1694,13 @@
         },
         "cogs_account_code": {
           "label": "COGS Account Code",
-          "description": "Cost of goods sold account code; required for tracked inventory items."
+          "description": "Cost of goods sold account code; required for tracked inventory items.",
+          "list": "account_codes"
         },
         "inventory_asset_account_code": {
           "label": "Inventory Asset Account Code",
-          "description": "Inventory asset account code. Setting it makes the item a tracked inventory item."
+          "description": "Inventory asset account code. Setting it makes the item a tracked inventory item.",
+          "list": "account_codes"
         }
       },
       "request": {
@@ -1676,7 +1718,7 @@
       "description": "Searches payments by invoice, status, payment type or date range, one page at a time.",
       "inputs": {
         "tenant_id": {
-          "label": "Organization",
+          "label": "Organisation",
           "required": true,
           "list": "tenants"
         },
@@ -1774,7 +1816,7 @@
       "description": "Deletes (reverses) a payment so the invoice or bill is unpaid again.",
       "inputs": {
         "tenant_id": {
-          "label": "Organization",
+          "label": "Organisation",
           "required": true,
           "list": "tenants"
         },
@@ -1799,7 +1841,7 @@
       "description": "Voids an approved invoice or bill, or deletes it while it is still a draft or awaiting approval.",
       "inputs": {
         "tenant_id": {
-          "label": "Organization",
+          "label": "Organisation",
           "required": true,
           "list": "tenants"
         },
@@ -1825,7 +1867,7 @@
       "description": "Searches spend and receive money transactions by type, status, bank account, contact or date range.",
       "inputs": {
         "tenant_id": {
-          "label": "Organization",
+          "label": "Organisation",
           "required": true,
           "list": "tenants"
         },
@@ -1884,7 +1926,7 @@
         "bank_account_id": {
           "label": "Bank Account ID",
           "description": "Xero AccountID of the bank account (List Accounts).",
-          "list": "from_bank_accounts"
+          "list": "bank_accounts"
         },
         "contact_id": {
           "label": "Contact ID",
@@ -1938,7 +1980,7 @@
       "description": "Creates a manual journal with balanced debit and credit lines.",
       "inputs": {
         "tenant_id": {
-          "label": "Organization",
+          "label": "Organisation",
           "required": true,
           "list": "tenants"
         },
@@ -2010,7 +2052,7 @@
       "description": "Lists the chart of accounts, optionally filtered by type, class or status.",
       "inputs": {
         "tenant_id": {
-          "label": "Organization",
+          "label": "Organisation",
           "required": true,
           "list": "tenants"
         },
@@ -2151,7 +2193,7 @@
       "description": "Lists the tax rates of the organisation and the TaxType codes to use on line items.",
       "inputs": {
         "tenant_id": {
-          "label": "Organization",
+          "label": "Organisation",
           "required": true,
           "list": "tenants"
         },
@@ -2180,7 +2222,7 @@
       "description": "Lists tracking categories (such as Region or Department) and their options.",
       "inputs": {
         "tenant_id": {
-          "label": "Organization",
+          "label": "Organisation",
           "required": true,
           "list": "tenants"
         },
@@ -2205,7 +2247,7 @@
       "description": "Runs the Profit and Loss report for a date range, with optional comparison periods.",
       "inputs": {
         "tenant_id": {
-          "label": "Organization",
+          "label": "Organisation",
           "required": true,
           "list": "tenants"
         },
@@ -2264,7 +2306,7 @@
       "description": "Runs the Balance Sheet report as at a date, with optional comparison periods.",
       "inputs": {
         "tenant_id": {
-          "label": "Organization",
+          "label": "Organisation",
           "required": true,
           "list": "tenants"
         },
@@ -2320,7 +2362,7 @@
       "description": "Runs the Bank Summary report: opening balance, cash in, cash out and closing balance per bank account.",
       "inputs": {
         "tenant_id": {
-          "label": "Organization",
+          "label": "Organisation",
           "required": true,
           "list": "tenants"
         },
@@ -2346,7 +2388,7 @@
       "description": "Runs the Trial Balance report as at a date.",
       "inputs": {
         "tenant_id": {
-          "label": "Organization",
+          "label": "Organisation",
           "required": true,
           "list": "tenants"
         },
@@ -2373,7 +2415,7 @@
       "description": "Runs the Executive Summary report: cash, profitability, balance sheet and performance ratios for a month.",
       "inputs": {
         "tenant_id": {
-          "label": "Organization",
+          "label": "Organisation",
           "required": true,
           "list": "tenants"
         },
@@ -2397,7 +2439,7 @@
       "description": "Runs the Aged Receivables report for one customer: what they owe, by invoice and age.",
       "inputs": {
         "tenant_id": {
-          "label": "Organization",
+          "label": "Organisation",
           "required": true,
           "list": "tenants"
         },
@@ -2433,7 +2475,7 @@
       "description": "Runs the Aged Payables report for one supplier: what you owe them, by bill and age.",
       "inputs": {
         "tenant_id": {
-          "label": "Organization",
+          "label": "Organisation",
           "required": true,
           "list": "tenants"
         },
@@ -2469,7 +2511,7 @@
       "description": "Creates a sales invoice or a supplier bill for a contact ID with line items.",
       "inputs": {
         "tenant_id": {
-          "label": "Organisation ID",
+          "label": "Organisation",
           "description": "Xero tenant ID of the organisation to use, from List Organisations. Leave empty when the connection has only one organisation.",
           "list": "tenants"
         },
@@ -2574,7 +2616,7 @@
       "description": "Updates fields or line items of an existing invoice or bill by ID.",
       "inputs": {
         "tenant_id": {
-          "label": "Organisation ID",
+          "label": "Organisation",
           "description": "Xero tenant ID of the organisation to use, from List Organisations. Leave empty when the connection has only one organisation.",
           "list": "tenants"
         },
@@ -2643,7 +2685,7 @@
       "description": "Emails a sales invoice to its contact through Xero.",
       "inputs": {
         "tenant_id": {
-          "label": "Organisation ID",
+          "label": "Organisation",
           "description": "Xero tenant ID of the organisation to use, from List Organisations. Leave empty when the connection has only one organisation.",
           "list": "tenants"
         },
@@ -2666,7 +2708,7 @@
       "description": "Records a payment against an approved invoice or bill from a bank account.",
       "inputs": {
         "tenant_id": {
-          "label": "Organisation ID",
+          "label": "Organisation",
           "description": "Xero tenant ID of the organisation to use, from List Organisations. Leave empty when the connection has only one organisation.",
           "list": "tenants"
         },
@@ -2679,7 +2721,7 @@
         "account_id": {
           "label": "Account ID",
           "description": "AccountID of the bank account. Give this or Account Code.",
-          "list": "from_bank_accounts"
+          "list": "bank_accounts"
         },
         "account_code": {
           "label": "Account Code",
@@ -2716,7 +2758,7 @@
       "description": "Creates a customer or supplier credit note for a contact ID with line items.",
       "inputs": {
         "tenant_id": {
-          "label": "Organisation ID",
+          "label": "Organisation",
           "description": "Xero tenant ID of the organisation to use, from List Organisations. Leave empty when the connection has only one organisation.",
           "list": "tenants"
         },
@@ -2811,7 +2853,7 @@
       "description": "Applies part or all of a credit note to an invoice or bill.",
       "inputs": {
         "tenant_id": {
-          "label": "Organisation ID",
+          "label": "Organisation",
           "description": "Xero tenant ID of the organisation to use, from List Organisations. Leave empty when the connection has only one organisation.",
           "list": "tenants"
         },
@@ -2850,7 +2892,7 @@
       "description": "Creates a quote for a contact ID with line items.",
       "inputs": {
         "tenant_id": {
-          "label": "Organisation ID",
+          "label": "Organisation",
           "description": "Xero tenant ID of the organisation to use, from List Organisations. Leave empty when the connection has only one organisation.",
           "list": "tenants"
         },
@@ -2941,7 +2983,7 @@
       "description": "Creates a purchase order to a supplier contact ID with line items.",
       "inputs": {
         "tenant_id": {
-          "label": "Organisation ID",
+          "label": "Organisation",
           "description": "Xero tenant ID of the organisation to use, from List Organisations. Leave empty when the connection has only one organisation.",
           "list": "tenants"
         },
@@ -3038,7 +3080,7 @@
       "description": "Records a spend money or receive money transaction on a bank account.",
       "inputs": {
         "tenant_id": {
-          "label": "Organisation ID",
+          "label": "Organisation",
           "description": "Xero tenant ID of the organisation to use, from List Organisations. Leave empty when the connection has only one organisation.",
           "list": "tenants"
         },
@@ -3066,7 +3108,7 @@
         "bank_account_id": {
           "label": "Bank Account ID",
           "description": "AccountID of the bank account. Give this or Bank Account Code.",
-          "list": "from_bank_accounts"
+          "list": "bank_accounts"
         },
         "bank_account_code": {
           "label": "Bank Account Code",
@@ -3119,6 +3161,459 @@
       },
       "beforeRequest": "const has = (v) => v !== undefined && v !== null && v !== '';\nconst flag = (v) => v === 'true' ? true : v === 'false' ? false : undefined;\nconst text = (v) => typeof v === 'string' && v.trim().length > 0 ? v.trim() : undefined;\nconst isRecord = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst form = (v) => encodeURIComponent(v).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst withQuery = (url, pairs) => { const parts = pairs.filter(([, v]) => v !== undefined).map(([k, v]) => form(k) + '=' + form(String(v))); return parts.length ? url + '?' + parts.join('&') : url; };\nconst required = (v, field) => { const t = typeof v === 'string' ? v.trim() : ''; if (!t) throw new Error(field + ' is required.'); return t; };\nconst date = (v, field) => { if (!has(v)) return undefined; const t = v.trim(); if (!/^(\\d{4})-(\\d{2})-(\\d{2})$/.test(t)) throw new Error(field + ' must be a date in YYYY-MM-DD format.'); const d = new Date(t + 'T00:00:00Z'); if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== t) throw new Error(field + ' is not a valid calendar date.'); return t; };\nconst decimal = (v, field, places, positive) => { const t = typeof v === 'number' ? (Number.isFinite(v) ? String(v) : '') : typeof v === 'string' ? v.trim() : ''; if (!/^-?\\d+(\\.\\d+)?$/.test(t)) throw new Error(field + ' must be a plain number such as 12.5.'); const [whole, fraction = ''] = t.replace('-', '').split('.'); if (fraction.length > places) throw new Error(field + ' can have at most ' + places + ' decimal places (got ' + t + ').'); if ((whole.replace(/^0+/, '') + fraction).replace(/0+$/, '').length > 15) throw new Error(field + ' has more than 15 significant digits and cannot be sent exactly.'); const n = Number(t); if (positive && n <= 0) throw new Error(field + ' must be greater than zero.'); return n; };\nconst optionalDecimal = (v, field, places, positive) => v === undefined || v === null || v === '' ? undefined : decimal(v, field, places, positive);\nconst tenantOf = (v) => { const t = typeof v === 'string' ? v.trim() : ''; if (t) return t; const answer = call({method: 'GET', url: 'https://api.xero.com/connections'}); const list = (Array.isArray(answer) ? answer : []).filter((c) => isRecord(c) && typeof c.tenantId === 'string' && c.tenantId.trim().length > 0); if (list.length === 1) return list[0].tenantId; if (list.length === 0) throw new Error('No Xero organisation is connected. Reconnect the Xero connection and select an organisation.'); throw new Error('This connection has ' + list.length + ' Xero organisations; set Organisation ID to one of: ' + list.map((o) => (o.tenantName || 'Unnamed') + ' (' + o.tenantId + ')').join(', ') + '. List Organisations returns the same IDs.'); };\nconst jsonArray = (v, field) => { let parsed; try { parsed = JSON.parse(v); } catch (e) { throw new Error(field + ' is not valid JSON.'); } if (!Array.isArray(parsed)) throw new Error(field + ' must be a JSON array.'); return parsed; };\nconst cleanText = (entry, key) => { const v = entry[key]; if (v == null || v === '') return {}; if (typeof v !== 'string' && typeof v !== 'number') throw new Error(key + ' must be text.'); const t = String(v).trim(); return t.length > 0 ? {[key]: t} : {}; };\nconst cleanNumber = (entry, key, field, places) => { const n = optionalDecimal(entry[key], field + '.' + key, places); return n === undefined ? {} : {[key]: n}; };\nconst onlyKeys = (entry, allowed, field) => { const extra = Object.keys(entry).filter((k) => !allowed.includes(k)); if (extra.length > 0) throw new Error(field + ' has unknown keys: ' + extra.join(', ') + '. Allowed keys: ' + allowed.join(', ') + '.'); };\nconst tracking = (v, field) => { if (v == null) return undefined; if (!Array.isArray(v)) throw new Error(field + ' must be an array of {\"Name\",\"Option\"} objects.'); return v.map((t, i) => { if (!isRecord(t)) throw new Error(field + '[' + i + '] must be an object.'); const name = typeof t.Name === 'string' && t.Name.trim() ? t.Name : undefined, option = typeof t.Option === 'string' && t.Option.trim() ? t.Option : undefined, category = typeof t.TrackingCategoryID === 'string' && t.TrackingCategoryID.trim() ? t.TrackingCategoryID : undefined, optionId = typeof t.TrackingOptionID === 'string' && t.TrackingOptionID.trim() ? t.TrackingOptionID : undefined; if (!(name && option) && !(category && optionId)) throw new Error(field + '[' + i + '] needs Name and Option (or TrackingCategoryID and TrackingOptionID).'); return {...(name ? {Name: name} : {}), ...(option ? {Option: option} : {}), ...(category ? {TrackingCategoryID: category} : {}), ...(optionId ? {TrackingOptionID: optionId} : {})}; }); };\nconst lineItems = (v, isRequired, field = 'Line Items') => { if (!isRequired && !has(v)) return undefined; const list = jsonArray(v, field); if (list.length === 0) throw new Error(field + ' must contain at least one line.'); if (list.length > 500) throw new Error(field + ' can contain at most 500 lines.'); return list.map((entry, i) => { const where = field + '[' + i + ']'; if (!isRecord(entry)) throw new Error(where + ' must be an object.'); onlyKeys(entry, ['LineItemID', 'Description', 'Quantity', 'UnitAmount', 'LineAmount', 'AccountCode', 'ItemCode', 'TaxType', 'TaxAmount', 'DiscountRate', 'Tracking'], where); const line = {...cleanText(entry, 'LineItemID'), ...cleanText(entry, 'Description'), ...cleanNumber(entry, 'Quantity', where, 4), ...cleanNumber(entry, 'UnitAmount', where, 4), ...cleanNumber(entry, 'LineAmount', where, 2), ...cleanText(entry, 'AccountCode'), ...cleanText(entry, 'ItemCode'), ...cleanText(entry, 'TaxType'), ...cleanNumber(entry, 'TaxAmount', where, 2), ...cleanNumber(entry, 'DiscountRate', where, 2)}; const track = tracking(entry.Tracking, where + '.Tracking'); if (track) line.Tracking = track; if (line.Description === undefined && line.ItemCode === undefined && line.LineItemID === undefined) throw new Error(where + ' needs a Description or an ItemCode.'); return line; }); };\nrequest.headers['Xero-Tenant-Id'] = tenantOf(inputs.tenant_id);\nrequest.url = withQuery(request.url, [['unitdp', '4']]);\nconst contact = required(inputs.contact_id, 'Contact ID'), account = text(inputs.bank_account_id), code = text(inputs.bank_account_code);\nif ((account === undefined) === (code === undefined)) throw new Error('Give exactly one of Bank Account ID or Bank Account Code.');\nconst lines = lineItems(inputs.line_items, true), day = date(inputs.date, 'Date');\nrequest.body = {BankTransactions: [{Type: inputs.type, Contact: {ContactID: contact}, BankAccount: account ? {AccountID: account} : {Code: code}, LineItems: lines,\n  ...(day ? {Date: day} : {}), ...(text(inputs.reference) ? {Reference: text(inputs.reference)} : {}), ...(flag(inputs.is_reconciled) ? {IsReconciled: true} : {}),\n  ...(inputs.line_amount_types ? {LineAmountTypes: inputs.line_amount_types} : {}), ...(text(inputs.currency_code) ? {CurrencyCode: text(inputs.currency_code)} : {})}]};\nreturn request;",
       "afterResponse": "const isRecord = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst records = (body, key) => isRecord(body) && Array.isArray(body[key]) ? body[key].filter(isRecord) : [];\nconst first = (body, key, operation) => { const record = records(body, key)[0]; if (!record) throw new Error('Xero ' + operation + ' returned no ' + key + ' record.'); return record; };\nreturn first(response, 'BankTransactions', 'create bank transaction');"
+    }
+  },
+  "triggers": {
+    "xero_new_bank_transaction": {
+      "label": "New Bank Transaction",
+      "description": "Fires the first time a bank transaction is created or changed after the trigger is turned on.",
+      "inputs": {
+        "tenant_id": {
+          "label": "Organisation",
+          "required": true,
+          "list": "tenants"
+        },
+        "types": {
+          "label": "Types",
+          "description": "Leave empty for every type. A JSON list of \"RECEIVE\", \"SPEND\", \"RECEIVE-OVERPAYMENT\", \"SPEND-OVERPAYMENT\", \"RECEIVE-PREPAYMENT\", \"SPEND-PREPAYMENT\", \"RECEIVE-TRANSFER\", \"SPEND-TRANSFER\".",
+          "type": "json"
+        },
+        "statuses": {
+          "label": "Statuses",
+          "description": "Leave empty for every status. A JSON list of \"AUTHORISED\", \"DELETED\".",
+          "type": "json"
+        },
+        "contact_id": {
+          "label": "Contact",
+          "description": "Select a contact",
+          "list": "contacts"
+        },
+        "bank_account_id": {
+          "label": "Bank Account",
+          "description": "Select a bank account",
+          "list": "bank_accounts"
+        },
+        "bank_account_code": {
+          "label": "Bank Account Code"
+        },
+        "date_from": {
+          "label": "Date From (YYYY-MM-DD)"
+        },
+        "date_to": {
+          "label": "Date To (YYYY-MM-DD)"
+        },
+        "page_size": {
+          "label": "Page Size (1-1000)",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.xero.com/api.xro/2.0/BankTransactions",
+        "headers": {
+          "Xero-Tenant-Id": "{{tenant_id}}"
+        }
+      },
+      "key": "$.UpdatedDateUTC",
+      "beforeRequest": "const has = (v) => v !== undefined && v !== null && v !== '';\nconst text = (v) => typeof v === 'string' && v.trim().length > 0 ? v.trim() : undefined;\nconst form = (v) => encodeURIComponent(v).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst withQuery = (url, pairs) => { const parts = pairs.filter(([, v]) => v !== undefined).map(([k, v]) => form(k) + '=' + form(String(v))); return parts.length ? url + '?' + parts.join('&') : url; };\nconst strings = (v) => { if (!has(v)) return []; let list = v; if (typeof v === 'string') { try { list = JSON.parse(v); } catch (e) { throw new Error('Expected a JSON list, such as [\"AUTHORISED\"], not ' + v + '.'); } } return Array.isArray(list) ? list.filter((s) => typeof s === 'string' && s.length > 0) : []; };\nconst ws = (v) => '\"' + String(v).replace(/\"/g, '\"\"') + '\"';\nconst guid = (v, field) => { if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(v)) throw new Error(field + ' must be a Xero ID (a GUID such as 00000000-0000-0000-0000-000000000000).'); return 'guid(\"' + v + '\")'; };\nconst date = (v, field) => { if (!has(v)) return undefined; const t = v.trim(); if (!/^(\\d{4})-(\\d{2})-(\\d{2})$/.test(t)) throw new Error(field + ' must be a date in YYYY-MM-DD format.'); const d = new Date(t + 'T00:00:00Z'); if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== t) throw new Error(field + ' is not a valid calendar date.'); return t; };\nconst wdate = (v) => { const [y, m, d] = v.split('-').map(Number); return 'DateTime(' + y + ', ' + m + ', ' + d + ')'; };\nconst sizeOf = (v, fallback, max) => { if (!has(v)) return fallback; const n = Number(v); if (!Number.isInteger(n) || n < 1 || n > max) throw new Error('Page Size must be a whole number from 1 to ' + max + '.'); return n; };\nconst types = strings(inputs.types), statuses = strings(inputs.statuses), contact = text(inputs.contact_id), code = text(inputs.bank_account_code);\nconst from = date(inputs.date_from, 'Date From'), to = date(inputs.date_to, 'Date To');\nconst where = [...(types.length === 1 ? ['Type==' + ws(types[0])] : []), ...(contact ? ['Contact.ContactID==' + guid(contact, 'Contact')] : []),\n  ...(statuses.length > 0 ? ['(' + statuses.map((s) => 'Status==' + ws(s)).join(' OR ') + ')'] : []), ...(from ? ['Date>=' + wdate(from)] : []), ...(to ? ['Date<' + wdate(to)] : []), ...(code ? ['BankAccount.Code==' + ws(code)] : [])];\nconst params = [['where', where.length > 0 ? where.join(' AND ') : undefined]], size = sizeOf(inputs.page_size, 200, 1000);\nrequest.url = withQuery(request.url, [...params, ['page', 1], ['pageSize', size], ['order', 'UpdatedDateUTC ASC']]);\n// The original's fetch adds Cache-Control and Pragma to a request with If-Modified-Since.\nif (Number(inputs.lastPollTime) > 0) Object.assign(request.headers, {'If-Modified-Since': new Date(Number(inputs.lastPollTime)).toISOString().slice(0, 19), 'Cache-Control': 'no-cache', Pragma: 'no-cache'});\nreturn request;",
+      "afterResponse": "const has = (v) => v !== undefined && v !== null && v !== '';\nconst text = (v) => typeof v === 'string' && v.trim().length > 0 ? v.trim() : undefined;\nconst isRecord = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst form = (v) => encodeURIComponent(v).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst withQuery = (url, pairs) => { const parts = pairs.filter(([, v]) => v !== undefined).map(([k, v]) => form(k) + '=' + form(String(v))); return parts.length ? url + '?' + parts.join('&') : url; };\nconst strings = (v) => { if (!has(v)) return []; let list = v; if (typeof v === 'string') { try { list = JSON.parse(v); } catch (e) { throw new Error('Expected a JSON list, such as [\"AUTHORISED\"], not ' + v + '.'); } } return Array.isArray(list) ? list.filter((s) => typeof s === 'string' && s.length > 0) : []; };\nconst ws = (v) => '\"' + String(v).replace(/\"/g, '\"\"') + '\"';\nconst guid = (v, field) => { if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(v)) throw new Error(field + ' must be a Xero ID (a GUID such as 00000000-0000-0000-0000-000000000000).'); return 'guid(\"' + v + '\")'; };\nconst date = (v, field) => { if (!has(v)) return undefined; const t = v.trim(); if (!/^(\\d{4})-(\\d{2})-(\\d{2})$/.test(t)) throw new Error(field + ' must be a date in YYYY-MM-DD format.'); const d = new Date(t + 'T00:00:00Z'); if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== t) throw new Error(field + ' is not a valid calendar date.'); return t; };\nconst wdate = (v) => { const [y, m, d] = v.split('-').map(Number); return 'DateTime(' + y + ', ' + m + ', ' + d + ')'; };\nconst sizeOf = (v, fallback, max) => { if (!has(v)) return fallback; const n = Number(v); if (!Number.isInteger(n) || n < 1 || n > max) throw new Error('Page Size must be a whole number from 1 to ' + max + '.'); return n; };\nconst idOf = (v) => typeof v === 'string' && v.trim().length > 0 ? v : undefined;\nconst firstSeen = (key, items, id) => { const known = new Set(Array.isArray(memory[key]) ? memory[key].filter((s) => typeof s === 'string') : []), ids = new Set(), fresh = []; for (const item of items) { const found = id(item); if (!found || ids.has(found)) continue; ids.add(found); if (!known.has(found)) fresh.push(item); } const kept = [...[...known].filter((s) => !ids.has(s)), ...ids]; memory[key] = kept.slice(Math.max(kept.length - 5000, 0)); return fresh; };\nconst timeOf = (v) => { if (typeof v === 'number' && Number.isFinite(v)) return v; if (typeof v !== 'string') return undefined; const ms = /\\/Date\\((-?\\d+)/.exec(v); if (ms) return Number(ms[1]); const t = Date.parse(v); return Number.isNaN(t) ? undefined : t; };\n// The first check only notes the time, as the original's polling starts when the trigger is turned on.\nif (!has(inputs.lastPollTime)) return [];\nconst types = strings(inputs.types), statuses = strings(inputs.statuses), contact = text(inputs.contact_id), code = text(inputs.bank_account_code);\nconst from = date(inputs.date_from, 'Date From'), to = date(inputs.date_to, 'Date To');\nconst where = [...(types.length === 1 ? ['Type==' + ws(types[0])] : []), ...(contact ? ['Contact.ContactID==' + guid(contact, 'Contact')] : []),\n  ...(statuses.length > 0 ? ['(' + statuses.map((s) => 'Status==' + ws(s)).join(' OR ') + ')'] : []), ...(from ? ['Date>=' + wdate(from)] : []), ...(to ? ['Date<' + wdate(to)] : []), ...(code ? ['BankAccount.Code==' + ws(code)] : [])];\nconst params = [['where', where.length > 0 ? where.join(' AND ') : undefined]], size = sizeOf(inputs.page_size, 200, 1000);\nconst since = Number(inputs.lastPollTime), headers = {'Xero-Tenant-Id': inputs.tenant_id, ...(since > 0 ? {'If-Modified-Since': new Date(since).toISOString().slice(0, 19), 'Cache-Control': 'no-cache', Pragma: 'no-cache'} : {})};\nconst records = (body) => isRecord(body) && Array.isArray(body.BankTransactions) ? body.BankTransactions.filter(isRecord) : [];\nconst epochOf = (r) => timeOf(r.UpdatedDateUTC) ?? timeOf(r.Date) ?? Date.now();\n// Every page; after five full pages, the records of the newest instant wait for the next check, so that none is skipped.\nlet all = [], body = response;\nfor (let page = 1; ; page++) {\n  const got = records(body);\n  all.push(...got);\n  if (got.length < size) break;\n  if (page >= 5) {\n    const newest = all.reduce((n, r) => Math.max(n, epochOf(r)), Number.NEGATIVE_INFINITY), older = all.filter((r) => epochOf(r) < newest);\n    if (older.length > 0) { all = older; break; }\n    if (page >= 50) throw new Error('More than ' + all.length + ' BankTransactions records share the same UpdatedDateUTC, so this check cannot advance without skipping some. Raise Page Size (up to 1000).');\n  }\n  body = call({method: 'GET', url: withQuery('/BankTransactions', [...params, ['page', page + 1], ['pageSize', size], ['order', 'UpdatedDateUTC ASC']]), headers});\n}\nconst account = text(inputs.bank_account_id), matches = (r) => (types.length <= 1 || types.includes(String(r.Type))) && (account === undefined || (isRecord(r.BankAccount) ? r.BankAccount.AccountID : undefined) === account);\nconst fresh = all.filter((r) => epochOf(r) > since && matches(r));\nreturn firstSeen('xero_bank_txn_seen_ids_' + inputs.tenant_id, fresh, (r) => idOf(r.BankTransactionID));"
+    },
+    "xero_new_payment": {
+      "label": "New Payment",
+      "description": "Fires the first time a payment is recorded or changed after the trigger is turned on.",
+      "inputs": {
+        "tenant_id": {
+          "label": "Organisation",
+          "required": true,
+          "list": "tenants"
+        },
+        "payment_types": {
+          "label": "Payment Types",
+          "description": "ACCRECPAYMENT is received on sales invoices, ACCPAYPAYMENT paid on bills. A JSON list of \"ACCRECPAYMENT\", \"ACCPAYPAYMENT\".",
+          "type": "json",
+          "defaultValue": "[\"ACCRECPAYMENT\"]"
+        },
+        "statuses": {
+          "label": "Statuses",
+          "description": "A JSON list of \"AUTHORISED\", \"DELETED\".",
+          "type": "json",
+          "defaultValue": "[\"AUTHORISED\"]"
+        },
+        "invoice_id": {
+          "label": "Invoice",
+          "description": "Select an invoice",
+          "list": "invoices"
+        },
+        "reference": {
+          "label": "Reference"
+        },
+        "date_from": {
+          "label": "Date From (YYYY-MM-DD)"
+        },
+        "date_to": {
+          "label": "Date To (YYYY-MM-DD)"
+        },
+        "page_size": {
+          "label": "Page Size (1-1000)",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.xero.com/api.xro/2.0/Payments",
+        "headers": {
+          "Xero-Tenant-Id": "{{tenant_id}}"
+        }
+      },
+      "key": "$.UpdatedDateUTC",
+      "beforeRequest": "const has = (v) => v !== undefined && v !== null && v !== '';\nconst text = (v) => typeof v === 'string' && v.trim().length > 0 ? v.trim() : undefined;\nconst form = (v) => encodeURIComponent(v).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst withQuery = (url, pairs) => { const parts = pairs.filter(([, v]) => v !== undefined).map(([k, v]) => form(k) + '=' + form(String(v))); return parts.length ? url + '?' + parts.join('&') : url; };\nconst strings = (v) => { if (!has(v)) return []; let list = v; if (typeof v === 'string') { try { list = JSON.parse(v); } catch (e) { throw new Error('Expected a JSON list, such as [\"AUTHORISED\"], not ' + v + '.'); } } return Array.isArray(list) ? list.filter((s) => typeof s === 'string' && s.length > 0) : []; };\nconst ws = (v) => '\"' + String(v).replace(/\"/g, '\"\"') + '\"';\nconst guid = (v, field) => { if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(v)) throw new Error(field + ' must be a Xero ID (a GUID such as 00000000-0000-0000-0000-000000000000).'); return 'guid(\"' + v + '\")'; };\nconst date = (v, field) => { if (!has(v)) return undefined; const t = v.trim(); if (!/^(\\d{4})-(\\d{2})-(\\d{2})$/.test(t)) throw new Error(field + ' must be a date in YYYY-MM-DD format.'); const d = new Date(t + 'T00:00:00Z'); if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== t) throw new Error(field + ' is not a valid calendar date.'); return t; };\nconst wdate = (v) => { const [y, m, d] = v.split('-').map(Number); return 'DateTime(' + y + ', ' + m + ', ' + d + ')'; };\nconst anyOf = (field, values) => values.length === 0 ? [] : values.length === 1 ? [field + '==' + ws(values[0])] : ['(' + values.map((v) => field + '==' + ws(v)).join(' OR ') + ')'];\nconst sizeOf = (v, fallback, max) => { if (!has(v)) return fallback; const n = Number(v); if (!Number.isInteger(n) || n < 1 || n > max) throw new Error('Page Size must be a whole number from 1 to ' + max + '.'); return n; };\nconst types = has(inputs.payment_types) ? strings(inputs.payment_types) : ['ACCRECPAYMENT'], statuses = has(inputs.statuses) ? strings(inputs.statuses) : ['AUTHORISED'];\nconst invoice = text(inputs.invoice_id), reference = text(inputs.reference);\nconst from = date(inputs.date_from, 'Date From'), to = date(inputs.date_to, 'Date To');\nconst where = [...anyOf('PaymentType', types), ...anyOf('Status', statuses), ...(invoice ? ['Invoice.InvoiceID==' + guid(invoice, 'Invoice')] : []),\n  ...(reference ? ['Reference==' + ws(reference)] : []), ...(from ? ['Date>=' + wdate(from)] : []), ...(to ? ['Date<' + wdate(to)] : [])];\nconst params = [['where', where.length > 0 ? where.join(' AND ') : undefined]], size = sizeOf(inputs.page_size, 200, 1000);\nrequest.url = withQuery(request.url, [...params, ['page', 1], ['pageSize', size], ['order', 'UpdatedDateUTC ASC']]);\n// The original's fetch adds Cache-Control and Pragma to a request with If-Modified-Since.\nif (Number(inputs.lastPollTime) > 0) Object.assign(request.headers, {'If-Modified-Since': new Date(Number(inputs.lastPollTime)).toISOString().slice(0, 19), 'Cache-Control': 'no-cache', Pragma: 'no-cache'});\nreturn request;",
+      "afterResponse": "const has = (v) => v !== undefined && v !== null && v !== '';\nconst text = (v) => typeof v === 'string' && v.trim().length > 0 ? v.trim() : undefined;\nconst isRecord = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst form = (v) => encodeURIComponent(v).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst withQuery = (url, pairs) => { const parts = pairs.filter(([, v]) => v !== undefined).map(([k, v]) => form(k) + '=' + form(String(v))); return parts.length ? url + '?' + parts.join('&') : url; };\nconst strings = (v) => { if (!has(v)) return []; let list = v; if (typeof v === 'string') { try { list = JSON.parse(v); } catch (e) { throw new Error('Expected a JSON list, such as [\"AUTHORISED\"], not ' + v + '.'); } } return Array.isArray(list) ? list.filter((s) => typeof s === 'string' && s.length > 0) : []; };\nconst ws = (v) => '\"' + String(v).replace(/\"/g, '\"\"') + '\"';\nconst guid = (v, field) => { if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(v)) throw new Error(field + ' must be a Xero ID (a GUID such as 00000000-0000-0000-0000-000000000000).'); return 'guid(\"' + v + '\")'; };\nconst date = (v, field) => { if (!has(v)) return undefined; const t = v.trim(); if (!/^(\\d{4})-(\\d{2})-(\\d{2})$/.test(t)) throw new Error(field + ' must be a date in YYYY-MM-DD format.'); const d = new Date(t + 'T00:00:00Z'); if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== t) throw new Error(field + ' is not a valid calendar date.'); return t; };\nconst wdate = (v) => { const [y, m, d] = v.split('-').map(Number); return 'DateTime(' + y + ', ' + m + ', ' + d + ')'; };\nconst anyOf = (field, values) => values.length === 0 ? [] : values.length === 1 ? [field + '==' + ws(values[0])] : ['(' + values.map((v) => field + '==' + ws(v)).join(' OR ') + ')'];\nconst sizeOf = (v, fallback, max) => { if (!has(v)) return fallback; const n = Number(v); if (!Number.isInteger(n) || n < 1 || n > max) throw new Error('Page Size must be a whole number from 1 to ' + max + '.'); return n; };\nconst idOf = (v) => typeof v === 'string' && v.trim().length > 0 ? v : undefined;\nconst firstSeen = (key, items, id) => { const known = new Set(Array.isArray(memory[key]) ? memory[key].filter((s) => typeof s === 'string') : []), ids = new Set(), fresh = []; for (const item of items) { const found = id(item); if (!found || ids.has(found)) continue; ids.add(found); if (!known.has(found)) fresh.push(item); } const kept = [...[...known].filter((s) => !ids.has(s)), ...ids]; memory[key] = kept.slice(Math.max(kept.length - 5000, 0)); return fresh; };\nconst timeOf = (v) => { if (typeof v === 'number' && Number.isFinite(v)) return v; if (typeof v !== 'string') return undefined; const ms = /\\/Date\\((-?\\d+)/.exec(v); if (ms) return Number(ms[1]); const t = Date.parse(v); return Number.isNaN(t) ? undefined : t; };\n// The first check only notes the time, as the original's polling starts when the trigger is turned on.\nif (!has(inputs.lastPollTime)) return [];\nconst types = has(inputs.payment_types) ? strings(inputs.payment_types) : ['ACCRECPAYMENT'], statuses = has(inputs.statuses) ? strings(inputs.statuses) : ['AUTHORISED'];\nconst invoice = text(inputs.invoice_id), reference = text(inputs.reference);\nconst from = date(inputs.date_from, 'Date From'), to = date(inputs.date_to, 'Date To');\nconst where = [...anyOf('PaymentType', types), ...anyOf('Status', statuses), ...(invoice ? ['Invoice.InvoiceID==' + guid(invoice, 'Invoice')] : []),\n  ...(reference ? ['Reference==' + ws(reference)] : []), ...(from ? ['Date>=' + wdate(from)] : []), ...(to ? ['Date<' + wdate(to)] : [])];\nconst params = [['where', where.length > 0 ? where.join(' AND ') : undefined]], size = sizeOf(inputs.page_size, 200, 1000);\nconst since = Number(inputs.lastPollTime), headers = {'Xero-Tenant-Id': inputs.tenant_id, ...(since > 0 ? {'If-Modified-Since': new Date(since).toISOString().slice(0, 19), 'Cache-Control': 'no-cache', Pragma: 'no-cache'} : {})};\nconst records = (body) => isRecord(body) && Array.isArray(body.Payments) ? body.Payments.filter(isRecord) : [];\nconst epochOf = (r) => timeOf(r.UpdatedDateUTC) ?? timeOf(r.Date) ?? Date.now();\n// Every page; after five full pages, the records of the newest instant wait for the next check, so that none is skipped.\nlet all = [], body = response;\nfor (let page = 1; ; page++) {\n  const got = records(body);\n  all.push(...got);\n  if (got.length < size) break;\n  if (page >= 5) {\n    const newest = all.reduce((n, r) => Math.max(n, epochOf(r)), Number.NEGATIVE_INFINITY), older = all.filter((r) => epochOf(r) < newest);\n    if (older.length > 0) { all = older; break; }\n    if (page >= 50) throw new Error('More than ' + all.length + ' Payments records share the same UpdatedDateUTC, so this check cannot advance without skipping some. Raise Page Size (up to 1000).');\n  }\n  body = call({method: 'GET', url: withQuery('/Payments', [...params, ['page', page + 1], ['pageSize', size], ['order', 'UpdatedDateUTC ASC']]), headers});\n}\nconst fresh = all.filter((r) => epochOf(r) > since);\nreturn firstSeen('xero_payment_seen_ids_' + inputs.tenant_id, fresh, (r) => idOf(r.PaymentID));"
+    },
+    "xero_new_purchase_order": {
+      "label": "New Purchase Order",
+      "description": "Fires the first time a purchase order is created or changed after the trigger is turned on, or enters a chosen status for the first time.",
+      "inputs": {
+        "tenant_id": {
+          "label": "Organisation",
+          "required": true,
+          "list": "tenants"
+        },
+        "statuses": {
+          "label": "Filter by Status (optional)",
+          "description": "Leave empty for every status. A JSON list of \"DRAFT\", \"SUBMITTED\", \"AUTHORISED\", \"BILLED\", \"DELETED\".",
+          "type": "json"
+        },
+        "first_time_status": {
+          "label": "First-time Status (optional)",
+          "description": "Also fire when a purchase order enters this status for the first time (since enabling).",
+          "type": "select",
+          "options": [
+            {
+              "value": "DRAFT",
+              "label": "DRAFT"
+            },
+            {
+              "value": "SUBMITTED",
+              "label": "SUBMITTED"
+            },
+            {
+              "value": "AUTHORISED",
+              "label": "AUTHORISED"
+            },
+            {
+              "value": "BILLED",
+              "label": "BILLED"
+            },
+            {
+              "value": "DELETED",
+              "label": "DELETED"
+            }
+          ]
+        },
+        "contact_id": {
+          "label": "Contact",
+          "description": "Select a contact",
+          "list": "contacts"
+        },
+        "date_from": {
+          "label": "Date From (YYYY-MM-DD)"
+        },
+        "date_to": {
+          "label": "Date To (YYYY-MM-DD)"
+        },
+        "page_size": {
+          "label": "Page Size (1-1000)",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.xero.com/api.xro/2.0/PurchaseOrders",
+        "headers": {
+          "Xero-Tenant-Id": "{{tenant_id}}"
+        }
+      },
+      "key": "$.UpdatedDateUTC",
+      "beforeRequest": "const has = (v) => v !== undefined && v !== null && v !== '';\nconst text = (v) => typeof v === 'string' && v.trim().length > 0 ? v.trim() : undefined;\nconst form = (v) => encodeURIComponent(v).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst withQuery = (url, pairs) => { const parts = pairs.filter(([, v]) => v !== undefined).map(([k, v]) => form(k) + '=' + form(String(v))); return parts.length ? url + '?' + parts.join('&') : url; };\nconst strings = (v) => { if (!has(v)) return []; let list = v; if (typeof v === 'string') { try { list = JSON.parse(v); } catch (e) { throw new Error('Expected a JSON list, such as [\"AUTHORISED\"], not ' + v + '.'); } } return Array.isArray(list) ? list.filter((s) => typeof s === 'string' && s.length > 0) : []; };\nconst ws = (v) => '\"' + String(v).replace(/\"/g, '\"\"') + '\"';\nconst guid = (v, field) => { if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(v)) throw new Error(field + ' must be a Xero ID (a GUID such as 00000000-0000-0000-0000-000000000000).'); return 'guid(\"' + v + '\")'; };\nconst date = (v, field) => { if (!has(v)) return undefined; const t = v.trim(); if (!/^(\\d{4})-(\\d{2})-(\\d{2})$/.test(t)) throw new Error(field + ' must be a date in YYYY-MM-DD format.'); const d = new Date(t + 'T00:00:00Z'); if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== t) throw new Error(field + ' is not a valid calendar date.'); return t; };\nconst wdate = (v) => { const [y, m, d] = v.split('-').map(Number); return 'DateTime(' + y + ', ' + m + ', ' + d + ')'; };\nconst anyOf = (field, values) => values.length === 0 ? [] : values.length === 1 ? [field + '==' + ws(values[0])] : ['(' + values.map((v) => field + '==' + ws(v)).join(' OR ') + ')'];\nconst sizeOf = (v, fallback, max) => { if (!has(v)) return fallback; const n = Number(v); if (!Number.isInteger(n) || n < 1 || n > max) throw new Error('Page Size must be a whole number from 1 to ' + max + '.'); return n; };\nconst statuses = strings(inputs.statuses), contact = text(inputs.contact_id);\nconst from = date(inputs.date_from, 'Date From'), to = date(inputs.date_to, 'Date To');\nconst where = [...(contact ? ['Contact.ContactID==' + guid(contact, 'Contact')] : []), ...(from ? ['Date>=' + wdate(from)] : []), ...(to ? ['Date<' + wdate(to)] : []), ...(statuses.length > 1 ? anyOf('Status', statuses) : [])];\nconst params = [['where', where.length > 0 ? where.join(' AND ') : undefined], ['status', statuses.length === 1 ? statuses[0] : undefined]], size = sizeOf(inputs.page_size, 200, 1000);\nrequest.url = withQuery(request.url, [...params, ['page', 1], ['pageSize', size], ['order', 'UpdatedDateUTC ASC']]);\n// The original's fetch adds Cache-Control and Pragma to a request with If-Modified-Since.\nif (Number(inputs.lastPollTime) > 0) Object.assign(request.headers, {'If-Modified-Since': new Date(Number(inputs.lastPollTime)).toISOString().slice(0, 19), 'Cache-Control': 'no-cache', Pragma: 'no-cache'});\nreturn request;",
+      "afterResponse": "const has = (v) => v !== undefined && v !== null && v !== '';\nconst text = (v) => typeof v === 'string' && v.trim().length > 0 ? v.trim() : undefined;\nconst isRecord = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst form = (v) => encodeURIComponent(v).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst withQuery = (url, pairs) => { const parts = pairs.filter(([, v]) => v !== undefined).map(([k, v]) => form(k) + '=' + form(String(v))); return parts.length ? url + '?' + parts.join('&') : url; };\nconst strings = (v) => { if (!has(v)) return []; let list = v; if (typeof v === 'string') { try { list = JSON.parse(v); } catch (e) { throw new Error('Expected a JSON list, such as [\"AUTHORISED\"], not ' + v + '.'); } } return Array.isArray(list) ? list.filter((s) => typeof s === 'string' && s.length > 0) : []; };\nconst ws = (v) => '\"' + String(v).replace(/\"/g, '\"\"') + '\"';\nconst guid = (v, field) => { if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(v)) throw new Error(field + ' must be a Xero ID (a GUID such as 00000000-0000-0000-0000-000000000000).'); return 'guid(\"' + v + '\")'; };\nconst date = (v, field) => { if (!has(v)) return undefined; const t = v.trim(); if (!/^(\\d{4})-(\\d{2})-(\\d{2})$/.test(t)) throw new Error(field + ' must be a date in YYYY-MM-DD format.'); const d = new Date(t + 'T00:00:00Z'); if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== t) throw new Error(field + ' is not a valid calendar date.'); return t; };\nconst wdate = (v) => { const [y, m, d] = v.split('-').map(Number); return 'DateTime(' + y + ', ' + m + ', ' + d + ')'; };\nconst anyOf = (field, values) => values.length === 0 ? [] : values.length === 1 ? [field + '==' + ws(values[0])] : ['(' + values.map((v) => field + '==' + ws(v)).join(' OR ') + ')'];\nconst sizeOf = (v, fallback, max) => { if (!has(v)) return fallback; const n = Number(v); if (!Number.isInteger(n) || n < 1 || n > max) throw new Error('Page Size must be a whole number from 1 to ' + max + '.'); return n; };\nconst idOf = (v) => typeof v === 'string' && v.trim().length > 0 ? v : undefined;\nconst firstSeen = (key, items, id) => { const known = new Set(Array.isArray(memory[key]) ? memory[key].filter((s) => typeof s === 'string') : []), ids = new Set(), fresh = []; for (const item of items) { const found = id(item); if (!found || ids.has(found)) continue; ids.add(found); if (!known.has(found)) fresh.push(item); } const kept = [...[...known].filter((s) => !ids.has(s)), ...ids]; memory[key] = kept.slice(Math.max(kept.length - 5000, 0)); return fresh; };\nconst timeOf = (v) => { if (typeof v === 'number' && Number.isFinite(v)) return v; if (typeof v !== 'string') return undefined; const ms = /\\/Date\\((-?\\d+)/.exec(v); if (ms) return Number(ms[1]); const t = Date.parse(v); return Number.isNaN(t) ? undefined : t; };\n// The first check only notes the time, as the original's polling starts when the trigger is turned on.\nif (!has(inputs.lastPollTime)) return [];\nconst statuses = strings(inputs.statuses), contact = text(inputs.contact_id);\nconst from = date(inputs.date_from, 'Date From'), to = date(inputs.date_to, 'Date To');\nconst where = [...(contact ? ['Contact.ContactID==' + guid(contact, 'Contact')] : []), ...(from ? ['Date>=' + wdate(from)] : []), ...(to ? ['Date<' + wdate(to)] : []), ...(statuses.length > 1 ? anyOf('Status', statuses) : [])];\nconst params = [['where', where.length > 0 ? where.join(' AND ') : undefined], ['status', statuses.length === 1 ? statuses[0] : undefined]], size = sizeOf(inputs.page_size, 200, 1000);\nconst since = Number(inputs.lastPollTime), headers = {'Xero-Tenant-Id': inputs.tenant_id, ...(since > 0 ? {'If-Modified-Since': new Date(since).toISOString().slice(0, 19), 'Cache-Control': 'no-cache', Pragma: 'no-cache'} : {})};\nconst records = (body) => isRecord(body) && Array.isArray(body.PurchaseOrders) ? body.PurchaseOrders.filter(isRecord) : [];\nconst epochOf = (r) => timeOf(r.UpdatedDateUTC) ?? timeOf(r.Date) ?? Date.now();\n// Every page; after five full pages, the records of the newest instant wait for the next check, so that none is skipped.\nlet all = [], body = response;\nfor (let page = 1; ; page++) {\n  const got = records(body);\n  all.push(...got);\n  if (got.length < size) break;\n  if (page >= 5) {\n    const newest = all.reduce((n, r) => Math.max(n, epochOf(r)), Number.NEGATIVE_INFINITY), older = all.filter((r) => epochOf(r) < newest);\n    if (older.length > 0) { all = older; break; }\n    if (page >= 50) throw new Error('More than ' + all.length + ' PurchaseOrders records share the same UpdatedDateUTC, so this check cannot advance without skipping some. Raise Page Size (up to 1000).');\n  }\n  body = call({method: 'GET', url: withQuery('/PurchaseOrders', [...params, ['page', page + 1], ['pageSize', size], ['order', 'UpdatedDateUTC ASC']]), headers});\n}\nconst fresh = all.filter((r) => epochOf(r) > since);\nconst orderOf = (r) => idOf(r.PurchaseOrderID), status = inputs.first_time_status;\nconst found = firstSeen('xero_po_seen_ids_' + inputs.tenant_id, fresh, orderOf);\nconst entered = status ? firstSeen('xero_po_status_seen_' + inputs.tenant_id + '_' + status, fresh.filter((r) => r.Status === status), orderOf) : [];\nconst ids = new Set(found.map(orderOf));\nreturn [...found, ...entered.filter((r) => !ids.has(orderOf(r)))];"
+    },
+    "xero_new_reconciled_payment": {
+      "label": "New Reconciled Payment",
+      "description": "Fires when a payment is reconciled for the first time.",
+      "inputs": {
+        "tenant_id": {
+          "label": "Organisation",
+          "required": true,
+          "list": "tenants"
+        },
+        "payment_types": {
+          "label": "Payment Types",
+          "description": "ACCRECPAYMENT is received on sales invoices, ACCPAYPAYMENT paid on bills. A JSON list of \"ACCRECPAYMENT\", \"ACCPAYPAYMENT\".",
+          "type": "json",
+          "defaultValue": "[\"ACCRECPAYMENT\"]"
+        },
+        "statuses": {
+          "label": "Statuses",
+          "description": "A JSON list of \"AUTHORISED\", \"DELETED\".",
+          "type": "json",
+          "defaultValue": "[\"AUTHORISED\"]"
+        },
+        "invoice_id": {
+          "label": "Invoice",
+          "description": "Select an invoice",
+          "list": "invoices"
+        },
+        "reference": {
+          "label": "Reference"
+        },
+        "date_from": {
+          "label": "Date From (YYYY-MM-DD)"
+        },
+        "date_to": {
+          "label": "Date To (YYYY-MM-DD)"
+        },
+        "page_size": {
+          "label": "Page Size (1-1000)",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.xero.com/api.xro/2.0/Payments",
+        "headers": {
+          "Xero-Tenant-Id": "{{tenant_id}}"
+        }
+      },
+      "key": "$.UpdatedDateUTC",
+      "beforeRequest": "const has = (v) => v !== undefined && v !== null && v !== '';\nconst text = (v) => typeof v === 'string' && v.trim().length > 0 ? v.trim() : undefined;\nconst form = (v) => encodeURIComponent(v).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst withQuery = (url, pairs) => { const parts = pairs.filter(([, v]) => v !== undefined).map(([k, v]) => form(k) + '=' + form(String(v))); return parts.length ? url + '?' + parts.join('&') : url; };\nconst strings = (v) => { if (!has(v)) return []; let list = v; if (typeof v === 'string') { try { list = JSON.parse(v); } catch (e) { throw new Error('Expected a JSON list, such as [\"AUTHORISED\"], not ' + v + '.'); } } return Array.isArray(list) ? list.filter((s) => typeof s === 'string' && s.length > 0) : []; };\nconst ws = (v) => '\"' + String(v).replace(/\"/g, '\"\"') + '\"';\nconst guid = (v, field) => { if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(v)) throw new Error(field + ' must be a Xero ID (a GUID such as 00000000-0000-0000-0000-000000000000).'); return 'guid(\"' + v + '\")'; };\nconst date = (v, field) => { if (!has(v)) return undefined; const t = v.trim(); if (!/^(\\d{4})-(\\d{2})-(\\d{2})$/.test(t)) throw new Error(field + ' must be a date in YYYY-MM-DD format.'); const d = new Date(t + 'T00:00:00Z'); if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== t) throw new Error(field + ' is not a valid calendar date.'); return t; };\nconst wdate = (v) => { const [y, m, d] = v.split('-').map(Number); return 'DateTime(' + y + ', ' + m + ', ' + d + ')'; };\nconst anyOf = (field, values) => values.length === 0 ? [] : values.length === 1 ? [field + '==' + ws(values[0])] : ['(' + values.map((v) => field + '==' + ws(v)).join(' OR ') + ')'];\nconst sizeOf = (v, fallback, max) => { if (!has(v)) return fallback; const n = Number(v); if (!Number.isInteger(n) || n < 1 || n > max) throw new Error('Page Size must be a whole number from 1 to ' + max + '.'); return n; };\nconst types = has(inputs.payment_types) ? strings(inputs.payment_types) : ['ACCRECPAYMENT'], statuses = has(inputs.statuses) ? strings(inputs.statuses) : ['AUTHORISED'];\nconst invoice = text(inputs.invoice_id), reference = text(inputs.reference);\nconst from = date(inputs.date_from, 'Date From'), to = date(inputs.date_to, 'Date To');\nconst where = [...anyOf('PaymentType', types), ...anyOf('Status', statuses), ...(invoice ? ['Invoice.InvoiceID==' + guid(invoice, 'Invoice')] : []),\n  ...(reference ? ['Reference==' + ws(reference)] : []), ...(from ? ['Date>=' + wdate(from)] : []), ...(to ? ['Date<' + wdate(to)] : [])];\nconst params = [['where', where.length > 0 ? where.join(' AND ') : undefined]], size = sizeOf(inputs.page_size, 200, 1000);\nrequest.url = withQuery(request.url, [...params, ['page', 1], ['pageSize', size], ['order', 'UpdatedDateUTC ASC']]);\n// The original's fetch adds Cache-Control and Pragma to a request with If-Modified-Since.\nif (Number(inputs.lastPollTime) > 0) Object.assign(request.headers, {'If-Modified-Since': new Date(Number(inputs.lastPollTime)).toISOString().slice(0, 19), 'Cache-Control': 'no-cache', Pragma: 'no-cache'});\nreturn request;",
+      "afterResponse": "const has = (v) => v !== undefined && v !== null && v !== '';\nconst text = (v) => typeof v === 'string' && v.trim().length > 0 ? v.trim() : undefined;\nconst isRecord = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst form = (v) => encodeURIComponent(v).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst withQuery = (url, pairs) => { const parts = pairs.filter(([, v]) => v !== undefined).map(([k, v]) => form(k) + '=' + form(String(v))); return parts.length ? url + '?' + parts.join('&') : url; };\nconst strings = (v) => { if (!has(v)) return []; let list = v; if (typeof v === 'string') { try { list = JSON.parse(v); } catch (e) { throw new Error('Expected a JSON list, such as [\"AUTHORISED\"], not ' + v + '.'); } } return Array.isArray(list) ? list.filter((s) => typeof s === 'string' && s.length > 0) : []; };\nconst ws = (v) => '\"' + String(v).replace(/\"/g, '\"\"') + '\"';\nconst guid = (v, field) => { if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(v)) throw new Error(field + ' must be a Xero ID (a GUID such as 00000000-0000-0000-0000-000000000000).'); return 'guid(\"' + v + '\")'; };\nconst date = (v, field) => { if (!has(v)) return undefined; const t = v.trim(); if (!/^(\\d{4})-(\\d{2})-(\\d{2})$/.test(t)) throw new Error(field + ' must be a date in YYYY-MM-DD format.'); const d = new Date(t + 'T00:00:00Z'); if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== t) throw new Error(field + ' is not a valid calendar date.'); return t; };\nconst wdate = (v) => { const [y, m, d] = v.split('-').map(Number); return 'DateTime(' + y + ', ' + m + ', ' + d + ')'; };\nconst anyOf = (field, values) => values.length === 0 ? [] : values.length === 1 ? [field + '==' + ws(values[0])] : ['(' + values.map((v) => field + '==' + ws(v)).join(' OR ') + ')'];\nconst sizeOf = (v, fallback, max) => { if (!has(v)) return fallback; const n = Number(v); if (!Number.isInteger(n) || n < 1 || n > max) throw new Error('Page Size must be a whole number from 1 to ' + max + '.'); return n; };\nconst idOf = (v) => typeof v === 'string' && v.trim().length > 0 ? v : undefined;\nconst firstSeen = (key, items, id) => { const known = new Set(Array.isArray(memory[key]) ? memory[key].filter((s) => typeof s === 'string') : []), ids = new Set(), fresh = []; for (const item of items) { const found = id(item); if (!found || ids.has(found)) continue; ids.add(found); if (!known.has(found)) fresh.push(item); } const kept = [...[...known].filter((s) => !ids.has(s)), ...ids]; memory[key] = kept.slice(Math.max(kept.length - 5000, 0)); return fresh; };\nconst bounded = (map) => { const entries = Object.entries(map); return entries.length <= 5000 ? map : Object.fromEntries(entries.slice(entries.length - 5000)); };\nconst timeOf = (v) => { if (typeof v === 'number' && Number.isFinite(v)) return v; if (typeof v !== 'string') return undefined; const ms = /\\/Date\\((-?\\d+)/.exec(v); if (ms) return Number(ms[1]); const t = Date.parse(v); return Number.isNaN(t) ? undefined : t; };\n// The first check only notes the time, as the original's polling starts when the trigger is turned on.\nif (!has(inputs.lastPollTime)) return [];\nconst types = has(inputs.payment_types) ? strings(inputs.payment_types) : ['ACCRECPAYMENT'], statuses = has(inputs.statuses) ? strings(inputs.statuses) : ['AUTHORISED'];\nconst invoice = text(inputs.invoice_id), reference = text(inputs.reference);\nconst from = date(inputs.date_from, 'Date From'), to = date(inputs.date_to, 'Date To');\nconst where = [...anyOf('PaymentType', types), ...anyOf('Status', statuses), ...(invoice ? ['Invoice.InvoiceID==' + guid(invoice, 'Invoice')] : []),\n  ...(reference ? ['Reference==' + ws(reference)] : []), ...(from ? ['Date>=' + wdate(from)] : []), ...(to ? ['Date<' + wdate(to)] : [])];\nconst params = [['where', where.length > 0 ? where.join(' AND ') : undefined]], size = sizeOf(inputs.page_size, 200, 1000);\nconst since = Number(inputs.lastPollTime), headers = {'Xero-Tenant-Id': inputs.tenant_id, ...(since > 0 ? {'If-Modified-Since': new Date(since).toISOString().slice(0, 19), 'Cache-Control': 'no-cache', Pragma: 'no-cache'} : {})};\nconst records = (body) => isRecord(body) && Array.isArray(body.Payments) ? body.Payments.filter(isRecord) : [];\nconst epochOf = (r) => timeOf(r.UpdatedDateUTC) ?? timeOf(r.Date) ?? Date.now();\n// Every page; after five full pages, the records of the newest instant wait for the next check, so that none is skipped.\nlet all = [], body = response;\nfor (let page = 1; ; page++) {\n  const got = records(body);\n  all.push(...got);\n  if (got.length < size) break;\n  if (page >= 5) {\n    const newest = all.reduce((n, r) => Math.max(n, epochOf(r)), Number.NEGATIVE_INFINITY), older = all.filter((r) => epochOf(r) < newest);\n    if (older.length > 0) { all = older; break; }\n    if (page >= 50) throw new Error('More than ' + all.length + ' Payments records share the same UpdatedDateUTC, so this check cannot advance without skipping some. Raise Page Size (up to 1000).');\n  }\n  body = call({method: 'GET', url: withQuery('/Payments', [...params, ['page', page + 1], ['pageSize', size], ['order', 'UpdatedDateUTC ASC']]), headers});\n}\nconst fresh = all.filter((r) => epochOf(r) > since);\nconst stateKey = 'xero_payment_prev_reconciled_state_' + inputs.tenant_id;\nconst before = isRecord(memory[stateKey]) ? Object.fromEntries(Object.entries(memory[stateKey]).filter(([, v]) => typeof v === 'boolean')) : {};\nconst reconciled = fresh.filter((r) => { const id = idOf(r.PaymentID); return id !== undefined && r.IsReconciled === true && before[id] !== true; });\nconst state = new Map(Object.entries(before));\nfor (const r of fresh) { const id = idOf(r.PaymentID); if (id !== undefined) { state.delete(id); state.set(id, r.IsReconciled === true); } }\nconst found = firstSeen('xero_payment_reconciled_seen_ids_' + inputs.tenant_id, reconciled, (r) => idOf(r.PaymentID));\nmemory[stateKey] = bounded(Object.fromEntries(state));\nreturn found;"
+    },
+    "xero_updated_quote": {
+      "label": "Updated Quote",
+      "description": "Fires when a quote is created or updated.",
+      "inputs": {
+        "tenant_id": {
+          "label": "Organisation",
+          "required": true,
+          "list": "tenants"
+        },
+        "statuses": {
+          "label": "Filter by Status (optional)",
+          "description": "Leave empty for every status. A JSON list of \"DRAFT\", \"SENT\", \"ACCEPTED\", \"DECLINED\", \"INVOICED\", \"DELETED\".",
+          "type": "json"
+        },
+        "contact_id": {
+          "label": "Contact",
+          "description": "Select a contact",
+          "list": "contacts"
+        },
+        "quote_number": {
+          "label": "Quote Number (partial match)"
+        },
+        "date_from": {
+          "label": "Date From (YYYY-MM-DD)"
+        },
+        "date_to": {
+          "label": "Date To (YYYY-MM-DD)"
+        },
+        "expiry_date_from": {
+          "label": "Expiry Date From (YYYY-MM-DD)"
+        },
+        "expiry_date_to": {
+          "label": "Expiry Date To (YYYY-MM-DD)"
+        },
+        "page_size": {
+          "label": "Page Size (1-1000)",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.xero.com/api.xro/2.0/Quotes",
+        "headers": {
+          "Xero-Tenant-Id": "{{tenant_id}}"
+        }
+      },
+      "key": "$.UpdatedDateUTC",
+      "beforeRequest": "const has = (v) => v !== undefined && v !== null && v !== '';\nconst text = (v) => typeof v === 'string' && v.trim().length > 0 ? v.trim() : undefined;\nconst form = (v) => encodeURIComponent(v).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst withQuery = (url, pairs) => { const parts = pairs.filter(([, v]) => v !== undefined).map(([k, v]) => form(k) + '=' + form(String(v))); return parts.length ? url + '?' + parts.join('&') : url; };\nconst strings = (v) => { if (!has(v)) return []; let list = v; if (typeof v === 'string') { try { list = JSON.parse(v); } catch (e) { throw new Error('Expected a JSON list, such as [\"AUTHORISED\"], not ' + v + '.'); } } return Array.isArray(list) ? list.filter((s) => typeof s === 'string' && s.length > 0) : []; };\nconst date = (v, field) => { if (!has(v)) return undefined; const t = v.trim(); if (!/^(\\d{4})-(\\d{2})-(\\d{2})$/.test(t)) throw new Error(field + ' must be a date in YYYY-MM-DD format.'); const d = new Date(t + 'T00:00:00Z'); if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== t) throw new Error(field + ' is not a valid calendar date.'); return t; };\nconst sizeOf = (v, fallback, max) => { if (!has(v)) return fallback; const n = Number(v); if (!Number.isInteger(n) || n < 1 || n > max) throw new Error('Page Size must be a whole number from 1 to ' + max + '.'); return n; };\nconst statuses = strings(inputs.statuses);\nconst params = [['Status', statuses.length === 1 ? statuses[0] : undefined], ['ContactID', text(inputs.contact_id)], ['QuoteNumber', text(inputs.quote_number)],\n  ['DateFrom', date(inputs.date_from, 'Date From')], ['DateTo', date(inputs.date_to, 'Date To')], ['ExpiryDateFrom', date(inputs.expiry_date_from, 'Expiry Date From')],\n  ['ExpiryDateTo', date(inputs.expiry_date_to, 'Expiry Date To')]], size = sizeOf(inputs.page_size, 200, 1000);\nrequest.url = withQuery(request.url, [...params, ['page', 1], ['pageSize', size], ['order', 'UpdatedDateUTC ASC']]);\n// The original's fetch adds Cache-Control and Pragma to a request with If-Modified-Since.\nif (Number(inputs.lastPollTime) > 0) Object.assign(request.headers, {'If-Modified-Since': new Date(Number(inputs.lastPollTime)).toISOString().slice(0, 19), 'Cache-Control': 'no-cache', Pragma: 'no-cache'});\nreturn request;",
+      "afterResponse": "const has = (v) => v !== undefined && v !== null && v !== '';\nconst text = (v) => typeof v === 'string' && v.trim().length > 0 ? v.trim() : undefined;\nconst isRecord = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst form = (v) => encodeURIComponent(v).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst withQuery = (url, pairs) => { const parts = pairs.filter(([, v]) => v !== undefined).map(([k, v]) => form(k) + '=' + form(String(v))); return parts.length ? url + '?' + parts.join('&') : url; };\nconst strings = (v) => { if (!has(v)) return []; let list = v; if (typeof v === 'string') { try { list = JSON.parse(v); } catch (e) { throw new Error('Expected a JSON list, such as [\"AUTHORISED\"], not ' + v + '.'); } } return Array.isArray(list) ? list.filter((s) => typeof s === 'string' && s.length > 0) : []; };\nconst date = (v, field) => { if (!has(v)) return undefined; const t = v.trim(); if (!/^(\\d{4})-(\\d{2})-(\\d{2})$/.test(t)) throw new Error(field + ' must be a date in YYYY-MM-DD format.'); const d = new Date(t + 'T00:00:00Z'); if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== t) throw new Error(field + ' is not a valid calendar date.'); return t; };\nconst sizeOf = (v, fallback, max) => { if (!has(v)) return fallback; const n = Number(v); if (!Number.isInteger(n) || n < 1 || n > max) throw new Error('Page Size must be a whole number from 1 to ' + max + '.'); return n; };\nconst idOf = (v) => typeof v === 'string' && v.trim().length > 0 ? v : undefined;\nconst bounded = (map) => { const entries = Object.entries(map); return entries.length <= 5000 ? map : Object.fromEntries(entries.slice(entries.length - 5000)); };\nconst timeOf = (v) => { if (typeof v === 'number' && Number.isFinite(v)) return v; if (typeof v !== 'string') return undefined; const ms = /\\/Date\\((-?\\d+)/.exec(v); if (ms) return Number(ms[1]); const t = Date.parse(v); return Number.isNaN(t) ? undefined : t; };\n// The first check only notes the time, as the original's polling starts when the trigger is turned on.\nif (!has(inputs.lastPollTime)) return [];\nconst statuses = strings(inputs.statuses);\nconst params = [['Status', statuses.length === 1 ? statuses[0] : undefined], ['ContactID', text(inputs.contact_id)], ['QuoteNumber', text(inputs.quote_number)],\n  ['DateFrom', date(inputs.date_from, 'Date From')], ['DateTo', date(inputs.date_to, 'Date To')], ['ExpiryDateFrom', date(inputs.expiry_date_from, 'Expiry Date From')],\n  ['ExpiryDateTo', date(inputs.expiry_date_to, 'Expiry Date To')]], size = sizeOf(inputs.page_size, 200, 1000);\nconst since = Number(inputs.lastPollTime), headers = {'Xero-Tenant-Id': inputs.tenant_id, ...(since > 0 ? {'If-Modified-Since': new Date(since).toISOString().slice(0, 19), 'Cache-Control': 'no-cache', Pragma: 'no-cache'} : {})};\nconst records = (body) => isRecord(body) && Array.isArray(body.Quotes) ? body.Quotes.filter(isRecord) : [];\nconst epochOf = (r) => timeOf(r.UpdatedDateUTC) ?? timeOf(r.Date) ?? Date.now();\n// Every page; after five full pages, the records of the newest instant wait for the next check, so that none is skipped.\nlet all = [], body = response;\nfor (let page = 1; ; page++) {\n  const got = records(body);\n  all.push(...got);\n  if (got.length < size) break;\n  if (page >= 5) {\n    const newest = all.reduce((n, r) => Math.max(n, epochOf(r)), Number.NEGATIVE_INFINITY), older = all.filter((r) => epochOf(r) < newest);\n    if (older.length > 0) { all = older; break; }\n    if (page >= 50) throw new Error('More than ' + all.length + ' Quotes records share the same UpdatedDateUTC, so this check cannot advance without skipping some. Raise Page Size (up to 1000).');\n  }\n  body = call({method: 'GET', url: withQuery('/Quotes', [...params, ['page', page + 1], ['pageSize', size], ['order', 'UpdatedDateUTC ASC']]), headers});\n}\nconst matches = (r) => statuses.length <= 1 || statuses.includes(String(r.Status));\nconst fresh = all.filter((r) => epochOf(r) > since && matches(r));\nconst key = 'xero_quote_prev_updated_' + inputs.tenant_id;\nconst before = isRecord(memory[key]) ? Object.fromEntries(Object.entries(memory[key]).filter(([, v]) => typeof v === 'number')) : {};\nconst state = new Map(Object.entries(before));\nconst changed = fresh.filter((r) => { const id = idOf(r.QuoteID); if (id === undefined) return false; const at = epochOf(r); if (at <= (state.get(id) ?? 0)) return false; state.delete(id); state.set(id, at); return true; });\nmemory[key] = bounded(Object.fromEntries(state));\nreturn changed;"
+    },
+    "xero_new_bill": {
+      "label": "New Bill",
+      "description": "Fires the first time a bill (Accounts Payable) is created or changed after the trigger is turned on.",
+      "inputs": {
+        "tenant_id": {
+          "label": "Organisation",
+          "required": true,
+          "list": "tenants"
+        },
+        "statuses": {
+          "label": "Statuses (optional)",
+          "description": "Leave empty for every status. A JSON list of \"DRAFT\", \"SUBMITTED\", \"AUTHORISED\", \"PAID\", \"VOIDED\", \"DELETED\".",
+          "type": "json"
+        },
+        "contact_id": {
+          "label": "Contact",
+          "description": "Select a contact",
+          "list": "contacts"
+        },
+        "date_from": {
+          "label": "Date From (YYYY-MM-DD)"
+        },
+        "date_to": {
+          "label": "Date To (YYYY-MM-DD)"
+        },
+        "summary_only": {
+          "label": "Summary Only (lighter, faster)",
+          "type": "boolean",
+          "defaultValue": "true"
+        },
+        "page_size": {
+          "label": "Page Size (1-1000)",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.xero.com/api.xro/2.0/Invoices",
+        "headers": {
+          "Xero-Tenant-Id": "{{tenant_id}}"
+        }
+      },
+      "key": "$.UpdatedDateUTC",
+      "beforeRequest": "const has = (v) => v !== undefined && v !== null && v !== '';\nconst text = (v) => typeof v === 'string' && v.trim().length > 0 ? v.trim() : undefined;\nconst form = (v) => encodeURIComponent(v).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst withQuery = (url, pairs) => { const parts = pairs.filter(([, v]) => v !== undefined).map(([k, v]) => form(k) + '=' + form(String(v))); return parts.length ? url + '?' + parts.join('&') : url; };\nconst strings = (v) => { if (!has(v)) return []; let list = v; if (typeof v === 'string') { try { list = JSON.parse(v); } catch (e) { throw new Error('Expected a JSON list, such as [\"AUTHORISED\"], not ' + v + '.'); } } return Array.isArray(list) ? list.filter((s) => typeof s === 'string' && s.length > 0) : []; };\nconst date = (v, field) => { if (!has(v)) return undefined; const t = v.trim(); if (!/^(\\d{4})-(\\d{2})-(\\d{2})$/.test(t)) throw new Error(field + ' must be a date in YYYY-MM-DD format.'); const d = new Date(t + 'T00:00:00Z'); if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== t) throw new Error(field + ' is not a valid calendar date.'); return t; };\nconst wdate = (v) => { const [y, m, d] = v.split('-').map(Number); return 'DateTime(' + y + ', ' + m + ', ' + d + ')'; };\nconst sizeOf = (v, fallback, max) => { if (!has(v)) return fallback; const n = Number(v); if (!Number.isInteger(n) || n < 1 || n > max) throw new Error('Page Size must be a whole number from 1 to ' + max + '.'); return n; };\nconst statuses = strings(inputs.statuses);\nconst from = date(inputs.date_from, 'Date From'), to = date(inputs.date_to, 'Date To');\nconst where = ['Type==\"ACCPAY\"', ...(from ? ['Date>=' + wdate(from)] : []), ...(to ? ['Date<' + wdate(to)] : [])];\nconst params = [['where', where.join(' AND ')], ['Statuses', statuses.length > 0 ? statuses.join(',') : undefined], ['ContactIDs', text(inputs.contact_id)],\n  ['summaryOnly', inputs.summary_only === 'true' ? 'true' : undefined]], size = sizeOf(inputs.page_size, 200, 1000);\nrequest.url = withQuery(request.url, [...params, ['page', 1], ['pageSize', size], ['order', 'UpdatedDateUTC ASC']]);\n// The original's fetch adds Cache-Control and Pragma to a request with If-Modified-Since.\nif (Number(inputs.lastPollTime) > 0) Object.assign(request.headers, {'If-Modified-Since': new Date(Number(inputs.lastPollTime)).toISOString().slice(0, 19), 'Cache-Control': 'no-cache', Pragma: 'no-cache'});\nreturn request;",
+      "afterResponse": "const has = (v) => v !== undefined && v !== null && v !== '';\nconst text = (v) => typeof v === 'string' && v.trim().length > 0 ? v.trim() : undefined;\nconst isRecord = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst form = (v) => encodeURIComponent(v).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst withQuery = (url, pairs) => { const parts = pairs.filter(([, v]) => v !== undefined).map(([k, v]) => form(k) + '=' + form(String(v))); return parts.length ? url + '?' + parts.join('&') : url; };\nconst strings = (v) => { if (!has(v)) return []; let list = v; if (typeof v === 'string') { try { list = JSON.parse(v); } catch (e) { throw new Error('Expected a JSON list, such as [\"AUTHORISED\"], not ' + v + '.'); } } return Array.isArray(list) ? list.filter((s) => typeof s === 'string' && s.length > 0) : []; };\nconst date = (v, field) => { if (!has(v)) return undefined; const t = v.trim(); if (!/^(\\d{4})-(\\d{2})-(\\d{2})$/.test(t)) throw new Error(field + ' must be a date in YYYY-MM-DD format.'); const d = new Date(t + 'T00:00:00Z'); if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== t) throw new Error(field + ' is not a valid calendar date.'); return t; };\nconst wdate = (v) => { const [y, m, d] = v.split('-').map(Number); return 'DateTime(' + y + ', ' + m + ', ' + d + ')'; };\nconst sizeOf = (v, fallback, max) => { if (!has(v)) return fallback; const n = Number(v); if (!Number.isInteger(n) || n < 1 || n > max) throw new Error('Page Size must be a whole number from 1 to ' + max + '.'); return n; };\nconst idOf = (v) => typeof v === 'string' && v.trim().length > 0 ? v : undefined;\nconst firstSeen = (key, items, id) => { const known = new Set(Array.isArray(memory[key]) ? memory[key].filter((s) => typeof s === 'string') : []), ids = new Set(), fresh = []; for (const item of items) { const found = id(item); if (!found || ids.has(found)) continue; ids.add(found); if (!known.has(found)) fresh.push(item); } const kept = [...[...known].filter((s) => !ids.has(s)), ...ids]; memory[key] = kept.slice(Math.max(kept.length - 5000, 0)); return fresh; };\nconst timeOf = (v) => { if (typeof v === 'number' && Number.isFinite(v)) return v; if (typeof v !== 'string') return undefined; const ms = /\\/Date\\((-?\\d+)/.exec(v); if (ms) return Number(ms[1]); const t = Date.parse(v); return Number.isNaN(t) ? undefined : t; };\n// The first check only notes the time, as the original's polling starts when the trigger is turned on.\nif (!has(inputs.lastPollTime)) return [];\nconst statuses = strings(inputs.statuses);\nconst from = date(inputs.date_from, 'Date From'), to = date(inputs.date_to, 'Date To');\nconst where = ['Type==\"ACCPAY\"', ...(from ? ['Date>=' + wdate(from)] : []), ...(to ? ['Date<' + wdate(to)] : [])];\nconst params = [['where', where.join(' AND ')], ['Statuses', statuses.length > 0 ? statuses.join(',') : undefined], ['ContactIDs', text(inputs.contact_id)],\n  ['summaryOnly', inputs.summary_only === 'true' ? 'true' : undefined]], size = sizeOf(inputs.page_size, 200, 1000);\nconst since = Number(inputs.lastPollTime), headers = {'Xero-Tenant-Id': inputs.tenant_id, ...(since > 0 ? {'If-Modified-Since': new Date(since).toISOString().slice(0, 19), 'Cache-Control': 'no-cache', Pragma: 'no-cache'} : {})};\nconst records = (body) => isRecord(body) && Array.isArray(body.Invoices) ? body.Invoices.filter(isRecord) : [];\nconst epochOf = (r) => timeOf(r.UpdatedDateUTC) ?? timeOf(r.Date) ?? Date.now();\n// Every page; after five full pages, the records of the newest instant wait for the next check, so that none is skipped.\nlet all = [], body = response;\nfor (let page = 1; ; page++) {\n  const got = records(body);\n  all.push(...got);\n  if (got.length < size) break;\n  if (page >= 5) {\n    const newest = all.reduce((n, r) => Math.max(n, epochOf(r)), Number.NEGATIVE_INFINITY), older = all.filter((r) => epochOf(r) < newest);\n    if (older.length > 0) { all = older; break; }\n    if (page >= 50) throw new Error('More than ' + all.length + ' Invoices records share the same UpdatedDateUTC, so this check cannot advance without skipping some. Raise Page Size (up to 1000).');\n  }\n  body = call({method: 'GET', url: withQuery('/Invoices', [...params, ['page', page + 1], ['pageSize', size], ['order', 'UpdatedDateUTC ASC']]), headers});\n}\nconst matches = (r) => r.Type === 'ACCPAY';\nconst fresh = all.filter((r) => epochOf(r) > since && matches(r));\nreturn firstSeen('xero_bill_seen_ids_' + inputs.tenant_id, fresh, (r) => idOf(r.InvoiceID));"
+    },
+    "xero_new_credit_note": {
+      "label": "New Credit Note",
+      "description": "Fires the first time a credit note is created or changed after the trigger is turned on.",
+      "inputs": {
+        "tenant_id": {
+          "label": "Organisation",
+          "required": true,
+          "list": "tenants"
+        },
+        "types": {
+          "label": "Types",
+          "description": "ACCRECCREDIT is a sales credit, ACCPAYCREDIT a supplier credit; leave empty for both. A JSON list of \"ACCRECCREDIT\", \"ACCPAYCREDIT\".",
+          "type": "json"
+        },
+        "statuses": {
+          "label": "Statuses (optional)",
+          "description": "Leave empty for every status. A JSON list of \"DRAFT\", \"AUTHORISED\", \"PAID\", \"VOIDED\".",
+          "type": "json"
+        },
+        "contact_id": {
+          "label": "Contact",
+          "description": "Select a contact",
+          "list": "contacts"
+        },
+        "reference": {
+          "label": "Reference"
+        },
+        "date_from": {
+          "label": "Date From (YYYY-MM-DD)"
+        },
+        "date_to": {
+          "label": "Date To (YYYY-MM-DD)"
+        },
+        "page_size": {
+          "label": "Page Size (1-1000)",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.xero.com/api.xro/2.0/CreditNotes",
+        "headers": {
+          "Xero-Tenant-Id": "{{tenant_id}}"
+        }
+      },
+      "key": "$.UpdatedDateUTC",
+      "beforeRequest": "const has = (v) => v !== undefined && v !== null && v !== '';\nconst text = (v) => typeof v === 'string' && v.trim().length > 0 ? v.trim() : undefined;\nconst form = (v) => encodeURIComponent(v).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst withQuery = (url, pairs) => { const parts = pairs.filter(([, v]) => v !== undefined).map(([k, v]) => form(k) + '=' + form(String(v))); return parts.length ? url + '?' + parts.join('&') : url; };\nconst strings = (v) => { if (!has(v)) return []; let list = v; if (typeof v === 'string') { try { list = JSON.parse(v); } catch (e) { throw new Error('Expected a JSON list, such as [\"AUTHORISED\"], not ' + v + '.'); } } return Array.isArray(list) ? list.filter((s) => typeof s === 'string' && s.length > 0) : []; };\nconst ws = (v) => '\"' + String(v).replace(/\"/g, '\"\"') + '\"';\nconst guid = (v, field) => { if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(v)) throw new Error(field + ' must be a Xero ID (a GUID such as 00000000-0000-0000-0000-000000000000).'); return 'guid(\"' + v + '\")'; };\nconst date = (v, field) => { if (!has(v)) return undefined; const t = v.trim(); if (!/^(\\d{4})-(\\d{2})-(\\d{2})$/.test(t)) throw new Error(field + ' must be a date in YYYY-MM-DD format.'); const d = new Date(t + 'T00:00:00Z'); if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== t) throw new Error(field + ' is not a valid calendar date.'); return t; };\nconst wdate = (v) => { const [y, m, d] = v.split('-').map(Number); return 'DateTime(' + y + ', ' + m + ', ' + d + ')'; };\nconst anyOf = (field, values) => values.length === 0 ? [] : values.length === 1 ? [field + '==' + ws(values[0])] : ['(' + values.map((v) => field + '==' + ws(v)).join(' OR ') + ')'];\nconst sizeOf = (v, fallback, max) => { if (!has(v)) return fallback; const n = Number(v); if (!Number.isInteger(n) || n < 1 || n > max) throw new Error('Page Size must be a whole number from 1 to ' + max + '.'); return n; };\nconst types = strings(inputs.types), statuses = strings(inputs.statuses), contact = text(inputs.contact_id), reference = text(inputs.reference);\nconst from = date(inputs.date_from, 'Date From'), to = date(inputs.date_to, 'Date To');\nconst where = [...anyOf('Type', types), ...anyOf('Status', statuses), ...(contact ? ['Contact.ContactID==' + guid(contact, 'Contact')] : []),\n  ...(reference ? ['Reference==' + ws(reference)] : []), ...(from ? ['Date>=' + wdate(from)] : []), ...(to ? ['Date<' + wdate(to)] : [])];\nconst params = [['where', where.length > 0 ? where.join(' AND ') : undefined]], size = sizeOf(inputs.page_size, 200, 1000);\nrequest.url = withQuery(request.url, [...params, ['page', 1], ['pageSize', size], ['order', 'UpdatedDateUTC ASC']]);\n// The original's fetch adds Cache-Control and Pragma to a request with If-Modified-Since.\nif (Number(inputs.lastPollTime) > 0) Object.assign(request.headers, {'If-Modified-Since': new Date(Number(inputs.lastPollTime)).toISOString().slice(0, 19), 'Cache-Control': 'no-cache', Pragma: 'no-cache'});\nreturn request;",
+      "afterResponse": "const has = (v) => v !== undefined && v !== null && v !== '';\nconst text = (v) => typeof v === 'string' && v.trim().length > 0 ? v.trim() : undefined;\nconst isRecord = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst form = (v) => encodeURIComponent(v).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst withQuery = (url, pairs) => { const parts = pairs.filter(([, v]) => v !== undefined).map(([k, v]) => form(k) + '=' + form(String(v))); return parts.length ? url + '?' + parts.join('&') : url; };\nconst strings = (v) => { if (!has(v)) return []; let list = v; if (typeof v === 'string') { try { list = JSON.parse(v); } catch (e) { throw new Error('Expected a JSON list, such as [\"AUTHORISED\"], not ' + v + '.'); } } return Array.isArray(list) ? list.filter((s) => typeof s === 'string' && s.length > 0) : []; };\nconst ws = (v) => '\"' + String(v).replace(/\"/g, '\"\"') + '\"';\nconst guid = (v, field) => { if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(v)) throw new Error(field + ' must be a Xero ID (a GUID such as 00000000-0000-0000-0000-000000000000).'); return 'guid(\"' + v + '\")'; };\nconst date = (v, field) => { if (!has(v)) return undefined; const t = v.trim(); if (!/^(\\d{4})-(\\d{2})-(\\d{2})$/.test(t)) throw new Error(field + ' must be a date in YYYY-MM-DD format.'); const d = new Date(t + 'T00:00:00Z'); if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== t) throw new Error(field + ' is not a valid calendar date.'); return t; };\nconst wdate = (v) => { const [y, m, d] = v.split('-').map(Number); return 'DateTime(' + y + ', ' + m + ', ' + d + ')'; };\nconst anyOf = (field, values) => values.length === 0 ? [] : values.length === 1 ? [field + '==' + ws(values[0])] : ['(' + values.map((v) => field + '==' + ws(v)).join(' OR ') + ')'];\nconst sizeOf = (v, fallback, max) => { if (!has(v)) return fallback; const n = Number(v); if (!Number.isInteger(n) || n < 1 || n > max) throw new Error('Page Size must be a whole number from 1 to ' + max + '.'); return n; };\nconst idOf = (v) => typeof v === 'string' && v.trim().length > 0 ? v : undefined;\nconst firstSeen = (key, items, id) => { const known = new Set(Array.isArray(memory[key]) ? memory[key].filter((s) => typeof s === 'string') : []), ids = new Set(), fresh = []; for (const item of items) { const found = id(item); if (!found || ids.has(found)) continue; ids.add(found); if (!known.has(found)) fresh.push(item); } const kept = [...[...known].filter((s) => !ids.has(s)), ...ids]; memory[key] = kept.slice(Math.max(kept.length - 5000, 0)); return fresh; };\nconst timeOf = (v) => { if (typeof v === 'number' && Number.isFinite(v)) return v; if (typeof v !== 'string') return undefined; const ms = /\\/Date\\((-?\\d+)/.exec(v); if (ms) return Number(ms[1]); const t = Date.parse(v); return Number.isNaN(t) ? undefined : t; };\n// The first check only notes the time, as the original's polling starts when the trigger is turned on.\nif (!has(inputs.lastPollTime)) return [];\nconst types = strings(inputs.types), statuses = strings(inputs.statuses), contact = text(inputs.contact_id), reference = text(inputs.reference);\nconst from = date(inputs.date_from, 'Date From'), to = date(inputs.date_to, 'Date To');\nconst where = [...anyOf('Type', types), ...anyOf('Status', statuses), ...(contact ? ['Contact.ContactID==' + guid(contact, 'Contact')] : []),\n  ...(reference ? ['Reference==' + ws(reference)] : []), ...(from ? ['Date>=' + wdate(from)] : []), ...(to ? ['Date<' + wdate(to)] : [])];\nconst params = [['where', where.length > 0 ? where.join(' AND ') : undefined]], size = sizeOf(inputs.page_size, 200, 1000);\nconst since = Number(inputs.lastPollTime), headers = {'Xero-Tenant-Id': inputs.tenant_id, ...(since > 0 ? {'If-Modified-Since': new Date(since).toISOString().slice(0, 19), 'Cache-Control': 'no-cache', Pragma: 'no-cache'} : {})};\nconst records = (body) => isRecord(body) && Array.isArray(body.CreditNotes) ? body.CreditNotes.filter(isRecord) : [];\nconst epochOf = (r) => timeOf(r.UpdatedDateUTC) ?? timeOf(r.Date) ?? Date.now();\n// Every page; after five full pages, the records of the newest instant wait for the next check, so that none is skipped.\nlet all = [], body = response;\nfor (let page = 1; ; page++) {\n  const got = records(body);\n  all.push(...got);\n  if (got.length < size) break;\n  if (page >= 5) {\n    const newest = all.reduce((n, r) => Math.max(n, epochOf(r)), Number.NEGATIVE_INFINITY), older = all.filter((r) => epochOf(r) < newest);\n    if (older.length > 0) { all = older; break; }\n    if (page >= 50) throw new Error('More than ' + all.length + ' CreditNotes records share the same UpdatedDateUTC, so this check cannot advance without skipping some. Raise Page Size (up to 1000).');\n  }\n  body = call({method: 'GET', url: withQuery('/CreditNotes', [...params, ['page', page + 1], ['pageSize', size], ['order', 'UpdatedDateUTC ASC']]), headers});\n}\nconst fresh = all.filter((r) => epochOf(r) > since);\nreturn firstSeen('xero_credit_note_seen_ids_' + inputs.tenant_id, fresh, (r) => idOf(r.CreditNoteID));"
+    },
+    "xero_new_project": {
+      "label": "New Project",
+      "description": "Fires when a new project is created.",
+      "inputs": {
+        "tenant_id": {
+          "label": "Organisation",
+          "required": true,
+          "list": "tenants"
+        },
+        "contact_id": {
+          "label": "Contact",
+          "description": "Select a contact",
+          "list": "contacts"
+        },
+        "states": {
+          "label": "States (optional)",
+          "description": "Leave empty for every state. A JSON list of \"INPROGRESS\", \"CLOSED\".",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.xero.com/projects.xro/2.0/Projects",
+        "headers": {
+          "Xero-Tenant-Id": "{{tenant_id}}"
+        }
+      },
+      "newBy": "lastItem",
+      "key": "$.projectId",
+      "beforeRequest": "const has = (v) => v !== undefined && v !== null && v !== '';\nconst text = (v) => typeof v === 'string' && v.trim().length > 0 ? v.trim() : undefined;\nconst form = (v) => encodeURIComponent(v).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst withQuery = (url, pairs) => { const parts = pairs.filter(([, v]) => v !== undefined).map(([k, v]) => form(k) + '=' + form(String(v))); return parts.length ? url + '?' + parts.join('&') : url; };\nconst strings = (v) => { if (!has(v)) return []; let list = v; if (typeof v === 'string') { try { list = JSON.parse(v); } catch (e) { throw new Error('Expected a JSON list, such as [\"AUTHORISED\"], not ' + v + '.'); } } return Array.isArray(list) ? list.filter((s) => typeof s === 'string' && s.length > 0) : []; };\nconst states = strings(inputs.states);\nconst params = [['pageSize', 500], ['contactID', text(inputs.contact_id)], ['states', states.length > 0 ? states.join(',') : undefined]];\nrequest.url = withQuery(request.url, [['page', 1], ...params]);\nreturn request;",
+      "afterResponse": "const has = (v) => v !== undefined && v !== null && v !== '';\nconst text = (v) => typeof v === 'string' && v.trim().length > 0 ? v.trim() : undefined;\nconst isRecord = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst form = (v) => encodeURIComponent(v).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst withQuery = (url, pairs) => { const parts = pairs.filter(([, v]) => v !== undefined).map(([k, v]) => form(k) + '=' + form(String(v))); return parts.length ? url + '?' + parts.join('&') : url; };\nconst strings = (v) => { if (!has(v)) return []; let list = v; if (typeof v === 'string') { try { list = JSON.parse(v); } catch (e) { throw new Error('Expected a JSON list, such as [\"AUTHORISED\"], not ' + v + '.'); } } return Array.isArray(list) ? list.filter((s) => typeof s === 'string' && s.length > 0) : []; };\nconst idOf = (v) => typeof v === 'string' && v.trim().length > 0 ? v : undefined;\nconst firstSeen = (key, items, id) => { const known = new Set(Array.isArray(memory[key]) ? memory[key].filter((s) => typeof s === 'string') : []), ids = new Set(), fresh = []; for (const item of items) { const found = id(item); if (!found || ids.has(found)) continue; ids.add(found); if (!known.has(found)) fresh.push(item); } const kept = [...[...known].filter((s) => !ids.has(s)), ...ids]; memory[key] = kept.slice(Math.max(kept.length - 5000, 0)); return fresh; };\nconst states = strings(inputs.states);\nconst params = [['pageSize', 500], ['contactID', text(inputs.contact_id)], ['states', states.length > 0 ? states.join(',') : undefined]];\nconst records = (body) => isRecord(body) && Array.isArray(body.items) ? body.items.filter(isRecord) : [];\n// Up to ten pages of 500, as the original reads them.\nconst projects = [];\nlet body = response;\nfor (let page = 1; ; page++) {\n  const got = records(body);\n  projects.push(...got);\n  if (got.length < 500 || page >= 10) break;\n  body = call({method: 'GET', url: withQuery('https://api.xero.com/projects.xro/2.0/Projects', [['page', page + 1], ...params]), headers: {'Xero-Tenant-Id': inputs.tenant_id}});\n}\nreturn firstSeen('xero_project_seen_ids_' + inputs.tenant_id, projects, (r) => idOf(r.projectId) ?? idOf(r.ProjectID));"
+    },
+    "xero_new_quote": {
+      "label": "New Quote",
+      "description": "Fires the first time a quote is created or changed after the trigger is turned on.",
+      "inputs": {
+        "tenant_id": {
+          "label": "Organisation",
+          "required": true,
+          "list": "tenants"
+        },
+        "statuses": {
+          "label": "Filter by Status (optional)",
+          "description": "Leave empty for every status. A JSON list of \"DRAFT\", \"SENT\", \"ACCEPTED\", \"DECLINED\", \"INVOICED\", \"DELETED\".",
+          "type": "json"
+        },
+        "contact_id": {
+          "label": "Contact",
+          "description": "Select a contact",
+          "list": "contacts"
+        },
+        "quote_number": {
+          "label": "Quote Number (partial match)"
+        },
+        "date_from": {
+          "label": "Date From (YYYY-MM-DD)"
+        },
+        "date_to": {
+          "label": "Date To (YYYY-MM-DD)"
+        },
+        "expiry_date_from": {
+          "label": "Expiry Date From (YYYY-MM-DD)"
+        },
+        "expiry_date_to": {
+          "label": "Expiry Date To (YYYY-MM-DD)"
+        },
+        "page_size": {
+          "label": "Page Size (1-1000)",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.xero.com/api.xro/2.0/Quotes",
+        "headers": {
+          "Xero-Tenant-Id": "{{tenant_id}}"
+        }
+      },
+      "key": "$.UpdatedDateUTC",
+      "beforeRequest": "const has = (v) => v !== undefined && v !== null && v !== '';\nconst text = (v) => typeof v === 'string' && v.trim().length > 0 ? v.trim() : undefined;\nconst form = (v) => encodeURIComponent(v).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst withQuery = (url, pairs) => { const parts = pairs.filter(([, v]) => v !== undefined).map(([k, v]) => form(k) + '=' + form(String(v))); return parts.length ? url + '?' + parts.join('&') : url; };\nconst strings = (v) => { if (!has(v)) return []; let list = v; if (typeof v === 'string') { try { list = JSON.parse(v); } catch (e) { throw new Error('Expected a JSON list, such as [\"AUTHORISED\"], not ' + v + '.'); } } return Array.isArray(list) ? list.filter((s) => typeof s === 'string' && s.length > 0) : []; };\nconst date = (v, field) => { if (!has(v)) return undefined; const t = v.trim(); if (!/^(\\d{4})-(\\d{2})-(\\d{2})$/.test(t)) throw new Error(field + ' must be a date in YYYY-MM-DD format.'); const d = new Date(t + 'T00:00:00Z'); if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== t) throw new Error(field + ' is not a valid calendar date.'); return t; };\nconst sizeOf = (v, fallback, max) => { if (!has(v)) return fallback; const n = Number(v); if (!Number.isInteger(n) || n < 1 || n > max) throw new Error('Page Size must be a whole number from 1 to ' + max + '.'); return n; };\nconst statuses = strings(inputs.statuses);\nconst params = [['Status', statuses.length === 1 ? statuses[0] : undefined], ['ContactID', text(inputs.contact_id)], ['QuoteNumber', text(inputs.quote_number)],\n  ['DateFrom', date(inputs.date_from, 'Date From')], ['DateTo', date(inputs.date_to, 'Date To')], ['ExpiryDateFrom', date(inputs.expiry_date_from, 'Expiry Date From')],\n  ['ExpiryDateTo', date(inputs.expiry_date_to, 'Expiry Date To')]], size = sizeOf(inputs.page_size, 200, 1000);\nrequest.url = withQuery(request.url, [...params, ['page', 1], ['pageSize', size], ['order', 'UpdatedDateUTC ASC']]);\n// The original's fetch adds Cache-Control and Pragma to a request with If-Modified-Since.\nif (Number(inputs.lastPollTime) > 0) Object.assign(request.headers, {'If-Modified-Since': new Date(Number(inputs.lastPollTime)).toISOString().slice(0, 19), 'Cache-Control': 'no-cache', Pragma: 'no-cache'});\nreturn request;",
+      "afterResponse": "const has = (v) => v !== undefined && v !== null && v !== '';\nconst text = (v) => typeof v === 'string' && v.trim().length > 0 ? v.trim() : undefined;\nconst isRecord = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst form = (v) => encodeURIComponent(v).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst withQuery = (url, pairs) => { const parts = pairs.filter(([, v]) => v !== undefined).map(([k, v]) => form(k) + '=' + form(String(v))); return parts.length ? url + '?' + parts.join('&') : url; };\nconst strings = (v) => { if (!has(v)) return []; let list = v; if (typeof v === 'string') { try { list = JSON.parse(v); } catch (e) { throw new Error('Expected a JSON list, such as [\"AUTHORISED\"], not ' + v + '.'); } } return Array.isArray(list) ? list.filter((s) => typeof s === 'string' && s.length > 0) : []; };\nconst date = (v, field) => { if (!has(v)) return undefined; const t = v.trim(); if (!/^(\\d{4})-(\\d{2})-(\\d{2})$/.test(t)) throw new Error(field + ' must be a date in YYYY-MM-DD format.'); const d = new Date(t + 'T00:00:00Z'); if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== t) throw new Error(field + ' is not a valid calendar date.'); return t; };\nconst sizeOf = (v, fallback, max) => { if (!has(v)) return fallback; const n = Number(v); if (!Number.isInteger(n) || n < 1 || n > max) throw new Error('Page Size must be a whole number from 1 to ' + max + '.'); return n; };\nconst idOf = (v) => typeof v === 'string' && v.trim().length > 0 ? v : undefined;\nconst firstSeen = (key, items, id) => { const known = new Set(Array.isArray(memory[key]) ? memory[key].filter((s) => typeof s === 'string') : []), ids = new Set(), fresh = []; for (const item of items) { const found = id(item); if (!found || ids.has(found)) continue; ids.add(found); if (!known.has(found)) fresh.push(item); } const kept = [...[...known].filter((s) => !ids.has(s)), ...ids]; memory[key] = kept.slice(Math.max(kept.length - 5000, 0)); return fresh; };\nconst timeOf = (v) => { if (typeof v === 'number' && Number.isFinite(v)) return v; if (typeof v !== 'string') return undefined; const ms = /\\/Date\\((-?\\d+)/.exec(v); if (ms) return Number(ms[1]); const t = Date.parse(v); return Number.isNaN(t) ? undefined : t; };\n// The first check only notes the time, as the original's polling starts when the trigger is turned on.\nif (!has(inputs.lastPollTime)) return [];\nconst statuses = strings(inputs.statuses);\nconst params = [['Status', statuses.length === 1 ? statuses[0] : undefined], ['ContactID', text(inputs.contact_id)], ['QuoteNumber', text(inputs.quote_number)],\n  ['DateFrom', date(inputs.date_from, 'Date From')], ['DateTo', date(inputs.date_to, 'Date To')], ['ExpiryDateFrom', date(inputs.expiry_date_from, 'Expiry Date From')],\n  ['ExpiryDateTo', date(inputs.expiry_date_to, 'Expiry Date To')]], size = sizeOf(inputs.page_size, 200, 1000);\nconst since = Number(inputs.lastPollTime), headers = {'Xero-Tenant-Id': inputs.tenant_id, ...(since > 0 ? {'If-Modified-Since': new Date(since).toISOString().slice(0, 19), 'Cache-Control': 'no-cache', Pragma: 'no-cache'} : {})};\nconst records = (body) => isRecord(body) && Array.isArray(body.Quotes) ? body.Quotes.filter(isRecord) : [];\nconst epochOf = (r) => timeOf(r.UpdatedDateUTC) ?? timeOf(r.Date) ?? Date.now();\n// Every page; after five full pages, the records of the newest instant wait for the next check, so that none is skipped.\nlet all = [], body = response;\nfor (let page = 1; ; page++) {\n  const got = records(body);\n  all.push(...got);\n  if (got.length < size) break;\n  if (page >= 5) {\n    const newest = all.reduce((n, r) => Math.max(n, epochOf(r)), Number.NEGATIVE_INFINITY), older = all.filter((r) => epochOf(r) < newest);\n    if (older.length > 0) { all = older; break; }\n    if (page >= 50) throw new Error('More than ' + all.length + ' Quotes records share the same UpdatedDateUTC, so this check cannot advance without skipping some. Raise Page Size (up to 1000).');\n  }\n  body = call({method: 'GET', url: withQuery('/Quotes', [...params, ['page', page + 1], ['pageSize', size], ['order', 'UpdatedDateUTC ASC']]), headers});\n}\nconst matches = (r) => statuses.length <= 1 || statuses.includes(String(r.Status));\nconst fresh = all.filter((r) => epochOf(r) > since && matches(r));\nreturn firstSeen('xero_quote_seen_ids_' + inputs.tenant_id, fresh, (r) => idOf(r.QuoteID));"
     }
   }
 }

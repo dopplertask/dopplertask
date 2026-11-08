@@ -50,7 +50,7 @@
       "label": "$.name",
       "value": "$.name"
     },
-    "lists": {
+    "mailing_lists": {
       "request": {
         "url": "https://{{credential.region}}.mailgun.net/v3/lists/pages",
         "query": {
@@ -142,11 +142,10 @@
       "request": {
         "url": "https://{{credential.region}}.mailgun.net/v4/address/validate",
         "query": {
-          "address": "{{email}}",
-          "provider_lookup": "{{providerLookup}}"
+          "address": "{{email}}"
         }
       },
-      "beforeRequest": "request.query.provider_lookup = inputs.providerLookup === '' ? 'true' : String(inputs.providerLookup);\nreturn request;",
+      "beforeRequest": "request.query.provider_lookup = inputs.providerLookup || 'true';\nreturn request;",
       "afterResponse": "return {address: response.address, is_disposable_address: response.is_disposable_address, is_role_address: response.is_role_address, reason: Array.isArray(response.reason) ? response.reason.join(', ') : null, result: response.result, risk: response.risk};",
       "outputs": {
         "result": "$.result"
@@ -160,7 +159,7 @@
           "label": "Mailing List",
           "description": "Select the mailing list",
           "required": true,
-          "list": "lists"
+          "list": "mailing_lists"
         },
         "address": {
           "label": "Member Email Address",
@@ -295,7 +294,6 @@
         "url": "https://{{credential.region}}.mailgun.net/v3/{{domain}}/events",
         "query": {
           "event": "{{event}}",
-          "limit": "{{limit}}",
           "severity": "{{severity}}",
           "begin": "{{begin}}",
           "end": "{{end}}"
@@ -381,19 +379,16 @@
         }
       },
       "request": {
-        "url": "https://{{credential.region}}.mailgun.net/v3/{{domain}}/bounces",
-        "query": {
-          "limit": "{{limit}}"
-        }
+        "url": "https://{{credential.region}}.mailgun.net/v3/{{domain}}/bounces"
       },
-      "beforeRequest": "const max = Math.min(Math.max(inputs.limit === '' ? 100 : Number(inputs.limit), 1), 1000);\nrequest.query.limit = String(max);\nreturn request;",
+      "beforeRequest": "request.query = {limit: String(Math.min(Math.max(inputs.limit === '' ? 100 : Number(inputs.limit), 1), 1000))};\nreturn request;",
       "afterResponse": "const bounces = response.items.map((i) => ({address: i.address, code: i.code, error: i.error, created_at: i.created_at}));\nreturn {total_count: bounces.length, bounces};",
       "outputs": {
         "total_count": "$.total_count"
       }
     },
     "delete_bounces_bulk": {
-      "label": "Delete Bounces (Bulk)",
+      "label": "Delete Bounces",
       "description": "Remove bounced addresses from the Mailgun suppression list, either all at once for a domain or a single address.",
       "inputs": {
         "domain": {

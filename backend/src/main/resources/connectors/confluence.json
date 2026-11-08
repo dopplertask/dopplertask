@@ -1,7 +1,7 @@
 {
   "name": "confluence",
   "label": "Confluence",
-  "description": "",
+  "description": "Team wiki for pages, blog posts, comments and spaces.",
   "icon": "confluence",
   "hosts": [
     "{{credential.confluenceDomain}}"
@@ -43,9 +43,7 @@
           "limit": "200"
         }
       },
-      "items": "$.results",
-      "label": "$.name",
-      "value": "$.id"
+      "items": "$.results"
     },
     "pages": {
       "request": {
@@ -55,14 +53,14 @@
         }
       },
       "items": "$.results",
-      "label": "$.title",
-      "value": "$.id"
+      "label": "$.title"
     }
   },
   "actions": {
     "getPageContent": {
       "label": "Get Page with Descendants",
-      "description": "Get page content and optionally all its descendants",
+      "description": "Gets a page's content and, optionally, all its descendants.",
+      "group": "Pages",
       "inputs": {
         "pageId": {
           "label": "Page ID",
@@ -70,29 +68,30 @@
           "required": true
         },
         "includeDescendants": {
-          "label": "Include Descendants ?",
+          "label": "Include Descendants?",
           "description": "If checked, will fetch all child pages recursively.",
           "type": "boolean",
           "defaultValue": "false"
         },
-        "dynamic": {
-          "label": "Dynamic Properties",
-          "type": "json",
-          "required": true
+        "maxDepth": {
+          "label": "Maximum Depth",
+          "description": "Maximum depth of child pages to fetch.",
+          "type": "number",
+          "defaultValue": "5"
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}",
         "query": {
           "body-format": "storage"
         }
       },
-      "afterResponse": "if (inputs.includeDescendants !== 'true') return response;\nvar maxDepth = Number(JSON.parse(inputs.dynamic || '{}').maxDepth);\nvar page = (id) => call({method: 'GET', url: '/api/v2/pages/' + id, query: {'body-format': 'storage'}});\nvar childrenOf = (id) => call({method: 'GET', url: '/api/v2/pages/' + id + '/children'}).results;\nvar root = Object.assign({}, response, {children: []});\nif (1 >= maxDepth) return root;\nvar parents = [root];\nvar lists = [childrenOf(inputs.pageId)];\nfor (var depth = 2; ; depth++) {\n  var level = [];\n  var ids = [];\n  parents.forEach((parent, index) => { parent.children = lists[index].map((child) => { var node = Object.assign({}, page(child.id), {children: []}); level.push(node); ids.push(child.id); return node; }); });\n  if (depth >= maxDepth || level.length === 0) return root;\n  parents = level;\n  lists = ids.map(childrenOf);\n}"
+      "afterResponse": "if (inputs.includeDescendants !== 'true') return response;\nvar maxDepth = Number(inputs.maxDepth);\nvar page = (id) => call({method: 'GET', url: '/api/v2/pages/' + id, query: {'body-format': 'storage'}});\nvar childrenOf = (id) => call({method: 'GET', url: '/api/v2/pages/' + id + '/children'}).results;\nvar root = Object.assign({}, response, {children: []});\nif (1 >= maxDepth) return root;\nvar parents = [root];\nvar lists = [childrenOf(inputs.pageId)];\nfor (var depth = 2; ; depth++) {\n  var level = [];\n  var ids = [];\n  parents.forEach((parent, index) => { parent.children = lists[index].map((child) => { var node = Object.assign({}, page(child.id), {children: []}); level.push(node); ids.push(child.id); return node; }); });\n  if (depth >= maxDepth || level.length === 0) return root;\n  parents = level;\n  lists = ids.map(childrenOf);\n}"
     },
     "get-page-by-url": {
       "label": "Get Page by URL",
       "description": "Fetches a page by its Confluence web URL (extracts the page ID automatically).",
+      "group": "Pages",
       "inputs": {
         "url": {
           "label": "Page URL",
@@ -124,7 +123,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages",
         "query": {
           "body-format": "{{bodyFormat}}"
@@ -132,35 +130,10 @@
       },
       "beforeRequest": "var match = /\\/pages\\/(\\d+)/.exec(inputs.url) || /[?&]pageId=(\\d+)/.exec(inputs.url);\nif (!match) throw new Error('Could not extract a page ID from the URL: ' + inputs.url);\nrequest.url += '/' + match[1];\nreturn request;"
     },
-    "find-page-by-title": {
-      "label": "Find Page by Title",
-      "description": "Finds a page by exact title, optionally scoped to a space.",
-      "inputs": {
-        "spaceId": {
-          "label": "Space",
-          "list": "spaces"
-        },
-        "title": {
-          "label": "Title",
-          "description": "Exact title to match.",
-          "required": true
-        }
-      },
-      "request": {
-        "method": "GET",
-        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages",
-        "query": {
-          "title": "{{title}}",
-          "limit": "25",
-          "space-id": "{{spaceId}}"
-        }
-      },
-      "beforeRequest": "var enc = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar form = Object.keys(request.query).map((key) => enc(key) + '=' + enc(request.query[key])).join('&');\nif (form) request.url += '?' + form;\nrequest.query = {};\nreturn request;",
-      "afterResponse": "var results = response.results ?? [];\nreturn {found: results.length > 0, count: results.length, results: results};"
-    },
     "search-pages": {
       "label": "Search Content with Expanded Fields",
       "description": "Search Confluence content with CQL (Confluence Query Language). Example: `type = \"page\" AND space = \"DOCS\" AND title ~ \"release\"`.",
+      "group": "Search",
       "inputs": {
         "cql": {
           "label": "CQL",
@@ -181,7 +154,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/content/search"
       },
       "beforeRequest": "var enc = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar searchUrl = (start, limit) => '/rest/api/content/search?' + [['cql', inputs.cql], ['start', String(start)], ['limit', String(limit)]].concat(inputs.expand ? [['expand', inputs.expand]] : []).map((pair) => enc(pair[0]) + '=' + enc(pair[1])).join('&');\nvar max = Number(inputs.maxResults);\nif (!(max >= 1 && max <= 1000)) throw new Error('Max Results should be between 1 and 1000.');\nrequest.url = request.url.replace(/\\/rest\\/api\\/content\\/search$/, '') + searchUrl(0, Math.min(50, max));\nreturn request;",
@@ -190,6 +162,7 @@
     "create-page-from-template": {
       "label": "Create Page from Template",
       "description": "Creates a new page from a template with the given title and variables.",
+      "group": "Pages",
       "inputs": {
         "spaceId": {
           "label": "Space",
@@ -215,7 +188,7 @@
           "options": [
             {
               "value": "current",
-              "label": "Published "
+              "label": "Published"
             },
             {
               "value": "draft",
@@ -247,6 +220,7 @@
     "publish-draft": {
       "label": "Publish Draft",
       "description": "Publishes a draft page (changes status from draft to current).",
+      "group": "Pages",
       "inputs": {
         "pageId": {
           "label": "Draft Page ID",
@@ -263,6 +237,7 @@
     "reply-to-comment": {
       "label": "Reply to Comment",
       "description": "Replies to an existing footer comment on a page.",
+      "group": "Comments",
       "inputs": {
         "parentCommentId": {
           "label": "Parent Comment ID",
@@ -288,71 +263,10 @@
         }
       }
     },
-    "list-comments": {
-      "label": "List Page Footer and Inline Comments",
-      "description": "Lists footer and/or inline comments on a page.",
-      "inputs": {
-        "spaceId": {
-          "label": "Space",
-          "required": true,
-          "list": "spaces"
-        },
-        "pageId": {
-          "label": "Page",
-          "required": true,
-          "list": "pages"
-        },
-        "commentType": {
-          "label": "Comment Type",
-          "type": "select",
-          "required": true,
-          "defaultValue": "footer",
-          "options": [
-            {
-              "value": "footer",
-              "label": "Footer comments"
-            },
-            {
-              "value": "inline",
-              "label": "Inline comments"
-            },
-            {
-              "value": "both",
-              "label": "Both"
-            }
-          ]
-        },
-        "bodyFormat": {
-          "label": "Body Format",
-          "type": "select",
-          "required": true,
-          "defaultValue": "storage",
-          "options": [
-            {
-              "value": "storage",
-              "label": "Storage (XHTML)"
-            },
-            {
-              "value": "atlas_doc_format",
-              "label": "Atlas Document Format"
-            }
-          ]
-        }
-      },
-      "request": {
-        "method": "GET",
-        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}/{{commentType}}-comments",
-        "query": {
-          "limit": "100",
-          "body-format": "{{bodyFormat}}"
-        }
-      },
-      "beforeRequest": "request.url = request.url.replace(/\\/both-comments$/, '/footer-comments');\nreturn request;",
-      "afterResponse": "if (inputs.commentType !== 'both') return {results: response.results ?? []};\nvar inline = call({method: 'GET', url: '/api/v2/pages/' + inputs.pageId + '/inline-comments', query: {limit: '100', 'body-format': inputs.bodyFormat}});\nreturn {footer: response.results ?? [], inline: inline.results ?? []};"
-    },
     "find-user": {
       "label": "Find User",
       "description": "Looks up Confluence users by name, email, or keyword.",
+      "group": "Users and Groups",
       "inputs": {
         "keyword": {
           "label": "Keyword",
@@ -366,7 +280,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/search/user",
         "query": {
           "cql": "",
@@ -376,62 +289,10 @@
       "beforeRequest": "var keyword = inputs.keyword.replace(/\"/g, '\\\\\"');\nrequest.query.cql = 'user.fullname ~ \"' + keyword + '\" OR user = \"' + keyword + '\"';\nvar enc = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar form = Object.keys(request.query).map((key) => enc(key) + '=' + enc(request.query[key])).join('&');\nif (form) request.url += '?' + form;\nrequest.query = {};\nreturn request;",
       "afterResponse": "var users = (response.results ?? []).map((result) => result.user);\nreturn {found: users.length > 0, count: users.length, results: users};"
     },
-    "list-spaces": {
-      "label": "List All Spaces",
-      "description": "Lists all spaces the authenticated user can access.",
-      "inputs": {
-        "type": {
-          "label": "Type",
-          "type": "select",
-          "options": [
-            {
-              "value": "global",
-              "label": "Global"
-            },
-            {
-              "value": "personal",
-              "label": "Personal"
-            },
-            {
-              "value": "collaboration",
-              "label": "Collaboration"
-            },
-            {
-              "value": "knowledge_base",
-              "label": "Knowledge Base"
-            }
-          ]
-        },
-        "status": {
-          "label": "Status",
-          "type": "select",
-          "defaultValue": "current",
-          "options": [
-            {
-              "value": "current",
-              "label": "Current"
-            },
-            {
-              "value": "archived",
-              "label": "Archived"
-            }
-          ]
-        }
-      },
-      "request": {
-        "method": "GET",
-        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces",
-        "query": {
-          "limit": "200",
-          "type": "{{type}}",
-          "status": "{{status}}"
-        }
-      },
-      "afterResponse": "var results = response.results ?? [];\nvar next = response._links?.next;\nvar filters = {};\nif (inputs.type) filters.type = inputs.type;\nif (inputs.status) filters.status = inputs.status;\nwhile (next) {\n  var page = call({method: 'GET', url: next.replace(/^\\/wiki/, ''), query: filters});\n  if (page.results == null) break;\n  results = results.concat(page.results);\n  next = page._links?.next;\n}\nreturn {count: results.length, results: results};"
-    },
     "confluence_add_labels": {
       "label": "Add Labels",
       "description": "Adds labels to a page, blog post or attachment.",
+      "group": "Labels",
       "inputs": {
         "contentId": {
           "label": "Content ID",
@@ -473,6 +334,7 @@
     "confluence_add_space_labels": {
       "label": "Add Space Labels",
       "description": "Adds labels to a space.",
+      "group": "Labels",
       "inputs": {
         "spaceKey": {
           "label": "Space Key",
@@ -514,6 +376,7 @@
     "confluence_archive_pages": {
       "label": "Archive Pages",
       "description": "Archives one or more pages.",
+      "group": "Pages",
       "inputs": {
         "pageIds": {
           "label": "Page IDs",
@@ -531,6 +394,7 @@
     "confluence_copy_page": {
       "label": "Copy Page",
       "description": "Copies a page to a space, under a parent page, or over an existing page.",
+      "group": "Pages",
       "inputs": {
         "pageId": {
           "label": "Page ID",
@@ -601,6 +465,7 @@
     "confluence_create_blog_post_property": {
       "label": "Create Blog Post Property",
       "description": "Stores a new content property on a blog post.",
+      "group": "Properties",
       "inputs": {
         "blogPostId": {
           "label": "Blog Post ID",
@@ -631,6 +496,7 @@
     "confluence_delete_blog_post_property": {
       "label": "Delete Blog Post Property",
       "description": "Deletes a content property from a blog post.",
+      "group": "Properties",
       "inputs": {
         "blogPostId": {
           "label": "Blog Post ID",
@@ -652,6 +518,7 @@
     "confluence_update_blog_post_property": {
       "label": "Update Blog Post Property",
       "description": "Replaces the value of a content property on a blog post.",
+      "group": "Properties",
       "inputs": {
         "blogPostId": {
           "label": "Blog Post ID",
@@ -687,6 +554,7 @@
     "confluence_create_page_property": {
       "label": "Create Page Property",
       "description": "Stores a new content property on a page.",
+      "group": "Properties",
       "inputs": {
         "pageId": {
           "label": "Page ID",
@@ -717,6 +585,7 @@
     "confluence_delete_page_property": {
       "label": "Delete Page Property",
       "description": "Deletes a content property from a page.",
+      "group": "Properties",
       "inputs": {
         "pageId": {
           "label": "Page ID",
@@ -738,6 +607,7 @@
     "confluence_update_page_property": {
       "label": "Update Page Property",
       "description": "Replaces the value of a content property on a page.",
+      "group": "Properties",
       "inputs": {
         "pageId": {
           "label": "Page ID",
@@ -773,6 +643,7 @@
     "confluence_create_space_property": {
       "label": "Create Space Property",
       "description": "Stores a new content property on a space.",
+      "group": "Properties",
       "inputs": {
         "spaceId": {
           "label": "Space ID",
@@ -804,6 +675,7 @@
     "confluence_delete_space_property": {
       "label": "Delete Space Property",
       "description": "Deletes a content property from a space.",
+      "group": "Properties",
       "inputs": {
         "spaceId": {
           "label": "Space ID",
@@ -826,6 +698,7 @@
     "confluence_update_space_property": {
       "label": "Update Space Property",
       "description": "Replaces the value of a content property on a space.",
+      "group": "Properties",
       "inputs": {
         "spaceId": {
           "label": "Space ID",
@@ -858,6 +731,7 @@
     "confluence_create_whiteboard_property": {
       "label": "Create Whiteboard Property",
       "description": "Stores a new content property on a whiteboard.",
+      "group": "Properties",
       "inputs": {
         "whiteboardId": {
           "label": "Whiteboard ID",
@@ -888,6 +762,7 @@
     "confluence_delete_whiteboard_property": {
       "label": "Delete Whiteboard Property",
       "description": "Deletes a content property from a whiteboard.",
+      "group": "Properties",
       "inputs": {
         "whiteboardId": {
           "label": "Whiteboard ID",
@@ -909,6 +784,7 @@
     "confluence_update_whiteboard_property": {
       "label": "Update Whiteboard Property",
       "description": "Replaces the value of a content property on a whiteboard.",
+      "group": "Properties",
       "inputs": {
         "whiteboardId": {
           "label": "Whiteboard ID",
@@ -944,6 +820,7 @@
     "confluence_create_page": {
       "label": "Create Page",
       "description": "Creates a page in a space.",
+      "group": "Pages",
       "inputs": {
         "spaceId": {
           "label": "Space ID",
@@ -1030,6 +907,7 @@
     "confluence_delete_page": {
       "label": "Delete Page",
       "description": "Moves a page to the trash, or purges it.",
+      "group": "Pages",
       "inputs": {
         "pageId": {
           "label": "Page ID",
@@ -1061,6 +939,7 @@
     "confluence_get_page_like_count": {
       "label": "Get Page Like Count",
       "description": "Gets how many likes a page has.",
+      "group": "Pages",
       "inputs": {
         "pageId": {
           "label": "Page ID",
@@ -1069,13 +948,13 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}/likes/count"
       }
     },
     "confluence_get_page_version": {
       "label": "Get Page Version",
       "description": "Gets the details of one version of a page.",
+      "group": "Pages",
       "inputs": {
         "pageId": {
           "label": "Page ID",
@@ -1090,13 +969,13 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}/versions/{{versionNumber}}"
       }
     },
     "confluence_get_page": {
       "label": "Get Page",
       "description": "Gets a page by ID, with its body.",
+      "group": "Pages",
       "inputs": {
         "pageId": {
           "label": "Page ID",
@@ -1155,7 +1034,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}",
         "query": {
           "body-format": "{{bodyFormat}}",
@@ -1171,6 +1049,7 @@
     "confluence_list_page_operations": {
       "label": "List Page Permitted Operations",
       "description": "Lists what the connected user may do on a page.",
+      "group": "Pages",
       "inputs": {
         "pageId": {
           "label": "Page ID",
@@ -1179,13 +1058,13 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}/operations"
       }
     },
     "confluence_list_page_attachments": {
       "label": "List Page Attachments",
       "description": "Lists the attachments of a page.",
+      "group": "Attachments",
       "inputs": {
         "pageId": {
           "label": "Page ID",
@@ -1230,7 +1109,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}/attachments",
         "query": {
           "filename": "{{filename}}",
@@ -1245,6 +1123,7 @@
     "confluence_list_page_footer_comments": {
       "label": "List Page Footer Comments",
       "description": "Lists the footer comments on a page.",
+      "group": "Comments",
       "inputs": {
         "pageId": {
           "label": "Page ID",
@@ -1297,7 +1176,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}/footer-comments",
         "query": {
           "body-format": "{{bodyFormat}}",
@@ -1311,6 +1189,7 @@
     "confluence_list_page_inline_comments": {
       "label": "List Page Inline Comments",
       "description": "Lists the inline comments on a page.",
+      "group": "Comments",
       "inputs": {
         "pageId": {
           "label": "Page ID",
@@ -1386,7 +1265,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}/inline-comments",
         "query": {
           "body-format": "{{bodyFormat}}",
@@ -1401,6 +1279,7 @@
     "confluence_list_page_labels": {
       "label": "List Page Labels",
       "description": "Lists the labels on a page.",
+      "group": "Labels",
       "inputs": {
         "pageId": {
           "label": "Page ID",
@@ -1442,7 +1321,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}/labels",
         "query": {
           "prefix": "{{prefix}}",
@@ -1455,6 +1333,7 @@
     "confluence_list_page_properties": {
       "label": "List Page Properties",
       "description": "Lists the content properties stored on a page.",
+      "group": "Properties",
       "inputs": {
         "pageId": {
           "label": "Page ID",
@@ -1477,7 +1356,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}/properties",
         "query": {
           "key": "{{key}}",
@@ -1490,6 +1368,7 @@
     "confluence_list_page_versions": {
       "label": "List Page Versions",
       "description": "Lists the version history of a page.",
+      "group": "Pages",
       "inputs": {
         "pageId": {
           "label": "Page ID",
@@ -1537,7 +1416,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}/versions",
         "query": {
           "sort": "{{sort}}",
@@ -1551,6 +1429,7 @@
     "confluence_list_pages_for_label": {
       "label": "List Pages for Label",
       "description": "Lists the pages that carry a label.",
+      "group": "Labels",
       "inputs": {
         "labelId": {
           "label": "Label ID",
@@ -1607,7 +1486,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/labels/{{labelId}}/pages",
         "query": {
           "space-id": "{{spaceId}}",
@@ -1622,6 +1500,7 @@
     "confluence_list_pages": {
       "label": "List Pages",
       "description": "Lists pages, optionally filtered by space, title or status.",
+      "group": "Pages",
       "inputs": {
         "spaceId": {
           "label": "Space ID",
@@ -1704,7 +1583,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages",
         "query": {
           "space-id": "{{spaceId}}",
@@ -1722,6 +1600,7 @@
     "confluence_create_blog_post": {
       "label": "Create Blog Post",
       "description": "Creates a blog post in a space.",
+      "group": "Blog Posts",
       "inputs": {
         "spaceId": {
           "label": "Space ID",
@@ -1801,6 +1680,7 @@
     "confluence_delete_blog_post": {
       "label": "Delete Blog Post",
       "description": "Moves a blog post to the trash, or purges it.",
+      "group": "Blog Posts",
       "inputs": {
         "blogPostId": {
           "label": "Blog Post ID",
@@ -1832,6 +1712,7 @@
     "confluence_get_blog_post_like_count": {
       "label": "Get Blog Post Like Count",
       "description": "Gets how many likes a blog post has.",
+      "group": "Blog Posts",
       "inputs": {
         "blogPostId": {
           "label": "Blog Post ID",
@@ -1840,13 +1721,13 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/blogposts/{{blogPostId}}/likes/count"
       }
     },
     "confluence_get_blog_post_version": {
       "label": "Get Blog Post Version",
       "description": "Gets the details of one version of a blog post.",
+      "group": "Blog Posts",
       "inputs": {
         "blogPostId": {
           "label": "Blog Post ID",
@@ -1861,13 +1742,13 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/blogposts/{{blogPostId}}/versions/{{versionNumber}}"
       }
     },
     "confluence_get_blog_post": {
       "label": "Get Blog Post",
       "description": "Gets a blog post by ID, with its body.",
+      "group": "Blog Posts",
       "inputs": {
         "blogPostId": {
           "label": "Blog Post ID",
@@ -1926,7 +1807,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/blogposts/{{blogPostId}}",
         "query": {
           "body-format": "{{bodyFormat}}",
@@ -1942,6 +1822,7 @@
     "confluence_list_blog_post_operations": {
       "label": "List Blog Post Permitted Operations",
       "description": "Lists what the connected user may do on a blog post.",
+      "group": "Blog Posts",
       "inputs": {
         "blogPostId": {
           "label": "Blog Post ID",
@@ -1950,13 +1831,13 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/blogposts/{{blogPostId}}/operations"
       }
     },
     "confluence_list_blog_post_attachments": {
       "label": "List Blog Post Attachments",
       "description": "Lists the attachments of a blog post.",
+      "group": "Attachments",
       "inputs": {
         "blogPostId": {
           "label": "Blog Post ID",
@@ -1983,7 +1864,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/blogposts/{{blogPostId}}/attachments",
         "query": {
           "filename": "{{filename}}",
@@ -1996,7 +1876,8 @@
     },
     "confluence_list_blog_post_footer_comments": {
       "label": "List Blog Post Footer Comments",
-      "description": "Lists the footer on a blog post.",
+      "description": "Lists the footer comments on a blog post.",
+      "group": "Comments",
       "inputs": {
         "blogPostId": {
           "label": "Blog Post ID",
@@ -2049,7 +1930,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/blogposts/{{blogPostId}}/footer-comments",
         "query": {
           "body-format": "{{bodyFormat}}",
@@ -2063,6 +1943,7 @@
     "confluence_list_blog_post_inline_comments": {
       "label": "List Blog Post Inline Comments",
       "description": "Lists the inline comments on a blog post.",
+      "group": "Comments",
       "inputs": {
         "blogPostId": {
           "label": "Blog Post ID",
@@ -2138,7 +2019,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/blogposts/{{blogPostId}}/inline-comments",
         "query": {
           "body-format": "{{bodyFormat}}",
@@ -2153,6 +2033,7 @@
     "confluence_list_blog_post_labels": {
       "label": "List Blog Post Labels",
       "description": "Lists the labels on a blog post.",
+      "group": "Labels",
       "inputs": {
         "blogPostId": {
           "label": "Blog Post ID",
@@ -2194,7 +2075,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/blogposts/{{blogPostId}}/labels",
         "query": {
           "prefix": "{{prefix}}",
@@ -2207,6 +2087,7 @@
     "confluence_list_blog_post_properties": {
       "label": "List Blog Post Properties",
       "description": "Lists the content properties stored on a blog post.",
+      "group": "Properties",
       "inputs": {
         "blogPostId": {
           "label": "Blog Post ID",
@@ -2229,7 +2110,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/blogposts/{{blogPostId}}/properties",
         "query": {
           "key": "{{key}}",
@@ -2242,6 +2122,7 @@
     "confluence_list_blog_post_versions": {
       "label": "List Blog Post Versions",
       "description": "Lists the version history of a blog post.",
+      "group": "Blog Posts",
       "inputs": {
         "blogPostId": {
           "label": "Blog Post ID",
@@ -2289,7 +2170,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/blogposts/{{blogPostId}}/versions",
         "query": {
           "sort": "{{sort}}",
@@ -2303,6 +2183,7 @@
     "confluence_list_blog_posts_for_label": {
       "label": "List Blog Posts for Label",
       "description": "Lists the blog posts that carry a label.",
+      "group": "Labels",
       "inputs": {
         "labelId": {
           "label": "Label ID",
@@ -2359,7 +2240,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/labels/{{labelId}}/blogposts",
         "query": {
           "space-id": "{{spaceId}}",
@@ -2374,6 +2254,7 @@
     "confluence_list_blog_posts": {
       "label": "List Blog Posts",
       "description": "Lists blog posts, optionally filtered by space, title or status.",
+      "group": "Blog Posts",
       "inputs": {
         "spaceId": {
           "label": "Space ID",
@@ -2448,7 +2329,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/blogposts",
         "query": {
           "space-id": "{{spaceId}}",
@@ -2466,6 +2346,7 @@
     "confluence_create_folder": {
       "label": "Create Folder",
       "description": "Creates a folder in a space.",
+      "group": "Folders",
       "inputs": {
         "spaceId": {
           "label": "Space ID",
@@ -2495,6 +2376,7 @@
     "confluence_create_footer_comment": {
       "label": "Create Footer Comment",
       "description": "Adds a footer comment to a page, blog post or attachment.",
+      "group": "Comments",
       "inputs": {
         "pageId": {
           "label": "Page ID",
@@ -2553,6 +2435,7 @@
     "confluence_create_inline_comment": {
       "label": "Create Inline Comment",
       "description": "Adds an inline comment on highlighted text, or replies to one.",
+      "group": "Comments",
       "inputs": {
         "pageId": {
           "label": "Page ID",
@@ -2625,6 +2508,7 @@
     "confluence_create_space": {
       "label": "Create Space",
       "description": "Creates a space, public or private.",
+      "group": "Spaces",
       "inputs": {
         "name": {
           "label": "Name",
@@ -2663,6 +2547,7 @@
     "confluence_create_whiteboard": {
       "label": "Create Whiteboard",
       "description": "Creates a whiteboard in a space.",
+      "group": "Whiteboards",
       "inputs": {
         "spaceId": {
           "label": "Space ID",
@@ -2703,9 +2588,50 @@
       },
       "beforeRequest": "for (const key in request.query) if (request.query[key] === 'false') delete request.query[key];\nreturn request;"
     },
+    "confluence_upload_attachment": {
+      "label": "Upload Attachment",
+      "description": "Uploads a file as an attachment to a page or blog post.",
+      "group": "Attachments",
+      "inputs": {
+        "contentId": {
+          "label": "Page or Blog Post ID",
+          "description": "Numeric ID of the page or blog post to attach to, from List Pages or List Blog Posts.",
+          "required": true
+        },
+        "file": {
+          "label": "File",
+          "type": "file",
+          "required": true
+        },
+        "comment": {
+          "label": "Comment",
+          "description": "Optional comment for this attachment version."
+        },
+        "minorEdit": {
+          "label": "Minor Edit",
+          "description": "Do not notify watchers about the upload. Defaults to true.",
+          "type": "boolean",
+          "defaultValue": "true"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/content/{{contentId}}/child/attachment",
+        "headers": {
+          "X-Atlassian-Token": "no-check",
+          "Content-Type": "multipart/form-data"
+        },
+        "body": {
+          "file": "{{file}}",
+          "comment": "{{comment}}",
+          "minorEdit": "{{minorEdit}}"
+        }
+      }
+    },
     "confluence_delete_attachment": {
       "label": "Delete Attachment",
       "description": "Moves an attachment to the trash, or purges it.",
+      "group": "Attachments",
       "inputs": {
         "attachmentId": {
           "label": "Attachment ID",
@@ -2731,6 +2657,7 @@
     "confluence_delete_folder": {
       "label": "Delete Folder",
       "description": "Moves a folder to the trash.",
+      "group": "Folders",
       "inputs": {
         "folderId": {
           "label": "Folder ID",
@@ -2747,6 +2674,7 @@
     "confluence_delete_whiteboard": {
       "label": "Delete Whiteboard",
       "description": "Moves a whiteboard to the trash.",
+      "group": "Whiteboards",
       "inputs": {
         "whiteboardId": {
           "label": "Whiteboard ID",
@@ -2763,6 +2691,7 @@
     "confluence_delete_footer_comment": {
       "label": "Delete Footer Comment",
       "description": "Permanently deletes a footer comment.",
+      "group": "Comments",
       "inputs": {
         "commentId": {
           "label": "Comment ID",
@@ -2778,7 +2707,8 @@
     },
     "confluence_delete_inline_comment": {
       "label": "Delete Inline Comment",
-      "description": "Permanently deletes a inline comment.",
+      "description": "Permanently deletes an inline comment.",
+      "group": "Comments",
       "inputs": {
         "commentId": {
           "label": "Comment ID",
@@ -2795,6 +2725,7 @@
     "confluence_delete_space": {
       "label": "Delete Space",
       "description": "Starts deleting a space and everything in it.",
+      "group": "Spaces",
       "inputs": {
         "spaceKey": {
           "label": "Space Key",
@@ -2810,6 +2741,7 @@
     "confluence_get_attachment": {
       "label": "Get Attachment",
       "description": "Gets the details of an attachment.",
+      "group": "Attachments",
       "inputs": {
         "attachmentId": {
           "label": "Attachment ID",
@@ -2826,7 +2758,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/attachments/{{attachmentId}}",
         "query": {
           "include-labels": "{{includeLabels}}",
@@ -2838,6 +2769,7 @@
     "confluence_get_content_restrictions": {
       "label": "Get Content Restrictions",
       "description": "Gets who may view or edit a page or blog post.",
+      "group": "Pages",
       "inputs": {
         "contentId": {
           "label": "Content ID",
@@ -2846,7 +2778,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/content/{{contentId}}/restriction",
         "query": {
           "expand": "restrictions.user,restrictions.group"
@@ -2856,14 +2787,15 @@
     "confluence_get_current_user": {
       "label": "Get Current User",
       "description": "Gets the connected user.",
+      "group": "Users and Groups",
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/user/current"
       }
     },
     "confluence_get_folder": {
       "label": "Get Folder",
       "description": "Gets a folder by ID.",
+      "group": "Folders",
       "inputs": {
         "folderId": {
           "label": "Folder ID",
@@ -2872,13 +2804,13 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/folders/{{folderId}}"
       }
     },
     "confluence_get_whiteboard": {
       "label": "Get Whiteboard",
       "description": "Gets a whiteboard by ID.",
+      "group": "Whiteboards",
       "inputs": {
         "whiteboardId": {
           "label": "Whiteboard ID",
@@ -2887,13 +2819,13 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/whiteboards/{{whiteboardId}}"
       }
     },
     "confluence_get_footer_comment": {
       "label": "Get Footer Comment",
       "description": "Gets a footer comment by ID.",
+      "group": "Comments",
       "inputs": {
         "commentId": {
           "label": "Comment ID",
@@ -2922,7 +2854,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/footer-comments/{{commentId}}",
         "query": {
           "body-format": "{{bodyFormat}}"
@@ -2932,6 +2863,7 @@
     "confluence_list_footer_comment_replies": {
       "label": "List Footer Comment Replies",
       "description": "Lists the replies to a footer comment.",
+      "group": "Comments",
       "inputs": {
         "commentId": {
           "label": "Comment ID",
@@ -2984,7 +2916,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/footer-comments/{{commentId}}/children",
         "query": {
           "body-format": "{{bodyFormat}}",
@@ -2997,7 +2928,8 @@
     },
     "confluence_get_inline_comment": {
       "label": "Get Inline Comment",
-      "description": "Gets a inline comment by ID.",
+      "description": "Gets an inline comment by ID.",
+      "group": "Comments",
       "inputs": {
         "commentId": {
           "label": "Comment ID",
@@ -3026,7 +2958,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/inline-comments/{{commentId}}",
         "query": {
           "body-format": "{{bodyFormat}}"
@@ -3035,7 +2966,8 @@
     },
     "confluence_list_inline_comment_replies": {
       "label": "List Inline Comment Replies",
-      "description": "Lists the replies to a inline comment.",
+      "description": "Lists the replies to an inline comment.",
+      "group": "Comments",
       "inputs": {
         "commentId": {
           "label": "Comment ID",
@@ -3088,7 +3020,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/inline-comments/{{commentId}}/children",
         "query": {
           "body-format": "{{bodyFormat}}",
@@ -3102,6 +3033,7 @@
     "confluence_get_label": {
       "label": "Get Label",
       "description": "Looks up a label by name, with the content that uses it.",
+      "group": "Labels",
       "inputs": {
         "name": {
           "label": "Name",
@@ -3144,7 +3076,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/label",
         "query": {
           "name": "{{name}}",
@@ -3157,6 +3088,7 @@
     "confluence_get_long_task": {
       "label": "Get Long Task Status",
       "description": "Gets the status of a long-running task.",
+      "group": "Pages",
       "inputs": {
         "taskId": {
           "label": "Task ID",
@@ -3165,13 +3097,13 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/longtask/{{taskId}}"
       }
     },
     "confluence_get_page_viewers": {
       "label": "Get Page Viewers",
       "description": "Gets the number of distinct viewers of a page or blog post.",
+      "group": "Pages",
       "inputs": {
         "contentId": {
           "label": "Content ID",
@@ -3184,7 +3116,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/analytics/content/{{contentId}}/viewers",
         "query": {
           "fromDate": "{{fromDate}}"
@@ -3194,6 +3125,7 @@
     "confluence_get_page_views": {
       "label": "Get Page Views",
       "description": "Gets the number of total views of a page or blog post.",
+      "group": "Pages",
       "inputs": {
         "contentId": {
           "label": "Content ID",
@@ -3206,7 +3138,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/analytics/content/{{contentId}}/views",
         "query": {
           "fromDate": "{{fromDate}}"
@@ -3216,6 +3147,7 @@
     "confluence_get_space": {
       "label": "Get Space",
       "description": "Gets a space by its numeric ID.",
+      "group": "Spaces",
       "inputs": {
         "spaceId": {
           "label": "Space ID",
@@ -3233,7 +3165,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces/{{spaceId}}",
         "query": {
           "description-format": "plain",
@@ -3246,6 +3177,7 @@
     "confluence_get_task": {
       "label": "Get Task",
       "description": "Gets an inline task by ID.",
+      "group": "Tasks",
       "inputs": {
         "taskId": {
           "label": "Task ID",
@@ -3254,7 +3186,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/tasks/{{taskId}}",
         "query": {
           "body-format": "storage"
@@ -3264,6 +3195,7 @@
     "confluence_get_template": {
       "label": "Get Template",
       "description": "Gets a page template, with its body.",
+      "group": "Templates",
       "inputs": {
         "templateId": {
           "label": "Template ID",
@@ -3272,7 +3204,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/template/{{templateId}}",
         "query": {
           "expand": "body.storage"
@@ -3282,6 +3213,7 @@
     "confluence_get_user": {
       "label": "Get User",
       "description": "Gets a user by account ID.",
+      "group": "Users and Groups",
       "inputs": {
         "accountId": {
           "label": "Account ID",
@@ -3290,7 +3222,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/user",
         "query": {
           "accountId": "{{accountId}}"
@@ -3300,6 +3231,7 @@
     "confluence_list_attachment_comments": {
       "label": "List Attachment Comments",
       "description": "Lists the comments on an attachment.",
+      "group": "Comments",
       "inputs": {
         "attachmentId": {
           "label": "Attachment ID",
@@ -3352,7 +3284,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/attachments/{{attachmentId}}/footer-comments",
         "query": {
           "body-format": "{{bodyFormat}}",
@@ -3366,6 +3297,7 @@
     "confluence_list_attachment_labels": {
       "label": "List Attachment Labels",
       "description": "Lists the labels on an attachment.",
+      "group": "Labels",
       "inputs": {
         "attachmentId": {
           "label": "Attachment ID",
@@ -3384,7 +3316,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/attachments/{{attachmentId}}/labels",
         "query": {
           "cursor": "{{cursor}}",
@@ -3396,6 +3327,7 @@
     "confluence_list_audit_records": {
       "label": "List Audit Records",
       "description": "Lists site audit records, optionally by date range or text.",
+      "group": "Audit Records",
       "inputs": {
         "startDate": {
           "label": "Start Date",
@@ -3422,7 +3354,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/audit",
         "query": {
           "startDate": "{{startDate}}",
@@ -3437,6 +3368,7 @@
     "confluence_list_child_pages": {
       "label": "List Child Content",
       "description": "Lists the direct children of a page.",
+      "group": "Pages",
       "inputs": {
         "pageId": {
           "label": "Page ID",
@@ -3455,7 +3387,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}/direct-children",
         "query": {
           "cursor": "{{cursor}}",
@@ -3467,6 +3398,7 @@
     "confluence_list_folder_children": {
       "label": "List Folder Children",
       "description": "Lists the direct children of a folder.",
+      "group": "Folders",
       "inputs": {
         "folderId": {
           "label": "Folder ID",
@@ -3485,7 +3417,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/folders/{{folderId}}/direct-children",
         "query": {
           "cursor": "{{cursor}}",
@@ -3497,6 +3428,7 @@
     "confluence_list_group_members": {
       "label": "List Group Members",
       "description": "Lists the members of a group.",
+      "group": "Users and Groups",
       "inputs": {
         "groupId": {
           "label": "Group ID",
@@ -3516,7 +3448,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/group/{{groupId}}/membersByGroupId",
         "query": {
           "start": "{{start}}",
@@ -3527,6 +3458,7 @@
     "confluence_list_groups": {
       "label": "List Groups",
       "description": "Lists the user groups on the site.",
+      "group": "Users and Groups",
       "inputs": {
         "start": {
           "label": "Start",
@@ -3541,7 +3473,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/group",
         "query": {
           "start": "{{start}}",
@@ -3552,6 +3483,7 @@
     "confluence_list_labels": {
       "label": "List Labels",
       "description": "Lists the labels used on the site.",
+      "group": "Labels",
       "inputs": {
         "prefix": {
           "label": "Prefix",
@@ -3588,7 +3520,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/labels",
         "query": {
           "prefix": "{{prefix}}",
@@ -3601,6 +3532,7 @@
     "confluence_list_page_ancestors": {
       "label": "List Page Ancestors",
       "description": "Lists the ancestors of a page, from the top of the tree down.",
+      "group": "Pages",
       "inputs": {
         "pageId": {
           "label": "Page ID",
@@ -3615,7 +3547,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}/ancestors",
         "query": {
           "limit": "{{limit}}"
@@ -3626,6 +3557,7 @@
     "confluence_list_page_descendants": {
       "label": "List Page Descendants",
       "description": "Lists all content below a page, up to a depth.",
+      "group": "Pages",
       "inputs": {
         "pageId": {
           "label": "Page ID",
@@ -3649,7 +3581,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}/descendants",
         "query": {
           "depth": "{{depth}}",
@@ -3662,6 +3593,7 @@
     "confluence_list_space_content_labels": {
       "label": "List Space Content Labels",
       "description": "Lists the labels used on content in a space.",
+      "group": "Labels",
       "inputs": {
         "spaceId": {
           "label": "Space ID",
@@ -3696,7 +3628,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces/{{spaceId}}/content/labels",
         "query": {
           "prefix": "{{prefix}}",
@@ -3709,6 +3640,7 @@
     "confluence_list_space_labels": {
       "label": "List Space Labels",
       "description": "Lists the labels on a space.",
+      "group": "Labels",
       "inputs": {
         "spaceId": {
           "label": "Space ID",
@@ -3743,7 +3675,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces/{{spaceId}}/labels",
         "query": {
           "prefix": "{{prefix}}",
@@ -3756,6 +3687,7 @@
     "confluence_list_space_properties": {
       "label": "List Space Properties",
       "description": "Lists the content properties stored on a space.",
+      "group": "Properties",
       "inputs": {
         "spaceId": {
           "label": "Space ID",
@@ -3779,7 +3711,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces/{{spaceId}}/properties",
         "query": {
           "key": "{{key}}",
@@ -3792,6 +3723,7 @@
     "confluence_list_whiteboard_properties": {
       "label": "List Whiteboard Properties",
       "description": "Lists the content properties stored on a whiteboard.",
+      "group": "Properties",
       "inputs": {
         "whiteboardId": {
           "label": "Whiteboard ID",
@@ -3814,7 +3746,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/whiteboards/{{whiteboardId}}/properties",
         "query": {
           "key": "{{key}}",
@@ -3827,6 +3758,7 @@
     "confluence_list_spaces": {
       "label": "List Spaces",
       "description": "Lists spaces, optionally filtered by key, type, status or label.",
+      "group": "Spaces",
       "inputs": {
         "keys": {
           "label": "Space Keys",
@@ -3902,7 +3834,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces",
         "query": {
           "keys": "{{keys}}",
@@ -3920,6 +3851,7 @@
     "confluence_list_tasks": {
       "label": "List Tasks",
       "description": "Lists inline tasks, filtered by status, space, page or assignee.",
+      "group": "Tasks",
       "inputs": {
         "status": {
           "label": "Status",
@@ -3965,7 +3897,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/tasks",
         "query": {
           "status": "{{status}}",
@@ -3983,6 +3914,7 @@
     "confluence_list_templates": {
       "label": "List Templates",
       "description": "Lists page templates, globally or in a space.",
+      "group": "Templates",
       "inputs": {
         "spaceKey": {
           "label": "Space Key",
@@ -4001,7 +3933,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/template/page",
         "query": {
           "spaceKey": "{{spaceKey}}",
@@ -4013,6 +3944,7 @@
     "confluence_move_page": {
       "label": "Move Page",
       "description": "Moves a page relative to a target page.",
+      "group": "Pages",
       "inputs": {
         "pageId": {
           "label": "Page ID",
@@ -4054,6 +3986,7 @@
     "confluence_remove_label": {
       "label": "Remove Label",
       "description": "Removes a label from a page, blog post or attachment.",
+      "group": "Labels",
       "inputs": {
         "contentId": {
           "label": "Content ID",
@@ -4078,6 +4011,7 @@
     "confluence_remove_space_label": {
       "label": "Remove Space Label",
       "description": "Removes a label from a space.",
+      "group": "Labels",
       "inputs": {
         "spaceKey": {
           "label": "Space Key",
@@ -4122,6 +4056,7 @@
     "confluence_restore_page_version": {
       "label": "Restore Page Version",
       "description": "Restores an earlier version of a page as a new version.",
+      "group": "Pages",
       "inputs": {
         "pageId": {
           "label": "Page ID",
@@ -4161,6 +4096,7 @@
     "confluence_search_content": {
       "label": "Search Content with Excerpts",
       "description": "Searches content with CQL and returns matches with excerpts.",
+      "group": "Search",
       "inputs": {
         "cql": {
           "label": "CQL",
@@ -4184,7 +4120,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/search",
         "query": {
           "cql": "{{cql}}",
@@ -4200,6 +4135,7 @@
     "confluence_update_blog_post": {
       "label": "Update Blog Post",
       "description": "Updates the title, body or status of a blog post.",
+      "group": "Blog Posts",
       "inputs": {
         "blogPostId": {
           "label": "Blog Post ID",
@@ -4264,6 +4200,7 @@
     "confluence_update_page": {
       "label": "Update Page",
       "description": "Updates the title, body, status or parent of a page.",
+      "group": "Pages",
       "inputs": {
         "pageId": {
           "label": "Page ID",
@@ -4332,6 +4269,7 @@
     "confluence_update_footer_comment": {
       "label": "Update Footer Comment",
       "description": "Replaces the body of a footer comment.",
+      "group": "Comments",
       "inputs": {
         "commentId": {
           "label": "Comment ID",
@@ -4374,6 +4312,7 @@
     "confluence_update_inline_comment": {
       "label": "Update Inline Comment",
       "description": "Changes the body of an inline comment, or resolves or reopens it.",
+      "group": "Comments",
       "inputs": {
         "commentId": {
           "label": "Comment ID",
@@ -4427,49 +4366,10 @@
       },
       "beforeRequest": "if (!inputs.body && !inputs.resolved) throw new Error('Set Body, Resolved, or both.');\nvar current = call({method: 'GET', url: '/api/v2/inline-comments/' + inputs.commentId, query: {'body-format': 'storage'}});\nrequest.body = {version: {number: current.version.number + 1}, body: {representation: inputs.body ? (inputs.bodyFormat || 'storage') : 'storage', value: inputs.body || (current.body?.storage?.value ?? '')}, resolved: inputs.resolved ? inputs.resolved === 'true' : undefined};\nreturn request;"
     },
-    "confluence_update_page_title": {
-      "label": "Update Page Title",
-      "description": "Renames a page.",
-      "inputs": {
-        "pageId": {
-          "label": "Page ID",
-          "description": "Numeric page ID, from List Pages, Search Content or the page URL.",
-          "required": true
-        },
-        "title": {
-          "label": "Title",
-          "description": "New page title.",
-          "required": true
-        },
-        "status": {
-          "label": "Status",
-          "description": "Whether the page is published (current) or a draft. Defaults to current.",
-          "type": "select",
-          "defaultValue": "current",
-          "options": [
-            {
-              "value": "current",
-              "label": "Published"
-            },
-            {
-              "value": "draft",
-              "label": "Draft"
-            }
-          ]
-        }
-      },
-      "request": {
-        "method": "PUT",
-        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}/title",
-        "body": {
-          "status": "{{status}}",
-          "title": "{{title}}"
-        }
-      }
-    },
     "confluence_update_space": {
       "label": "Update Space",
       "description": "Updates the name, description, homepage or status of a space.",
+      "group": "Spaces",
       "inputs": {
         "spaceKey": {
           "label": "Space Key",
@@ -4527,6 +4427,7 @@
     "confluence_update_task": {
       "label": "Update Task",
       "description": "Marks an inline task complete or incomplete.",
+      "group": "Tasks",
       "inputs": {
         "taskId": {
           "label": "Task ID",
@@ -4571,15 +4472,12 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces/{{spaceId}}/pages",
         "query": {
           "limit": "100",
           "sort": "-created-date"
         }
       },
-      "items": "$",
-      "newBy": "time",
       "key": "$.createdAt",
       "afterResponse": "return response.results ?? [];"
     },
@@ -4594,15 +4492,12 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces/{{spaceId}}/pages",
         "query": {
           "limit": "100",
           "sort": "-modified-date"
         }
       },
-      "items": "$",
-      "newBy": "time",
       "key": "$.version.createdAt",
       "afterResponse": "return (response.results ?? []).filter((item) => item.version.number > 1);"
     },
@@ -4622,7 +4517,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}/footer-comments",
         "query": {
           "limit": "100",
@@ -4630,8 +4524,6 @@
           "body-format": "storage"
         }
       },
-      "items": "$",
-      "newBy": "time",
       "key": "$.version.createdAt",
       "afterResponse": "return (response.results ?? []).filter((item) => item.version.number === 1);"
     },
@@ -4651,15 +4543,12 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}/attachments",
         "query": {
           "limit": "100",
           "sort": "-created-date"
         }
       },
-      "items": "$",
-      "newBy": "time",
       "key": "$.version.createdAt",
       "afterResponse": "return (response.results ?? []).filter((item) => item.version.number === 1);"
     },
@@ -4674,15 +4563,12 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces/{{spaceId}}/blogposts",
         "query": {
           "limit": "100",
           "sort": "-created-date"
         }
       },
-      "items": "$",
-      "newBy": "time",
       "key": "$.createdAt",
       "afterResponse": "return response.results ?? [];"
     }

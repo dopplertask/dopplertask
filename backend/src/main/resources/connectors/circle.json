@@ -129,7 +129,7 @@
           "defaultValue": "false"
         },
         "user_email": {
-          "label": "Post As User Email (Optional)",
+          "label": "Post As User Email",
           "description": "Email of an existing community member to create this post as. If empty, posts as the authenticated admin."
         }
       },
@@ -141,12 +141,16 @@
         },
         "body": {
           "space_id": "{{space_id}}",
-          "tiptap_body_json": "{{tiptap_body_json}}",
+          "name": "{{name}}",
+          "tiptap_body": "{{tiptap_body_json}}",
+          "status": "{{status}}",
+          "published_at": "{{published_at}}",
           "is_comments_enabled": "{{is_comments_enabled}}",
-          "skip_notifications": "{{skip_notifications}}"
+          "skip_notifications": "{{skip_notifications}}",
+          "user_email": "{{user_email}}"
         }
       },
-      "beforeRequest": "var t = request.body.tiptap_body_json, b = { space_id: request.body.space_id, name: inputs.name };\nif (t && typeof t === 'object' && t.body) b.tiptap_body = t;\nelse if (inputs.text_body || !t) b.tiptap_body = { body: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: inputs.text_body || '' }] }] } };\nelse throw new Error(\"Invalid body input. Provide either 'Post Body (Plain Text)' or a valid 'Tiptap Body JSON'. If both are empty, an empty post will be created.\");\nb.status = inputs.status || 'published';\nif (inputs.published_at && b.status === 'scheduled') b.published_at = new Date(inputs.published_at).toISOString();\nif ('is_comments_enabled' in request.body) { b.is_comments_enabled = request.body.is_comments_enabled; b.is_comments_closed = !b.is_comments_enabled; }\nif ('skip_notifications' in request.body) b.skip_notifications = request.body.skip_notifications;\nif (inputs.user_email) b.user_email = inputs.user_email;\nrequest.body = b;\nreturn request;"
+      "beforeRequest": "var body = request.body, tiptap = body.tiptap_body;\nif (!(tiptap && typeof tiptap === 'object' && tiptap.body)) {\n  if (tiptap && !inputs.text_body) throw new Error(\"Invalid body input. Provide either 'Post Body (Plain Text)' or a valid 'Tiptap Body JSON'. If both are empty, an empty post will be created.\");\n  body.tiptap_body = { body: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: inputs.text_body || '' }] }] } };\n}\nbody.status = body.status || 'published';\nif (body.published_at && body.status === 'scheduled') body.published_at = new Date(body.published_at).toISOString();\nelse delete body.published_at;\nif ('is_comments_enabled' in body) body.is_comments_closed = !body.is_comments_enabled;\nreturn request;"
     },
     "create_comment": {
       "label": "Create Comment",
@@ -171,7 +175,7 @@
           "required": true
         },
         "parent_comment_id": {
-          "label": "Parent Comment ID (Optional)",
+          "label": "Parent Comment ID",
           "description": "ID of the comment to reply to. Leave empty if not a reply.",
           "type": "number"
         },
@@ -229,7 +233,7 @@
       "description": "Finds a community member by their email address.",
       "inputs": {
         "email": {
-          "label": "Email",
+          "label": "Member Email",
           "description": "The email address of the member to find.",
           "required": true
         }
@@ -304,6 +308,58 @@
         "name": "$.name",
         "email": "$.email"
       }
+    }
+  },
+  "triggers": {
+    "new_post_created": {
+      "label": "New Post Created",
+      "description": "Triggers when a new post is created in a specific space.",
+      "inputs": {
+        "space_id": {
+          "label": "Space",
+          "type": "number",
+          "required": true,
+          "list": "spaces"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://app.circle.so/api/admin/v2/posts",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "query": {
+          "space_id": "{{space_id}}",
+          "status": "published",
+          "sort": "latest",
+          "page": "1",
+          "per_page": "60"
+        }
+      },
+      "items": "$",
+      "newBy": "time",
+      "key": "$.published_at",
+      "afterResponse": "// Like the original: pages until an item is older than the last check, and only the first page on the first check.\nconst since = Number(inputs.lastPollTime) || 0, items = [];\nlet page = response;\nfor (let number = 2; ; number++) {\n  let older = false;\n  for (const item of page.records || []) { if (new Date(item.published_at).getTime() < since) { older = true; break; } items.push(item); }\n  if (older || !since || !page.has_next_page) break;\n  page = call({method: 'GET', url: '/posts', query: {space_id: inputs.space_id, status: 'published', sort: 'latest', page: String(number), per_page: '60'}, headers: {'Content-Type': 'application/json'}});\n}\nreturn items;"
+    },
+    "new_member_added": {
+      "label": "New Member Added",
+      "description": "Triggers when a new member is added to the community.",
+      "request": {
+        "method": "GET",
+        "url": "https://app.circle.so/api/admin/v2/community_members",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "query": {
+          "page": "1",
+          "per_page": "50",
+          "status": "all"
+        }
+      },
+      "items": "$",
+      "newBy": "time",
+      "key": "$.created_at",
+      "afterResponse": "// Like the original: pages until an item is older than the last check, and only the first page on the first check.\nconst since = Number(inputs.lastPollTime) || 0, items = [];\nlet page = response;\nfor (let number = 2; ; number++) {\n  let older = false;\n  for (const item of page.records || []) { if (new Date(item.created_at).getTime() < since) { older = true; break; } items.push(item); }\n  if (older || !since || !page.has_next_page) break;\n  page = call({method: 'GET', url: '/community_members', query: {page: String(number), per_page: '50', status: 'all'}, headers: {'Content-Type': 'application/json'}});\n}\nreturn items;"
     }
   }
 }

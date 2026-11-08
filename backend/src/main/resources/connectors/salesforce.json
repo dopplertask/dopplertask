@@ -140,17 +140,6 @@
       "label": "$.Name",
       "value": "$.Id"
     },
-    "recipients": {
-      "request": {
-        "url": "https://{{credential.instanceUrl}}/services/data/v56.0/query",
-        "query": {
-          "q": "SELECT Id, Name FROM Contact ORDER BY Name LIMIT 50"
-        }
-      },
-      "items": "$.records",
-      "label": "$.Name",
-      "value": "$.Id"
-    },
     "campaigns": {
       "request": {
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/query",
@@ -226,6 +215,17 @@
       "items": "$.values",
       "label": "$.label",
       "value": "$.value"
+    },
+    "case_queues": {
+      "request": {
+        "url": "https://{{credential.instanceUrl}}/services/data/v56.0/query",
+        "query": {
+          "q": "SELECT QueueId, Queue.Name FROM QueueSobject WHERE SobjectType = 'Case'"
+        }
+      },
+      "items": "$.records",
+      "label": "$.Queue.Name",
+      "value": "$.QueueId"
     }
   },
   "actions": {
@@ -303,22 +303,6 @@
         "id": "$.id"
       }
     },
-    "delete_opportunity": {
-      "label": "Delete Opportunity",
-      "description": "Deletes an opportunity. It goes to the Recycle Bin.",
-      "inputs": {
-        "opportunity_id": {
-          "label": "Opportunity",
-          "required": true,
-          "list": "opportunities"
-        }
-      },
-      "request": {
-        "method": "DELETE",
-        "url": "https://{{credential.instanceUrl}}/services/data/v56.0/sobjects/Opportunity/{{opportunity_id}}"
-      },
-      "afterResponse": "return {success: true};"
-    },
     "delete_record": {
       "label": "Delete Record",
       "description": "Deletes a record. It goes to the Recycle Bin.",
@@ -343,8 +327,8 @@
       "afterResponse": "return {success: true};"
     },
     "find_child_records": {
-      "label": "Get Child Records with Display Values",
-      "description": "Finds child records related to a parent record.",
+      "label": "Find Child Records",
+      "description": "Lists the child records of a parent record with their display values, as Salesforce shows them on the page.",
       "inputs": {
         "parent_object": {
           "label": "Parent Object",
@@ -366,7 +350,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/ui-api/records/{{parent_id}}/child-relationships/{{child_relationship}}"
       }
     },
@@ -393,32 +376,9 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/query"
       },
       "beforeRequest": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar soql = (q) => '/services/data/v56.0/query?q=' + form(q);\nrequest.url = soql('SELECT FIELDS(ALL) FROM ' + inputs.object + ' WHERE ' + inputs.field + \" = '\" + inputs.search_value.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"\\\\'\") + \"' LIMIT 200\");\nreturn request;"
-    },
-    "find_records_by_query": {
-      "label": "Find Records by Query",
-      "description": "Finds up to 200 records of an object that match SOQL conditions.",
-      "inputs": {
-        "object": {
-          "label": "Object",
-          "description": "The type of Salesforce record, such as Account or Contact.",
-          "required": true,
-          "list": "objects"
-        },
-        "where_clause": {
-          "label": "Conditions",
-          "description": "SOQL conditions to filter by, without the WHERE keyword.",
-          "required": true
-        }
-      },
-      "request": {
-        "method": "GET",
-        "url": "https://{{credential.instanceUrl}}/services/data/v56.0/query"
-      },
-      "beforeRequest": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar soql = (q) => '/services/data/v56.0/query?q=' + form(q);\nrequest.url = soql('SELECT FIELDS(ALL) FROM ' + inputs.object + ' WHERE ' + inputs.where_clause + ' LIMIT 200');\nreturn request;"
     },
     "get_record_attachments": {
       "label": "Get Record Attachments",
@@ -438,7 +398,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/query"
       },
       "beforeRequest": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar soql = (q) => '/services/data/v56.0/query?q=' + form(q);\nrequest.url = soql(\"SELECT Id, Name, BodyLength, ContentType FROM Attachment WHERE ParentId = '\" + inputs.record_id + \"'\");\nreturn request;",
@@ -513,10 +472,11 @@
       "label": "Log Email",
       "description": "Records an email on a contact or lead. Salesforce does not send it.",
       "inputs": {
-        "recipientId": {
+        "recipient_id": {
           "label": "Recipient",
+          "description": "A contact. Type a lead ID for a lead.",
           "required": true,
-          "list": "recipients"
+          "list": "contacts"
         },
         "subject": {
           "label": "Subject",
@@ -528,7 +488,7 @@
           "type": "multiline",
           "required": true
         },
-        "relatedToId": {
+        "related_record_id": {
           "label": "Related Record ID",
           "description": "Account, case or other record ID, from its URL or an earlier step."
         }
@@ -540,7 +500,7 @@
       "outputs": {
         "id": "$.id"
       },
-      "beforeRequest": "var compact = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== null && v !== ''));\nrequest.body = compact(Object.assign({ToIds: [inputs.recipientId], Subject: inputs.subject, HtmlBody: inputs.body, Status: '3'}, inputs.relatedToId ? {RelatedToId: inputs.relatedToId} : {}));\nreturn request;"
+      "beforeRequest": "var compact = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== null && v !== ''));\nrequest.body = compact(Object.assign({ToIds: [inputs.recipient_id], Subject: inputs.subject, HtmlBody: inputs.body, Status: '3'}, inputs.related_record_id ? {RelatedToId: inputs.related_record_id} : {}));\nreturn request;"
     },
     "update_record": {
       "label": "Update Record",
@@ -578,12 +538,12 @@
       "description": "Add an existing contact to a campaign as a member.",
       "inputs": {
         "campaign_id": {
-          "label": "Campaign ID",
+          "label": "Campaign",
           "required": true,
           "list": "campaigns"
         },
         "contact_id": {
-          "label": "Contact ID",
+          "label": "Contact",
           "required": true,
           "list": "contacts"
         },
@@ -605,12 +565,12 @@
       "description": "Add an existing lead to a campaign as a member.",
       "inputs": {
         "campaign_id": {
-          "label": "Campaign ID",
+          "label": "Campaign",
           "required": true,
           "list": "campaigns"
         },
         "lead_id": {
-          "label": "Lead ID",
+          "label": "Lead",
           "required": true,
           "list": "leads"
         },
@@ -632,7 +592,7 @@
       "description": "Add a product line item to an opportunity.",
       "inputs": {
         "opportunity_id": {
-          "label": "Opportunity ID",
+          "label": "Opportunity",
           "required": true,
           "list": "opportunities"
         },
@@ -672,13 +632,12 @@
       "description": "Re-run the org's active lead assignment rule on a lead.",
       "inputs": {
         "lead_id": {
-          "label": "Lead ID",
+          "label": "Lead",
           "required": true,
           "list": "leads"
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/sobjects/Lead/{{lead_id}}"
       },
       "beforeRequest": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar sfId = (v, f) => { var t = String(v).trim(); if (!/^[a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?$/.test(t)) throw new Error(f + ' must be a 15- or 18-character Salesforce record id.'); return t; };\nrequest.url = '/services/data/v56.0/sobjects/Lead/' + sfId(inputs.lead_id, 'Lead ID') + '?fields=' + form('Status,OwnerId');\nreturn request;",
@@ -699,7 +658,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/query"
       },
       "beforeRequest": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar sfId = (v, f) => { var t = String(v).trim(); if (!/^[a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?$/.test(t)) throw new Error(f + ' must be a 15- or 18-character Salesforce record id.'); return t; };\nvar soql = (q) => '/services/data/v56.0/query?q=' + form(q);\nsfId(inputs.task_id, 'Task ID');\nrequest.url = soql('SELECT ApiName, MasterLabel FROM TaskStatus WHERE IsClosed = true ORDER BY SortOrder LIMIT 1');\nreturn request;",
@@ -747,12 +705,12 @@
           "type": "multiline"
         },
         "OwnerId": {
-          "label": "Owner ID",
+          "label": "Owner",
           "description": "User id of the account owner.",
           "list": "owners"
         },
         "ParentId": {
-          "label": "Parent Account ID",
+          "label": "Parent Account",
           "list": "accounts"
         },
         "additional_fields": {
@@ -843,7 +801,7 @@
           "type": "multiline"
         },
         "ParentId": {
-          "label": "Parent Campaign ID",
+          "label": "Parent Campaign",
           "list": "campaigns"
         },
         "additional_fields": {
@@ -940,7 +898,7 @@
           "label": "Department"
         },
         "AccountId": {
-          "label": "Account ID",
+          "label": "Account",
           "list": "accounts"
         },
         "MailingCity": {
@@ -959,7 +917,7 @@
           "type": "multiline"
         },
         "OwnerId": {
-          "label": "Owner ID",
+          "label": "Owner",
           "list": "owners"
         },
         "additional_fields": {
@@ -1024,7 +982,7 @@
           "type": "multiline"
         },
         "OwnerId": {
-          "label": "Owner ID",
+          "label": "Owner",
           "description": "User or queue id.",
           "list": "owners"
         },
@@ -1091,7 +1049,7 @@
           "required": true
         },
         "AccountId": {
-          "label": "Account ID",
+          "label": "Account",
           "list": "accounts"
         },
         "Amount": {
@@ -1117,7 +1075,7 @@
           "type": "multiline"
         },
         "OwnerId": {
-          "label": "Owner ID",
+          "label": "Owner",
           "list": "owners"
         },
         "Pricebook2Id": {
@@ -1153,7 +1111,7 @@
           "description": "Account, Opportunity, Case or other record id."
         },
         "OwnerId": {
-          "label": "Assigned To (User ID)",
+          "label": "Assigned To",
           "list": "owners"
         },
         "ActivityDate": {
@@ -1240,7 +1198,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/sobjects/{{object}}/describe"
       },
       "beforeRequest": "var apiName = (v, f) => { var t = String(v).trim(); if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(t)) throw new Error(f + ' must be a Salesforce API name such as Account or My_Field__c.'); return t; };\nrequest.url = '/services/data/v56.0/sobjects/' + apiName(inputs.object, 'Object') + '/describe';\nreturn request;",
@@ -1256,7 +1213,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v58.0/jobs/ingest/{{job_id}}"
       },
       "beforeRequest": "var sfId = (v, f) => { var t = String(v).trim(); if (!/^[a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?$/.test(t)) throw new Error(f + ' must be a 15- or 18-character Salesforce record id.'); return t; };\nrequest.url = '/services/data/v58.0/jobs/ingest/' + sfId(inputs.job_id, 'Job ID');\nreturn request;",
@@ -1272,15 +1228,126 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v58.0/jobs/query/{{job_id}}"
       },
       "beforeRequest": "var sfId = (v, f) => { var t = String(v).trim(); if (!/^[a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?$/.test(t)) throw new Error(f + ' must be a 15- or 18-character Salesforce record id.'); return t; };\nrequest.url = '/services/data/v58.0/jobs/query/' + sfId(inputs.job_id, 'Job ID');\nreturn request;",
       "afterResponse": "var isRecord = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nvar formatJob = (e) => isRecord(e) ? Object.fromEntries(['id', 'state', 'object', 'operation', 'numberRecordsProcessed', 'numberRecordsFailed', 'errorMessage', 'createdDate', 'systemModstamp', 'totalProcessingTime'].map((t) => [t, e[t] ?? null])) : {};\nreturn formatJob(response);"
     },
+    "get_bulk_ingest_results": {
+      "label": "Get Bulk Ingest Results",
+      "description": "Get the successful, failed or unprocessed rows of a Bulk API 2.0 ingest job.",
+      "inputs": {
+        "job_id": {
+          "label": "Job ID",
+          "required": true
+        },
+        "result_type": {
+          "label": "Result Type",
+          "type": "select",
+          "required": true,
+          "defaultValue": "successfulResults",
+          "options": [
+            {
+              "value": "successfulResults",
+              "label": "Successful"
+            },
+            {
+              "value": "failedResults",
+              "label": "Failed"
+            },
+            {
+              "value": "unprocessedrecords",
+              "label": "Unprocessed"
+            }
+          ]
+        }
+      },
+      "request": {
+        "url": "https://{{credential.instanceUrl}}/services/data/v58.0/jobs/ingest/{{job_id}}/{{result_type}}"
+      },
+      "beforeRequest": "var sfId = (v, f) => { var t = String(v).trim(); if (!/^[a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?$/.test(t)) throw new Error(f + ' must be a 15- or 18-character Salesforce record id.'); return t; };\nrequest.url = '/services/data/v58.0/jobs/ingest/' + sfId(inputs.job_id, 'Job ID') + '/' + inputs.result_type;\nreturn request;",
+      "afterResponse": "var parseCsv = (text) => { var rows = [], row = [], field = '', quoted = false, touched = false;\n  for (var i = 0; i < text.length; i++) { var c = text[i];\n    if (quoted) { if (c === '\"' && text[i + 1] === '\"') { field += '\"'; i++; } else if (c === '\"') quoted = false; else field += c; continue; }\n    if (c === '\"') { quoted = true; touched = true; }\n    else if (c === ',') { row.push(field); field = ''; touched = true; }\n    else if (c === '\\n' || c === '\\r') { if (c === '\\r' && text[i + 1] === '\\n') i++; row.push(field); rows.push(row); row = []; field = ''; touched = false; }\n    else { field += c; touched = true; } }\n  if (touched || field !== '' || row.length > 0) { row.push(field); rows.push(row); }\n  if (rows.length === 0) return [];\n  var header = rows[0];\n  return rows.slice(1).filter((r) => !(r.length === 1 && r[0] === '')).map((r) => Object.fromEntries(header.map((h, k) => [h, r[k] ?? '']))); };\nvar rows = parseCsv(received.text);\nreturn {rows: rows, count: rows.length};"
+    },
+    "get_bulk_query_results": {
+      "label": "Get Bulk Query Results",
+      "description": "Get one page of rows from a completed Bulk API 2.0 query job.",
+      "inputs": {
+        "job_id": {
+          "label": "Job ID",
+          "required": true
+        },
+        "locator": {
+          "label": "Locator",
+          "description": "next_locator from the previous page. Leave empty for the first page."
+        },
+        "max_records": {
+          "label": "Max Records",
+          "description": "Rows per page (default 1000, max 10000).",
+          "type": "number",
+          "defaultValue": "1000"
+        }
+      },
+      "request": {
+        "url": "https://{{credential.instanceUrl}}/services/data/v58.0/jobs/query/{{job_id}}/results"
+      },
+      "beforeRequest": "var sfId = (v, f) => { var t = String(v).trim(); if (!/^[a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?$/.test(t)) throw new Error(f + ' must be a 15- or 18-character Salesforce record id.'); return t; };\nvar form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar most = Math.min(Math.max(Math.floor(inputs.max_records ? Number(inputs.max_records) : 1000), 1), 10000), locator = (inputs.locator || '').trim();\nrequest.url = '/services/data/v58.0/jobs/query/' + sfId(inputs.job_id, 'Job ID') + '/results?maxRecords=' + most + (locator ? '&locator=' + form(locator) : '');\nreturn request;",
+      "afterResponse": "var parseCsv = (text) => { var rows = [], row = [], field = '', quoted = false, touched = false;\n  for (var i = 0; i < text.length; i++) { var c = text[i];\n    if (quoted) { if (c === '\"' && text[i + 1] === '\"') { field += '\"'; i++; } else if (c === '\"') quoted = false; else field += c; continue; }\n    if (c === '\"') { quoted = true; touched = true; }\n    else if (c === ',') { row.push(field); field = ''; touched = true; }\n    else if (c === '\\n' || c === '\\r') { if (c === '\\r' && text[i + 1] === '\\n') i++; row.push(field); rows.push(row); row = []; field = ''; touched = false; }\n    else { field += c; touched = true; } }\n  if (touched || field !== '' || row.length > 0) { row.push(field); rows.push(row); }\n  if (rows.length === 0) return [];\n  var header = rows[0];\n  return rows.slice(1).filter((r) => !(r.length === 1 && r[0] === '')).map((r) => Object.fromEntries(header.map((h, k) => [h, r[k] ?? '']))); };\nvar rows = parseCsv(received.text);\nvar next = Object.entries(received.headers).find(([k]) => k.toLowerCase() === 'sforce-locator')?.[1];\nreturn {rows: rows, count: rows.length, next_locator: !next || next === 'null' ? null : next};"
+    },
+    "run_bulk_ingest_job": {
+      "label": "Run Bulk Ingest Job",
+      "description": "Start a Bulk API 2.0 job that inserts, updates, upserts or deletes records from CSV.",
+      "inputs": {
+        "object": {
+          "label": "Object",
+          "description": "Object API name, e.g. Account or My_Object__c.",
+          "required": true,
+          "list": "objects"
+        },
+        "operation": {
+          "label": "Operation",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "insert",
+              "label": "Insert"
+            },
+            {
+              "value": "update",
+              "label": "Update"
+            },
+            {
+              "value": "upsert",
+              "label": "Upsert"
+            },
+            {
+              "value": "delete",
+              "label": "Delete"
+            }
+          ]
+        },
+        "external_id_field": {
+          "label": "External ID Field",
+          "description": "Field API name to match on. Required for upsert.",
+          "list": "fields"
+        },
+        "csv": {
+          "label": "CSV",
+          "description": "Records as CSV with a header row of field API names, lines separated by LF.",
+          "type": "multiline",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.instanceUrl}}/services/data/v58.0/jobs/ingest"
+      },
+      "beforeRequest": "var apiName = (v, f) => { var t = String(v).trim(); if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(t)) throw new Error(f + ' must be a Salesforce API name such as Account or My_Field__c.'); return t; };\nvar object = apiName(inputs.object, 'Object'), externalId = (inputs.external_id_field || '').trim() ? apiName(inputs.external_id_field, 'External ID Field') : undefined;\nif (inputs.operation === 'upsert' && !externalId) throw new Error('External ID Field is required for upsert.');\nif (!inputs.csv.trim()) throw new Error('CSV must not be empty.');\nrequest.body = Object.assign({object: object, operation: inputs.operation, contentType: 'CSV', lineEnding: 'LF'}, externalId ? {externalIdFieldName: externalId} : {});\nreturn request;",
+      "afterResponse": "var apiName = (v, f) => { var t = String(v).trim(); if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(t)) throw new Error(f + ' must be a Salesforce API name such as Account or My_Field__c.'); return t; };\nvar job = '/services/data/v58.0/jobs/ingest/' + response.id;\ntry {\n  call({method: 'PUT', url: job + '/batches', headers: {'Content-Type': 'text/csv'}, body: inputs.csv.replace(/\\r\\n/g, '\\n')});\n} catch (e) {\n  try { call({method: 'PATCH', url: job, body: {state: 'Aborted'}}); } catch (ignored) {}\n  throw new Error('CSV upload failed, job ' + response.id + ' was aborted: ' + (e instanceof Error ? e.message : String(e)));\n}\nvar closed = call({method: 'PATCH', url: job, body: {state: 'UploadComplete'}});\nreturn {job_id: response.id, state: closed?.state ?? 'UploadComplete', object: apiName(inputs.object, 'Object'), operation: inputs.operation};"
+    },
     "get_child_records": {
-      "label": "Get Child Records by Field",
-      "description": "List the related child records of a parent record.",
+      "label": "Get Child Records",
+      "description": "Lists the child records of a parent record with the fields you choose.",
       "inputs": {
         "parent_object": {
           "label": "Parent Object",
@@ -1288,8 +1355,8 @@
           "required": true,
           "list": "objects"
         },
-        "record_id": {
-          "label": "Parent Record ID",
+        "parent_id": {
+          "label": "Parent Record",
           "required": true,
           "list": "parents"
         },
@@ -1306,17 +1373,15 @@
         }
       },
       "request": {
-        "method": "GET",
-        "url": "https://{{credential.instanceUrl}}/services/data/v56.0/sobjects/{{parent_object}}/{{record_id}}/{{relationship_name}}"
+        "url": "https://{{credential.instanceUrl}}/services/data/v56.0/sobjects/{{parent_object}}/{{parent_id}}/{{relationship_name}}"
       },
-      "beforeRequest": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar blank = (v) => v === undefined || v === null || String(v).trim() === '';\nvar apiName = (v, f) => { var t = String(v).trim(); if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(t)) throw new Error(f + ' must be a Salesforce API name such as Account or My_Field__c.'); return t; };\nvar sfId = (v, f) => { var t = String(v).trim(); if (!/^[a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?$/.test(t)) throw new Error(f + ' must be a 15- or 18-character Salesforce record id.'); return t; };\nvar strArr = (v) => { var a = blank(v) ? [] : JSON.parse(v); return Array.isArray(a) ? a.map((s) => String(s).trim()).filter((s) => s.length > 0) : []; };\nvar f = strArr(inputs.fields).map((c) => apiName(c, 'Fields'));\nrequest.url = '/services/data/v56.0/sobjects/' + apiName(inputs.parent_object, 'Parent Object') + '/' + sfId(inputs.record_id, 'Parent Record ID') + '/' + apiName(inputs.relationship_name, 'Relationship Name') + (f.length > 0 ? '?fields=' + form(f.join(',')) : '');\nreturn request;",
+      "beforeRequest": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar blank = (v) => v === undefined || v === null || String(v).trim() === '';\nvar apiName = (v, f) => { var t = String(v).trim(); if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(t)) throw new Error(f + ' must be a Salesforce API name such as Account or My_Field__c.'); return t; };\nvar sfId = (v, f) => { var t = String(v).trim(); if (!/^[a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?$/.test(t)) throw new Error(f + ' must be a 15- or 18-character Salesforce record id.'); return t; };\nvar strArr = (v) => { var a = blank(v) ? [] : JSON.parse(v); return Array.isArray(a) ? a.map((s) => String(s).trim()).filter((s) => s.length > 0) : []; };\nvar f = strArr(inputs.fields).map((c) => apiName(c, 'Fields'));\nrequest.url = '/services/data/v56.0/sobjects/' + apiName(inputs.parent_object, 'Parent Object') + '/' + sfId(inputs.parent_id, 'Parent Record ID') + '/' + apiName(inputs.relationship_name, 'Relationship Name') + (f.length > 0 ? '?fields=' + form(f.join(',')) : '');\nreturn request;",
       "afterResponse": "var isRecord = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nvar clean = (v) => Array.isArray(v) ? v.map(clean) : isRecord(v) ? Object.fromEntries(Object.entries(v).filter(([k]) => k !== 'attributes').map(([k, x]) => [k, clean(x)])) : v;\nvar fmtQuery = (r) => ({records: r.records.map(clean), count: r.records.length, total_size: r.totalSize, done: r.done, next_records_url: r.nextRecordsUrl ?? null});\nreturn fmtQuery(response);"
     },
     "get_current_user": {
       "label": "Get Current User",
       "description": "Get the connected Salesforce user and org.",
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/oauth2/userinfo"
       },
       "afterResponse": "var o = response;\nreturn {user_id: o.user_id, organization_id: o.organization_id, username: o.preferred_username, name: o.name, email: o.email, locale: o.locale, zoneinfo: o.zoneinfo, user_type: o.user_type};"
@@ -1332,7 +1397,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/analytics/dashboards/{{dashboard_id}}/describe"
       },
       "beforeRequest": "var sfId = (v, f) => { var t = String(v).trim(); if (!/^[a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?$/.test(t)) throw new Error(f + ' must be a 15- or 18-character Salesforce record id.'); return t; };\nrequest.url = '/services/data/v56.0/analytics/dashboards/' + sfId(inputs.dashboard_id, 'Dashboard ID') + '/describe';\nreturn request;",
@@ -1349,7 +1413,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/connect/files/{{content_document_id}}"
       },
       "beforeRequest": "var sfId = (v, f) => { var t = String(v).trim(); if (!/^[a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?$/.test(t)) throw new Error(f + ' must be a 15- or 18-character Salesforce record id.'); return t; };\nrequest.url = '/services/data/v56.0/connect/files/' + sfId(inputs.content_document_id, 'Content Document ID');\nreturn request;",
@@ -1402,7 +1465,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/sobjects/{{object}}/listviews/{{list_view_id}}/describe"
       },
       "beforeRequest": "var apiName = (v, f) => { var t = String(v).trim(); if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(t)) throw new Error(f + ' must be a Salesforce API name such as Account or My_Field__c.'); return t; };\nvar sfId = (v, f) => { var t = String(v).trim(); if (!/^[a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?$/.test(t)) throw new Error(f + ' must be a 15- or 18-character Salesforce record id.'); return t; };\nrequest.url = '/services/data/v56.0/sobjects/' + apiName(inputs.object, 'Object') + '/listviews/' + sfId(inputs.list_view_id, 'List View ID') + '/describe';\nreturn request;",
@@ -1435,7 +1497,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/sobjects/{{object}}/listviews/{{list_view_id}}/results"
       },
       "beforeRequest": "var blank = (v) => v === undefined || v === null || String(v).trim() === '';\nvar apiName = (v, f) => { var t = String(v).trim(); if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(t)) throw new Error(f + ' must be a Salesforce API name such as Account or My_Field__c.'); return t; };\nvar sfId = (v, f) => { var t = String(v).trim(); if (!/^[a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?$/.test(t)) throw new Error(f + ' must be a 15- or 18-character Salesforce record id.'); return t; };\nvar n = Math.min(Math.max(Math.floor(blank(inputs.limit) ? 50 : Number(inputs.limit)), 1), 200), r = Math.max(Math.floor(blank(inputs.offset) ? 0 : Number(inputs.offset)), 0);\nrequest.url = '/services/data/v56.0/sobjects/' + apiName(inputs.object, 'Object') + '/listviews/' + sfId(inputs.list_view_id, 'List View ID') + '/results?limit=' + n + '&offset=' + r;\nreturn request;",
@@ -1452,7 +1513,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/query"
       },
       "beforeRequest": "var t = inputs.next_records_url.trim();\nif (/^\\/services\\/data\\/v\\d+\\.\\d+\\/(?:tooling\\/)?(?:query|queryAll)\\/[A-Za-z0-9-]+$/.test(t)) request.url = t;\nelse if (/^[A-Za-z0-9]+-\\d+$/.test(t)) request.url = '/services/data/v56.0/query/' + t;\nelse throw new Error('Next Records URL must be a next_records_url returned by a query, such as /services/data/v56.0/query/01g...-2000.');\nreturn request;",
@@ -1468,7 +1528,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/limits"
       },
       "afterResponse": "var o = (inputs.name ?? '').trim().toLowerCase();\nvar n = Object.entries(response).filter(([r]) => o.length === 0 || r.toLowerCase().includes(o)).map(([r, i]) => ({name: r, max: i.Max, remaining: i.Remaining, used: i.Max - i.Remaining}));\nreturn {limits: n, count: n.length};"
@@ -1488,7 +1547,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/quickActions/{{action_name}}/defaultValues"
       },
       "beforeRequest": "var apiName = (v, f) => { var t = String(v).trim(); if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(t)) throw new Error(f + ' must be a Salesforce API name such as Account or My_Field__c.'); return t; };\nvar sfId = (v, f) => { var t = String(v).trim(); if (!/^[a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?$/.test(t)) throw new Error(f + ' must be a 15- or 18-character Salesforce record id.'); return t; };\nvar t = inputs.action_name.trim().split('.').map((p) => apiName(p, 'Quick Action Name')).join('.');\nvar o = inputs.context_id?.trim() ? '/' + sfId(inputs.context_id, 'Context Record ID') : '';\nrequest.url = '/services/data/v56.0/' + (t.includes('.') ? 'sobjects/' + t.split('.')[0] + '/quickActions/' + t : 'quickActions/' + t) + '/defaultValues' + o;\nreturn request;",
@@ -1521,7 +1579,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/sobjects/{{object}}/{{external_id_field}}/{{external_id_value}}"
       },
       "beforeRequest": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar blank = (v) => v === undefined || v === null || String(v).trim() === '';\nvar apiName = (v, f) => { var t = String(v).trim(); if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(t)) throw new Error(f + ' must be a Salesforce API name such as Account or My_Field__c.'); return t; };\nvar strArr = (v) => { var a = blank(v) ? [] : JSON.parse(v); return Array.isArray(a) ? a.map((s) => String(s).trim()).filter((s) => s.length > 0) : []; };\nvar t = apiName(inputs.object, 'Object'), o = apiName(inputs.external_id_field, 'External ID Field'), n = inputs.external_id_value.trim();\nif (n.length === 0) throw new Error('External ID Value is required.');\nvar f = strArr(inputs.fields).map((c) => apiName(c, 'Fields'));\nrequest.url = '/services/data/v56.0/sobjects/' + t + '/' + o + '/' + encodeURIComponent(n) + (f.length > 0 ? '?fields=' + form(f.join(',')) : '');\nreturn request;",
@@ -1538,7 +1595,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/limits/recordCount"
       },
       "beforeRequest": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar blank = (v) => v === undefined || v === null || String(v).trim() === '';\nvar apiName = (v, f) => { var t = String(v).trim(); if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(t)) throw new Error(f + ' must be a Salesforce API name such as Account or My_Field__c.'); return t; };\nvar strArr = (v) => { var a = blank(v) ? [] : JSON.parse(v); return Array.isArray(a) ? a.map((s) => String(s).trim()).filter((s) => s.length > 0) : []; };\nvar t = strArr(inputs.objects).map((i) => apiName(i, 'Objects'));\nrequest.url = '/services/data/v56.0/limits/recordCount' + (t.length > 0 ? '?sObjects=' + form(t.join(',')) : '');\nreturn request;",
@@ -1555,7 +1611,7 @@
           "list": "objects"
         },
         "record_id": {
-          "label": "Record ID",
+          "label": "Record",
           "required": true,
           "list": "records"
         },
@@ -1566,7 +1622,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/sobjects/{{object}}/{{record_id}}"
       },
       "beforeRequest": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar blank = (v) => v === undefined || v === null || String(v).trim() === '';\nvar apiName = (v, f) => { var t = String(v).trim(); if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(t)) throw new Error(f + ' must be a Salesforce API name such as Account or My_Field__c.'); return t; };\nvar sfId = (v, f) => { var t = String(v).trim(); if (!/^[a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?$/.test(t)) throw new Error(f + ' must be a 15- or 18-character Salesforce record id.'); return t; };\nvar strArr = (v) => { var a = blank(v) ? [] : JSON.parse(v); return Array.isArray(a) ? a.map((s) => String(s).trim()).filter((s) => s.length > 0) : []; };\nvar f = strArr(inputs.fields).map((a) => apiName(a, 'Fields'));\nrequest.url = '/services/data/v56.0/sobjects/' + apiName(inputs.object, 'Object') + '/' + sfId(inputs.record_id, 'Record ID') + (f.length > 0 ? '?fields=' + form(f.join(',')) : '');\nreturn request;",
@@ -1607,7 +1662,7 @@
       "description": "Check an async report run and get its rows when it is done.",
       "inputs": {
         "report_id": {
-          "label": "Report ID",
+          "label": "Report",
           "description": "Report id starting with 00O.",
           "required": true,
           "list": "reports"
@@ -1619,7 +1674,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/analytics/reports/{{report_id}}/instances/{{instance_id}}"
       },
       "beforeRequest": "var sfId = (v, f) => { var t = String(v).trim(); if (!/^[a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?$/.test(t)) throw new Error(f + ' must be a 15- or 18-character Salesforce record id.'); return t; };\nrequest.url = '/services/data/v56.0/analytics/reports/' + sfId(inputs.report_id, 'Report ID') + '/instances/' + sfId(inputs.instance_id, 'Instance ID');\nreturn request;",
@@ -1630,14 +1684,13 @@
       "description": "Get the definition of a report: columns, groupings and filters.",
       "inputs": {
         "report_id": {
-          "label": "Report ID",
+          "label": "Report",
           "description": "Report id starting with 00O.",
           "required": true,
           "list": "reports"
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/analytics/reports/{{report_id}}/describe"
       },
       "beforeRequest": "var sfId = (v, f) => { var t = String(v).trim(); if (!/^[a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?$/.test(t)) throw new Error(f + ' must be a 15- or 18-character Salesforce record id.'); return t; };\nrequest.url = '/services/data/v56.0/analytics/reports/' + sfId(inputs.report_id, 'Report ID') + '/describe';\nreturn request;",
@@ -1664,7 +1717,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/sobjects/{{object}}/updated/"
       },
       "beforeRequest": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar blank = (v) => v === undefined || v === null || String(v).trim() === '';\nvar apiName = (v, f) => { var t = String(v).trim(); if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(t)) throw new Error(f + ' must be a Salesforce API name such as Account or My_Field__c.'); return t; };\nvar at = (v, f) => { var o = new Date(v); if (Number.isNaN(o.getTime())) throw new Error(f + ' must be an ISO 8601 date-time.'); return o.toISOString().replace(/\\.\\d{3}Z$/, '+00:00'); };\nvar o = at(inputs.start, 'Start'), n = at(blank(inputs.end) ? new Date().toISOString() : inputs.end, 'End');\nrequest.url = '/services/data/v56.0/sobjects/' + apiName(inputs.object, 'Object') + '/updated/?start=' + form(o) + '&end=' + form(n);\nreturn request;",
@@ -1685,7 +1737,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/query"
       },
       "beforeRequest": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar blank = (v) => v === undefined || v === null || String(v).trim() === '';\nvar escVal = (s) => s.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"\\\\'\").replace(/\"/g, '\\\\\"').replace(/\\n/g, '\\\\n').replace(/\\r/g, '\\\\r').replace(/\\t/g, '\\\\t');\nvar escLike = (s) => escVal(s).replace(/%/g, '\\\\%').replace(/_/g, '\\\\_');\nvar soql = (q) => '/services/data/v56.0/query?q=' + form(q);\nvar limitOf = (v, d, max) => blank(v) || !Number.isFinite(Number(v)) ? d : Math.min(Math.max(Math.floor(Number(v)), 1), max);\nvar t = inputs.title_contains;\nrequest.url = soql('SELECT Id, Title, DeveloperName, FolderName, Description, LastModifiedDate FROM Dashboard' + (t ? \" WHERE Title LIKE '%\" + escLike(t) + \"%'\" : '') + ' ORDER BY Title LIMIT ' + limitOf(inputs.limit, 50, 200));\nreturn request;",
@@ -1715,7 +1766,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/query"
       },
       "beforeRequest": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar blank = (v) => v === undefined || v === null || String(v).trim() === '';\nvar sfId = (v, f) => { var t = String(v).trim(); if (!/^[a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?$/.test(t)) throw new Error(f + ' must be a 15- or 18-character Salesforce record id.'); return t; };\nvar escVal = (s) => s.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"\\\\'\").replace(/\"/g, '\\\\\"').replace(/\\n/g, '\\\\n').replace(/\\r/g, '\\\\r').replace(/\\t/g, '\\\\t');\nvar escLike = (s) => escVal(s).replace(/%/g, '\\\\%').replace(/_/g, '\\\\_');\nvar soql = (q) => '/services/data/v56.0/query?q=' + form(q);\nvar limitOf = (v, d, max) => blank(v) || !Number.isFinite(Number(v)) ? d : Math.min(Math.max(Math.floor(Number(v)), 1), max);\nvar i = [inputs.name_contains ? \"Name LIKE '%\" + escLike(inputs.name_contains) + \"%'\" : undefined, inputs.folder_id ? \"FolderId = '\" + sfId(inputs.folder_id, 'Folder ID') + \"'\" : undefined, inputs.active_only === 'true' ? 'IsActive = true' : undefined].filter((d) => d !== undefined);\nrequest.url = soql('SELECT Id, Name, DeveloperName, Subject, FolderId, Folder.Name, TemplateType, IsActive, LastModifiedDate FROM EmailTemplate' + (i.length > 0 ? ' WHERE ' + i.join(' AND ') : '') + ' ORDER BY Name LIMIT ' + limitOf(inputs.limit, 50, 200));\nreturn request;",
@@ -1747,7 +1797,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/actions/standard"
       },
       "beforeRequest": "var apiName = (v, f) => { var t = String(v).trim(); if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(t)) throw new Error(f + ' must be a Salesforce API name such as Account or My_Field__c.'); return t; };\nvar t = inputs.custom_type?.trim();\nrequest.url = '/services/data/v56.0/actions/' + (inputs.scope === 'custom' ? 'custom' + (t ? '/' + apiName(t, 'Custom Action Type') : '') : 'standard');\nreturn request;",
@@ -1765,7 +1814,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/sobjects/{{object}}/listviews"
       },
       "beforeRequest": "var apiName = (v, f) => { var t = String(v).trim(); if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(t)) throw new Error(f + ' must be a Salesforce API name such as Account or My_Field__c.'); return t; };\nrequest.url = '/services/data/v56.0/sobjects/' + apiName(inputs.object, 'Object') + '/listviews';\nreturn request;",
@@ -1787,7 +1835,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/sobjects"
       },
       "afterResponse": "var o = (inputs.search ?? '').trim().toLowerCase(), custom = inputs.custom_only === 'true';\nvar n = response.sobjects.filter((r) => !custom || r.custom).filter((r) => o.length === 0 || r.name.toLowerCase().includes(o) || r.label.toLowerCase().includes(o)).map((r) => ({name: r.name, label: r.label, custom: r.custom, queryable: r.queryable, createable: r.createable, updateable: r.updateable, deletable: r.deletable, key_prefix: r.keyPrefix}));\nreturn {objects: n, count: n.length};"
@@ -1822,7 +1869,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/query"
       },
       "beforeRequest": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar blank = (v) => v === undefined || v === null || String(v).trim() === '';\nvar sfId = (v, f) => { var t = String(v).trim(); if (!/^[a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?$/.test(t)) throw new Error(f + ' must be a 15- or 18-character Salesforce record id.'); return t; };\nvar soql = (q) => '/services/data/v56.0/query?q=' + form(q);\nvar limitOf = (v, d, max) => blank(v) || !Number.isFinite(Number(v)) ? d : Math.min(Math.max(Math.floor(Number(v)), 1), max);\nvar search = (object, fields, conditions, orderBy) => { var a = conditions.filter((d) => typeof d === 'string'); return soql('SELECT ' + fields.join(', ') + ' FROM ' + object + (a.length > 0 ? ' WHERE ' + a.join(' AND ') : '') + ' ORDER BY ' + orderBy + ' LIMIT ' + limitOf(inputs.limit, 50, 200)); };\nvar idEquals = (f, v) => blank(v) ? undefined : f + \" = '\" + sfId(v, f) + \"'\";\nvar boolEquals = (f, v) => blank(v) ? undefined : f + ' = ' + (String(v).toLowerCase() === 'true' ? 'TRUE' : 'FALSE');\nvar a = inputs.active_only === 'true' ? 'true' : undefined;\nrequest.url = search('Pricebook2', ['Id', 'Name', 'IsActive', 'IsStandard', 'Description'], [idEquals('Id', inputs.pricebook_id), boolEquals('IsActive', a)], 'Name ASC');\nreturn request;",
@@ -1839,7 +1885,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/quickActions"
       },
       "beforeRequest": "var apiName = (v, f) => { var t = String(v).trim(); if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(t)) throw new Error(f + ' must be a Salesforce API name such as Account or My_Field__c.'); return t; };\nvar t = inputs.object?.trim();\nrequest.url = '/services/data/v56.0/' + (t ? 'sobjects/' + apiName(t, 'Object') + '/quickActions' : 'quickActions');\nreturn request;",
@@ -1864,7 +1909,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/query"
       },
       "beforeRequest": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar blank = (v) => v === undefined || v === null || String(v).trim() === '';\nvar escVal = (s) => s.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"\\\\'\").replace(/\"/g, '\\\\\"').replace(/\\n/g, '\\\\n').replace(/\\r/g, '\\\\r').replace(/\\t/g, '\\\\t');\nvar escLike = (s) => escVal(s).replace(/%/g, '\\\\%').replace(/_/g, '\\\\_');\nvar soql = (q) => '/services/data/v56.0/query?q=' + form(q);\nvar limitOf = (v, d, max) => blank(v) || !Number.isFinite(Number(v)) ? d : Math.min(Math.max(Math.floor(Number(v)), 1), max);\nvar r = [inputs.name_contains ? \"Name LIKE '%\" + escLike(inputs.name_contains) + \"%'\" : undefined, inputs.folder_name ? \"FolderName = '\" + escVal(inputs.folder_name) + \"'\" : undefined].filter((u) => u !== undefined);\nrequest.url = soql('SELECT Id, Name, DeveloperName, FolderName, Format, Description, LastRunDate, LastModifiedDate FROM Report' + (r.length > 0 ? ' WHERE ' + r.join(' AND ') : '') + ' ORDER BY Name LIMIT ' + limitOf(inputs.limit, 50, 200));\nreturn request;",
@@ -1922,13 +1966,12 @@
           "description": "YYYY-MM-DD. Defaults to today."
         },
         "owner_id": {
-          "label": "Owner ID",
+          "label": "Owner",
           "description": "User who made the call. Defaults to you.",
           "list": "owners"
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/query"
       },
       "beforeRequest": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar blank = (v) => v === undefined || v === null || String(v).trim() === '';\nvar soql = (q) => '/services/data/v56.0/query?q=' + form(q);\nvar dateOnly = (v, f) => { if (blank(v)) return undefined; var t = v.trim(); if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(t) || Number.isNaN(Date.parse(t))) throw new Error(f + ' must be a date in YYYY-MM-DD format.'); return t; };\ndateOnly(inputs.activity_date, 'Call Date');\nrequest.url = soql('SELECT ApiName, MasterLabel FROM TaskStatus WHERE IsClosed = true ORDER BY SortOrder LIMIT 1');\nreturn request;",
@@ -1939,23 +1982,22 @@
       "description": "Remove a lead or contact from a campaign.",
       "inputs": {
         "campaign_id": {
-          "label": "Campaign ID",
+          "label": "Campaign",
           "required": true,
           "list": "campaigns"
         },
         "lead_id": {
-          "label": "Lead ID",
-          "description": "Give this or Contact ID.",
+          "label": "Lead",
+          "description": "Give this or Contact.",
           "list": "leads"
         },
         "contact_id": {
-          "label": "Contact ID",
-          "description": "Give this or Lead ID.",
+          "label": "Contact",
+          "description": "Give this or Lead.",
           "list": "contacts"
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/query"
       },
       "beforeRequest": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar blank = (v) => v === undefined || v === null || String(v).trim() === '';\nvar sfId = (v, f) => { var t = String(v).trim(); if (!/^[a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?$/.test(t)) throw new Error(f + ' must be a 15- or 18-character Salesforce record id.'); return t; };\nvar soql = (q) => '/services/data/v56.0/query?q=' + form(q);\nvar given = [inputs.lead_id, inputs.contact_id].map((n, r) => blank(n) ? -1 : r).filter((n) => n >= 0);\nif (given.length !== 1) throw new Error('Provide exactly one of Lead ID or Contact ID.');\nvar lead = given[0] === 0, i = sfId(inputs.campaign_id, 'Campaign ID'), a = sfId(lead ? inputs.lead_id : inputs.contact_id, lead ? 'Lead ID' : 'Contact ID');\nrequest.url = soql(\"SELECT Id FROM CampaignMember WHERE CampaignId = '\" + i + \"' AND \" + (lead ? 'LeadId' : 'ContactId') + \" = '\" + a + \"' LIMIT 1\");\nreturn request;",
@@ -2019,7 +2061,7 @@
       "description": "Start a report run in the background.",
       "inputs": {
         "report_id": {
-          "label": "Report ID",
+          "label": "Report",
           "description": "Report id starting with 00O.",
           "required": true,
           "list": "reports"
@@ -2049,7 +2091,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/queryAll"
       },
       "beforeRequest": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar t = inputs.query.trim();\nif (t.length === 0) throw new Error('SOQL Query is required.');\nrequest.url = '/services/data/v56.0/queryAll?q=' + form(t);\nreturn request;",
@@ -2067,7 +2108,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/query"
       },
       "beforeRequest": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar soql = (q) => '/services/data/v56.0/query?q=' + form(q);\nvar t = inputs.query.trim();\nif (t.length === 0) throw new Error('SOQL Query is required.');\nrequest.url = soql(t);\nreturn request;",
@@ -2085,7 +2125,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/tooling/query"
       },
       "beforeRequest": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar t = inputs.query.trim();\nif (t.length === 0) throw new Error('SOQL Query is required.');\nrequest.url = '/services/data/v56.0/tooling/query?q=' + form(t);\nreturn request;",
@@ -2111,7 +2150,7 @@
           "label": "Billing Country"
         },
         "owner_id": {
-          "label": "Owner ID",
+          "label": "Owner",
           "list": "owners"
         },
         "limit": {
@@ -2121,7 +2160,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/query"
       },
       "beforeRequest": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar blank = (v) => v === undefined || v === null || String(v).trim() === '';\nvar sfId = (v, f) => { var t = String(v).trim(); if (!/^[a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?$/.test(t)) throw new Error(f + ' must be a 15- or 18-character Salesforce record id.'); return t; };\nvar escVal = (s) => s.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"\\\\'\").replace(/\"/g, '\\\\\"').replace(/\\n/g, '\\\\n').replace(/\\r/g, '\\\\r').replace(/\\t/g, '\\\\t');\nvar escLike = (s) => escVal(s).replace(/%/g, '\\\\%').replace(/_/g, '\\\\_');\nvar soql = (q) => '/services/data/v56.0/query?q=' + form(q);\nvar limitOf = (v, d, max) => blank(v) || !Number.isFinite(Number(v)) ? d : Math.min(Math.max(Math.floor(Number(v)), 1), max);\nvar search = (object, fields, conditions, orderBy) => { var a = conditions.filter((d) => typeof d === 'string'); return soql('SELECT ' + fields.join(', ') + ' FROM ' + object + (a.length > 0 ? ' WHERE ' + a.join(' AND ') : '') + ' ORDER BY ' + orderBy + ' LIMIT ' + limitOf(inputs.limit, 50, 200)); };\nvar equals = (f, v) => blank(v) ? undefined : f + \" = '\" + escVal(v.trim()) + \"'\";\nvar contains = (f, v) => blank(v) ? undefined : f + \" LIKE '%\" + escLike(v.trim()) + \"%'\";\nvar idEquals = (f, v) => blank(v) ? undefined : f + \" = '\" + sfId(v, f) + \"'\";\nrequest.url = search('Account', ['Id', 'Name', 'Phone', 'Website', 'Industry', 'Type', 'BillingCity', 'BillingState', 'BillingCountry', 'OwnerId', 'ParentId', 'CreatedDate', 'LastModifiedDate'], [contains('Name', inputs.name), equals('Industry', inputs.industry), equals('Type', inputs.type), equals('BillingCity', inputs.billing_city), equals('BillingCountry', inputs.billing_country), idEquals('OwnerId', inputs.owner_id)], 'LastModifiedDate DESC');\nreturn request;",
@@ -2139,7 +2177,7 @@
           "description": "Exact email address."
         },
         "account_id": {
-          "label": "Account ID",
+          "label": "Account",
           "list": "accounts"
         },
         "title": {
@@ -2152,7 +2190,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/query"
       },
       "beforeRequest": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar blank = (v) => v === undefined || v === null || String(v).trim() === '';\nvar sfId = (v, f) => { var t = String(v).trim(); if (!/^[a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?$/.test(t)) throw new Error(f + ' must be a 15- or 18-character Salesforce record id.'); return t; };\nvar escVal = (s) => s.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"\\\\'\").replace(/\"/g, '\\\\\"').replace(/\\n/g, '\\\\n').replace(/\\r/g, '\\\\r').replace(/\\t/g, '\\\\t');\nvar escLike = (s) => escVal(s).replace(/%/g, '\\\\%').replace(/_/g, '\\\\_');\nvar soql = (q) => '/services/data/v56.0/query?q=' + form(q);\nvar limitOf = (v, d, max) => blank(v) || !Number.isFinite(Number(v)) ? d : Math.min(Math.max(Math.floor(Number(v)), 1), max);\nvar search = (object, fields, conditions, orderBy) => { var a = conditions.filter((d) => typeof d === 'string'); return soql('SELECT ' + fields.join(', ') + ' FROM ' + object + (a.length > 0 ? ' WHERE ' + a.join(' AND ') : '') + ' ORDER BY ' + orderBy + ' LIMIT ' + limitOf(inputs.limit, 50, 200)); };\nvar equals = (f, v) => blank(v) ? undefined : f + \" = '\" + escVal(v.trim()) + \"'\";\nvar contains = (f, v) => blank(v) ? undefined : f + \" LIKE '%\" + escLike(v.trim()) + \"%'\";\nvar idEquals = (f, v) => blank(v) ? undefined : f + \" = '\" + sfId(v, f) + \"'\";\nrequest.url = search('Contact', ['Id', 'FirstName', 'LastName', 'Name', 'Email', 'Phone', 'MobilePhone', 'Title', 'Department', 'AccountId', 'Account.Name', 'OwnerId', 'CreatedDate', 'LastModifiedDate'], [contains('Name', inputs.name), equals('Email', inputs.email), idEquals('AccountId', inputs.account_id), contains('Title', inputs.title)], 'LastModifiedDate DESC');\nreturn request;",
@@ -2201,7 +2238,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/support/knowledgeArticles"
       },
       "beforeRequest": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar blank = (v) => v === undefined || v === null || String(v).trim() === '';\nvar t = inputs.query.trim();\nif (!t) throw new Error('Search Text must not be empty.');\nvar o = inputs.language?.trim() || 'en-US';\nif (!/^[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{2,8})*$/.test(o)) throw new Error('Language must be a locale such as en-US.');\nvar n = Math.min(Math.max(Math.floor(blank(inputs.page_size) ? 20 : Number(inputs.page_size)), 1), 100);\nrequest.url = '/services/data/v56.0/support/knowledgeArticles?q=' + form(t) + '&pageSize=' + n + (inputs.channel ? '&channel=' + form(inputs.channel) : '');\nrequest.headers['Accept-Language'] = o;\nreturn request;",
@@ -2250,7 +2286,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/query"
       },
       "beforeRequest": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar blank = (v) => v === undefined || v === null || String(v).trim() === '';\nvar escVal = (s) => s.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"\\\\'\").replace(/\"/g, '\\\\\"').replace(/\\n/g, '\\\\n').replace(/\\r/g, '\\\\r').replace(/\\t/g, '\\\\t');\nvar escLike = (s) => escVal(s).replace(/%/g, '\\\\%').replace(/_/g, '\\\\_');\nvar soql = (q) => '/services/data/v56.0/query?q=' + form(q);\nvar limitOf = (v, d, max) => blank(v) || !Number.isFinite(Number(v)) ? d : Math.min(Math.max(Math.floor(Number(v)), 1), max);\nvar search = (object, fields, conditions, orderBy) => { var a = conditions.filter((d) => typeof d === 'string'); return soql('SELECT ' + fields.join(', ') + ' FROM ' + object + (a.length > 0 ? ' WHERE ' + a.join(' AND ') : '') + ' ORDER BY ' + orderBy + ' LIMIT ' + limitOf(inputs.limit, 50, 200)); };\nvar equals = (f, v) => blank(v) ? undefined : f + \" = '\" + escVal(v.trim()) + \"'\";\nvar contains = (f, v) => blank(v) ? undefined : f + \" LIKE '%\" + escLike(v.trim()) + \"%'\";\nvar boolEquals = (f, v) => blank(v) ? undefined : f + ' = ' + (String(v).toLowerCase() === 'true' ? 'TRUE' : 'FALSE');\nrequest.url = search('Lead', ['Id', 'FirstName', 'LastName', 'Name', 'Company', 'Email', 'Phone', 'Title', 'Status', 'LeadSource', 'Industry', 'IsConverted', 'ConvertedContactId', 'ConvertedAccountId', 'OwnerId', 'CreatedDate', 'LastModifiedDate'], [contains('Name', inputs.name), equals('Email', inputs.email), contains('Company', inputs.company), equals('Status', inputs.status), equals('LeadSource', inputs.lead_source), boolEquals('IsConverted', inputs.is_converted)], 'LastModifiedDate DESC');\nreturn request;",
@@ -2264,7 +2299,7 @@
           "label": "Name Contains"
         },
         "account_id": {
-          "label": "Account ID",
+          "label": "Account",
           "list": "accounts"
         },
         "stage": {
@@ -2320,7 +2355,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/query"
       },
       "beforeRequest": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar blank = (v) => v === undefined || v === null || String(v).trim() === '';\nvar sfId = (v, f) => { var t = String(v).trim(); if (!/^[a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?$/.test(t)) throw new Error(f + ' must be a 15- or 18-character Salesforce record id.'); return t; };\nvar escVal = (s) => s.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"\\\\'\").replace(/\"/g, '\\\\\"').replace(/\\n/g, '\\\\n').replace(/\\r/g, '\\\\r').replace(/\\t/g, '\\\\t');\nvar escLike = (s) => escVal(s).replace(/%/g, '\\\\%').replace(/_/g, '\\\\_');\nvar soql = (q) => '/services/data/v56.0/query?q=' + form(q);\nvar dateOnly = (v, f) => { if (blank(v)) return undefined; var t = v.trim(); if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(t) || Number.isNaN(Date.parse(t))) throw new Error(f + ' must be a date in YYYY-MM-DD format.'); return t; };\nvar limitOf = (v, d, max) => blank(v) || !Number.isFinite(Number(v)) ? d : Math.min(Math.max(Math.floor(Number(v)), 1), max);\nvar search = (object, fields, conditions, orderBy) => { var a = conditions.filter((d) => typeof d === 'string'); return soql('SELECT ' + fields.join(', ') + ' FROM ' + object + (a.length > 0 ? ' WHERE ' + a.join(' AND ') : '') + ' ORDER BY ' + orderBy + ' LIMIT ' + limitOf(inputs.limit, 50, 200)); };\nvar equals = (f, v) => blank(v) ? undefined : f + \" = '\" + escVal(v.trim()) + \"'\";\nvar contains = (f, v) => blank(v) ? undefined : f + \" LIKE '%\" + escLike(v.trim()) + \"%'\";\nvar idEquals = (f, v) => blank(v) ? undefined : f + \" = '\" + sfId(v, f) + \"'\";\nvar boolEquals = (f, v) => blank(v) ? undefined : f + ' = ' + (String(v).toLowerCase() === 'true' ? 'TRUE' : 'FALSE');\nvar date = (f, op, v) => { var n = dateOnly(v, f); return n === undefined ? undefined : f + ' ' + op + ' ' + n; };\nvar amount = (f, op, v) => { if (blank(v)) return undefined; if (!Number.isFinite(Number(v))) throw new Error(f + ' must be a number.'); return f + ' ' + op + ' ' + Number(v); };\nrequest.url = search('Opportunity', ['Id', 'Name', 'AccountId', 'Account.Name', 'StageName', 'Amount', 'Probability', 'CloseDate', 'IsClosed', 'IsWon', 'Type', 'LeadSource', 'NextStep', 'Pricebook2Id', 'OwnerId', 'CreatedDate', 'LastModifiedDate'], [contains('Name', inputs.name), idEquals('AccountId', inputs.account_id), equals('StageName', inputs.stage), boolEquals('IsClosed', inputs.is_closed), boolEquals('IsWon', inputs.is_won), date('CloseDate', '>=', inputs.close_date_from), date('CloseDate', '<=', inputs.close_date_to), amount('Amount', '>=', inputs.min_amount)], 'LastModifiedDate DESC');\nreturn request;",
@@ -2353,7 +2387,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://{{credential.instanceUrl}}/services/data/v56.0/search"
       },
       "beforeRequest": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar blank = (v) => v === undefined || v === null || String(v).trim() === '';\nvar apiName = (v, f) => { var t = String(v).trim(); if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(t)) throw new Error(f + ' must be a Salesforce API name such as Account or My_Field__c.'); return t; };\nvar strArr = (v) => { var a = blank(v) ? [] : JSON.parse(v); return Array.isArray(a) ? a.map((s) => String(s).trim()).filter((s) => s.length > 0) : []; };\nvar escSosl = (s) => s.replace(/[?&|!{}[\\]()^~*:\\\\\"'+-]/g, (c) => '\\\\' + c);\nvar soql = (q) => '/services/data/v56.0/query?q=' + form(q);\nvar limitOf = (v, d, max) => blank(v) || !Number.isFinite(Number(v)) ? d : Math.min(Math.max(Math.floor(Number(v)), 1), max);\nvar search = (object, fields, conditions, orderBy) => { var a = conditions.filter((d) => typeof d === 'string'); return soql('SELECT ' + fields.join(', ') + ' FROM ' + object + (a.length > 0 ? ' WHERE ' + a.join(' AND ') : '') + ' ORDER BY ' + orderBy + ' LIMIT ' + limitOf(inputs.limit, 50, 200)); };\nvar t = inputs.search_term.trim();\nif (t.length < 2) throw new Error('Search Term must contain at least 2 characters.');\nvar o = strArr(inputs.objects).map((p) => apiName(p, 'Objects')), n = strArr(inputs.fields).map((p) => apiName(p, 'Fields')).filter((p) => p.toLowerCase() !== 'id');\nvar r = Math.min(Math.max(Math.floor(blank(inputs.limit) ? 50 : Number(inputs.limit)), 1), 200), i = ['Id'].concat(n).join(', ');\nvar a = o.length > 0 ? ' RETURNING ' + o.map((p) => p + '(' + i + ')').join(', ') : '';\nrequest.url = '/services/data/v56.0/search?q=' + form('FIND {' + escSosl(t) + '} IN ALL FIELDS' + a + ' LIMIT ' + r);\nreturn request;",
@@ -2365,13 +2398,13 @@
       "inputs": {
         "email_addresses": {
           "label": "Email Addresses",
-          "description": "Recipient email addresses. Required unless Recipient ID is set.",
+          "description": "Recipient email addresses. Required unless Recipient is set.",
           "type": "json"
         },
         "recipient_id": {
-          "label": "Recipient ID",
-          "description": "Id of a Contact, Lead or User to send to.",
-          "list": "recipients"
+          "label": "Recipient",
+          "description": "A contact. Type a lead or user ID for a lead or user. Required unless Email Addresses is set.",
+          "list": "contacts"
         },
         "subject": {
           "label": "Subject",
@@ -2408,7 +2441,7 @@
         },
         "related_record_id": {
           "label": "Related Record ID",
-          "description": "Id of a record (Account, Opportunity, Case…) to log the email against."
+          "description": "A record, such as an account, opportunity or case, to log the email against."
         },
         "use_line_breaks": {
           "label": "Use Line Breaks",
@@ -2428,7 +2461,7 @@
       "description": "Update fields on an existing account.",
       "inputs": {
         "account_id": {
-          "label": "Account ID",
+          "label": "Account",
           "required": true,
           "list": "accounts"
         },
@@ -2467,11 +2500,11 @@
           "type": "multiline"
         },
         "OwnerId": {
-          "label": "Owner ID",
+          "label": "Owner",
           "list": "owners"
         },
         "ParentId": {
-          "label": "Parent Account ID",
+          "label": "Parent Account",
           "list": "accounts"
         },
         "additional_fields": {
@@ -2492,7 +2525,7 @@
       "description": "Update fields on an existing campaign.",
       "inputs": {
         "campaign_id": {
-          "label": "Campaign ID",
+          "label": "Campaign",
           "required": true,
           "list": "campaigns"
         },
@@ -2541,7 +2574,7 @@
           "type": "multiline"
         },
         "ParentId": {
-          "label": "Parent Campaign ID",
+          "label": "Parent Campaign",
           "list": "campaigns"
         },
         "additional_fields": {
@@ -2562,7 +2595,7 @@
       "description": "Update fields on an existing opportunity.",
       "inputs": {
         "opportunity_id": {
-          "label": "Opportunity ID",
+          "label": "Opportunity",
           "required": true,
           "list": "opportunities"
         },
@@ -2578,7 +2611,7 @@
           "description": "YYYY-MM-DD."
         },
         "AccountId": {
-          "label": "Account ID",
+          "label": "Account",
           "list": "accounts"
         },
         "Amount": {
@@ -2604,7 +2637,7 @@
           "type": "multiline"
         },
         "OwnerId": {
-          "label": "Owner ID",
+          "label": "Owner",
           "list": "owners"
         },
         "Pricebook2Id": {
@@ -2628,7 +2661,7 @@
       "description": "Update fields on an existing contact.",
       "inputs": {
         "contact_id": {
-          "label": "Contact ID",
+          "label": "Contact",
           "required": true,
           "list": "contacts"
         },
@@ -2654,7 +2687,7 @@
           "label": "Department"
         },
         "AccountId": {
-          "label": "Account ID",
+          "label": "Account",
           "list": "accounts"
         },
         "MailingCity": {
@@ -2672,7 +2705,7 @@
           "type": "multiline"
         },
         "OwnerId": {
-          "label": "Owner ID",
+          "label": "Owner",
           "list": "owners"
         },
         "additional_fields": {
@@ -2693,7 +2726,7 @@
       "description": "Update fields on an existing lead.",
       "inputs": {
         "lead_id": {
-          "label": "Lead ID",
+          "label": "Lead",
           "required": true,
           "list": "leads"
         },
@@ -2739,7 +2772,7 @@
           "type": "multiline"
         },
         "OwnerId": {
-          "label": "Owner ID",
+          "label": "Owner",
           "list": "owners"
         },
         "additional_fields": {
@@ -2775,7 +2808,7 @@
           "description": "Account, Opportunity, Case or other record id."
         },
         "OwnerId": {
-          "label": "Assigned To (User ID)",
+          "label": "Assigned To",
           "list": "owners"
         },
         "ActivityDate": {
@@ -2842,6 +2875,110 @@
       },
       "beforeRequest": "var blank = (v) => v === undefined || v === null || String(v).trim() === '';\nvar isRecord = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nvar apiName = (v, f) => { var t = String(v).trim(); if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(t)) throw new Error(f + ' must be a Salesforce API name such as Account or My_Field__c.'); return t; };\nvar parsed = (v, f) => { try { return JSON.parse(v); } catch (e) { throw new Error(f + ' must be valid JSON.'); } };\nvar jsonArr = (v, f) => { if (blank(v)) return undefined; var o = parsed(v, f); if (!Array.isArray(o)) throw new Error(f + ' must be a JSON array.'); return o; };\nvar composite = (e) => { var t = e.map((o, n) => Object.assign({index: n, id: o.id ?? null, success: o.success}, o.created === undefined ? {} : {created: o.created}, {errors: (o.errors ?? []).map((r) => r.statusCode + ': ' + r.message).join('; ')})); return {results: t, success_count: t.filter((o) => o.success).length, failure_count: t.filter((o) => !o.success).length}; };\nvar recordList = (v, f, max) => { var n = jsonArr(v, f) ?? []; if (n.length === 0) throw new Error(f + ' must contain at least one record.'); if (n.length > max) throw new Error(f + ' can contain at most ' + max + ' records per call.'); n.forEach((r, i) => { if (!isRecord(r)) throw new Error(f + '[' + i + '] must be a JSON object.'); }); return n; };\nvar t = apiName(inputs.object, 'Object'), o = apiName(inputs.external_id_field, 'External ID Field'), n = recordList(inputs.records, 'Records', 200);\nvar r = n.findIndex((a) => a[o] === undefined || a[o] === null || a[o] === '');\nif (r !== -1) throw new Error('Records[' + r + '] is missing the external id field ' + o + '.');\nrequest.url = '/services/data/v56.0/composite/sobjects/' + t + '/' + o;\nrequest.body = {allOrNone: inputs.all_or_none === 'true', records: n.map((a) => Object.assign({}, a, {attributes: {type: t}}))};\nreturn request;",
       "afterResponse": "var composite = (e) => { var t = e.map((o, n) => Object.assign({index: n, id: o.id ?? null, success: o.success}, o.created === undefined ? {} : {created: o.created}, {errors: (o.errors ?? []).map((r) => r.statusCode + ': ' + r.message).join('; ')})); return {results: t, success_count: t.filter((o) => o.success).length, failure_count: t.filter((o) => !o.success).length}; };\nreturn composite(response);"
+    }
+  },
+  "triggers": {
+    "new_record": {
+      "label": "New Record",
+      "description": "Fires when a record of the chosen object is created, such as a new lead or contact.",
+      "inputs": {
+        "object": {
+          "label": "Object",
+          "description": "The type of Salesforce record, such as Account or Contact.",
+          "required": true,
+          "list": "objects"
+        },
+        "conditions": {
+          "label": "Conditions",
+          "description": "SOQL conditions to filter by, without the WHERE keyword, such as Industry = 'Technology'.",
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "url": "https://{{credential.instanceUrl}}/services/data/v56.0/query"
+      },
+      "beforeRequest": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar soql = (q) => '/services/data/v56.0/query?q=' + form(q);\nvar since = new Date(Number(inputs.lastPollTime || 0)).toISOString();\nrequest.url = soql(`SELECT FIELDS(ALL) FROM ${inputs.object} WHERE CreatedDate > ${since}${inputs.conditions ? ` AND (${inputs.conditions})` : ''} ORDER BY CreatedDate ASC LIMIT 200 OFFSET 0`);\nreturn request;",
+      "afterResponse": "return response.records;",
+      "key": "$.CreatedDate"
+    },
+    "new_or_updated_record": {
+      "label": "New or Updated Record",
+      "description": "Fires when a record of the chosen object is created or changed.",
+      "inputs": {
+        "object": {
+          "label": "Object",
+          "description": "The type of Salesforce record, such as Account or Contact.",
+          "required": true,
+          "list": "objects"
+        },
+        "conditions": {
+          "label": "Conditions",
+          "description": "SOQL conditions to filter by, without the WHERE keyword, such as Industry = 'Technology'.",
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "url": "https://{{credential.instanceUrl}}/services/data/v56.0/query"
+      },
+      "beforeRequest": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar soql = (q) => '/services/data/v56.0/query?q=' + form(q);\nvar since = new Date(Number(inputs.lastPollTime || 0)).toISOString();\nrequest.url = soql(`SELECT FIELDS(ALL) FROM ${inputs.object} WHERE LastModifiedDate > ${since}${inputs.conditions ? ` AND (${inputs.conditions})` : ''} ORDER BY LastModifiedDate ASC LIMIT 200 OFFSET 0`);\nreturn request;",
+      "afterResponse": "return response.records;",
+      "key": "$.LastModifiedDate"
+    },
+    "new_field_history_event": {
+      "label": "New Field History Event",
+      "description": "Fires when a tracked field is updated on a specified object.",
+      "inputs": {
+        "object": {
+          "label": "Object",
+          "description": "Only objects with field history tracking turned on.",
+          "required": true,
+          "list": "objects"
+        }
+      },
+      "request": {
+        "url": "https://{{credential.instanceUrl}}/services/data/v56.0/query"
+      },
+      "beforeRequest": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar soql = (q) => '/services/data/v56.0/query?q=' + form(q);\nvar since = new Date(Number(inputs.lastPollTime || 0)).toISOString();\nvar history = inputs.object.endsWith('__c') ? inputs.object.replace('__c', '__History') : inputs.object === 'Opportunity' ? 'OpportunityFieldHistory' : inputs.object + 'History';\nrequest.url = soql(`\n            SELECT FIELDS(ALL)\n            FROM ${history}\n            WHERE CreatedDate > ${since}\n            ORDER BY CreatedDate ASC\n            LIMIT 200\n        `);\nreturn request;",
+      "afterResponse": "return response.records;",
+      "key": "$.CreatedDate"
+    },
+    "new_updated_file": {
+      "label": "New or Updated File",
+      "description": "Fires when a file is added or changed. Classic attachments are not included.",
+      "request": {
+        "url": "https://{{credential.instanceUrl}}/services/data/v56.0/query"
+      },
+      "beforeRequest": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar soql = (q) => '/services/data/v56.0/query?q=' + form(q);\nvar since = new Date(Number(inputs.lastPollTime || 0)).toISOString();\nrequest.url = soql(`\n            SELECT FIELDS(ALL) \n            FROM ContentDocument \n            WHERE SystemModstamp > ${since}\n            ORDER BY SystemModstamp ASC\n            LIMIT 200\n        `);\nreturn request;",
+      "afterResponse": "return (response?.records || []).map((f) => Object.assign({}, f, {Type: 'ContentDocument'}));",
+      "key": "$.SystemModstamp"
+    },
+    "new_case_attachment": {
+      "label": "New Case Attachment",
+      "description": "Fires when a new Attachment or File is added to any Case record.",
+      "request": {
+        "url": "https://{{credential.instanceUrl}}/services/data/v56.0/query"
+      },
+      "beforeRequest": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar soql = (q) => '/services/data/v56.0/query?q=' + form(q);\nvar since = new Date(Number(inputs.lastPollTime || 0)).toISOString();\nrequest.url = soql(`\n            SELECT FIELDS(ALL) FROM Attachment \n            WHERE Parent.Type = 'Case' AND SystemModstamp > ${since}\n            LIMIT 200\n        `);\nreturn request;",
+      "afterResponse": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar soql = (q) => '/services/data/v56.0/query?q=' + form(q);\nvar since = new Date(Number(inputs.lastPollTime || 0)).toISOString();\nvar cases = call({method: 'GET', url: soql(`SELECT Id FROM Case WHERE SystemModstamp > ${since} LIMIT 200`)})?.records.map((c) => `'${c.Id}'`), files = [];\nif (cases && cases.length > 0) files = call({method: 'GET', url: soql(`\n                SELECT FIELDS(ALL) FROM ContentDocumentLink \n                WHERE LinkedEntityId IN (${cases.join(',')}) AND SystemModstamp > ${since}\n                LIMIT 200\n            `)})?.records || [];\nreturn (response?.records || []).map((a) => Object.assign({}, a, {attachment_type: 'Classic'})).concat(files.map((f) => Object.assign({}, f, {attachment_type: 'File'})));",
+      "key": "$.SystemModstamp"
+    },
+    "new_case": {
+      "label": "New Case in Queue",
+      "description": "Fires when a case is assigned to the chosen queue.",
+      "inputs": {
+        "case_queue_id": {
+          "label": "Case Queue",
+          "description": "The queue to monitor for new cases.",
+          "required": true,
+          "list": "case_queues"
+        }
+      },
+      "request": {
+        "url": "https://{{credential.instanceUrl}}/services/data/v56.0/query"
+      },
+      "beforeRequest": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar soql = (q) => '/services/data/v56.0/query?q=' + form(q);\nvar since = new Date(Number(inputs.lastPollTime || 0)).toISOString();\nif (!inputs.lastPollTime) request.url = soql(`SELECT FIELDS(ALL) FROM Case WHERE OwnerId = '${inputs.case_queue_id}' ORDER BY CreatedDate DESC LIMIT 10`);\nelse request.url = soql(`SELECT CaseId, CreatedDate, NewValue FROM CaseHistory WHERE Field = 'Owner' AND CreatedDate > ${since}`);\nreturn request;",
+      "afterResponse": "var form = (s) => encodeURIComponent(s).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar soql = (q) => '/services/data/v56.0/query?q=' + form(q);\nvar since = new Date(Number(inputs.lastPollTime || 0)).toISOString();\nif (!inputs.lastPollTime) return response?.records ?? [];\nvar queue = inputs.case_queue_id, moved = (response?.records ?? []).filter((h) => h.NewValue === queue);\nvar created = call({method: 'GET', url: soql(`SELECT Id, CreatedDate FROM Case WHERE OwnerId = '${queue}' AND CreatedDate > ${since}`)})?.records ?? [];\nvar ids = Object.keys(Object.fromEntries(created.map((c) => [c.Id, true]).concat(moved.map((h) => [h.CaseId, true]))));\nvar cases = [];\nfor (var i = 0; i < ids.length; i += 200) cases.push(...(call({method: 'GET', url: soql(`SELECT FIELDS(ALL) FROM Case WHERE Id IN (${ids.slice(i, i + 200).map((id) => `'${id}'`).join(',')}) LIMIT 200`)})?.records ?? []));\nreturn cases;",
+      "key": "$.LastModifiedDate"
     }
   }
 }

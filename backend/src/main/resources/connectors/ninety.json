@@ -352,7 +352,7 @@
           "pageSize": "{{pageSize}}"
         }
       },
-      "beforeRequest": "const b = request.body; const tri = (v) => v === 'yes' ? true : v === 'no' ? false : undefined; const set = (k, v) => { if (v === undefined) delete b[k]; else b[k] = v; }; if (inputs.scope) b.isPersonal = inputs.scope === 'personal'; if (Array.isArray(b.userIds) && b.userIds.length === 0) delete b.userIds; set('completed', tri(b.completed)); set('archived', tri(b.archived)); if (b.dueDateFrom !== undefined) b.dueDateFrom = /^\\d{4}-\\d{2}-\\d{2}$/.test(b.dueDateFrom.trim()) ? b.dueDateFrom.trim() : new Date(b.dueDateFrom.trim()).toISOString().slice(0, 10); if (b.dueDateTo !== undefined) b.dueDateTo = /^\\d{4}-\\d{2}-\\d{2}$/.test(b.dueDateTo.trim()) ? b.dueDateTo.trim() : new Date(b.dueDateTo.trim()).toISOString().slice(0, 10); if (!inputs.sort) delete b.order; return request;",
+      "beforeRequest": "const b = request.body; const day = (v) => /^\\d{4}-\\d{2}-\\d{2}$/.test(v.trim()) ? v.trim() : new Date(v.trim()).toISOString().slice(0, 10); const tri = (v) => v === 'yes' ? true : v === 'no' ? false : undefined; const set = (k, v) => { if (v === undefined) delete b[k]; else b[k] = v; }; if (inputs.scope) b.isPersonal = inputs.scope === 'personal'; if (Array.isArray(b.userIds) && b.userIds.length === 0) delete b.userIds; set('completed', tri(b.completed)); set('archived', tri(b.archived)); if (b.dueDateFrom !== undefined) b.dueDateFrom = day(b.dueDateFrom); if (b.dueDateTo !== undefined) b.dueDateTo = day(b.dueDateTo); if (!inputs.sort) delete b.order; return request;",
       "afterResponse": "const items = Array.isArray(response) ? response : (response?.items ?? []); return {todos: items, count: items.length, totalCount: Array.isArray(response) || response == null ? items.length : (response.totalCount ?? items.length)};"
     },
     "create_issue": {
@@ -625,11 +625,11 @@
           "options": [
             {
               "value": "DESC",
-              "label": "Newest or highest first"
+              "label": "Descending"
             },
             {
               "value": "ASC",
-              "label": "Oldest or lowest first"
+              "label": "Ascending"
             }
           ]
         },
@@ -1147,11 +1147,11 @@
           "options": [
             {
               "value": "DESC",
-              "label": "Newest or highest first"
+              "label": "Descending"
             },
             {
               "value": "ASC",
-              "label": "Oldest or lowest first"
+              "label": "Ascending"
             }
           ]
         },
@@ -1305,12 +1305,12 @@
           "type": "select",
           "options": [
             {
-              "value": "ASC",
-              "label": "Ascending"
-            },
-            {
               "value": "DESC",
               "label": "Descending"
+            },
+            {
+              "value": "ASC",
+              "label": "Ascending"
             }
           ]
         },
@@ -1351,7 +1351,7 @@
       "inputs": {
         "teamId": {
           "label": "Team",
-          "description": "Leave empty to cover every team the token can see",
+          "description": "Narrows the Measurable choices to this team",
           "list": "teams"
         },
         "measurableId": {
@@ -1381,13 +1381,12 @@
         }
       },
       "beforeRequest": "const b = request.body; if (b.periodStartDate !== undefined) b.periodStartDate = new Date(b.periodStartDate.trim()).toISOString(); return request;",
-      "afterResponse": "return {measurableId: inputs.measurableId, value: Number(inputs.value), periodStartDate: new Date(inputs.periodStartDate.trim()).toISOString(), response};"
+      "afterResponse": "return {measurableId: inputs.measurableId, value: Number(inputs.value), periodStartDate: request.body.periodStartDate, response};"
     },
     "list_teams": {
       "label": "List Teams",
       "description": "List the Ninety teams this connection can see",
       "request": {
-        "method": "GET",
         "url": "https://api.public.ninety.io/v1/teams"
       },
       "afterResponse": "const teams = Array.isArray(response) ? response : (response?.items ?? []); return {teams, count: teams.length};"
@@ -1429,7 +1428,7 @@
           "page": 1
         }
       },
-      "beforeRequest": "if (inputs.scope) request.body = {archived: false, pageSize: 100, ...(request.body.teamId === undefined ? {} : {teamId: request.body.teamId}), isPersonal: inputs.scope === 'personal', page: 1};\nreturn request;",
+      "beforeRequest": "if (inputs.scope) request.body.isPersonal = inputs.scope === 'personal';\nreturn request;",
       "afterResponse": "const pageOf = (body) => Array.isArray(body) ? body : (body?.items ?? []);\nconst collected = new Map();\nlet page = 1;\nlet items = pageOf(response);\nwhile (true) {\n  for (const item of items) collected.set(item._id, item);\n  if (items.length < 100 || page >= 5) break;\n  page++;\n  items = pageOf(call({method: 'POST', url: '/todos/query', body: {archived: false, pageSize: 100, ...(inputs.teamId ? {teamId: inputs.teamId} : {}), ...(inputs.scope ? {isPersonal: inputs.scope === 'personal'} : {}), page}}));\n}\nreturn [...collected.values()];",
       "items": "$",
       "newBy": "time",

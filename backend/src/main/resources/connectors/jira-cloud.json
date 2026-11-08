@@ -45,9 +45,7 @@
           "maxResults": "100"
         }
       },
-      "items": "$.values",
-      "label": "$.name",
-      "value": "$.id"
+      "items": "$.values"
     },
     "issues": {
       "request": {
@@ -57,31 +55,40 @@
           "fields": [
             "summary"
           ],
-          "jql": "project={{projectId}}",
+          "jql": "project={{projectIdOrKey}}",
           "maxResults": 100
         }
       },
       "items": "$.issues",
-      "label": "$.key",
-      "value": "$.id"
+      "label": "$.key"
     },
     "comments": {
       "request": {
         "method": "GET",
-        "url": "https://{{credential.instanceUrl}}/rest/api/3/issue/{{issueId}}/comment",
+        "url": "https://{{credential.instanceUrl}}/rest/api/3/issue/{{issueIdOrKey}}/comment",
         "query": {
           "orderBy": "-created",
           "expand": "renderedBody"
         }
       },
       "items": "$.comments",
-      "label": "$.renderedBody",
-      "value": "$.id"
+      "label": "$.renderedBody"
+    },
+    "users": {
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.instanceUrl}}/rest/api/3/users/search",
+        "query": {
+          "maxResults": "1000"
+        }
+      },
+      "label": "$.displayName",
+      "value": "$.accountId"
     }
   },
   "actions": {
     "search_issues": {
-      "label": "Search Issues (All Pages)",
+      "label": "Search Issues",
       "description": "Finds issues that match a JQL query.",
       "inputs": {
         "jql": {
@@ -127,17 +134,16 @@
       "label": "Add Comment (Plain Text or ADF)",
       "description": "Adds a comment to an issue.",
       "inputs": {
-        "projectId": {
+        "projectIdOrKey": {
           "label": "Project",
-          "type": "string",
-          "required": true,
+          "description": "Narrows the issues to choose from. It is not sent.",
           "list": "projects"
         },
-        "issueId": {
+        "issueIdOrKey": {
           "label": "Issue",
-          "type": "string",
           "required": true,
-          "list": "issues"
+          "list": "issues",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues."
         },
         "comment": {
           "label": "Comment Body",
@@ -153,7 +159,7 @@
       },
       "request": {
         "method": "POST",
-        "url": "https://{{credential.instanceUrl}}/rest/api/3/issue/{{issueId}}/comment"
+        "url": "https://{{credential.instanceUrl}}/rest/api/3/issue/{{issueIdOrKey}}/comment"
       },
       "beforeRequest": "const doc = (text) => ({ version: 1, type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text }] }] });\nrequest.body = { body: inputs.isADF === 'true' ? JSON.parse(inputs.comment) : doc(inputs.comment) };\nreturn request;"
     },
@@ -161,21 +167,19 @@
       "label": "Update Comment (Plain Text or ADF)",
       "description": "Updates a comment on an issue.",
       "inputs": {
-        "projectId": {
+        "projectIdOrKey": {
           "label": "Project",
-          "type": "string",
-          "required": true,
+          "description": "Narrows the issues to choose from. It is not sent.",
           "list": "projects"
         },
-        "issueId": {
+        "issueIdOrKey": {
           "label": "Issue",
-          "type": "string",
           "required": true,
-          "list": "issues"
+          "list": "issues",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues."
         },
         "commentId": {
           "label": "Comment",
-          "type": "string",
           "required": true,
           "list": "comments"
         },
@@ -193,25 +197,24 @@
       },
       "request": {
         "method": "PUT",
-        "url": "https://{{credential.instanceUrl}}/rest/api/3/issue/{{issueId}}/comment/{{commentId}}"
+        "url": "https://{{credential.instanceUrl}}/rest/api/3/issue/{{issueIdOrKey}}/comment/{{commentId}}"
       },
       "beforeRequest": "const doc = (text) => ({ version: 1, type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text }] }] });\nrequest.body = { body: inputs.isADF === 'true' ? JSON.parse(inputs.comment) : doc(inputs.comment) };\nreturn request;"
     },
     "get_issue": {
-      "label": "Get Issue (Fields by Name)",
+      "label": "Get Issue",
       "description": "Gets an issue's fields and details.",
       "inputs": {
-        "projectId": {
+        "projectIdOrKey": {
           "label": "Project",
-          "type": "string",
-          "required": true,
+          "description": "Narrows the issues to choose from. It is not sent.",
           "list": "projects"
         },
-        "issueId": {
+        "issueIdOrKey": {
           "label": "Issue",
-          "type": "string",
           "required": true,
-          "list": "issues"
+          "list": "issues",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues."
         },
         "expand": {
           "label": "Extra Data",
@@ -233,7 +236,7 @@
       },
       "request": {
         "method": "GET",
-        "url": "https://{{credential.instanceUrl}}/rest/api/3/issue/{{issueId}}"
+        "url": "https://{{credential.instanceUrl}}/rest/api/3/issue/{{issueIdOrKey}}"
       },
       "beforeRequest": "const expand = String(inputs.expand ?? '').trim() === '' ? undefined : JSON.parse(inputs.expand);\nconst list = inputs.mapNames === 'true' ? [...new Set(expand).add('names')] : expand;\nif (list) request.query = { ...request.query, expand: list.join(',') };\nreturn request;",
       "afterResponse": "const mapNames = (fields, names) => { const out = {}; Object.entries(fields).forEach(([id, value]) => { out[names?.[id] || id] = value; }); return out; };\nconst data = response;\nif (inputs.mapNames === 'true') {\n  const names = data.names || {};\n  data.fields = mapNames(data.fields, names);\n  if (data.renderedFields) data.renderedFields = mapNames(data.renderedFields, names);\n  if (data.schema) data.schema = mapNames(data.schema, names);\n  if (data.editmeta?.fields) data.editmeta.fields = mapNames(data.editmeta.fields, names);\n}\nif (inputs.mapTransitions === 'true' && data.transitions) data.transitions = data.transitions.reduce((all, transition) => { all[transition.name] = transition; return all; }, {});\nreturn data;"
@@ -244,8 +247,7 @@
       "inputs": {
         "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
-          "type": "string",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues.",
           "required": true
         },
         "comment": {
@@ -267,14 +269,12 @@
       "inputs": {
         "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
-          "type": "string",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues.",
           "required": true
         },
         "accountId": {
           "label": "Account ID",
           "description": "The Atlassian account ID of the user. Resolve it with Find Users or Get Current User.",
-          "type": "string",
           "required": true
         }
       },
@@ -291,20 +291,17 @@
       "inputs": {
         "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
-          "type": "string",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues.",
           "required": true
         },
         "timeSpent": {
           "label": "Time Spent",
           "description": "Time spent in Jira duration format, e.g. 3h 20m, 1d, 45m.",
-          "type": "string",
           "required": true
         },
         "started": {
           "label": "Started",
-          "description": "When the work started (ISO 8601). Defaults to now.",
-          "type": "string"
+          "description": "When the work started (ISO 8601). Defaults to now."
         },
         "comment": {
           "label": "Comment",
@@ -330,19 +327,17 @@
             },
             {
               "value": "manual",
-              "label": "Reduce by Reduce By"
+              "label": "Reduce by an amount"
             }
           ]
         },
         "newEstimate": {
           "label": "New Estimate",
-          "description": "New remaining estimate, e.g. 2d. Required when Adjust Remaining Estimate is Set to New Estimate.",
-          "type": "string"
+          "description": "New remaining estimate, e.g. 2d. Required when Adjust Remaining Estimate is Set to New Estimate."
         },
         "reduceBy": {
           "label": "Reduce By",
-          "description": "Amount to reduce the remaining estimate by, e.g. 2h. Required when Adjust Remaining Estimate is Reduce by Reduce By.",
-          "type": "string"
+          "description": "Amount to reduce the remaining estimate by, e.g. 2h. Required when Adjust Remaining Estimate is Reduce by an amount."
         }
       },
       "request": {
@@ -357,14 +352,12 @@
       "inputs": {
         "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
-          "type": "string",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues.",
           "required": true
         },
         "accountId": {
           "label": "Assignee Account ID",
-          "description": "Account ID of the new assignee. Leave empty to unassign the issue.",
-          "type": "string"
+          "description": "Account ID of the new assignee. Leave empty to unassign the issue."
         }
       },
       "request": {
@@ -381,7 +374,6 @@
         "projectIdOrKey": {
           "label": "Project ID or Key",
           "description": "The project key (e.g. PROJ) or numeric project ID that every issue is created in. Find it with List Projects.",
-          "type": "string",
           "required": true,
           "list": "projects"
         },
@@ -448,7 +440,6 @@
       "inputs": {
         "name": {
           "label": "Name",
-          "type": "string",
           "required": true
         },
         "type": {
@@ -472,10 +463,9 @@
           "type": "number",
           "required": true
         },
-        "projectKeyOrId": {
+        "projectIdOrKey": {
           "label": "Project ID or Key",
           "description": "Project to place the board in. Leave empty to create it in the user profile.",
-          "type": "string",
           "list": "projects"
         }
       },
@@ -488,7 +478,7 @@
           "filterId": "{{filterId}}"
         }
       },
-      "beforeRequest": "const has = (v) => v !== undefined && v !== null && String(v).trim().length > 0;\nif (has(inputs.projectKeyOrId)) request.body.location = { type: 'project', projectKeyOrId: inputs.projectKeyOrId.trim() };\nreturn request;"
+      "beforeRequest": "const has = (v) => v !== undefined && v !== null && String(v).trim().length > 0;\nif (has(inputs.projectIdOrKey)) request.body.location = { type: 'project', projectKeyOrId: inputs.projectIdOrKey.trim() };\nreturn request;"
     },
     "create_issue_link": {
       "label": "Create Issue Link",
@@ -497,19 +487,16 @@
         "linkTypeName": {
           "label": "Link Type Name",
           "description": "Name of the link type, e.g. Blocks. Find it with Get Issue Link Types.",
-          "type": "string",
           "required": true
         },
         "outwardIssueKey": {
           "label": "Outward Issue Key",
           "description": "The issue on the outward side, e.g. the issue that blocks the other one.",
-          "type": "string",
           "required": true
         },
         "inwardIssueKey": {
           "label": "Inward Issue Key",
           "description": "The issue on the inward side, e.g. the issue that is blocked.",
-          "type": "string",
           "required": true
         },
         "comment": {
@@ -532,19 +519,16 @@
         "projectIdOrKey": {
           "label": "Project ID or Key",
           "description": "The project key (e.g. PROJ) or numeric project ID. Find it with List Projects.",
-          "type": "string",
           "required": true,
           "list": "projects"
         },
         "issueTypeId": {
           "label": "Issue Type ID",
           "description": "The numeric issue type ID. Find it with Get Issue Types.",
-          "type": "string",
           "required": true
         },
         "summary": {
           "label": "Summary",
-          "type": "string",
           "required": true
         },
         "description": {
@@ -554,13 +538,11 @@
         },
         "assigneeAccountId": {
           "label": "Assignee Account ID",
-          "description": "Account ID of the assignee. Resolve it with Find Users.",
-          "type": "string"
+          "description": "Account ID of the assignee. Resolve it with Find Users."
         },
         "priorityId": {
           "label": "Priority ID",
-          "description": "The priority ID. Find it with Get Priorities.",
-          "type": "string"
+          "description": "The priority ID. Find it with Get Priorities."
         },
         "labels": {
           "label": "Labels",
@@ -569,13 +551,11 @@
         },
         "parentKey": {
           "label": "Parent Issue Key",
-          "description": "Key of the parent issue or epic. Required when the issue type is a subtask.",
-          "type": "string"
+          "description": "Key of the parent issue or epic. Required when the issue type is a subtask."
         },
         "dueDate": {
           "label": "Due Date",
-          "description": "Due date in YYYY-MM-DD format.",
-          "type": "string"
+          "description": "Due date in YYYY-MM-DD format."
         },
         "fields": {
           "label": "Additional Fields",
@@ -596,7 +576,6 @@
       "inputs": {
         "name": {
           "label": "Name",
-          "type": "string",
           "required": true
         },
         "originBoardId": {
@@ -607,13 +586,11 @@
         },
         "startDate": {
           "label": "Start Date",
-          "description": "Planned start (ISO 8601).",
-          "type": "string"
+          "description": "Planned start (ISO 8601)."
         },
         "endDate": {
           "label": "End Date",
-          "description": "Planned end (ISO 8601).",
-          "type": "string"
+          "description": "Planned end (ISO 8601)."
         },
         "goal": {
           "label": "Goal",
@@ -634,17 +611,16 @@
       "label": "Add Attachment to Issue",
       "description": "Adds an attachment to an issue.",
       "inputs": {
-        "projectId": {
+        "projectIdOrKey": {
           "label": "Project",
-          "type": "string",
-          "required": true,
+          "description": "Narrows the issues to choose from. It is not sent.",
           "list": "projects"
         },
-        "issueId": {
+        "issueIdOrKey": {
           "label": "Issue",
-          "type": "string",
           "required": true,
-          "list": "issues"
+          "list": "issues",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues."
         },
         "attachment": {
           "label": "Attachment",
@@ -654,7 +630,7 @@
       },
       "request": {
         "method": "POST",
-        "url": "https://{{credential.instanceUrl}}/rest/api/3/issue/{{issueId}}/attachments",
+        "url": "https://{{credential.instanceUrl}}/rest/api/3/issue/{{issueIdOrKey}}/attachments",
         "headers": {
           "X-Atlassian-Token": "no-check",
           "Content-Type": "multipart/form-data"
@@ -670,8 +646,7 @@
       "inputs": {
         "attachmentId": {
           "label": "Attachment ID",
-          "description": "The numeric attachment ID, from the attachment field of Get Issue (Chosen Fields).",
-          "type": "string",
+          "description": "The numeric attachment ID, from the attachment field of Get Issue.",
           "required": true
         }
       },
@@ -686,26 +661,24 @@
       "label": "Delete Comment",
       "description": "Permanently deletes a comment from an issue.",
       "inputs": {
-        "issueId": {
+        "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
-          "type": "string",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues.",
           "required": true
         },
         "commentId": {
           "label": "Comment ID",
           "description": "The numeric comment ID. Find it with List Comments.",
-          "type": "string",
           "required": true,
           "list": "comments"
         }
       },
       "request": {
         "method": "DELETE",
-        "url": "https://{{credential.instanceUrl}}/rest/api/3/issue/{{issueId}}/comment/{{commentId}}"
+        "url": "https://{{credential.instanceUrl}}/rest/api/3/issue/{{issueIdOrKey}}/comment/{{commentId}}"
       },
       "beforeRequest": "request.url = request.url.replace(/\\/([^\\/?]*)/g, (m, part) => '/' + encodeURIComponent(decodeURIComponent(part).trim()));\nreturn request;",
-      "afterResponse": "return { success: true, issue: inputs.issueId.trim(), comment_id: inputs.commentId.trim(), deleted: true };"
+      "afterResponse": "return { success: true, issue: inputs.issueIdOrKey.trim(), comment_id: inputs.commentId.trim(), deleted: true };"
     },
     "delete_issue": {
       "label": "Delete Issue",
@@ -713,8 +686,7 @@
       "inputs": {
         "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
-          "type": "string",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues.",
           "required": true
         },
         "deleteSubtasks": {
@@ -737,14 +709,12 @@
       "inputs": {
         "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
-          "type": "string",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues.",
           "required": true
         },
         "worklogId": {
           "label": "Worklog ID",
           "description": "The numeric worklog ID. Find it with Get Worklogs.",
-          "type": "string",
           "required": true
         },
         "adjustEstimate": {
@@ -766,19 +736,17 @@
             },
             {
               "value": "manual",
-              "label": "Increase by Increase By"
+              "label": "Increase by an amount"
             }
           ]
         },
         "newEstimate": {
           "label": "New Estimate",
-          "description": "New remaining estimate, e.g. 2d. Required when Adjust Remaining Estimate is Set to New Estimate.",
-          "type": "string"
+          "description": "New remaining estimate, e.g. 2d. Required when Adjust Remaining Estimate is Set to New Estimate."
         },
         "increaseBy": {
           "label": "Increase By",
-          "description": "Amount to increase the remaining estimate by, e.g. 2h. Required when Adjust Remaining Estimate is Increase by Increase By.",
-          "type": "string"
+          "description": "Amount to increase the remaining estimate by, e.g. 2h. Required when Adjust Remaining Estimate is Increase by an amount."
         }
       },
       "request": {
@@ -794,13 +762,11 @@
       "inputs": {
         "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
-          "type": "string",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues.",
           "required": true
         },
         "summary": {
-          "label": "Summary",
-          "type": "string"
+          "label": "Summary"
         },
         "description": {
           "label": "Description",
@@ -809,13 +775,11 @@
         },
         "assigneeAccountId": {
           "label": "Assignee Account ID",
-          "description": "Account ID of the new assignee. Resolve it with Find Users; to unassign use Assign Issue to User.",
-          "type": "string"
+          "description": "Account ID of the new assignee. Resolve it with Find Users; to unassign use Assign Issue to User."
         },
         "priorityId": {
           "label": "Priority ID",
-          "description": "The priority ID. Find it with Get Priorities.",
-          "type": "string"
+          "description": "The priority ID. Find it with Get Priorities."
         },
         "labels": {
           "label": "Labels",
@@ -824,18 +788,15 @@
         },
         "parentKey": {
           "label": "Parent Issue Key",
-          "description": "Key of the new parent issue or epic.",
-          "type": "string"
+          "description": "Key of the new parent issue or epic."
         },
         "dueDate": {
           "label": "Due Date",
-          "description": "Due date in YYYY-MM-DD format.",
-          "type": "string"
+          "description": "Due date in YYYY-MM-DD format."
         },
         "issueTypeId": {
           "label": "Issue Type ID",
-          "description": "New issue type ID. Find it with Get Issue Types.",
-          "type": "string"
+          "description": "New issue type ID. Find it with Get Issue Types."
         },
         "fields": {
           "label": "Additional Fields",
@@ -858,33 +819,6 @@
       },
       "beforeRequest": "const markdownToAdf = (source) => {\n  const RANK = ['link', 'em', 'strong', 'strike', 'code'];\n  const inline = (text, marks) => {\n    const out = [];\n    const push = (value, with_) => {\n      if (!value) return;\n      const sorted = with_.slice().sort((a, b) => RANK.indexOf(a.type) - RANK.indexOf(b.type));\n      const last = out[out.length - 1];\n      if (last && JSON.stringify(last.marks || []) === JSON.stringify(sorted)) { last.text += value; return; }\n      out.push(sorted.length ? { type: 'text', text: value, marks: sorted } : { type: 'text', text: value });\n    };\n    const nest = (inner, mark) => inline(inner, marks.concat([mark])).forEach((node) => push(node.text, node.marks || []));\n    const wordChar = (char) => !!char && /[A-Za-z0-9]/.test(char);\n    let plain = '';\n    let index = 0;\n    const flush = () => { push(plain, marks); plain = ''; };\n    while (index < text.length) {\n      const rest = text.slice(index);\n      const before = text[index - 1];\n      let found;\n      if ((found = /^\\\\([!-\\/:-@\\[-`{-~])/.exec(rest))) { plain += found[1]; index += 2; continue; }\n      if ((found = /^(`+)([\\s\\S]*?[^`])\\1(?!`)/.exec(rest))) {\n        flush();\n        let code = found[2].replace(/\\n/g, ' ');\n        if (/^ .* $/.test(code) && code.trim()) code = code.slice(1, -1);\n        push(code, [{ type: 'code' }]);\n        index += found[0].length; continue;\n      }\n      if ((found = /^\\[([^\\]]*)\\]\\(\\s*<?([^)\\s>]*)>?\\s*\\)/.exec(rest))) {\n        flush(); nest(found[1], { type: 'link', attrs: { href: found[2] } }); index += found[0].length; continue;\n      }\n      if ((found = /^(\\*\\*\\*|___)(?=\\S)([\\s\\S]*?\\S)\\1/.exec(rest)) && (found[1] === '***' || (!wordChar(before) && !wordChar(text[index + found[0].length])))) {\n        flush(); inline(found[2], marks.concat([{ type: 'em' }, { type: 'strong' }])).forEach((node) => push(node.text, node.marks || [])); index += found[0].length; continue;\n      }\n      if ((found = /^(\\*\\*|__)(?=\\S)([\\s\\S]*?\\S)\\1/.exec(rest)) && (found[1] === '**' || (!wordChar(before) && !wordChar(text[index + found[0].length])))) {\n        flush(); nest(found[2], { type: 'strong' }); index += found[0].length; continue;\n      }\n      if ((found = /^~~(?=\\S)([\\s\\S]*?\\S)~~/.exec(rest))) { flush(); nest(found[1], { type: 'strike' }); index += found[0].length; continue; }\n      if ((found = /^\\*(?=[^\\s*])([\\s\\S]*?[^\\s\\\\])\\*(?!\\*)/.exec(rest))) { flush(); nest(found[1], { type: 'em' }); index += found[0].length; continue; }\n      if (rest[0] === '_' && !wordChar(before) && /^_\\S/.test(rest)) {\n        let close = rest.indexOf('_', 2);\n        while (close > 0 && (/\\s/.test(rest[close - 1]) || wordChar(rest[close + 1]))) close = rest.indexOf('_', close + 1);\n        if (close > 0) { flush(); nest(rest.slice(1, close), { type: 'em' }); index += close + 1; continue; }\n      }\n      plain += text[index]; index += 1;\n    }\n    flush();\n    return out;\n  };\n  const LIST = /^( {0,3})([-*+]|\\d{1,9}[.)])( +|$)(.*)$/;\n  const FENCE = /^ {0,3}(```+|~~~+)\\s*([^`\\s]*)[^`]*$/;\n  const HEADING = /^ {0,3}(#{1,6})(?:[ \\t]+(.*?))?(?:[ \\t]+#+)?[ \\t]*$/;\n  const RULE = /^ {0,3}([-*_])(?:[ \\t]*\\1){2,}[ \\t]*$/;\n  const QUOTE = /^ {0,3}> ?(.*)$/;\n  const SEPARATOR = /^\\s*\\|?\\s*:?-+:?\\s*(\\|\\s*:?-+:?\\s*)*\\|?\\s*$/;\n  const cells = (line) => line.trim().replace(/^\\|/, '').replace(/\\|$/, '').split('|').map((cell) => cell.trim());\n  const paragraph = (text, type, attrs) => {\n    const content = inline(text, []);\n    const node = attrs ? { type, attrs } : { type };\n    if (content.length) node.content = content;\n    return node;\n  };\n  const blocks = (lines) => {\n    const out = [];\n    let index = 0;\n    while (index < lines.length) {\n      const line = lines[index];\n      let found;\n      if (!line.trim()) { index += 1; continue; }\n      if ((found = FENCE.exec(line))) {\n        const fence = found[1];\n        const body = [];\n        index += 1;\n        while (index < lines.length && !new RegExp('^ {0,3}' + fence[0] + '{' + fence.length + ',}\\\\s*$').test(lines[index])) body.push(lines[index++]);\n        index += 1;\n        const node = { type: 'codeBlock', attrs: found[2] ? { language: found[2] } : {} };\n        if (body.join('\\n')) node.content = [{ type: 'text', text: body.join('\\n') }];\n        out.push(node);\n        continue;\n      }\n      if ((found = HEADING.exec(line))) { out.push(paragraph((found[2] || '').trim(), 'heading', { level: found[1].length })); index += 1; continue; }\n      if (RULE.test(line)) { out.push({ type: 'rule' }); index += 1; continue; }\n      if (QUOTE.test(line)) {\n        const inner = [];\n        while (index < lines.length && lines[index].trim() && (found = QUOTE.exec(lines[index]) || [null, lines[index]])) { inner.push(found[1]); index += 1; }\n        out.push({ type: 'blockquote', content: blocks(inner) });\n        continue;\n      }\n      if ((found = LIST.exec(line))) {\n        const ordered = /\\d/.test(found[2]);\n        const marker = found[2].slice(-1);\n        const node = ordered ? { type: 'orderedList', attrs: { order: Number(found[2].slice(0, -1)) }, content: [] } : { type: 'bulletList', content: [] };\n        while (index < lines.length && (found = LIST.exec(lines[index])) && /\\d/.test(found[2]) === ordered && found[2].slice(-1) === marker) {\n          const indent = found[1].length + found[2].length + Math.max(1, Math.min(found[3].length, 4));\n          const body = [found[4]];\n          index += 1;\n          while (index < lines.length) {\n            const next = lines[index];\n            if (!next.trim()) {\n              const following = lines.slice(index).find((rest) => rest.trim());\n              if (following !== undefined && following.search(/\\S/) >= indent) { body.push(''); index += 1; continue; }\n              break;\n            }\n            if (next.search(/\\S/) >= indent) { body.push(next.slice(indent)); index += 1; continue; }\n            if (LIST.test(next) || FENCE.test(next) || HEADING.test(next) || RULE.test(next) || QUOTE.test(next)) break;\n            body.push(next); index += 1;\n          }\n          node.content.push({ type: 'listItem', content: blocks(body) });\n          while (index < lines.length && !lines[index].trim() && lines.slice(index).find((rest) => rest.trim()) && LIST.test(lines.slice(index).find((rest) => rest.trim()))) index += 1;\n        }\n        out.push(node);\n        continue;\n      }\n      if (line.includes('|') && index + 1 < lines.length && SEPARATOR.test(lines[index + 1]) && lines[index + 1].includes('-')) {\n        const header = cells(line);\n        const rows = [{ type: 'tableRow', content: header.map((cell) => ({ type: 'tableHeader', attrs: {}, content: [paragraph(cell, 'paragraph')] })) }];\n        index += 2;\n        while (index < lines.length && lines[index].trim() && lines[index].includes('|')) {\n          const values = cells(lines[index]);\n          rows.push({ type: 'tableRow', content: header.map((_, column) => ({ type: 'tableCell', attrs: {}, content: [paragraph(values[column] || '', 'paragraph')] })) });\n          index += 1;\n        }\n        out.push({ type: 'table', attrs: { isNumberColumnEnabled: false, layout: 'default' }, content: rows });\n        continue;\n      }\n      const text = [];\n      while (index < lines.length && lines[index].trim()) {\n        const next = lines[index];\n        if (text.length && (FENCE.test(next) || HEADING.test(next) || RULE.test(next) || QUOTE.test(next) || (/^ {0,3}([-*+]|1[.)]) +\\S/.test(next)))) break;\n        text.push(next.replace(/^\\s+/, ''));\n        index += 1;\n      }\n      out.push(paragraph(text.join('\\n').replace(/\\s+$/, ''), 'paragraph'));\n    }\n    return out;\n  };\n  return { version: 1, type: 'doc', content: blocks(String(source).replace(/\\r\\n?/g, '\\n').split('\\n')) };\n};\nconst has = (v) => v !== undefined && v !== null && String(v).trim().length > 0;\nconst j = (v) => (v === undefined || v === null || String(v).trim() === '' ? undefined : JSON.parse(v));\nconst list = (v) => { const a = j(v); return Array.isArray(a) ? a.map((i) => (typeof i === 'string' || typeof i === 'number' ? String(i).trim() : '')).filter((i) => i.length > 0) : []; };\nconst projectRef = (v) => (/^\\d+$/.test(v.trim()) ? { id: v.trim() } : { key: v.trim() });\nconst record = (v, label) => { if (v === undefined || v === null || v === '') return undefined; const o = typeof v === 'string' ? JSON.parse(v) : v; if (typeof o !== 'object' || o === null || Array.isArray(o)) throw new Error(label + ' must be a JSON object.'); return o; };\nconst issueFields = (f) => ({\n  ...(f.extraFields ?? {}),\n  ...(has(f.projectIdOrKey) ? { project: projectRef(f.projectIdOrKey) } : {}),\n  ...(has(f.issueTypeId) ? { issuetype: { id: f.issueTypeId.trim() } } : {}),\n  ...(has(f.summary) ? { summary: f.summary } : {}),\n  ...(has(f.description) ? { description: markdownToAdf(f.description) } : {}),\n  ...(has(f.assigneeAccountId) ? { assignee: { accountId: f.assigneeAccountId.trim() } } : {}),\n  ...(has(f.priorityId) ? { priority: { id: f.priorityId.trim() } } : {}),\n  ...(f.labels !== undefined && f.labels.length > 0 ? { labels: f.labels } : {}),\n  ...(has(f.parentKey) ? { parent: { key: f.parentKey.trim() } } : {}),\n  ...(has(f.dueDate) ? { duedate: f.dueDate.trim() } : {}),\n});\nconst fields = { ...issueFields({ issueTypeId: inputs.issueTypeId, summary: inputs.summary, description: inputs.description, assigneeAccountId: inputs.assigneeAccountId,\n  priorityId: inputs.priorityId, parentKey: inputs.parentKey, dueDate: inputs.dueDate, extraFields: record(inputs.fields, 'Additional Fields') }),\n  ...(Array.isArray(j(inputs.labels)) ? { labels: list(inputs.labels) } : {}) };\nif (Object.keys(fields).length === 0) throw new Error('Provide at least one field to update.');\nrequest.query = { returnIssue: 'true', notifyUsers: String(inputs.notifyUsers !== 'false') };\nrequest.body = { fields };\nrequest.url = request.url.replace(/\\/([^\\/?]*)/g, (m, part) => '/' + encodeURIComponent(decodeURIComponent(part).trim()));\nreturn request;"
     },
-    "fetch_issue": {
-      "label": "Get Issue (Chosen Fields)",
-      "description": "Gets an issue by key or ID.",
-      "inputs": {
-        "issueIdOrKey": {
-          "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
-          "type": "string",
-          "required": true
-        },
-        "fields": {
-          "label": "Fields",
-          "description": "Field IDs to return, e.g. summary, status, customfield_10016. Leave empty for all fields. A JSON list, such as [\"a\", \"b\"].",
-          "type": "json"
-        },
-        "expand": {
-          "label": "Expand",
-          "type": "json",
-          "description": "A JSON list of: renderedFields, names, transitions, changelog."
-        }
-      },
-      "request": {
-        "method": "GET",
-        "url": "https://{{credential.instanceUrl}}/rest/api/3/issue/{{issueIdOrKey}}"
-      },
-      "beforeRequest": "const j = (v) => (v === undefined || v === null || String(v).trim() === '' ? undefined : JSON.parse(v));\nconst list = (v) => { const a = j(v); return Array.isArray(a) ? a.map((i) => (typeof i === 'string' || typeof i === 'number' ? String(i).trim() : '')).filter((i) => i.length > 0) : []; };\nconst fields = list(inputs.fields);\nconst expand = j(inputs.expand);\nrequest.query = { ...(fields.length > 0 ? { fields: String(fields) } : {}), ...(expand !== undefined && expand !== null ? { expand: String(expand) } : {}) };\nrequest.url = request.url.replace(/\\/([^\\/?]*)/g, (m, part) => '/' + encodeURIComponent(decodeURIComponent(part).trim()));\nreturn request;"
-    },
     "find_users": {
       "label": "Find Users",
       "description": "Finds users by name or email.",
@@ -892,7 +826,6 @@
         "query": {
           "label": "Query",
           "description": "Text matched against display name and email address, e.g. jane or jane@example.com.",
-          "type": "string",
           "required": true
         },
         "includeInactive": {
@@ -928,23 +861,21 @@
       "label": "Get Comment",
       "description": "Gets a single comment on an issue.",
       "inputs": {
-        "issueId": {
+        "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
-          "type": "string",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues.",
           "required": true
         },
         "commentId": {
           "label": "Comment ID",
           "description": "The numeric comment ID. Find it with List Comments.",
-          "type": "string",
           "required": true,
           "list": "comments"
         }
       },
       "request": {
         "method": "GET",
-        "url": "https://{{credential.instanceUrl}}/rest/api/3/issue/{{issueId}}/comment/{{commentId}}",
+        "url": "https://{{credential.instanceUrl}}/rest/api/3/issue/{{issueIdOrKey}}/comment/{{commentId}}",
         "query": {
           "expand": "renderedBody"
         }
@@ -977,8 +908,7 @@
       "inputs": {
         "nameContains": {
           "label": "Name Contains",
-          "description": "Only return fields whose name contains this text (case-insensitive).",
-          "type": "string"
+          "description": "Only return fields whose name contains this text (case-insensitive)."
         },
         "customOnly": {
           "label": "Custom Fields Only",
@@ -1000,7 +930,6 @@
         "filterId": {
           "label": "Filter ID",
           "description": "The numeric filter ID. Find it with Search Filters or Get Favorite Filters.",
-          "type": "string",
           "required": true
         }
       },
@@ -1016,8 +945,7 @@
       "inputs": {
         "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
-          "type": "string",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues.",
           "required": true
         }
       },
@@ -1069,8 +997,7 @@
       "inputs": {
         "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
-          "type": "string",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues.",
           "required": true
         },
         "includeFields": {
@@ -1094,14 +1021,12 @@
         "projectIdOrKey": {
           "label": "Project ID or Key",
           "description": "The project key (e.g. PROJ) or numeric project ID. Find it with List Projects.",
-          "type": "string",
           "required": true,
           "list": "projects"
         },
         "issueTypeId": {
           "label": "Issue Type ID",
           "description": "The numeric issue type ID. Find it with Get Issue Types.",
-          "type": "string",
           "required": true
         },
         "startAt": {
@@ -1135,7 +1060,6 @@
         "projectIdOrKey": {
           "label": "Project ID or Key",
           "description": "The project key (e.g. PROJ) or numeric project ID. Find it with List Projects.",
-          "type": "string",
           "required": true,
           "list": "projects"
         }
@@ -1153,8 +1077,7 @@
       "inputs": {
         "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
-          "type": "string",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues.",
           "required": true
         }
       },
@@ -1170,8 +1093,7 @@
       "inputs": {
         "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
-          "type": "string",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues.",
           "required": true
         }
       },
@@ -1189,13 +1111,11 @@
         "fieldName": {
           "label": "Field Name",
           "description": "The JQL field name, e.g. status, labels, sprint, or cf[10016].",
-          "type": "string",
           "required": true
         },
         "fieldValue": {
           "label": "Partial Value",
-          "description": "Partially typed value to match.",
-          "type": "string"
+          "description": "Partially typed value to match."
         }
       },
       "request": {
@@ -1214,8 +1134,7 @@
       "inputs": {
         "fieldNameContains": {
           "label": "Field Name Contains",
-          "description": "Only return fields whose name or display name contains this text (case-insensitive).",
-          "type": "string"
+          "description": "Only return fields whose name or display name contains this text (case-insensitive)."
         }
       },
       "request": {
@@ -1236,13 +1155,11 @@
         },
         "projectKey": {
           "label": "Project Key",
-          "description": "Check the permissions within this project.",
-          "type": "string"
+          "description": "Check the permissions within this project."
         },
         "issueKey": {
           "label": "Issue Key",
-          "description": "Check the permissions on this issue.",
-          "type": "string"
+          "description": "Check the permissions on this issue."
         }
       },
       "request": {
@@ -1281,7 +1198,6 @@
         "projectId": {
           "label": "Project ID",
           "description": "Only return priorities available in this project. Must be the numeric project ID (see Get Project); leave empty for all.",
-          "type": "string",
           "list": "projects"
         },
         "startAt": {
@@ -1315,14 +1231,12 @@
         "projectIdOrKey": {
           "label": "Project ID or Key",
           "description": "The project key (e.g. PROJ) or numeric project ID. Find it with List Projects.",
-          "type": "string",
           "required": true,
           "list": "projects"
         },
         "query": {
           "label": "Query",
-          "description": "Only return components whose name or description contains this text.",
-          "type": "string"
+          "description": "Only return components whose name or description contains this text."
         },
         "startAt": {
           "label": "Start At",
@@ -1356,14 +1270,12 @@
         "projectIdOrKey": {
           "label": "Project ID or Key",
           "description": "The project key (e.g. PROJ) or numeric project ID. Find it with List Projects.",
-          "type": "string",
           "required": true,
           "list": "projects"
         },
         "query": {
           "label": "Query",
-          "description": "Only return versions whose name or description contains this text.",
-          "type": "string"
+          "description": "Only return versions whose name or description contains this text."
         },
         "status": {
           "label": "Status",
@@ -1402,7 +1314,6 @@
         "projectIdOrKey": {
           "label": "Project ID or Key",
           "description": "The project key (e.g. PROJ) or numeric project ID. Find it with List Projects.",
-          "type": "string",
           "required": true,
           "list": "projects"
         }
@@ -1434,8 +1345,7 @@
       "inputs": {
         "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
-          "type": "string",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues.",
           "required": true
         }
       },
@@ -1468,8 +1378,7 @@
       "inputs": {
         "nameContains": {
           "label": "Name Contains",
-          "description": "Only return statuses whose name contains this text (case-insensitive).",
-          "type": "string"
+          "description": "Only return statuses whose name contains this text (case-insensitive)."
         }
       },
       "request": {
@@ -1485,7 +1394,6 @@
         "accountId": {
           "label": "Account ID",
           "description": "The Atlassian account ID of the user. Resolve it with Find Users or Get Current User.",
-          "type": "string",
           "required": true
         }
       },
@@ -1502,19 +1410,16 @@
       "inputs": {
         "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
-          "type": "string",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues.",
           "required": true
         },
         "startedAfter": {
           "label": "Started After",
-          "description": "Only return worklogs started on or after this time (ISO 8601).",
-          "type": "string"
+          "description": "Only return worklogs started on or after this time (ISO 8601)."
         },
         "startedBefore": {
           "label": "Started Before",
-          "description": "Only return worklogs started on or before this time (ISO 8601).",
-          "type": "string"
+          "description": "Only return worklogs started on or before this time (ISO 8601)."
         },
         "startAt": {
           "label": "Start At",
@@ -1546,8 +1451,7 @@
       "inputs": {
         "name": {
           "label": "Name",
-          "description": "Only return boards whose name contains this text.",
-          "type": "string"
+          "description": "Only return boards whose name contains this text."
         },
         "type": {
           "label": "Board Type",
@@ -1563,10 +1467,9 @@
             }
           ]
         },
-        "projectKeyOrId": {
+        "projectIdOrKey": {
           "label": "Project ID or Key",
           "description": "Only return boards that include this project.",
-          "type": "string",
           "list": "projects"
         },
         "startAt": {
@@ -1586,7 +1489,7 @@
         "method": "GET",
         "url": "https://{{credential.instanceUrl}}/rest/agile/1.0/board"
       },
-      "beforeRequest": "const has = (v) => v !== undefined && v !== null && String(v).trim().length > 0;\nrequest.query = { startAt: inputs.startAt === '' ? '0' : String(Number(inputs.startAt)), maxResults: inputs.maxResults === '' ? '50' : String(Number(inputs.maxResults)),\n  ...(has(inputs.name) ? { name: inputs.name } : {}), ...(has(inputs.type) ? { type: inputs.type } : {}), ...(has(inputs.projectKeyOrId) ? { projectKeyOrId: inputs.projectKeyOrId.trim() } : {}) };\nreturn request;",
+      "beforeRequest": "const has = (v) => v !== undefined && v !== null && String(v).trim().length > 0;\nrequest.query = { startAt: inputs.startAt === '' ? '0' : String(Number(inputs.startAt)), maxResults: inputs.maxResults === '' ? '50' : String(Number(inputs.maxResults)),\n  ...(has(inputs.name) ? { name: inputs.name } : {}), ...(has(inputs.type) ? { type: inputs.type } : {}), ...(has(inputs.projectIdOrKey) ? { projectKeyOrId: inputs.projectIdOrKey.trim() } : {}) };\nreturn request;",
       "afterResponse": "const page = (items, r, isLast) => { const s = r.startAt ?? 0; return { items, count: items.length, start_at: s, max_results: r.maxResults ?? null, total: r.total ?? null, is_last: isLast ?? (r.total === undefined ? null : s + items.length >= r.total) }; };\nreturn page(response.values ?? [], response, response.isLast);"
     },
     "list_comments": {
@@ -1595,8 +1498,7 @@
       "inputs": {
         "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
-          "type": "string",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues.",
           "required": true
         },
         "orderBy": {
@@ -1646,8 +1548,7 @@
       "inputs": {
         "query": {
           "label": "Query",
-          "description": "Only return projects whose name or key contains this text (case-insensitive).",
-          "type": "string"
+          "description": "Only return projects whose name or key contains this text (case-insensitive)."
         },
         "typeKey": {
           "label": "Project Type",
@@ -1800,14 +1701,12 @@
       "inputs": {
         "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
-          "type": "string",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues.",
           "required": true
         },
         "accountId": {
           "label": "Account ID",
           "description": "Account ID of the watcher to remove. Find it with Get Issue Watchers.",
-          "type": "string",
           "required": true
         }
       },
@@ -1824,13 +1723,11 @@
       "inputs": {
         "dashboardName": {
           "label": "Dashboard Name",
-          "description": "Only return dashboards whose name contains this text (case-insensitive).",
-          "type": "string"
+          "description": "Only return dashboards whose name contains this text (case-insensitive)."
         },
         "ownerAccountId": {
           "label": "Owner Account ID",
-          "description": "Only return dashboards owned by this user. Resolve it with Find Users.",
-          "type": "string"
+          "description": "Only return dashboards owned by this user. Resolve it with Find Users."
         },
         "startAt": {
           "label": "Start At",
@@ -1864,13 +1761,11 @@
       "inputs": {
         "filterName": {
           "label": "Filter Name",
-          "description": "Only return filters whose name contains this text (case-insensitive).",
-          "type": "string"
+          "description": "Only return filters whose name contains this text (case-insensitive)."
         },
         "ownerAccountId": {
           "label": "Owner Account ID",
-          "description": "Only return filters owned by this user. Resolve it with Find Users.",
-          "type": "string"
+          "description": "Only return filters owned by this user. Resolve it with Find Users."
         },
         "startAt": {
           "label": "Start At",
@@ -1898,54 +1793,18 @@
       },
       "afterResponse": "const page = (items, r, isLast) => { const s = r.startAt ?? 0; return { items, count: items.length, start_at: s, max_results: r.maxResults ?? null, total: r.total ?? null, is_last: isLast ?? (r.total === undefined ? null : s + items.length >= r.total) }; };\nreturn page(response.values ?? [], response, response.isLast);"
     },
-    "search_issues_by_jql": {
-      "label": "Search Issues (One Page)",
-      "description": "Searches issues with a JQL query, one page at a time.",
-      "inputs": {
-        "jql": {
-          "label": "JQL",
-          "description": "The JQL query. Use single quotes or escaped double quotes around values with spaces.",
-          "type": "multiline",
-          "required": true
-        },
-        "fields": {
-          "label": "Fields",
-          "description": "Field IDs to return. Defaults to summary, status, assignee, reporter, priority, issuetype, project, created, updated. Use *all for every field. A JSON list, such as [\"a\", \"b\"].",
-          "type": "json"
-        },
-        "maxResults": {
-          "label": "Max Results",
-          "description": "Issues per page (1-100).",
-          "type": "number",
-          "defaultValue": "50"
-        },
-        "nextPageToken": {
-          "label": "Next Page Token",
-          "description": "The next_page_token from a previous call, to fetch the following page.",
-          "type": "string"
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://{{credential.instanceUrl}}/rest/api/3/search/jql"
-      },
-      "beforeRequest": "const j = (v) => (v === undefined || v === null || String(v).trim() === '' ? undefined : JSON.parse(v));\nconst list = (v) => { const a = j(v); return Array.isArray(a) ? a.map((i) => (typeof i === 'string' || typeof i === 'number' ? String(i).trim() : '')).filter((i) => i.length > 0) : []; };\nconst has = (v) => v !== undefined && v !== null && String(v).trim().length > 0;\nconst maxResults = inputs.maxResults === '' ? 50 : Number(inputs.maxResults);\nif (maxResults < 1 || maxResults > 100) throw new Error('Max Results must be between 1 and 100.');\nconst fields = list(inputs.fields);\nrequest.body = { jql: inputs.jql, maxResults, fields: fields.length > 0 ? fields : ['summary', 'status', 'assignee', 'reporter', 'priority', 'issuetype', 'project', 'created', 'updated'],\n  ...(has(inputs.nextPageToken) ? { nextPageToken: inputs.nextPageToken.trim() } : {}) };\nreturn request;",
-      "afterResponse": "const issues = response.issues ?? [];\nreturn { items: issues, count: issues.length, next_page_token: response.nextPageToken ?? null, is_last: response.isLast ?? response.nextPageToken === undefined };"
-    },
     "send_issue_notification": {
       "label": "Send Issue Notification",
       "description": "Sends an email notification about an issue.",
       "inputs": {
         "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
-          "type": "string",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues.",
           "required": true
         },
         "subject": {
           "label": "Subject",
-          "description": "Email subject. Defaults to the issue key and summary.",
-          "type": "string"
+          "description": "Email subject. Defaults to the issue key and summary."
         },
         "textBody": {
           "label": "Text Body",
@@ -2002,20 +1861,17 @@
       "inputs": {
         "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
-          "type": "string",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues.",
           "required": true
         },
         "transitionId": {
           "label": "Transition ID",
           "description": "The numeric transition ID. Find it with Get Issue Transitions.",
-          "type": "string",
           "required": true
         },
         "resolutionId": {
           "label": "Resolution ID",
-          "description": "Resolution to set when the transition screen asks for one. Find it with Get Issue Resolutions.",
-          "type": "string"
+          "description": "Resolution to set when the transition screen asks for one. Find it with Get Issue Resolutions."
         },
         "comment": {
           "label": "Comment",
@@ -2039,16 +1895,14 @@
       "label": "Update Comment (Markdown)",
       "description": "Replaces the text of a comment.",
       "inputs": {
-        "issueId": {
+        "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
-          "type": "string",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues.",
           "required": true
         },
         "commentId": {
           "label": "Comment ID",
           "description": "The numeric comment ID. Find it with List Comments.",
-          "type": "string",
           "required": true,
           "list": "comments"
         },
@@ -2066,9 +1920,214 @@
       },
       "request": {
         "method": "PUT",
-        "url": "https://{{credential.instanceUrl}}/rest/api/3/issue/{{issueId}}/comment/{{commentId}}"
+        "url": "https://{{credential.instanceUrl}}/rest/api/3/issue/{{issueIdOrKey}}/comment/{{commentId}}"
       },
       "beforeRequest": "const markdownToAdf = (source) => {\n  const RANK = ['link', 'em', 'strong', 'strike', 'code'];\n  const inline = (text, marks) => {\n    const out = [];\n    const push = (value, with_) => {\n      if (!value) return;\n      const sorted = with_.slice().sort((a, b) => RANK.indexOf(a.type) - RANK.indexOf(b.type));\n      const last = out[out.length - 1];\n      if (last && JSON.stringify(last.marks || []) === JSON.stringify(sorted)) { last.text += value; return; }\n      out.push(sorted.length ? { type: 'text', text: value, marks: sorted } : { type: 'text', text: value });\n    };\n    const nest = (inner, mark) => inline(inner, marks.concat([mark])).forEach((node) => push(node.text, node.marks || []));\n    const wordChar = (char) => !!char && /[A-Za-z0-9]/.test(char);\n    let plain = '';\n    let index = 0;\n    const flush = () => { push(plain, marks); plain = ''; };\n    while (index < text.length) {\n      const rest = text.slice(index);\n      const before = text[index - 1];\n      let found;\n      if ((found = /^\\\\([!-\\/:-@\\[-`{-~])/.exec(rest))) { plain += found[1]; index += 2; continue; }\n      if ((found = /^(`+)([\\s\\S]*?[^`])\\1(?!`)/.exec(rest))) {\n        flush();\n        let code = found[2].replace(/\\n/g, ' ');\n        if (/^ .* $/.test(code) && code.trim()) code = code.slice(1, -1);\n        push(code, [{ type: 'code' }]);\n        index += found[0].length; continue;\n      }\n      if ((found = /^\\[([^\\]]*)\\]\\(\\s*<?([^)\\s>]*)>?\\s*\\)/.exec(rest))) {\n        flush(); nest(found[1], { type: 'link', attrs: { href: found[2] } }); index += found[0].length; continue;\n      }\n      if ((found = /^(\\*\\*\\*|___)(?=\\S)([\\s\\S]*?\\S)\\1/.exec(rest)) && (found[1] === '***' || (!wordChar(before) && !wordChar(text[index + found[0].length])))) {\n        flush(); inline(found[2], marks.concat([{ type: 'em' }, { type: 'strong' }])).forEach((node) => push(node.text, node.marks || [])); index += found[0].length; continue;\n      }\n      if ((found = /^(\\*\\*|__)(?=\\S)([\\s\\S]*?\\S)\\1/.exec(rest)) && (found[1] === '**' || (!wordChar(before) && !wordChar(text[index + found[0].length])))) {\n        flush(); nest(found[2], { type: 'strong' }); index += found[0].length; continue;\n      }\n      if ((found = /^~~(?=\\S)([\\s\\S]*?\\S)~~/.exec(rest))) { flush(); nest(found[1], { type: 'strike' }); index += found[0].length; continue; }\n      if ((found = /^\\*(?=[^\\s*])([\\s\\S]*?[^\\s\\\\])\\*(?!\\*)/.exec(rest))) { flush(); nest(found[1], { type: 'em' }); index += found[0].length; continue; }\n      if (rest[0] === '_' && !wordChar(before) && /^_\\S/.test(rest)) {\n        let close = rest.indexOf('_', 2);\n        while (close > 0 && (/\\s/.test(rest[close - 1]) || wordChar(rest[close + 1]))) close = rest.indexOf('_', close + 1);\n        if (close > 0) { flush(); nest(rest.slice(1, close), { type: 'em' }); index += close + 1; continue; }\n      }\n      plain += text[index]; index += 1;\n    }\n    flush();\n    return out;\n  };\n  const LIST = /^( {0,3})([-*+]|\\d{1,9}[.)])( +|$)(.*)$/;\n  const FENCE = /^ {0,3}(```+|~~~+)\\s*([^`\\s]*)[^`]*$/;\n  const HEADING = /^ {0,3}(#{1,6})(?:[ \\t]+(.*?))?(?:[ \\t]+#+)?[ \\t]*$/;\n  const RULE = /^ {0,3}([-*_])(?:[ \\t]*\\1){2,}[ \\t]*$/;\n  const QUOTE = /^ {0,3}> ?(.*)$/;\n  const SEPARATOR = /^\\s*\\|?\\s*:?-+:?\\s*(\\|\\s*:?-+:?\\s*)*\\|?\\s*$/;\n  const cells = (line) => line.trim().replace(/^\\|/, '').replace(/\\|$/, '').split('|').map((cell) => cell.trim());\n  const paragraph = (text, type, attrs) => {\n    const content = inline(text, []);\n    const node = attrs ? { type, attrs } : { type };\n    if (content.length) node.content = content;\n    return node;\n  };\n  const blocks = (lines) => {\n    const out = [];\n    let index = 0;\n    while (index < lines.length) {\n      const line = lines[index];\n      let found;\n      if (!line.trim()) { index += 1; continue; }\n      if ((found = FENCE.exec(line))) {\n        const fence = found[1];\n        const body = [];\n        index += 1;\n        while (index < lines.length && !new RegExp('^ {0,3}' + fence[0] + '{' + fence.length + ',}\\\\s*$').test(lines[index])) body.push(lines[index++]);\n        index += 1;\n        const node = { type: 'codeBlock', attrs: found[2] ? { language: found[2] } : {} };\n        if (body.join('\\n')) node.content = [{ type: 'text', text: body.join('\\n') }];\n        out.push(node);\n        continue;\n      }\n      if ((found = HEADING.exec(line))) { out.push(paragraph((found[2] || '').trim(), 'heading', { level: found[1].length })); index += 1; continue; }\n      if (RULE.test(line)) { out.push({ type: 'rule' }); index += 1; continue; }\n      if (QUOTE.test(line)) {\n        const inner = [];\n        while (index < lines.length && lines[index].trim() && (found = QUOTE.exec(lines[index]) || [null, lines[index]])) { inner.push(found[1]); index += 1; }\n        out.push({ type: 'blockquote', content: blocks(inner) });\n        continue;\n      }\n      if ((found = LIST.exec(line))) {\n        const ordered = /\\d/.test(found[2]);\n        const marker = found[2].slice(-1);\n        const node = ordered ? { type: 'orderedList', attrs: { order: Number(found[2].slice(0, -1)) }, content: [] } : { type: 'bulletList', content: [] };\n        while (index < lines.length && (found = LIST.exec(lines[index])) && /\\d/.test(found[2]) === ordered && found[2].slice(-1) === marker) {\n          const indent = found[1].length + found[2].length + Math.max(1, Math.min(found[3].length, 4));\n          const body = [found[4]];\n          index += 1;\n          while (index < lines.length) {\n            const next = lines[index];\n            if (!next.trim()) {\n              const following = lines.slice(index).find((rest) => rest.trim());\n              if (following !== undefined && following.search(/\\S/) >= indent) { body.push(''); index += 1; continue; }\n              break;\n            }\n            if (next.search(/\\S/) >= indent) { body.push(next.slice(indent)); index += 1; continue; }\n            if (LIST.test(next) || FENCE.test(next) || HEADING.test(next) || RULE.test(next) || QUOTE.test(next)) break;\n            body.push(next); index += 1;\n          }\n          node.content.push({ type: 'listItem', content: blocks(body) });\n          while (index < lines.length && !lines[index].trim() && lines.slice(index).find((rest) => rest.trim()) && LIST.test(lines.slice(index).find((rest) => rest.trim()))) index += 1;\n        }\n        out.push(node);\n        continue;\n      }\n      if (line.includes('|') && index + 1 < lines.length && SEPARATOR.test(lines[index + 1]) && lines[index + 1].includes('-')) {\n        const header = cells(line);\n        const rows = [{ type: 'tableRow', content: header.map((cell) => ({ type: 'tableHeader', attrs: {}, content: [paragraph(cell, 'paragraph')] })) }];\n        index += 2;\n        while (index < lines.length && lines[index].trim() && lines[index].includes('|')) {\n          const values = cells(lines[index]);\n          rows.push({ type: 'tableRow', content: header.map((_, column) => ({ type: 'tableCell', attrs: {}, content: [paragraph(values[column] || '', 'paragraph')] })) });\n          index += 1;\n        }\n        out.push({ type: 'table', attrs: { isNumberColumnEnabled: false, layout: 'default' }, content: rows });\n        continue;\n      }\n      const text = [];\n      while (index < lines.length && lines[index].trim()) {\n        const next = lines[index];\n        if (text.length && (FENCE.test(next) || HEADING.test(next) || RULE.test(next) || QUOTE.test(next) || (/^ {0,3}([-*+]|1[.)]) +\\S/.test(next)))) break;\n        text.push(next.replace(/^\\s+/, ''));\n        index += 1;\n      }\n      out.push(paragraph(text.join('\\n').replace(/\\s+$/, ''), 'paragraph'));\n    }\n    return out;\n  };\n  return { version: 1, type: 'doc', content: blocks(String(source).replace(/\\r\\n?/g, '\\n').split('\\n')) };\n};\nrequest.query = { notifyUsers: String(inputs.notifyUsers !== 'false') };\nrequest.body = { body: markdownToAdf(inputs.comment) };\nrequest.url = request.url.replace(/\\/([^\\/?]*)/g, (m, part) => '/' + encodeURIComponent(decodeURIComponent(part).trim()));\nreturn request;"
+    }
+  },
+  "triggers": {
+    "new_issue": {
+      "label": "New Issue",
+      "description": "Triggers when a new issue is created.",
+      "inputs": {
+        "jql": {
+          "label": "JQL",
+          "description": "Use to filter issues watched.",
+          "type": "multiline"
+        },
+        "sanitizeJql": {
+          "label": "Sanitize JQL",
+          "type": "boolean",
+          "defaultValue": "true"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.instanceUrl}}/rest/api/3/search/jql"
+      },
+      "newBy": "unseen",
+      "key": "$._dedupe_key",
+      "beforeRequest": "const timeField = 'created', epochField = 'created', fields = undefined, expand = undefined;\nconst sanitize = inputs.sanitizeJql !== 'false';\nconst extraScope = () => null;\nconst stripTrailingOrderBy = (jql) => {\n  let quote = null, orderByIndex = -1;\n  for (let index = 0; index < jql.length && orderByIndex === -1; index++) {\n    const char = jql[index];\n    if (quote) {\n      if (char === '\\\\') index += 1;\n      else if (char === quote) quote = null;\n      continue;\n    }\n    if (char === '\"' || char === \"'\") {\n      quote = char;\n      continue;\n    }\n    if (/\\s/.test(char) && /^\\s+order\\s+by\\b/i.test(jql.slice(index))) orderByIndex = index;\n  }\n  return (orderByIndex === -1 ? jql : jql.slice(0, orderByIndex)).trim();\n};\nconst now = Date.now();\nconst state = memory.pollingState ?? { windowStart: now, floor: now, entries: [] };\nconst windowStart = Math.max(state.windowStart, state.floor);\nconst since = `-${Math.max(Math.ceil((now - windowStart) / 60000) + 1, 1)}m`;\nconst userJql = stripTrailingOrderBy(inputs.jql ?? '');\nconst scope = userJql.length === 0 ? null : `(${sanitize ? call({ method: 'POST', url: '/jql/sanitize', body: { queries: [{ query: userJql }] } }).queries[0].sanitizedQuery : userJql})`;\nconst conditions = [scope, extraScope(since), `${timeField} > '${since}'`].filter((condition) => condition !== null);\nrequest.body = { maxResults: 1000, fields: fields ?? ['*navigable'], ...(expand ? { expand } : {}), jql: `${conditions.join(' AND ')} ORDER BY ${timeField} ASC` };\nmemory.search = { body: request.body, now };\nreturn request;",
+      "afterResponse": "const timeField = 'created', epochField = 'created', fields = undefined, expand = undefined;\nconst extractItems = (issue) => [{ id: `${issue?.id}`, epochMilliSeconds: Date.parse(issue?.fields?.[epochField]), data: issue }];\nconst { body, now } = memory.search;\ndelete memory.search;\nconst state = memory.pollingState ?? { windowStart: now, floor: now, entries: [] };\nconst windowStart = Math.max(state.windowStart, state.floor);\nconst issues = [];\nlet page = response, truncated = false;\nfor (let count = 1; ; count++) {\n  issues.push(...(page.issues ?? []));\n  if (page.nextPageToken === undefined || page.nextPageToken === null) break;\n  if (count === 10) {\n    truncated = true;\n    break;\n  }\n  page = call({ method: 'POST', url: '/search/jql', body: { ...body, nextPageToken: page.nextPageToken } });\n}\nconst items = issues.flatMap((issue) => extractItems(issue)).filter((item) => Number.isFinite(item.epochMilliSeconds))\n  .map((item) => ({ ...item, key: `${item.id}:${item.epochMilliSeconds}` })).sort((first, second) => first.epochMilliSeconds - second.epochMilliSeconds);\nconst emitted = new Set(state.entries.map(([key]) => key));\nconst fresh = items.filter((item) => item.epochMilliSeconds > windowStart && !emitted.has(item.key));\nconst highest = issues.reduce((top, issue) => { const epoch = Date.parse(issue?.fields?.[timeField]); return Number.isFinite(epoch) ? Math.max(top, epoch) : top; }, -Infinity);\nconst nextWindowStart = truncated ? (Number.isFinite(highest) ? Math.max(windowStart, highest - 1) : windowStart) : Math.max(windowStart, now - 15 * 60 * 1000);\nconst entries = [...state.entries, ...fresh.map((item) => [item.key, item.epochMilliSeconds])];\nconst inside = entries.filter(([, epoch]) => epoch > nextWindowStart).sort((first, second) => first[1] - second[1]);\nconst overflow = Math.max(inside.length - 2000, 0);\nconst dropped = [...entries.filter(([, epoch]) => epoch <= nextWindowStart), ...inside.slice(0, overflow)];\nmemory.pollingState = { windowStart: nextWindowStart, floor: dropped.reduce((top, [, epoch]) => Math.max(top, epoch), Math.max(state.floor, nextWindowStart)), entries: inside.slice(overflow) };\nreturn fresh.map((item) => ({ ...item.data, _dedupe_key: item.key }));"
+    },
+    "updated_issue": {
+      "label": "Updated Issue",
+      "description": "Triggers when an issue is updated.",
+      "inputs": {
+        "jql": {
+          "label": "JQL",
+          "description": "Use to filter issues watched.",
+          "type": "multiline"
+        },
+        "sanitizeJql": {
+          "label": "Sanitize JQL",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.instanceUrl}}/rest/api/3/search/jql"
+      },
+      "newBy": "unseen",
+      "key": "$._dedupe_key",
+      "beforeRequest": "const timeField = 'updated', epochField = 'updated', fields = undefined, expand = undefined;\nconst sanitize = inputs.sanitizeJql === 'true';\nconst extraScope = () => null;\nconst stripTrailingOrderBy = (jql) => {\n  let quote = null, orderByIndex = -1;\n  for (let index = 0; index < jql.length && orderByIndex === -1; index++) {\n    const char = jql[index];\n    if (quote) {\n      if (char === '\\\\') index += 1;\n      else if (char === quote) quote = null;\n      continue;\n    }\n    if (char === '\"' || char === \"'\") {\n      quote = char;\n      continue;\n    }\n    if (/\\s/.test(char) && /^\\s+order\\s+by\\b/i.test(jql.slice(index))) orderByIndex = index;\n  }\n  return (orderByIndex === -1 ? jql : jql.slice(0, orderByIndex)).trim();\n};\nconst now = Date.now();\nconst state = memory.pollingState ?? { windowStart: now, floor: now, entries: [] };\nconst windowStart = Math.max(state.windowStart, state.floor);\nconst since = `-${Math.max(Math.ceil((now - windowStart) / 60000) + 1, 1)}m`;\nconst userJql = stripTrailingOrderBy(inputs.jql ?? '');\nconst scope = userJql.length === 0 ? null : `(${sanitize ? call({ method: 'POST', url: '/jql/sanitize', body: { queries: [{ query: userJql }] } }).queries[0].sanitizedQuery : userJql})`;\nconst conditions = [scope, extraScope(since), `${timeField} > '${since}'`].filter((condition) => condition !== null);\nrequest.body = { maxResults: 1000, fields: fields ?? ['*navigable'], ...(expand ? { expand } : {}), jql: `${conditions.join(' AND ')} ORDER BY ${timeField} ASC` };\nmemory.search = { body: request.body, now };\nreturn request;",
+      "afterResponse": "const timeField = 'updated', epochField = 'updated', fields = undefined, expand = undefined;\nconst extractItems = (issue) => [{ id: `${issue?.id}`, epochMilliSeconds: Date.parse(issue?.fields?.[epochField]), data: issue }];\nconst { body, now } = memory.search;\ndelete memory.search;\nconst state = memory.pollingState ?? { windowStart: now, floor: now, entries: [] };\nconst windowStart = Math.max(state.windowStart, state.floor);\nconst issues = [];\nlet page = response, truncated = false;\nfor (let count = 1; ; count++) {\n  issues.push(...(page.issues ?? []));\n  if (page.nextPageToken === undefined || page.nextPageToken === null) break;\n  if (count === 10) {\n    truncated = true;\n    break;\n  }\n  page = call({ method: 'POST', url: '/search/jql', body: { ...body, nextPageToken: page.nextPageToken } });\n}\nconst items = issues.flatMap((issue) => extractItems(issue)).filter((item) => Number.isFinite(item.epochMilliSeconds))\n  .map((item) => ({ ...item, key: `${item.id}:${item.epochMilliSeconds}` })).sort((first, second) => first.epochMilliSeconds - second.epochMilliSeconds);\nconst emitted = new Set(state.entries.map(([key]) => key));\nconst fresh = items.filter((item) => item.epochMilliSeconds > windowStart && !emitted.has(item.key));\nconst highest = issues.reduce((top, issue) => { const epoch = Date.parse(issue?.fields?.[timeField]); return Number.isFinite(epoch) ? Math.max(top, epoch) : top; }, -Infinity);\nconst nextWindowStart = truncated ? (Number.isFinite(highest) ? Math.max(windowStart, highest - 1) : windowStart) : Math.max(windowStart, now - 15 * 60 * 1000);\nconst entries = [...state.entries, ...fresh.map((item) => [item.key, item.epochMilliSeconds])];\nconst inside = entries.filter(([, epoch]) => epoch > nextWindowStart).sort((first, second) => first[1] - second[1]);\nconst overflow = Math.max(inside.length - 2000, 0);\nconst dropped = [...entries.filter(([, epoch]) => epoch <= nextWindowStart), ...inside.slice(0, overflow)];\nmemory.pollingState = { windowStart: nextWindowStart, floor: dropped.reduce((top, [, epoch]) => Math.max(top, epoch), Math.max(state.floor, nextWindowStart)), entries: inside.slice(overflow) };\nreturn fresh.map((item) => ({ ...item.data, _dedupe_key: item.key }));"
+    },
+    "updated_issue_status": {
+      "label": "Updated Issue Status",
+      "description": "Triggers when an issue status is updated.",
+      "inputs": {
+        "jql": {
+          "label": "JQL",
+          "description": "Use to filter issues watched.",
+          "type": "multiline"
+        },
+        "sanitizeJql": {
+          "label": "Sanitize JQL",
+          "type": "boolean",
+          "defaultValue": "true"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.instanceUrl}}/rest/api/3/search/jql"
+      },
+      "newBy": "unseen",
+      "key": "$._dedupe_key",
+      "beforeRequest": "const timeField = 'updated', epochField = 'statuscategorychangedate', fields = undefined, expand = undefined;\nconst sanitize = inputs.sanitizeJql !== 'false';\nconst extraScope = () => null;\nconst stripTrailingOrderBy = (jql) => {\n  let quote = null, orderByIndex = -1;\n  for (let index = 0; index < jql.length && orderByIndex === -1; index++) {\n    const char = jql[index];\n    if (quote) {\n      if (char === '\\\\') index += 1;\n      else if (char === quote) quote = null;\n      continue;\n    }\n    if (char === '\"' || char === \"'\") {\n      quote = char;\n      continue;\n    }\n    if (/\\s/.test(char) && /^\\s+order\\s+by\\b/i.test(jql.slice(index))) orderByIndex = index;\n  }\n  return (orderByIndex === -1 ? jql : jql.slice(0, orderByIndex)).trim();\n};\nconst now = Date.now();\nconst state = memory.pollingState ?? { windowStart: now, floor: now, entries: [] };\nconst windowStart = Math.max(state.windowStart, state.floor);\nconst since = `-${Math.max(Math.ceil((now - windowStart) / 60000) + 1, 1)}m`;\nconst userJql = stripTrailingOrderBy(inputs.jql ?? '');\nconst scope = userJql.length === 0 ? null : `(${sanitize ? call({ method: 'POST', url: '/jql/sanitize', body: { queries: [{ query: userJql }] } }).queries[0].sanitizedQuery : userJql})`;\nconst conditions = [scope, extraScope(since), `${timeField} > '${since}'`].filter((condition) => condition !== null);\nrequest.body = { maxResults: 1000, fields: fields ?? ['*navigable'], ...(expand ? { expand } : {}), jql: `${conditions.join(' AND ')} ORDER BY ${timeField} ASC` };\nmemory.search = { body: request.body, now };\nreturn request;",
+      "afterResponse": "const timeField = 'updated', epochField = 'statuscategorychangedate', fields = undefined, expand = undefined;\nconst extractItems = (issue) => [{ id: `${issue?.id}`, epochMilliSeconds: Date.parse(issue?.fields?.[epochField]), data: issue }];\nconst { body, now } = memory.search;\ndelete memory.search;\nconst state = memory.pollingState ?? { windowStart: now, floor: now, entries: [] };\nconst windowStart = Math.max(state.windowStart, state.floor);\nconst issues = [];\nlet page = response, truncated = false;\nfor (let count = 1; ; count++) {\n  issues.push(...(page.issues ?? []));\n  if (page.nextPageToken === undefined || page.nextPageToken === null) break;\n  if (count === 10) {\n    truncated = true;\n    break;\n  }\n  page = call({ method: 'POST', url: '/search/jql', body: { ...body, nextPageToken: page.nextPageToken } });\n}\nconst items = issues.flatMap((issue) => extractItems(issue)).filter((item) => Number.isFinite(item.epochMilliSeconds))\n  .map((item) => ({ ...item, key: `${item.id}:${item.epochMilliSeconds}` })).sort((first, second) => first.epochMilliSeconds - second.epochMilliSeconds);\nconst emitted = new Set(state.entries.map(([key]) => key));\nconst fresh = items.filter((item) => item.epochMilliSeconds > windowStart && !emitted.has(item.key));\nconst highest = issues.reduce((top, issue) => { const epoch = Date.parse(issue?.fields?.[timeField]); return Number.isFinite(epoch) ? Math.max(top, epoch) : top; }, -Infinity);\nconst nextWindowStart = truncated ? (Number.isFinite(highest) ? Math.max(windowStart, highest - 1) : windowStart) : Math.max(windowStart, now - 15 * 60 * 1000);\nconst entries = [...state.entries, ...fresh.map((item) => [item.key, item.epochMilliSeconds])];\nconst inside = entries.filter(([, epoch]) => epoch > nextWindowStart).sort((first, second) => first[1] - second[1]);\nconst overflow = Math.max(inside.length - 2000, 0);\nconst dropped = [...entries.filter(([, epoch]) => epoch <= nextWindowStart), ...inside.slice(0, overflow)];\nmemory.pollingState = { windowStart: nextWindowStart, floor: dropped.reduce((top, [, epoch]) => Math.max(top, epoch), Math.max(state.floor, nextWindowStart)), entries: inside.slice(overflow) };\nreturn fresh.map((item) => ({ ...item.data, _dedupe_key: item.key }));"
+    },
+    "new_comment": {
+      "label": "New Comment",
+      "description": "Fires whenever someone adds a new comment to a Jira issue.",
+      "inputs": {
+        "jql": {
+          "label": "Only Watch These Issues",
+          "description": "Leave empty to watch every issue. A JQL filter narrows it, such as project = \"SUPPORT\" or status != Done.",
+          "type": "multiline"
+        },
+        "sanitizeJql": {
+          "label": "Auto-fix the Filter",
+          "type": "boolean",
+          "defaultValue": "true",
+          "description": "If the filter names something you can't access, such as a private project, Jira cleans it up instead of failing."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.instanceUrl}}/rest/api/3/search/jql"
+      },
+      "newBy": "unseen",
+      "key": "$._dedupe_key",
+      "beforeRequest": "const timeField = 'updated', epochField = 'updated', fields = ['summary', 'comment', 'updated'], expand = undefined;\nconst sanitize = inputs.sanitizeJql !== 'false';\nconst extraScope = () => null;\nconst stripTrailingOrderBy = (jql) => {\n  let quote = null, orderByIndex = -1;\n  for (let index = 0; index < jql.length && orderByIndex === -1; index++) {\n    const char = jql[index];\n    if (quote) {\n      if (char === '\\\\') index += 1;\n      else if (char === quote) quote = null;\n      continue;\n    }\n    if (char === '\"' || char === \"'\") {\n      quote = char;\n      continue;\n    }\n    if (/\\s/.test(char) && /^\\s+order\\s+by\\b/i.test(jql.slice(index))) orderByIndex = index;\n  }\n  return (orderByIndex === -1 ? jql : jql.slice(0, orderByIndex)).trim();\n};\nconst now = Date.now();\nconst state = memory.pollingState ?? { windowStart: now, floor: now, entries: [] };\nconst windowStart = Math.max(state.windowStart, state.floor);\nconst since = `-${Math.max(Math.ceil((now - windowStart) / 60000) + 1, 1)}m`;\nconst userJql = stripTrailingOrderBy(inputs.jql ?? '');\nconst scope = userJql.length === 0 ? null : `(${sanitize ? call({ method: 'POST', url: '/jql/sanitize', body: { queries: [{ query: userJql }] } }).queries[0].sanitizedQuery : userJql})`;\nconst conditions = [scope, extraScope(since), `${timeField} > '${since}'`].filter((condition) => condition !== null);\nrequest.body = { maxResults: 1000, fields: fields ?? ['*navigable'], ...(expand ? { expand } : {}), jql: `${conditions.join(' AND ')} ORDER BY ${timeField} ASC` };\nmemory.search = { body: request.body, now };\nreturn request;",
+      "afterResponse": "const timeField = 'updated', epochField = 'updated', fields = ['summary', 'comment', 'updated'], expand = undefined;\nconst extractItems = (issue) => (issue.fields?.comment?.comments ?? []).map((comment) => ({ id: comment.id, epochMilliSeconds: Date.parse(comment.created),\n  data: { issue: { id: issue.id, key: issue.key, summary: issue.fields?.summary }, comment } }));\nconst { body, now } = memory.search;\ndelete memory.search;\nconst state = memory.pollingState ?? { windowStart: now, floor: now, entries: [] };\nconst windowStart = Math.max(state.windowStart, state.floor);\nconst issues = [];\nlet page = response, truncated = false;\nfor (let count = 1; ; count++) {\n  issues.push(...(page.issues ?? []));\n  if (page.nextPageToken === undefined || page.nextPageToken === null) break;\n  if (count === 10) {\n    truncated = true;\n    break;\n  }\n  page = call({ method: 'POST', url: '/search/jql', body: { ...body, nextPageToken: page.nextPageToken } });\n}\nconst items = issues.flatMap((issue) => extractItems(issue)).filter((item) => Number.isFinite(item.epochMilliSeconds))\n  .map((item) => ({ ...item, key: `${item.id}:${item.epochMilliSeconds}` })).sort((first, second) => first.epochMilliSeconds - second.epochMilliSeconds);\nconst emitted = new Set(state.entries.map(([key]) => key));\nconst fresh = items.filter((item) => item.epochMilliSeconds > windowStart && !emitted.has(item.key));\nconst highest = issues.reduce((top, issue) => { const epoch = Date.parse(issue?.fields?.[timeField]); return Number.isFinite(epoch) ? Math.max(top, epoch) : top; }, -Infinity);\nconst nextWindowStart = truncated ? (Number.isFinite(highest) ? Math.max(windowStart, highest - 1) : windowStart) : Math.max(windowStart, now - 15 * 60 * 1000);\nconst entries = [...state.entries, ...fresh.map((item) => [item.key, item.epochMilliSeconds])];\nconst inside = entries.filter(([, epoch]) => epoch > nextWindowStart).sort((first, second) => first[1] - second[1]);\nconst overflow = Math.max(inside.length - 2000, 0);\nconst dropped = [...entries.filter(([, epoch]) => epoch <= nextWindowStart), ...inside.slice(0, overflow)];\nmemory.pollingState = { windowStart: nextWindowStart, floor: dropped.reduce((top, [, epoch]) => Math.max(top, epoch), Math.max(state.floor, nextWindowStart)), entries: inside.slice(overflow) };\nreturn fresh.map((item) => ({ ...item.data, _dedupe_key: item.key }));"
+    },
+    "issue_assigned": {
+      "label": "Issue Assigned",
+      "description": "Fires when a Jira issue is assigned to someone.",
+      "inputs": {
+        "assignedToMe": {
+          "label": "Only When Assigned to Me",
+          "description": "Only trigger when the issue is assigned to the user of this connection. Overrides Assignee.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "assignee": {
+          "label": "Assignee",
+          "description": "Only trigger for assignments to this person. Leave empty for anyone.",
+          "list": "users"
+        },
+        "jql": {
+          "label": "Only Watch These Issues",
+          "description": "Leave empty to watch every issue. A JQL filter narrows it, such as project = \"SUPPORT\" or status != Done.",
+          "type": "multiline"
+        },
+        "sanitizeJql": {
+          "label": "Auto-fix the Filter",
+          "type": "boolean",
+          "defaultValue": "true",
+          "description": "If the filter names something you can't access, such as a private project, Jira cleans it up instead of failing."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.instanceUrl}}/rest/api/3/search/jql"
+      },
+      "newBy": "unseen",
+      "key": "$._dedupe_key",
+      "beforeRequest": "const timeField = 'updated', epochField = 'updated', fields = undefined, expand = 'changelog';\nconst sanitize = inputs.sanitizeJql !== 'false';\nconst extraScope = (since) => ['assignee CHANGED', inputs.assignedToMe === 'true' ? 'TO currentUser()' : inputs.assignee ? `TO \"${inputs.assignee}\"` : '', `AFTER '${since}'`]\n  .filter((part) => part.length > 0).join(' ');\nconst stripTrailingOrderBy = (jql) => {\n  let quote = null, orderByIndex = -1;\n  for (let index = 0; index < jql.length && orderByIndex === -1; index++) {\n    const char = jql[index];\n    if (quote) {\n      if (char === '\\\\') index += 1;\n      else if (char === quote) quote = null;\n      continue;\n    }\n    if (char === '\"' || char === \"'\") {\n      quote = char;\n      continue;\n    }\n    if (/\\s/.test(char) && /^\\s+order\\s+by\\b/i.test(jql.slice(index))) orderByIndex = index;\n  }\n  return (orderByIndex === -1 ? jql : jql.slice(0, orderByIndex)).trim();\n};\nconst now = Date.now();\nconst state = memory.pollingState ?? { windowStart: now, floor: now, entries: [] };\nconst windowStart = Math.max(state.windowStart, state.floor);\nconst since = `-${Math.max(Math.ceil((now - windowStart) / 60000) + 1, 1)}m`;\nconst userJql = stripTrailingOrderBy(inputs.jql ?? '');\nconst scope = userJql.length === 0 ? null : `(${sanitize ? call({ method: 'POST', url: '/jql/sanitize', body: { queries: [{ query: userJql }] } }).queries[0].sanitizedQuery : userJql})`;\nconst conditions = [scope, extraScope(since), `${timeField} > '${since}'`].filter((condition) => condition !== null);\nrequest.body = { maxResults: 1000, fields: fields ?? ['*navigable'], ...(expand ? { expand } : {}), jql: `${conditions.join(' AND ')} ORDER BY ${timeField} ASC` };\nmemory.search = { body: request.body, now };\nreturn request;",
+      "afterResponse": "const timeField = 'updated', epochField = 'updated', fields = undefined, expand = 'changelog';\nconst target = inputs.assignedToMe === 'true' ? undefined : inputs.assignee;\nconst extractItems = (issue) => (issue.changelog?.histories ?? []).flatMap((history) => {\n  const change = history.items.find((item) => item.field === 'assignee' || item.fieldId === 'assignee');\n  if (change === undefined || change === null || (target && change.to !== target)) return [];\n  return [{ id: history.id, epochMilliSeconds: Date.parse(history.created), data: { issue: { id: issue.id, key: issue.key, fields: issue.fields },\n    change: { from: { accountId: change.from, displayName: change.fromString }, to: { accountId: change.to, displayName: change.toString }, by: history.author, at: history.created } } }];\n});\nconst { body, now } = memory.search;\ndelete memory.search;\nconst state = memory.pollingState ?? { windowStart: now, floor: now, entries: [] };\nconst windowStart = Math.max(state.windowStart, state.floor);\nconst issues = [];\nlet page = response, truncated = false;\nfor (let count = 1; ; count++) {\n  issues.push(...(page.issues ?? []));\n  if (page.nextPageToken === undefined || page.nextPageToken === null) break;\n  if (count === 10) {\n    truncated = true;\n    break;\n  }\n  page = call({ method: 'POST', url: '/search/jql', body: { ...body, nextPageToken: page.nextPageToken } });\n}\nconst items = issues.flatMap((issue) => extractItems(issue)).filter((item) => Number.isFinite(item.epochMilliSeconds))\n  .map((item) => ({ ...item, key: `${item.id}:${item.epochMilliSeconds}` })).sort((first, second) => first.epochMilliSeconds - second.epochMilliSeconds);\nconst emitted = new Set(state.entries.map(([key]) => key));\nconst fresh = items.filter((item) => item.epochMilliSeconds > windowStart && !emitted.has(item.key));\nconst highest = issues.reduce((top, issue) => { const epoch = Date.parse(issue?.fields?.[timeField]); return Number.isFinite(epoch) ? Math.max(top, epoch) : top; }, -Infinity);\nconst nextWindowStart = truncated ? (Number.isFinite(highest) ? Math.max(windowStart, highest - 1) : windowStart) : Math.max(windowStart, now - 15 * 60 * 1000);\nconst entries = [...state.entries, ...fresh.map((item) => [item.key, item.epochMilliSeconds])];\nconst inside = entries.filter(([, epoch]) => epoch > nextWindowStart).sort((first, second) => first[1] - second[1]);\nconst overflow = Math.max(inside.length - 2000, 0);\nconst dropped = [...entries.filter(([, epoch]) => epoch <= nextWindowStart), ...inside.slice(0, overflow)];\nmemory.pollingState = { windowStart: nextWindowStart, floor: dropped.reduce((top, [, epoch]) => Math.max(top, epoch), Math.max(state.floor, nextWindowStart)), entries: inside.slice(overflow) };\nreturn fresh.map((item) => ({ ...item.data, _dedupe_key: item.key }));"
+    },
+    "new_attachment": {
+      "label": "New Attachment on Issue",
+      "description": "Fires when a file is attached to a Jira issue.",
+      "inputs": {
+        "jql": {
+          "label": "Only Watch These Issues",
+          "description": "Leave empty to watch every issue. A JQL filter narrows it, such as project = \"SUPPORT\" or status != Done.",
+          "type": "multiline"
+        },
+        "sanitizeJql": {
+          "label": "Auto-fix the Filter",
+          "type": "boolean",
+          "defaultValue": "true",
+          "description": "If the filter names something you can't access, such as a private project, Jira cleans it up instead of failing."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.instanceUrl}}/rest/api/3/search/jql"
+      },
+      "newBy": "unseen",
+      "key": "$._dedupe_key",
+      "beforeRequest": "const timeField = 'updated', epochField = 'updated', fields = ['summary', 'attachment', 'updated'], expand = 'changelog';\nconst sanitize = inputs.sanitizeJql !== 'false';\nconst extraScope = () => null;\nconst stripTrailingOrderBy = (jql) => {\n  let quote = null, orderByIndex = -1;\n  for (let index = 0; index < jql.length && orderByIndex === -1; index++) {\n    const char = jql[index];\n    if (quote) {\n      if (char === '\\\\') index += 1;\n      else if (char === quote) quote = null;\n      continue;\n    }\n    if (char === '\"' || char === \"'\") {\n      quote = char;\n      continue;\n    }\n    if (/\\s/.test(char) && /^\\s+order\\s+by\\b/i.test(jql.slice(index))) orderByIndex = index;\n  }\n  return (orderByIndex === -1 ? jql : jql.slice(0, orderByIndex)).trim();\n};\nconst now = Date.now();\nconst state = memory.pollingState ?? { windowStart: now, floor: now, entries: [] };\nconst windowStart = Math.max(state.windowStart, state.floor);\nconst since = `-${Math.max(Math.ceil((now - windowStart) / 60000) + 1, 1)}m`;\nconst userJql = stripTrailingOrderBy(inputs.jql ?? '');\nconst scope = userJql.length === 0 ? null : `(${sanitize ? call({ method: 'POST', url: '/jql/sanitize', body: { queries: [{ query: userJql }] } }).queries[0].sanitizedQuery : userJql})`;\nconst conditions = [scope, extraScope(since), `${timeField} > '${since}'`].filter((condition) => condition !== null);\nrequest.body = { maxResults: 1000, fields: fields ?? ['*navigable'], ...(expand ? { expand } : {}), jql: `${conditions.join(' AND ')} ORDER BY ${timeField} ASC` };\nmemory.search = { body: request.body, now };\nreturn request;",
+      "afterResponse": "const timeField = 'updated', epochField = 'updated', fields = ['summary', 'attachment', 'updated'], expand = 'changelog';\nconst extractItems = (issue) => {\n  const attachmentsById = new Map((issue.fields.attachment ?? []).map((attachment) => [attachment.id, attachment]));\n  return (issue.changelog?.histories ?? []).flatMap((history) => history.items.flatMap((item) => {\n    if (!(item.field === 'Attachment' || item.fieldId === 'attachment') || item.to === undefined || item.to === null) return [];\n    return [{ id: item.to, epochMilliSeconds: Date.parse(history.created), data: { issue: { id: issue.id, key: issue.key, summary: issue.fields.summary },\n      attachment: attachmentsById.get(item.to) ?? { id: item.to, filename: item.toString }, addedBy: history.author, addedAt: history.created } }];\n  }));\n};\nconst { body, now } = memory.search;\ndelete memory.search;\nconst state = memory.pollingState ?? { windowStart: now, floor: now, entries: [] };\nconst windowStart = Math.max(state.windowStart, state.floor);\nconst issues = [];\nlet page = response, truncated = false;\nfor (let count = 1; ; count++) {\n  issues.push(...(page.issues ?? []));\n  if (page.nextPageToken === undefined || page.nextPageToken === null) break;\n  if (count === 10) {\n    truncated = true;\n    break;\n  }\n  page = call({ method: 'POST', url: '/search/jql', body: { ...body, nextPageToken: page.nextPageToken } });\n}\nconst items = issues.flatMap((issue) => extractItems(issue)).filter((item) => Number.isFinite(item.epochMilliSeconds))\n  .map((item) => ({ ...item, key: `${item.id}:${item.epochMilliSeconds}` })).sort((first, second) => first.epochMilliSeconds - second.epochMilliSeconds);\nconst emitted = new Set(state.entries.map(([key]) => key));\nconst fresh = items.filter((item) => item.epochMilliSeconds > windowStart && !emitted.has(item.key));\nconst highest = issues.reduce((top, issue) => { const epoch = Date.parse(issue?.fields?.[timeField]); return Number.isFinite(epoch) ? Math.max(top, epoch) : top; }, -Infinity);\nconst nextWindowStart = truncated ? (Number.isFinite(highest) ? Math.max(windowStart, highest - 1) : windowStart) : Math.max(windowStart, now - 15 * 60 * 1000);\nconst entries = [...state.entries, ...fresh.map((item) => [item.key, item.epochMilliSeconds])];\nconst inside = entries.filter(([, epoch]) => epoch > nextWindowStart).sort((first, second) => first[1] - second[1]);\nconst overflow = Math.max(inside.length - 2000, 0);\nconst dropped = [...entries.filter(([, epoch]) => epoch <= nextWindowStart), ...inside.slice(0, overflow)];\nmemory.pollingState = { windowStart: nextWindowStart, floor: dropped.reduce((top, [, epoch]) => Math.max(top, epoch), Math.max(state.floor, nextWindowStart)), entries: inside.slice(overflow) };\nreturn fresh.map((item) => ({ ...item.data, _dedupe_key: item.key }));"
+    },
+    "new_issue_type": {
+      "label": "New Issue Type",
+      "description": "Triggers when a new issue type is created in a project.",
+      "inputs": {
+        "projectId": {
+          "label": "Project",
+          "description": "Select the project to watch for new issue types.",
+          "required": true,
+          "list": "projects"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.instanceUrl}}/rest/api/3/issuetype/project",
+        "query": {
+          "projectId": "{{projectId}}"
+        }
+      },
+      "newBy": "unseen",
+      "afterResponse": "const known = JSON.parse(memory.issueTypeIds ?? '[]');\nconst all = response ?? [];\nconst fresh = all.filter((item) => !known.includes(item.id));\nif (fresh.length > 0) memory.issueTypeIds = JSON.stringify([...fresh.map((item) => item.id), ...known]);\nreturn fresh;"
+    },
+    "new_project": {
+      "label": "New Project",
+      "description": "Triggers when a new project is created.",
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.instanceUrl}}/rest/api/3/project/search",
+        "query": {
+          "startAt": "0",
+          "maxResults": "100"
+        }
+      },
+      "newBy": "unseen",
+      "afterResponse": "const all = [];\nlet page = response, startAt = 0;\nwhile (page.values !== undefined && page.values !== null) {\n  all.push(...page.values);\n  startAt += 100;\n  if (page.isLast === undefined ? !(page.startAt + page.maxResults < page.total) : page.isLast) break;\n  page = call({ method: 'GET', url: '/project/search', query: { startAt: String(startAt), maxResults: '100' } });\n}\nconst known = JSON.parse(memory.projectIds ?? '[]');\nconst fresh = all.filter((item) => !known.includes(item.id));\nif (fresh.length > 0) memory.projectIds = JSON.stringify([...fresh.map((item) => item.id), ...known]);\nreturn fresh;"
+    },
+    "new_priority": {
+      "label": "New Priority",
+      "description": "Triggers when a new priority is created.",
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.instanceUrl}}/rest/api/3/priority"
+      },
+      "newBy": "unseen",
+      "afterResponse": "const known = JSON.parse(memory.priorityIds ?? '[]');\nconst all = response ?? [];\nconst fresh = all.filter((item) => item.id && !known.includes(item.id));\nif (fresh.length > 0) memory.priorityIds = JSON.stringify([...fresh.map((item) => item.id), ...known]);\nreturn fresh;"
     }
   }
 }

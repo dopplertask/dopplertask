@@ -1,7 +1,7 @@
 {
   "name": "linkedin",
   "label": "LinkedIn",
-  "description": "Post to LinkedIn profiles and Company Pages",
+  "description": "Post on LinkedIn Company Pages, edit posts, and read your profile and pages",
   "icon": "linkedin",
   "hosts": [
     "api.linkedin.com"
@@ -18,7 +18,63 @@
       "scope": "w_member_social w_organization_social rw_organization_admin openid email profile"
     }
   },
+  "lists": {
+    "companies": {
+      "request": {
+        "method": "GET",
+        "url": "https://api.linkedin.com/v2/organizationalEntityAcls",
+        "query": {
+          "q": "roleAssignee"
+        }
+      },
+      "items": "$.elements",
+      "label": "$.organizationalTarget",
+      "value": "$.organizationalTarget"
+    }
+  },
   "actions": {
+    "create_company_update": {
+      "label": "Create Company Update",
+      "description": "Post on a LinkedIn Company Page you manage",
+      "inputs": {
+        "company": {
+          "label": "Company Page",
+          "description": "Posts to a Company Page are always public.",
+          "required": true,
+          "list": "companies"
+        },
+        "text": {
+          "label": "Text",
+          "description": "Plain text; an @ does not tag anyone.",
+          "type": "multiline",
+          "required": true
+        },
+        "link": {
+          "label": "Link URL"
+        },
+        "linkTitle": {
+          "label": "Link Title",
+          "description": "Shows only when a Link URL is set."
+        },
+        "linkDescription": {
+          "label": "Link Description",
+          "description": "Shows only when a Link URL is set."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.linkedin.com/rest/posts",
+        "headers": {
+          "X-Restli-Protocol-Version": "2.0.0",
+          "LinkedIn-Version": "202511"
+        }
+      },
+      "outputs": {
+        "postUrn": "$.post_urn"
+      },
+      "beforeRequest": "var company = String(inputs.company);\nvar post = {\n  author: 'urn:li:organization:' + company.substring(company.lastIndexOf(':') + 1),\n  lifecycleState: 'PUBLISHED',\n  commentary: inputs.text.replace(/[\\(*\\)\\[\\]\\{\\}<>@|~_]/gm, (x) => '\\\\' + x),\n  distribution: { feedDistribution: 'MAIN_FEED' },\n  visibility: 'PUBLIC',\n  isReshareDisabledByAuthor: false\n};\nif (inputs.link) post.content = { article: { source: inputs.link, title: inputs.linkTitle || undefined, description: inputs.linkDescription || undefined } };\nrequest.body = post;\nreturn request;",
+      "afterResponse": "var id = Object.entries(received.headers || {}).find(([key]) => key.toLowerCase() === 'x-restli-id');\nreturn { success: true, post_urn: id === undefined || typeof id[1] !== 'string' ? null : id[1] };"
+    },
     "get_current_member_profile": {
       "label": "Get Current Member Profile",
       "description": "Get the profile of the LinkedIn member who owns the connection",
@@ -55,7 +111,7 @@
         "organizations": "$.organizations",
         "count": "$.count"
       },
-      "afterResponse": "var headers = { 'X-Restli-Protocol-Version': '2.0.0', 'LinkedIn-Version': '202511' };\nvar elements = [];\nvar page = response || {};\nvar start = 0;\nfor (var index = 0; index < 20; index++) {\n  if (index > 0) page = call({ method: 'GET', url: '/rest/organizationAcls', headers: headers, query: { q: 'roleAssignee', role: 'ADMINISTRATOR', state: 'APPROVED', start: String(start), count: '100' } });\n  var found = page.elements || [];\n  elements.push(...found);\n  if (found.length === 0) break;\n  var links = page.paging && Array.isArray(page.paging.links) ? page.paging.links : null;\n  var next = links === null ? null : links.some((link) => link.rel === 'next');\n  if (next === false || (next === null && found.length < 100)) break;\n  start += found.length;\n}\nvar idOf = (urn) => urn.substring(urn.lastIndexOf(':') + 1);\nvar seen = {};\nvar rows = elements.map((element) => ({\n  organization_urn: element.organizationTarget || element.organization || element.organizationalTarget || null,\n  role: element.role === undefined ? null : element.role,\n  state: element.state === undefined ? null : element.state\n})).filter((row) => {\n  if (row.organization_urn === null || seen[row.organization_urn]) return false;\n  seen[row.organization_urn] = true;\n  return true;\n});\nif (elements.length > 0 && rows.length === 0) throw new Error('LinkedIn returned ' + elements.length + ' organization role assignment(s) but none carried a recognised organization URN, so no organization id could be resolved. The keys present on the first entry were: ' + Object.keys(elements[0]).join(', ') + '. This is an API shape change, not an empty account.');\nif (rows.length === 0) return { organizations: [], count: 0 };\nvar ids = rows.map((row) => idOf(String(row.organization_urn)));\nvar results = {};\nfor (var at = 0; at < ids.length; at += 50) {\n  var lookup = call({ method: 'GET', url: '/rest/organizations?ids=List(' + ids.slice(at, at + 50).map(encodeURIComponent).join(',') + ')', headers: headers });\n  Object.assign(results, lookup.results || {});\n}\nvar or = (value) => value === undefined || value === null ? null : value;\nvar organizations = rows.map((row) => {\n  var id = idOf(String(row.organization_urn));\n  var organization = results[id] || {};\n  return { organization_urn: row.organization_urn, organization_id: id, name: or(organization.localizedName), vanity_name: or(organization.vanityName), website: or(organization.localizedWebsite), role: row.role, state: row.state };\n});\nreturn { organizations: organizations, count: organizations.length };"
+      "afterResponse": "var elements = [];\nvar page = response || {};\nvar start = 0;\nfor (var index = 0; index < 20; index++) {\n  if (index > 0) page = call({ method: 'GET', url: request.url, headers: request.headers, query: { ...request.query, start: String(start) } });\n  var found = page.elements || [];\n  elements.push(...found);\n  if (found.length === 0) break;\n  var links = page.paging && Array.isArray(page.paging.links) ? page.paging.links : null;\n  var next = links === null ? null : links.some((link) => link.rel === 'next');\n  if (next === false || (next === null && found.length < 100)) break;\n  start += found.length;\n}\nvar idOf = (urn) => urn.substring(urn.lastIndexOf(':') + 1);\nvar seen = {};\nvar rows = elements.map((element) => ({\n  organization_urn: element.organizationTarget || element.organization || element.organizationalTarget || null,\n  role: element.role === undefined ? null : element.role,\n  state: element.state === undefined ? null : element.state\n})).filter((row) => {\n  if (row.organization_urn === null || seen[row.organization_urn]) return false;\n  seen[row.organization_urn] = true;\n  return true;\n});\nif (elements.length > 0 && rows.length === 0) throw new Error('LinkedIn returned ' + elements.length + ' organization role assignment(s) but none carried a recognised organization URN, so no organization id could be resolved. The keys present on the first entry were: ' + Object.keys(elements[0]).join(', ') + '. This is an API shape change, not an empty account.');\nif (rows.length === 0) return { organizations: [], count: 0 };\nvar ids = rows.map((row) => idOf(String(row.organization_urn)));\nvar results = {};\nfor (var at = 0; at < ids.length; at += 50) {\n  var lookup = call({ method: 'GET', url: '/rest/organizations?ids=List(' + ids.slice(at, at + 50).map(encodeURIComponent).join(',') + ')', headers: request.headers });\n  Object.assign(results, lookup.results || {});\n}\nvar or = (value) => value === undefined || value === null ? null : value;\nvar organizations = rows.map((row) => {\n  var id = idOf(String(row.organization_urn));\n  var organization = results[id] || {};\n  return { organization_urn: row.organization_urn, organization_id: id, name: or(organization.localizedName), vanity_name: or(organization.vanityName), website: or(organization.localizedWebsite), role: row.role, state: row.state };\n});\nreturn { organizations: organizations, count: organizations.length };"
     },
     "update_post_commentary": {
       "label": "Update Post Commentary",
@@ -149,7 +205,8 @@
       "inputs": {
         "owner_urn": {
           "label": "Owner URN",
-          "description": "Who will own the image, such as the member URN that Get Current Member Profile gives."
+          "description": "Who will own the image, such as the member URN that Get Current Member Profile gives.",
+          "required": true
         }
       },
       "request": {
@@ -172,7 +229,6 @@
         "imageUrn": "$.image_urn",
         "uploadUrl": "$.upload_url"
       },
-      "beforeRequest": "if (!inputs.owner_urn) throw new Error('Owner URN is needed: use the member URN that Get Current Member Profile gives.');\nreturn request;",
       "afterResponse": "var value = (response && response.value) || {};\nvar or = (item) => item === undefined || item === null ? null : item;\nreturn { owner_urn: inputs.owner_urn, image_urn: or(value.image), upload_url: or(value.uploadUrl), upload_url_expires_at: or(value.uploadUrlExpiresAt) };"
     }
   }

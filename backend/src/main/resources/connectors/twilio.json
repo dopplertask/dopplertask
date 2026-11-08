@@ -32,6 +32,19 @@
       "password": "{{credential.authToken}}"
     }
   },
+  "lists": {
+    "phone_numbers": {
+      "request": {
+        "url": "https://api.twilio.com/2010-04-01/Accounts/{{credential.accountSid}}/IncomingPhoneNumbers.json",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      },
+      "items": "$.incoming_phone_numbers",
+      "label": "$.friendly_name",
+      "value": "$.phone_number"
+    }
+  },
   "actions": {
     "phone_number_lookup": {
       "label": "Phone Number Lookup",
@@ -62,7 +75,7 @@
       "inputs": {
         "message_sid": {
           "label": "Message SID",
-          "description": "Starts with SM or MM. Shown in the Send SMS output and Twilio logs.",
+          "description": "Starts with SM or MM. The SMS (Twilio) step gives it as Message id, and the Twilio Console lists it under Messaging logs.",
           "required": true
         }
       },
@@ -77,6 +90,96 @@
         "status": "$.status",
         "body": "$.body"
       }
+    }
+  },
+  "triggers": {
+    "new_incoming_sms": {
+      "label": "New Incoming SMS",
+      "description": "Triggers when a new SMS message is received.",
+      "inputs": {
+        "phone_number": {
+          "label": "Phone Number",
+          "description": "The Twilio number that receives the messages.",
+          "required": true,
+          "list": "phone_numbers"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.twilio.com/2010-04-01/Accounts/{{credential.accountSid}}/Messages.json",
+        "query": {
+          "PageSize": "20",
+          "To": "{{phone_number}}"
+        }
+      },
+      "items": "$",
+      "newBy": "lastItem",
+      "key": "$.sid",
+      "afterResponse": "// Like the original: the first check notes the newest message, and later checks page back to it and keep the inbound ones.\nconst KEY = '_new_incoming_sms_trigger';\nif (!(KEY in memory)) { memory[KEY] = {lastMessageId: response.messages.length === 0 ? null : response.messages[0].sid}; return []; }\nconst last = memory[KEY], fresh = [];\nlet page = response, first;\nwhile (page) {\n  const messages = page.messages;\n  if (!first && messages.length > 0) first = messages[0].sid;\n  let next = page.next_page_uri;\n  for (const message of messages) {\n    if (message.sid === last?.lastMessageId) { next = null; break; }\n    if (message.direction === 'inbound') fresh.push(message);\n  }\n  page = next ? call({method: 'GET', url: 'https://api.twilio.com' + next}) : null;\n}\nmemory[KEY] = {lastMessageId: first ?? last.lastMessageId};\nreturn fresh;"
+    },
+    "new_phone_number": {
+      "label": "New Phone Number",
+      "description": "Triggers when you add a new phone number to your account.",
+      "request": {
+        "method": "GET",
+        "url": "https://api.twilio.com/2010-04-01/Accounts/{{credential.accountSid}}/IncomingPhoneNumbers.json",
+        "query": {
+          "PageSize": "1000"
+        }
+      },
+      "items": "$",
+      "newBy": "time",
+      "key": "$.date_created",
+      "beforeRequest": "// Like the original: a page of 10 on the first check.\nif (!inputs.lastPollTime) request.query.PageSize = '10';\nreturn request;",
+      "afterResponse": "// Like the original: pages until an item is not newer than the last check, and only the first page on the first check.\nconst since = Number(inputs.lastPollTime) || 0, items = [];\nlet page = response;\nwhile (true) {\n  let older = false;\n  for (const item of page.incoming_phone_numbers || []) {\n    if (new Date(item.date_created).getTime() <= since) { older = true; break; }\n    items.push(item);\n  }\n  if (older || !since || !page.next_page_uri) break;\n  page = call({method: 'GET', url: 'https://api.twilio.com' + page.next_page_uri});\n}\nreturn items;"
+    },
+    "new_recording": {
+      "label": "New Recording",
+      "description": "Triggers when a new call recording is completed and available.",
+      "request": {
+        "method": "GET",
+        "url": "https://api.twilio.com/2010-04-01/Accounts/{{credential.accountSid}}/Recordings.json",
+        "query": {
+          "PageSize": "1000"
+        }
+      },
+      "items": "$",
+      "newBy": "time",
+      "key": "$.date_created",
+      "beforeRequest": "// Like the original: a page of 10 on the first check.\nif (!inputs.lastPollTime) request.query.PageSize = '10';\nreturn request;",
+      "afterResponse": "// Like the original: pages until an item is not newer than the last check, and only the first page on the first check.\nconst since = Number(inputs.lastPollTime) || 0, items = [];\nlet page = response;\nwhile (true) {\n  let older = false;\n  for (const item of page.recordings || []) {\n    if (new Date(item.date_created).getTime() <= since) { older = true; break; }\n    items.push(item);\n  }\n  if (older || !since || !page.next_page_uri) break;\n  page = call({method: 'GET', url: 'https://api.twilio.com' + page.next_page_uri});\n}\nreturn items;"
+    },
+    "new_transcription": {
+      "label": "New Transcription",
+      "description": "Triggers when a new call recording transcription is completed.",
+      "request": {
+        "method": "GET",
+        "url": "https://api.twilio.com/2010-04-01/Accounts/{{credential.accountSid}}/Transcriptions.json",
+        "query": {
+          "PageSize": "1000"
+        }
+      },
+      "items": "$",
+      "newBy": "time",
+      "key": "$.date_created",
+      "beforeRequest": "// Like the original: a page of 10 on the first check.\nif (!inputs.lastPollTime) request.query.PageSize = '10';\nreturn request;",
+      "afterResponse": "// Like the original: pages until an item is not newer than the last check, and only the first page on the first check.\nconst since = Number(inputs.lastPollTime) || 0, items = [];\nlet page = response;\nwhile (true) {\n  let older = false;\n  for (const item of page.transcriptions || []) {\n    if (item.status !== 'completed') continue;\n    if (new Date(item.date_created).getTime() <= since) { older = true; break; }\n    items.push(item);\n  }\n  if (older || !since || !page.next_page_uri) break;\n  page = call({method: 'GET', url: 'https://api.twilio.com' + page.next_page_uri});\n}\nreturn items;"
+    },
+    "new_call": {
+      "label": "New Call",
+      "description": "Triggers when a call completes (incoming or outgoing).",
+      "request": {
+        "method": "GET",
+        "url": "https://api.twilio.com/2010-04-01/Accounts/{{credential.accountSid}}/Calls.json",
+        "query": {
+          "PageSize": "1000"
+        }
+      },
+      "items": "$",
+      "newBy": "time",
+      "key": "$.date_created",
+      "beforeRequest": "// Like the original: a page of 1 on the first check.\nif (!inputs.lastPollTime) request.query.PageSize = '1';\nreturn request;",
+      "afterResponse": "// Like the original: pages until an item is not newer than the last check, and only the first page on the first check.\nconst since = Number(inputs.lastPollTime) || 0, items = [];\nlet page = response;\nwhile (true) {\n  let older = false;\n  for (const item of page.calls || []) {\n    if (item.status !== 'completed') continue;\n    if (new Date(item.date_created).getTime() <= since) { older = true; break; }\n    items.push(item);\n  }\n  if (older || !since || !page.next_page_uri) break;\n  page = call({method: 'GET', url: 'https://api.twilio.com' + page.next_page_uri});\n}\nreturn items;"
     }
   }
 }

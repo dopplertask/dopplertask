@@ -91,10 +91,10 @@
         "url": "https://api.notion.com/v1/search"
       },
       "beforeRequest": "var limit = Math.min(Math.max(inputs.limit === '' ? 10 : Number(inputs.limit), 1), 100);\nrequest.body = { filter: { value: 'database', property: 'object' }, page_size: limit, start_cursor: inputs.cursor || undefined, sort: { direction: 'descending', timestamp: 'last_edited_time' } };\nreturn request;",
-      "afterResponse": "var limit = Math.min(Math.max(inputs.limit === '' ? 10 : Number(inputs.limit), 1), 100);\nvar urlOf = (image, kinds) => image && kinds.includes(image.type) ? (image.type === 'emoji' ? image.emoji : image[image.type] && image[image.type].url) : undefined;\nvar data = response.results.map((database) => ({ id: database.id, title: (database.title ? database.title.map((part) => part.plain_text).join('').trim() : '') || 'Untitled',\n  url: database.url, createdTime: database.created_time, lastEditedTime: database.last_edited_time, archived: database.archived != null ? database.archived : false,\n  icon: urlOf(database.icon, ['emoji', 'external', 'file']), cover: urlOf(database.cover, ['external', 'file']), properties: Object.keys(database.properties || {}) }));\nreturn { success: true, data: data, pagination: { hasMore: response.has_more, nextCursor: response.next_cursor, count: data.length, limit: limit } };"
+      "afterResponse": "var urlOf = (image, kinds) => image && kinds.includes(image.type) ? (image.type === 'emoji' ? image.emoji : image[image.type] && image[image.type].url) : undefined;\nvar data = response.results.map((database) => ({ id: database.id, title: (database.title ? database.title.map((part) => part.plain_text).join('').trim() : '') || 'Untitled',\n  url: database.url, createdTime: database.created_time, lastEditedTime: database.last_edited_time, archived: database.archived != null ? database.archived : false,\n  icon: urlOf(database.icon, ['emoji', 'external', 'file']), cover: urlOf(database.cover, ['external', 'file']), properties: Object.keys(database.properties || {}) }));\nreturn { success: true, data: data, pagination: { hasMore: response.has_more, nextCursor: response.next_cursor, count: data.length, limit: request.body.page_size } };"
     },
     "create_database_item": {
-      "label": "Create Database Item from Field Values",
+      "label": "Create Database Item",
       "description": "Add an item to a database and set its fields.",
       "inputs": {
         "database_id": {
@@ -107,7 +107,22 @@
           "label": "Fields",
           "description": "The values to set, by field name, such as {\"Name\": \"Task\", \"Done\": true, \"Tags\": [\"urgent\"]}.",
           "type": "json",
-          "required": true
+          "required": true,
+          "fieldsFrom": {
+            "request": {
+              "url": "https://api.notion.com/v1/databases/{{database_id}}"
+            },
+            "list": "$.properties",
+            "key": "$.name",
+            "label": "$.name",
+            "type": "$.type",
+            "types": {
+              "number": "number",
+              "checkbox": "boolean",
+              "multi_select": "json",
+              "people": "json"
+            }
+          }
         },
         "content": {
           "label": "Content",
@@ -122,7 +137,7 @@
       "beforeRequest": "var FIELD = {\n  checkbox: (value) => ({ checkbox: value }), date: (value) => ({ date: { start: value } }), email: (value) => ({ email: value }),\n  select: (value) => ({ select: { name: value } }), multi_select: (value) => ({ multi_select: value.map((name) => ({ name: name })) }),\n  status: (value) => ({ status: { name: value } }), number: (value) => ({ number: Number(value) }), phone_number: (value) => ({ phone_number: value }),\n  rich_text: (value) => ({ rich_text: [{ type: 'text', text: { content: value } }] }), title: (value) => ({ title: [{ type: 'text', text: { content: value } }] }),\n  url: (value) => ({ url: value }), people: (value) => ({ people: value.map((id) => ({ id: id })) })\n};\nvar filled = (value) => value !== '' && value !== undefined && value !== null && !(Array.isArray(value) && value.length === 0);\nvar paragraph = (content) => ({ object: 'block', type: 'paragraph', paragraph: { rich_text: [{ type: 'text', text: { content: content } }] } });\nvar fields = inputs.databaseFields ? JSON.parse(inputs.databaseFields) : {};\nvar schema = call({ method: 'GET', url: '/databases/' + encodeURIComponent(inputs.database_id) }).properties;\nvar properties = {};\nObject.keys(fields).forEach((name) => { if (filled(fields[name])) { var type = schema[name] && schema[name].type; if (type) properties[name] = FIELD[type](fields[name]); } });\nrequest.body = { parent: { type: 'database_id', database_id: inputs.database_id }, properties: properties, children: inputs.content ? [paragraph(inputs.content)] : [] };\nreturn request;"
     },
     "update_database_item": {
-      "label": "Update Database Item from Field Values",
+      "label": "Update Database Item",
       "description": "Change field values on an existing database item.",
       "inputs": {
         "database_id": {
@@ -133,7 +148,7 @@
         },
         "database_item_id": {
           "label": "Database Item",
-          "description": "Items in the selected database, listed by title.",
+          "description": "Items in the selected database, listed by their Notion link.",
           "required": true,
           "list": "database_items"
         },
@@ -141,7 +156,22 @@
           "label": "Fields",
           "description": "The values to change, by field name. Empty fields keep their current value. Checkboxes are always saved as given.",
           "type": "json",
-          "required": true
+          "required": true,
+          "fieldsFrom": {
+            "request": {
+              "url": "https://api.notion.com/v1/databases/{{database_id}}"
+            },
+            "list": "$.properties",
+            "key": "$.name",
+            "label": "$.name",
+            "type": "$.type",
+            "types": {
+              "number": "number",
+              "checkbox": "boolean",
+              "multi_select": "json",
+              "people": "json"
+            }
+          }
         }
       },
       "request": {
@@ -151,7 +181,7 @@
       "beforeRequest": "var FIELD = {\n  checkbox: (value) => ({ checkbox: value }), date: (value) => ({ date: { start: value } }), email: (value) => ({ email: value }),\n  select: (value) => ({ select: { name: value } }), multi_select: (value) => ({ multi_select: value.map((name) => ({ name: name })) }),\n  status: (value) => ({ status: { name: value } }), number: (value) => ({ number: Number(value) }), phone_number: (value) => ({ phone_number: value }),\n  rich_text: (value) => ({ rich_text: [{ type: 'text', text: { content: value } }] }), title: (value) => ({ title: [{ type: 'text', text: { content: value } }] }),\n  url: (value) => ({ url: value }), people: (value) => ({ people: value.map((id) => ({ id: id })) })\n};\nvar filled = (value) => value !== '' && value !== undefined && value !== null && !(Array.isArray(value) && value.length === 0);\nvar fields = inputs.databaseFields ? JSON.parse(inputs.databaseFields) : {};\nvar schema = call({ method: 'GET', url: '/databases/' + encodeURIComponent(inputs.database_id) }).properties;\nvar properties = {};\nObject.keys(fields).forEach((name) => { if (filled(fields[name])) properties[name] = FIELD[schema[name].type](fields[name]); });\nrequest.body = { properties: properties };\nreturn request;"
     },
     "notion-find-database-item": {
-      "label": "Find Database Item by Field Values",
+      "label": "Find Database Item",
       "description": "Find items in a database whose fields match exact values.",
       "inputs": {
         "database_id": {
@@ -164,7 +194,22 @@
           "label": "Fields",
           "description": "Field values the items must match exactly, by field name, such as {\"Status\": \"Done\"}.",
           "type": "json",
-          "required": true
+          "required": true,
+          "fieldsFrom": {
+            "request": {
+              "url": "https://api.notion.com/v1/databases/{{database_id}}"
+            },
+            "list": "$.properties",
+            "key": "$.name",
+            "label": "$.name",
+            "type": "$.type",
+            "types": {
+              "number": "number",
+              "checkbox": "boolean",
+              "multi_select": "json",
+              "people": "json"
+            }
+          }
         }
       },
       "request": {
@@ -175,7 +220,7 @@
       "afterResponse": "return { success: response.results.length > 0, results: response.results };"
     },
     "list_database_pages": {
-      "label": "List Pages",
+      "label": "List Database Items",
       "description": "List pages in a database, optionally filtered by field values.",
       "inputs": {
         "database_id": {
@@ -198,7 +243,22 @@
           "label": "Fields",
           "description": "Field values to filter by, by field name. Empty fields are ignored.",
           "type": "json",
-          "required": true
+          "required": false,
+          "fieldsFrom": {
+            "request": {
+              "url": "https://api.notion.com/v1/databases/{{database_id}}"
+            },
+            "list": "$.properties",
+            "key": "$.name",
+            "label": "$.name",
+            "type": "$.type",
+            "types": {
+              "number": "number",
+              "checkbox": "boolean",
+              "multi_select": "json",
+              "people": "json"
+            }
+          }
         }
       },
       "request": {
@@ -206,7 +266,7 @@
         "url": "https://api.notion.com/v1/databases/{{database_id}}/query"
       },
       "beforeRequest": "var fields = inputs.filterDatabaseFields ? JSON.parse(inputs.filterDatabaseFields) : {};\nvar limit = Math.min(Math.max(inputs.limit === '' ? 10 : Number(inputs.limit), 1), 100);\nvar schema = call({ method: 'GET', url: '/databases/' + encodeURIComponent(inputs.database_id) }).properties;\nvar filters = [];\nfor (var name in fields) {\n  var value = fields[name], property = schema[name];\n  if (value == null || value === '' || (Array.isArray(value) && value.length === 0) || !property) continue;\n  switch (property.type) {\n    case 'title': case 'rich_text': { var text = { property: name }; text[property.type] = { contains: value }; filters.push(text); break; }\n    case 'number': filters.push({ property: name, number: { equals: Number(value) } }); break;\n    case 'checkbox': filters.push({ property: name, checkbox: { equals: !!value } }); break;\n    case 'multi_select': for (var choice of Array.isArray(value) ? value : [value]) filters.push({ property: name, multi_select: { contains: choice } }); break;\n    case 'people': filters.push({ property: name, people: { contains: value } }); break;\n    case 'select': case 'status': case 'email': case 'phone_number': case 'url': case 'date': { var condition = { property: name }; condition[property.type] = { equals: value }; filters.push(condition); break; }\n  }\n}\nrequest.body = Object.assign({ page_size: limit, start_cursor: inputs.cursor || undefined }, filters.length > 0 ? { filter: { and: filters } } : {});\nreturn request;",
-      "afterResponse": "var limit = Math.min(Math.max(inputs.limit === '' ? 10 : Number(inputs.limit), 1), 100);\nreturn { success: true, data: response.results.map((page) => ({ id: page.id, url: page.url, createdTime: page.created_time, lastEditedTime: page.last_edited_time, archived: page.archived, properties: page.properties })),\n  pagination: { count: response.results.length, hasMore: response.has_more, nextCursor: response.next_cursor, limit: limit } };"
+      "afterResponse": "return { success: true, data: response.results.map((page) => ({ id: page.id, url: page.url, createdTime: page.created_time, lastEditedTime: page.last_edited_time, archived: page.archived, properties: page.properties })),\n  pagination: { count: response.results.length, hasMore: response.has_more, nextCursor: response.next_cursor, limit: request.body.page_size } };"
     },
     "add_comment": {
       "label": "Add Comment",
@@ -255,7 +315,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.notion.com/v1/comments",
         "query": {
           "block_id": "{{page_id}}"
@@ -263,42 +322,13 @@
       },
       "afterResponse": "var comments = [...response.results], page = response;\nwhile (page.has_more) {\n  page = call({ method: 'GET', url: '/comments', query: { block_id: inputs.page_id, start_cursor: page.next_cursor || undefined } });\n  comments.push(...page.results);\n}\nvar threads = {}, standalone = [];\ncomments.forEach((comment) => { if (comment.discussion_id) (threads[comment.discussion_id] = threads[comment.discussion_id] || []).push(comment); else standalone.push(comment); });\nvar byTime = (first, second) => new Date(first.created_time).getTime() - new Date(second.created_time).getTime();\nObject.keys(threads).forEach((id) => threads[id].sort(byTime));\nstandalone.sort(byTime);\nvar count = Object.keys(threads).length;\nreturn { success: true, totalComments: comments.length, pageComments: standalone, discussionThreads: threads, discussionCount: count, allComments: comments,\n  summary: { totalComments: comments.length, discussionThreads: count, standaloneComments: standalone.length },\n  message: comments.length === 0 ? '📝 No comments found on this page yet.' : '💬 Successfully retrieved ' + comments.length + ' comment' + (comments.length === 1 ? '' : 's') + ' from page' + (count > 0 ? ' organized into ' + count + ' discussion thread' + (count === 1 ? '' : 's') : '') + '.' };"
     },
-    "find_page": {
-      "label": "Find Page",
-      "description": "Find pages by title, with exact or partial matching.",
-      "inputs": {
-        "title": {
-          "label": "Title",
-          "description": "Full title, or part of it. For example: Meeting notes",
-          "required": true
-        },
-        "exact_match": {
-          "label": "Exact Match",
-          "description": "Only return pages whose title equals the search exactly.",
-          "type": "boolean",
-          "defaultValue": "false"
-        },
-        "limit": {
-          "label": "Limit",
-          "description": "How many pages to return, up to 100.",
-          "type": "number",
-          "defaultValue": "10"
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://api.notion.com/v1/search"
-      },
-      "beforeRequest": "var limit = Math.min(Math.max(Number(inputs.limit) || 10, 1), 100);\nvar search = { query: inputs.title, filter: { property: 'object', value: 'page' }, sort: { direction: 'descending', timestamp: 'last_edited_time' } };\nrequest.body = Object.assign({}, search, { page_size: Math.min(100, limit) });\nreturn request;",
-      "afterResponse": "var titleOf = (item, databases) => {\n  try {\n    if (databases && item.object === 'database' && Array.isArray(item.title)) return item.title[0] ? (item.title[0].plain_text != null ? item.title[0].plain_text : item.title[0].text && item.title[0].text.content != null ? item.title[0].text.content : null) : null;\n    if (item.properties) for (var [, property] of Object.entries(item.properties)) if (property.type === 'title') {\n      var parts = property.title;\n      return parts && parts.length > 0 ? parts[0].plain_text || (parts[0].text && parts[0].text.content) || 'Untitled' : null;\n    }\n    return null;\n  } catch (error) { return null; }\n};\nvar term = inputs.title, exact = inputs.exact_match === 'true', limit = Math.min(Math.max(Number(inputs.limit) || 10, 1), 100);\nvar search = { query: term, filter: { property: 'object', value: 'page' }, sort: { direction: 'descending', timestamp: 'last_edited_time' } };\nvar found = [...response.results], page = response;\nwhile (page.has_more && found.length < limit) {\n  page = call({ method: 'POST', url: '/search', body: Object.assign({}, search, { start_cursor: page.next_cursor || undefined, page_size: Math.min(100, limit - found.length) }) });\n  found.push(...page.results);\n}\nvar matching = found.filter((item) => { var title = titleOf(item); return title && (exact ? title.toLowerCase() === term.toLowerCase() : title.toLowerCase().includes(term.toLowerCase())); });\nvar pages = matching.slice(0, limit).map((item) => ({ id: item.id, title: titleOf(item), url: item.url, created_time: item.created_time, last_edited_time: item.last_edited_time, archived: item.archived, parent: item.parent, properties: item.properties }));\nvar kind = exact ? 'exact match' : 'partial match';\nvar message = matching.length === 0 ? '🔍 No pages found matching \"' + term + '\" (' + kind + '). Try using partial matching or check your search term.'\n  : '🔍 Found ' + matching.length + ' page' + (matching.length === 1 ? '' : 's') + ' matching \"' + term + '\" (' + kind + ')' + (pages.length < matching.length ? ', showing first ' + pages.length : '') + '.';\nreturn { success: true, searchTerm: term, exactMatch: exact, totalFound: matching.length, returned: pages.length, pages: pages,\n  summary: { searchTerm: term, matchType: kind, totalFound: matching.length, returned: pages.length, hasMore: matching.length > pages.length }, message: message };"
-    },
     "notion_create_page": {
       "label": "Create Page",
       "description": "Creates a new sub-page under an existing Notion page, with a title and optional markdown body.",
       "inputs": {
         "parent_page_id": {
-          "label": "Parent Page ID",
-          "description": "The id of the existing page to create the new page under. Resolve via notion_search.",
+          "label": "Parent Page",
+          "description": "The id of the existing page to create the new page under. Resolve via Search Pages and Databases.",
           "required": true,
           "list": "pages"
         },
@@ -323,14 +353,13 @@
       "description": "Fetches a single page's metadata and property values by id (a database row is a page).",
       "inputs": {
         "page_id": {
-          "label": "Page ID",
-          "description": "The id of the page (or database row) to retrieve. Resolve via notion_search.",
+          "label": "Page",
+          "description": "The id of the page (or database row) to retrieve. Resolve via Search Pages and Databases.",
           "required": true,
           "list": "pages"
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.notion.com/v1/pages/{{page_id}}"
       }
     },
@@ -339,8 +368,8 @@
       "description": "Archives (trashes) or restores any page or database row by id via its archived flag.",
       "inputs": {
         "page_id": {
-          "label": "Page ID",
-          "description": "The id of the page (or database row) to archive or restore. Resolve via notion_search.",
+          "label": "Page",
+          "description": "The id of the page (or database row) to archive or restore. Resolve via Search Pages and Databases.",
           "required": true,
           "list": "pages"
         },
@@ -364,8 +393,8 @@
       "description": "Appends new block content (parsed from markdown) to the end of a page or block.",
       "inputs": {
         "block_id": {
-          "label": "Page or Block ID",
-          "description": "The id of the page or block to append content to. Resolve via notion_search (page) or notion_get_block_children (block).",
+          "label": "Page or Block",
+          "description": "The id of the page or block to append content to. Resolve via Search Pages and Databases (page) or Get Page or Block Content (block).",
           "required": true,
           "list": "pages"
         },
@@ -387,8 +416,8 @@
       "description": "Reads the body content of a page or block by recursively listing its child blocks, optionally rendered as markdown.",
       "inputs": {
         "block_id": {
-          "label": "Page or Block ID",
-          "description": "The id of the page or parent block whose content to read. Resolve via notion_search (page) or this action (child block ids).",
+          "label": "Page or Block",
+          "description": "The id of the page or parent block whose content to read. Resolve via Search Pages and Databases (page) or this action (child block ids).",
           "required": true,
           "list": "pages"
         },
@@ -407,7 +436,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.notion.com/v1/blocks/{{block_id}}/children"
       },
       "afterResponse": "// As notion-to-md turns a page's blocks into Markdown, with child pages left out.\nvar children = (id, totalPage, first) => {\n  var results = [], pages = 0, cursor;\n  do {\n    var page = pages === 0 && first ? first : call({ method: 'GET', url: '/blocks/' + encodeURIComponent(id) + '/children', query: cursor ? { start_cursor: cursor } : {} });\n    results.push(...page.results);\n    cursor = page.next_cursor;\n    pages += 1;\n  } while (cursor != null && (totalPage == null || pages < totalPage));\n  var number = 0;\n  for (var block of results) if ('type' in block && block.type === 'numbered_list_item') block.numbered_list_item.number = ++number; else number = 0;\n  return results;\n};\nvar tabbed = (text, depth) => { for (var level = 0; level < depth; level++) text = text.includes('\\n') ? '\\t' + text.split(/(?:^|\\n)/).join('\\n\\t') : '\\t' + text; return text; };\nvar callout = (text, icon) => '> ' + (icon && icon.type === 'emoji' ? icon.emoji + ' ' : '') + text.replace(/\\n/g, '  \\n> ');\nvar table = (rows) => {\n  var width = Math.max(0, ...rows.map((row) => row.length)), sizes = [];\n  rows.forEach((row) => row.forEach((cell, column) => { sizes[column] = Math.max(sizes[column] || 0, String(cell).length); }));\n  var line = (row) => '| ' + Array.from({ length: width }, (unused, column) => { var cell = row[column] == null ? '' : String(row[column]); return cell + ' '.repeat(Math.max(1, sizes[column] || 0) - cell.length); }).join(' | ') + ' |';\n  var lines = rows.map(line);\n  lines.splice(1, 0, '| ' + Array.from({ length: width }, (unused, column) => '-'.repeat(Math.max(1, sizes[column] || 0))).join(' | ') + ' |');\n  return lines.join('\\n');\n};\nvar annotate = (text, annotations) => {\n  if (/^\\s*$/.test(text)) return text;\n  var leading = text.match(/^(\\s*)/)[0], trailing = text.match(/(\\s*)$/)[0];\n  text = text.trim();\n  if (text !== '') {\n    if (annotations.code) text = '`' + text + '`';\n    if (annotations.bold) text = '**' + text + '**';\n    if (annotations.italic) text = '_' + text + '_';\n    if (annotations.strikethrough) text = '~~' + text + '~~';\n    if (annotations.underline) text = '<u>' + text + '</u>';\n  }\n  return leading + text + trailing;\n};\nvar fileName = (url, fallback) => { var found = url.match(/[^\\/\\\\&\\?]+\\.\\w{3,4}(?=([\\?&].*$|$))/); return found ? found[0] : fallback; };\nvar blockToMarkdown = (block) => {\n  if (typeof block != 'object' || !('type' in block)) return '';\n  var text = '', type = block.type;\n  switch (type) {\n    case 'image': {\n      var image = block.image, caption = image.caption.map((part) => part.plain_text).join(''), url = image.type === 'external' ? image.external.url : image.type === 'file' ? image.file.url : '';\n      var alt = caption.trim().length > 0 ? caption : image.type === 'file' || image.type === 'external' ? fileName(url, 'image') : 'image';\n      return url.startsWith('data:') ? '![' + alt + '](data:image/png;base64,' + url.split(',').pop() + ')' : '![' + alt + '](' + url + ')';\n    }\n    case 'divider': return '---';\n    case 'equation': return '$$\\n' + block.equation.expression + '\\n$$';\n    case 'video': case 'file': case 'pdf': {\n      var media = block[type], name = type, mediaCaption = media ? media.caption.map((part) => part.plain_text).join('') : undefined;\n      if (media) {\n        var address = media.type === 'external' ? media.external.url : media.type === 'file' ? media.file.url : '';\n        if (mediaCaption && mediaCaption.trim().length > 0) name = mediaCaption; else if (address) name = fileName(address, type);\n        return '[' + name + '](' + address + ')';\n      }\n      break;\n    }\n    case 'bookmark': case 'embed': case 'link_preview': case 'link_to_page': {\n      var target = type === 'link_to_page' ? (block.link_to_page.type === 'page_id' ? { url: block.link_to_page.page_id } : undefined) : block[type];\n      if (target) return '[' + type + '](' + target.url + ')';\n      break;\n    }\n    case 'child_page': return '';\n    case 'child_database': return block.child_database.title || 'child_database';\n    case 'table': {\n      var rows = [];\n      if (block.has_children) children(block.id, 100).forEach((row) => rows.push(row[row.type].cells.map((cell) => blockToMarkdown({ type: 'paragraph', paragraph: { rich_text: cell } }))));\n      return table(rows);\n    }\n    default:\n      (block[type].text || block[type].rich_text || []).forEach((part) => {\n        if (part.type === 'equation') { text += '$' + part.equation.expression + '$'; return; }\n        var plain = annotate(part.plain_text, part.annotations);\n        if (part.href) plain = '[' + plain + '](' + part.href + ')';\n        text += plain;\n      });\n  }\n  switch (type) {\n    case 'code': text = '```' + (block[type].language === 'plain text' ? 'text' : block[type].language) + '\\n' + text + '\\n```'; break;\n    case 'heading_1': text = '# ' + text; break;\n    case 'heading_2': text = '## ' + text; break;\n    case 'heading_3': text = '### ' + text; break;\n    case 'quote': text = '> ' + text.replace(/\\n/g, '  \\n> '); break;\n    case 'callout': {\n      if (!block.has_children) return callout(text, block[type].icon);\n      var inner = text + '\\n';\n      blocksToMarkdown(children(block.id, 100)).forEach((child) => { inner += child.parent + '\\n\\n'; });\n      text = callout(inner.trim(), block[type].icon);\n      break;\n    }\n    case 'bulleted_list_item': text = '- ' + text.trim(); break;\n    case 'numbered_list_item': text = block.numbered_list_item.number ? block.numbered_list_item.number + '. ' + text.trim() : '- ' + text.trim(); break;\n    case 'to_do': text = block.to_do.checked ? '- [x] ' + text : '- [ ] ' + text; break;\n  }\n  return text;\n};\nvar blocksToMarkdown = (blocks, totalPage, out) => {\n  out = out || [];\n  if (!blocks) return out;\n  for (var block of blocks) {\n    if (block.type === 'child_page') continue;\n    if ('has_children' in block && block.has_children) {\n      var source = block.type == 'synced_block' && block.synced_block && block.synced_block.synced_from && block.synced_block.synced_from.block_id ? block.synced_block.synced_from.block_id : block.id;\n      var nested = children(source, totalPage);\n      out.push({ type: block.type, blockId: block.id, parent: blockToMarkdown(block), children: [] });\n      blocksToMarkdown(nested, totalPage, out[out.length - 1].children);\n      continue;\n    }\n    out.push({ type: block.type, blockId: block.id, parent: blockToMarkdown(block), children: [] });\n  }\n  return out;\n};\nvar toMarkdownString = (blocks, key, depth) => {\n  key = key || 'parent'; depth = depth || 0;\n  var result = {};\n  blocks.forEach((block) => {\n    if (block.parent && block.type !== 'toggle' && block.type !== 'child_page') {\n      result[key] = result[key] || '';\n      result[key] += block.type !== 'to_do' && block.type !== 'bulleted_list_item' && block.type !== 'numbered_list_item' ? '\\n' + tabbed(block.parent, depth) + '\\n\\n' : tabbed(block.parent, depth) + '\\n';\n    }\n    if (block.children && block.children.length > 0) {\n      if (block.type === 'synced_block' || block.type === 'column_list' || block.type === 'column') {\n        var merged = toMarkdownString(block.children, key);\n        result[key] = result[key] || '';\n        Object.keys(merged).forEach((name) => { result[name] = result[name] ? result[name] + merged[name] : merged[name]; });\n      } else if (block.type === 'toggle') {\n        var inside = toMarkdownString(block.children);\n        result[key] = result[key] || '';\n        result[key] += block.parent ? '<details>\\n<summary>' + block.parent + '</summary>\\n' + (inside.parent || '') + '\\n</details>\\n\\n' : inside.parent || '';\n      } else {\n        var deeper = toMarkdownString(block.children, key, depth + 1);\n        result[key] = result[key] || '';\n        if (key !== 'parent' && deeper.parent) result[key] += deeper.parent; else if (deeper[key]) result[key] += deeper[key];\n      }\n    }\n  });\n  return result;\n};\nvar pageToMarkdown = (id, first) => toMarkdownString(blocksToMarkdown(children(id, null, first))).parent;\nvar collect = (id, first) => {\n  var results = [], page = first || call({ method: 'GET', url: '/blocks/' + encodeURIComponent(id) + '/children', query: {} });\n  results.push(...page.results);\n  while (page.next_cursor) {\n    page = call({ method: 'GET', url: '/blocks/' + encodeURIComponent(id) + '/children', query: { start_cursor: page.next_cursor } });\n    results.push(...page.results);\n  }\n  return results;\n};\nvar tree = (id, depth, level, first) => {\n  if (level >= depth) return [];\n  var results = collect(id, first);\n  for (var block of results) if ('type' in block && block.has_children) block.children = tree(block.id, depth, level + 1);\n  return results;\n};\nif (inputs.markdown === 'true') return pageToMarkdown(inputs.block_id, response);\nreturn tree(inputs.block_id, inputs.depth === '' ? 1 : Number(inputs.depth), 0, response);"
@@ -418,7 +446,7 @@
       "inputs": {
         "block_id": {
           "label": "Block ID",
-          "description": "The id of the block to update. Resolve via notion_get_block_children.",
+          "description": "The id of the block to update. Resolve via Get Page or Block Content.",
           "required": true
         },
         "content": {
@@ -429,7 +457,7 @@
         },
         "block_type": {
           "label": "Block Type",
-          "description": "The type of the block being updated — must match the block's actual type (see its type in notion_get_block_children). Defaults to paragraph.",
+          "description": "The type of the block being updated — must match the block's actual type (see its type in Get Page or Block Content). Defaults to paragraph.",
           "type": "select",
           "defaultValue": "paragraph",
           "options": [
@@ -512,7 +540,7 @@
       "inputs": {
         "block_id": {
           "label": "Block ID",
-          "description": "The id of the block to delete. Resolve via notion_get_block_children.",
+          "description": "The id of the block to delete. Resolve via Get Page or Block Content.",
           "required": true
         }
       },
@@ -557,8 +585,8 @@
           "defaultValue": "false"
         },
         "limit": {
-          "label": "Maximum Results",
-          "description": "How many items to return at most (between 1 and 100).",
+          "label": "Limit",
+          "description": "How many items to return, up to 100.",
           "type": "number",
           "defaultValue": "10"
         }
@@ -568,30 +596,29 @@
         "url": "https://api.notion.com/v1/search"
       },
       "beforeRequest": "var limit = Math.min(Math.max(Number(inputs.limit) || 10, 1), 100);\nvar kind = inputs.filter_type || 'all';\nvar search = Object.assign({ query: inputs.query }, kind !== 'all' ? { filter: { property: 'object', value: kind } } : {}, { sort: { direction: 'descending', timestamp: 'last_edited_time' } });\nrequest.body = Object.assign({}, search, { page_size: Math.min(100, limit) });\nreturn request;",
-      "afterResponse": "var titleOf = (item, databases) => {\n  try {\n    if (databases && item.object === 'database' && Array.isArray(item.title)) return item.title[0] ? (item.title[0].plain_text != null ? item.title[0].plain_text : item.title[0].text && item.title[0].text.content != null ? item.title[0].text.content : null) : null;\n    if (item.properties) for (var [, property] of Object.entries(item.properties)) if (property.type === 'title') {\n      var parts = property.title;\n      return parts && parts.length > 0 ? parts[0].plain_text || (parts[0].text && parts[0].text.content) || 'Untitled' : null;\n    }\n    return null;\n  } catch (error) { return null; }\n};\nvar term = inputs.query, kind = inputs.filter_type || 'all', limit = Math.min(Math.max(Number(inputs.limit) || 10, 1), 100);\nvar search = Object.assign({ query: term }, kind !== 'all' ? { filter: { property: 'object', value: kind } } : {}, { sort: { direction: 'descending', timestamp: 'last_edited_time' } });\nvar found = [...response.results], page = response;\nwhile (page.has_more && found.length < limit) {\n  page = call({ method: 'POST', url: '/search', body: Object.assign({}, search, { start_cursor: page.next_cursor || undefined, page_size: Math.min(100, limit - found.length) }) });\n  found.push(...page.results);\n}\nvar exact = inputs.exact_match === 'true';\nvar results = found.filter((item) => { var title = titleOf(item, true); return title && (exact ? title.toLowerCase() === term.toLowerCase() : title.toLowerCase().includes(term.toLowerCase())); }).slice(0, limit)\n  .map((item) => ({ id: item.id, object: item.object, title: titleOf(item, true), url: item.url, created_time: item.created_time, last_edited_time: item.last_edited_time, archived: item.archived, parent: item.parent }));\nreturn { results: results, count: results.length };"
+      "afterResponse": "var titleOf = (item) => {\n  try {\n    if (item.object === 'database' && Array.isArray(item.title)) return item.title[0] ? (item.title[0].plain_text != null ? item.title[0].plain_text : item.title[0].text && item.title[0].text.content != null ? item.title[0].text.content : null) : null;\n    if (item.properties) for (var [, property] of Object.entries(item.properties)) if (property.type === 'title') {\n      var parts = property.title;\n      return parts && parts.length > 0 ? parts[0].plain_text || (parts[0].text && parts[0].text.content) || 'Untitled' : null;\n    }\n    return null;\n  } catch (error) { return null; }\n};\nvar term = inputs.query, kind = inputs.filter_type || 'all', limit = Math.min(Math.max(Number(inputs.limit) || 10, 1), 100);\nvar search = Object.assign({ query: term }, kind !== 'all' ? { filter: { property: 'object', value: kind } } : {}, { sort: { direction: 'descending', timestamp: 'last_edited_time' } });\nvar found = [...response.results], page = response;\nwhile (page.has_more && found.length < limit) {\n  page = call({ method: 'POST', url: '/search', body: Object.assign({}, search, { start_cursor: page.next_cursor || undefined, page_size: Math.min(100, limit - found.length) }) });\n  found.push(...page.results);\n}\nvar exact = inputs.exact_match === 'true';\nvar results = found.filter((item) => { var title = titleOf(item); return title && (exact ? title.toLowerCase() === term.toLowerCase() : title.toLowerCase().includes(term.toLowerCase())); }).slice(0, limit)\n  .map((item) => ({ id: item.id, object: item.object, title: titleOf(item), url: item.url, created_time: item.created_time, last_edited_time: item.last_edited_time, archived: item.archived, parent: item.parent }));\nreturn { results: results, count: results.length };"
     },
     "notion_list_users": {
       "label": "List Users",
       "description": "Lists the people and bots in the workspace, returning each user's id, name, and type.",
       "inputs": {
-        "page_size": {
-          "label": "Page Size",
-          "description": "How many users to return per page (1–100). Defaults to 100.",
+        "limit": {
+          "label": "Limit",
+          "description": "How many users to return, up to 100. Defaults to 100.",
           "type": "number"
         },
-        "start_cursor": {
-          "label": "Start Cursor",
-          "description": "Pagination cursor from a previous call's next_cursor to fetch the next page."
+        "cursor": {
+          "label": "Cursor",
+          "description": "Next-page cursor from a previous run's output (next_cursor)."
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.notion.com/v1/users",
         "query": {
-          "start_cursor": "{{start_cursor}}"
+          "start_cursor": "{{cursor}}"
         }
       },
-      "beforeRequest": "request.query.page_size = String(inputs.page_size && Number(inputs.page_size) ? Math.min(Math.max(Number(inputs.page_size), 1), 100) : 100);\nreturn request;",
+      "beforeRequest": "request.query.page_size = String(inputs.limit && Number(inputs.limit) ? Math.min(Math.max(Number(inputs.limit), 1), 100) : 100);\nreturn request;",
       "afterResponse": "var users = response.results.map((user) => ({ id: user.id, name: user.name, type: user.type, avatar_url: user.avatar_url, email: user.person ? user.person.email : undefined }));\nreturn { users: users, count: users.length, has_more: response.has_more, next_cursor: response.next_cursor };"
     },
     "notion_get_user": {
@@ -600,12 +627,11 @@
       "inputs": {
         "user_id": {
           "label": "User ID",
-          "description": "The id of the workspace user to retrieve. Resolve via notion_list_users.",
+          "description": "The id of the workspace user to retrieve. Resolve via List Users.",
           "required": true
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.notion.com/v1/users/{{user_id}}"
       },
       "afterResponse": "return { id: response.id, name: response.name, type: response.type, avatar_url: response.avatar_url, email: response.person ? response.person.email : undefined, bot: response.bot };"
@@ -615,14 +641,13 @@
       "description": "Retrieves a Notion database's schema: its property names, field types, and select/status/relation options.",
       "inputs": {
         "database_id": {
-          "label": "Database ID",
-          "description": "The id of the database to inspect. Resolve a database title into its id with notion_search (filter_type=database).",
+          "label": "Database",
+          "description": "The id of the database to inspect. Resolve a database title into its id with Search Pages and Databases (Databases only).",
           "required": true,
           "list": "databases"
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.notion.com/v1/databases/{{database_id}}"
       },
       "afterResponse": "var describe = (database) => {\n  var form = { id: database.id, title: database.title && database.title[0] ? database.title[0].plain_text || '' : '', description: database.description && database.description[0] ? database.description[0].plain_text || '' : '',\n    properties: {}, propertyTypes: {}, requiredFields: [], selectOptions: {}, statusOptions: {}, relationConfig: {}, formulaConfig: {}, rollupConfig: {}, numberConfig: {} };\n  var option = (choice) => ({ name: choice.name, color: choice.color, id: choice.id });\n  Object.entries(database.properties).forEach(([name, property]) => {\n    form.properties[name] = { name: property.name || name, type: property.type, id: property.id, description: property.description || '' };\n    form.propertyTypes[name] = property.type;\n    switch (property.type) {\n      case 'select': if (property.select && property.select.options) form.selectOptions[name] = property.select.options.map(option); break;\n      case 'multi_select': if (property.multi_select && property.multi_select.options) form.selectOptions[name] = property.multi_select.options.map(option); break;\n      case 'status': if (property.status) form.statusOptions[name] = { options: property.status.options ? property.status.options.map(option) : [],\n        groups: property.status.groups ? property.status.groups.map((group) => ({ name: group.name, color: group.color, id: group.id, option_ids: group.option_ids || [] })) : [] }; break;\n      case 'relation': if (property.relation) form.relationConfig[name] = { database_id: property.relation.database_id, synced_property_id: property.relation.synced_property_id, synced_property_name: property.relation.synced_property_name }; break;\n      case 'formula': if (property.formula) form.formulaConfig[name] = { expression: property.formula.expression }; break;\n      case 'rollup': if (property.rollup) form.rollupConfig[name] = { function: property.rollup.function, relation_property_id: property.rollup.relation_property_id,\n        relation_property_name: property.rollup.relation_property_name, rollup_property_id: property.rollup.rollup_property_id, rollup_property_name: property.rollup.rollup_property_name }; break;\n      case 'number': if (property.number) form.numberConfig[name] = { format: property.number.format }; break;\n    }\n  });\n  var total = Object.keys(form.properties).length;\n  return { success: true, database: database, formStructure: form,\n    summary: { title: form.title || 'Untitled Database', totalProperties: total, propertyTypes: Object.values(form.propertyTypes).reduce((counts, type) => (counts[type] = (counts[type] || 0) + 1, counts), {}) } };\n};\nreturn describe(response);"
@@ -632,14 +657,14 @@
       "description": "Queries a Notion database with the API's native filter and sort JSON objects (compound AND/OR, ranges, dates, contains, etc.).",
       "inputs": {
         "database_id": {
-          "label": "Database ID",
-          "description": "The id of the database to query. Resolve a database title into its id with notion_search (filter_type=database).",
+          "label": "Database",
+          "description": "The id of the database to query. Resolve a database title into its id with Search Pages and Databases (Databases only).",
           "required": true,
           "list": "databases"
         },
         "filter": {
           "label": "Filter",
-          "description": "Optional. A Notion query filter object. A single condition is { \"property\": \"Status\", \"status\": { \"equals\": \"Done\" } }; compound is { \"and\": [ ...conditions ] } or { \"or\": [ ...conditions ] }. The condition key MUST match the property's type (e.g. status:{equals}, select:{equals}, number:{greater_than}, date:{on_or_after}, rich_text:{contains}, checkbox:{equals}). Run notion_get_database first to confirm property names and types. Omit to list all rows.",
+          "description": "Optional. A Notion query filter object. A single condition is { \"property\": \"Status\", \"status\": { \"equals\": \"Done\" } }; compound is { \"and\": [ ...conditions ] } or { \"or\": [ ...conditions ] }. The condition key MUST match the property's type (e.g. status:{equals}, select:{equals}, number:{greater_than}, date:{on_or_after}, rich_text:{contains}, checkbox:{equals}). Run Get Database Schema first to confirm property names and types. Omit to list all rows.",
           "type": "json"
         },
         "sorts": {
@@ -647,14 +672,14 @@
           "description": "Optional. An array of Notion sort objects. Sort by a property: [{ \"property\": \"Name\", \"direction\": \"ascending\" }]; sort by a timestamp: [{ \"timestamp\": \"last_edited_time\", \"direction\": \"descending\" }]. direction is \"ascending\" or \"descending\".",
           "type": "json"
         },
-        "page_size": {
-          "label": "Page Size",
-          "description": "Maximum number of rows to return (1–100). Defaults to 100.",
+        "limit": {
+          "label": "Limit",
+          "description": "How many rows to return, up to 100. Defaults to 100.",
           "type": "number"
         },
-        "start_cursor": {
-          "label": "Start Cursor",
-          "description": "Optional pagination cursor. Pass the next_cursor returned by a previous call to fetch the next page of results."
+        "cursor": {
+          "label": "Cursor",
+          "description": "Next-page cursor from a previous run's output (next_cursor)."
         }
       },
       "request": {
@@ -663,8 +688,8 @@
         "body": {
           "filter": "{{filter}}",
           "sorts": "{{sorts}}",
-          "page_size": "{{page_size}}",
-          "start_cursor": "{{start_cursor}}"
+          "page_size": "{{limit}}",
+          "start_cursor": "{{cursor}}"
         }
       },
       "beforeRequest": "if (request.body.filter != null && typeof request.body.filter != 'object') throw new Error('Filter must be a Notion filter JSON object (e.g. { \"property\": \"Status\", \"status\": { \"equals\": \"Done\" } }).');\nif (request.body.sorts != null && !Array.isArray(request.body.sorts)) throw new Error('Sorts must be a JSON array of Notion sort objects (e.g. [{ \"property\": \"Name\", \"direction\": \"ascending\" }]).');\nreturn request;",
@@ -675,8 +700,8 @@
       "description": "Creates a new inline Notion database under a parent page, with a title and a property-schema object defining its columns.",
       "inputs": {
         "parent_page_id": {
-          "label": "Parent Page ID",
-          "description": "The id of the PAGE the new database will live under (must be a page, not a database). Resolve it via notion_search.",
+          "label": "Parent Page",
+          "description": "The id of the PAGE the new database will live under (must be a page, not a database). Resolve it via Search Pages and Databases.",
           "required": true,
           "list": "pages"
         },
@@ -719,8 +744,8 @@
       "description": "Updates a Notion database's title and/or column schema (add, rename, retype, or remove properties) by id.",
       "inputs": {
         "database_id": {
-          "label": "Database ID",
-          "description": "The id of the database whose schema to update. Resolve it via notion_search (filter_type=database).",
+          "label": "Database",
+          "description": "The id of the database whose schema to update. Resolve it via Search Pages and Databases (Databases only).",
           "required": true,
           "list": "databases"
         },
@@ -730,7 +755,7 @@
         },
         "properties": {
           "label": "Properties (Schema Changes)",
-          "description": "Optional. A Notion property-schema patch: a map of property name to a type-config object. To ADD or RETYPE a column: { \"Priority\": { \"select\": { \"options\": [ { \"name\": \"High\" } ] } } }. To RENAME a column, key by its current name with { \"name\": \"New Name\" }. To REMOVE a column, key by its name with the value null (DESTRUCTIVE — drops that column's data). Run notion_get_database first to see current property names and types.",
+          "description": "Optional. A Notion property-schema patch: a map of property name to a type-config object. To ADD or RETYPE a column: { \"Priority\": { \"select\": { \"options\": [ { \"name\": \"High\" } ] } } }. To RENAME a column, key by its current name with { \"name\": \"New Name\" }. To REMOVE a column, key by its name with the value null (DESTRUCTIVE — drops that column's data). Run Get Database Schema first to see current property names and types.",
           "type": "json"
         }
       },
@@ -740,139 +765,6 @@
       },
       "beforeRequest": "var properties = inputs.properties ? JSON.parse(inputs.properties) : undefined;\nif (properties != null && (typeof properties != 'object' || Array.isArray(properties))) throw new Error('Properties must be a Notion property-schema JSON object (a map of property name to a type-config object, or null to remove a column).');\nif (!inputs.title && properties == null) throw new Error('Provide a new title and/or a properties schema patch — nothing to update.');\nrequest.body = Object.assign({}, inputs.title ? { title: [{ type: 'text', text: { content: inputs.title } }] } : {}, properties != null ? { properties: properties } : {});\nreturn request;",
       "afterResponse": "return { success: true, database: response };"
-    },
-    "notion_create_database_item": {
-      "label": "Create Database Item from Notion Properties",
-      "description": "Creates a new row (page) in a Notion database, setting its property values from a raw Notion properties object, with optional body content.",
-      "inputs": {
-        "database_id": {
-          "label": "Database ID",
-          "description": "The id of the database to add a row to. Resolve a database title into its id with notion_search (filter_type=database).",
-          "required": true,
-          "list": "databases"
-        },
-        "properties": {
-          "label": "Properties",
-          "description": "A Notion properties object: a map of property name to a typed value object matching the database schema. Example: { \"Name\": { \"title\": [ { \"text\": { \"content\": \"My task\" } } ] }, \"Status\": { \"status\": { \"name\": \"In Progress\" } }, \"Estimate\": { \"number\": 3 }, \"Tags\": { \"multi_select\": [ { \"name\": \"urgent\" } ] }, \"Due\": { \"date\": { \"start\": \"2026-07-01\" } } }. Run notion_get_database first to confirm property names and types.",
-          "type": "json",
-          "required": true
-        },
-        "content": {
-          "label": "Content",
-          "description": "Optional plain-text paragraph to append as the body of the new row (page).",
-          "type": "multiline"
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://api.notion.com/v1/pages",
-        "body": {
-          "parent": {
-            "type": "database_id",
-            "database_id": "{{database_id}}"
-          },
-          "properties": "{{properties}}"
-        }
-      },
-      "beforeRequest": "var paragraph = (content) => ({ object: 'block', type: 'paragraph', paragraph: { rich_text: [{ type: 'text', text: { content: content } }] } });\nvar value = request.body.properties;\nif (value == null || typeof value != 'object' || Array.isArray(value)) throw new Error('Properties must be a Notion properties JSON object (a map of property name to a typed value object). Run notion_get_database to learn the schema.');\nrequest.body.children = inputs.content ? [paragraph(inputs.content)] : [];\nreturn request;",
-      "afterResponse": "return { success: true, item: response };"
-    },
-    "notion_update_database_item": {
-      "label": "Update Database Item from Notion Properties",
-      "description": "Overwrites property values on an existing Notion database row, identified by its page id, from a raw Notion properties object.",
-      "inputs": {
-        "item_id": {
-          "label": "Item ID",
-          "description": "The page id of the database row to update. Resolve it via notion_query_database or notion_find_database_item.",
-          "required": true
-        },
-        "properties": {
-          "label": "Properties",
-          "description": "A Notion properties object with the values to set: a map of property name to a typed value object. Only the properties you include are changed; others are left untouched. Example: { \"Status\": { \"status\": { \"name\": \"Done\" } }, \"Estimate\": { \"number\": 5 } }. Run notion_get_database first to confirm property names and types.",
-          "type": "json",
-          "required": true
-        }
-      },
-      "request": {
-        "method": "PATCH",
-        "url": "https://api.notion.com/v1/pages/{{item_id}}",
-        "body": {
-          "properties": "{{properties}}"
-        }
-      },
-      "beforeRequest": "var value = request.body.properties;\nif (value == null || typeof value != 'object' || Array.isArray(value)) throw new Error('Properties must be a Notion properties JSON object (a map of property name to a typed value object). Run notion_get_database to learn the schema.');\nreturn request;",
-      "afterResponse": "return { success: true, item: response };"
-    },
-    "notion_find_database_item": {
-      "label": "Find Database Item by Notion Filter",
-      "description": "Finds rows in a Notion database matching a raw Notion filter object, returning the first match and all matches.",
-      "inputs": {
-        "database_id": {
-          "label": "Database ID",
-          "description": "The id of the database to search. Resolve a database title into its id with notion_search (filter_type=database).",
-          "required": true,
-          "list": "databases"
-        },
-        "filter": {
-          "label": "Filter",
-          "description": "A Notion query filter object. A single condition is { \"property\": \"Email\", \"email\": { \"equals\": \"a@b.com\" } }; compound is { \"and\": [ ...conditions ] } or { \"or\": [ ...conditions ] }. The condition key MUST match the property's type (e.g. title:{equals}, rich_text:{contains}, select:{equals}, status:{equals}, number:{equals}, checkbox:{equals}, date:{equals}, multi_select:{contains}). Run notion_get_database first to confirm property names and types.",
-          "type": "json",
-          "required": true
-        },
-        "page_size": {
-          "label": "Page Size",
-          "description": "Maximum number of rows to return (1–100). Defaults to 100.",
-          "type": "number"
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://api.notion.com/v1/databases/{{database_id}}/query",
-        "body": {
-          "filter": "{{filter}}",
-          "page_size": "{{page_size}}"
-        }
-      },
-      "beforeRequest": "var value = request.body.filter;\nif (value == null || typeof value != 'object' || Array.isArray(value)) throw new Error('Filter must be a Notion filter JSON object (e.g. { \"property\": \"Name\", \"title\": { \"equals\": \"Task 1\" } }). Run notion_get_database to learn the schema, or use notion_query_database to list without a filter.');\nreturn request;",
-      "afterResponse": "return { success: response.results.length > 0, results: response.results, count: response.results.length, firstMatch: response.results[0] != null ? response.results[0] : null, has_more: response.has_more, next_cursor: response.next_cursor };"
-    },
-    "notion_archive_database_item": {
-      "label": "Archive Database Item",
-      "description": "Archives (soft-deletes) a Notion database item by its page id, keeping it recoverable.",
-      "inputs": {
-        "item_id": {
-          "label": "Item ID",
-          "description": "The page id of the database row to archive. Resolve it via notion_query_database or notion_find_database_item.",
-          "required": true
-        }
-      },
-      "request": {
-        "method": "PATCH",
-        "url": "https://api.notion.com/v1/pages/{{item_id}}",
-        "body": {
-          "archived": true
-        }
-      },
-      "afterResponse": "var title = 'Database item', url;\nif ('properties' in response && response.properties) {\n  var first = Object.values(response.properties)[0];\n  if (first && typeof first == 'object' && 'title' in first && first.title) title = (first.title[0] && first.title[0].plain_text) || 'Untitled item';\n}\nif ('url' in response) url = response.url;\nreturn { success: true, message: '\"' + title + '\" has been archived successfully', archivedItem: { id: response.id, title: title, url: url, archived_at: new Date().toISOString() }, fullResponse: response };"
-    },
-    "notion_restore_database_item": {
-      "label": "Restore Database Item",
-      "description": "Restores an archived Notion database item back to active status by its page id.",
-      "inputs": {
-        "item_id": {
-          "label": "Item ID",
-          "description": "The page id of the archived database row to restore. Resolve it via notion_query_database (with an archived filter) or from the response of notion_archive_database_item.",
-          "required": true
-        }
-      },
-      "request": {
-        "method": "PATCH",
-        "url": "https://api.notion.com/v1/pages/{{item_id}}",
-        "body": {
-          "archived": false
-        }
-      },
-      "afterResponse": "var title = 'Database item', url;\nif ('properties' in response && response.properties) {\n  var first = Object.values(response.properties)[0];\n  if (first && typeof first == 'object' && 'title' in first && first.title) title = (first.title[0] && first.title[0].plain_text) || 'Untitled item';\n}\nif ('url' in response) url = response.url;\nreturn { success: true, message: '\"' + title + '\" has been successfully restored and is now active', restoredItem: { id: response.id, title: title, url: url, restored_at: new Date().toISOString() }, fullResponse: response };"
     }
   }
 }

@@ -69,6 +69,7 @@
     "create_lead": {
       "label": "Create Lead",
       "description": "Creates a new lead.",
+      "group": "Leads",
       "inputs": {
         "name": {
           "label": "Lead Name",
@@ -109,6 +110,7 @@
     "find_lead": {
       "label": "Find Leads by Name, Email or Status",
       "description": "Search for leads with advanced filtering options",
+      "group": "Leads",
       "inputs": {
         "search_type": {
           "label": "Search Type",
@@ -153,12 +155,13 @@
         "method": "POST",
         "url": "https://api.close.com/api/v1/data/search/"
       },
-      "beforeRequest": "const searchBody = (statusIds) => { const mode = (inputs.match_type || 'contains') === 'exact' ? 'phrase' : 'full_words'; let condition; switch (inputs.search_type) { case 'name': condition = { type: 'field_condition', field: { type: 'regular_field', object_type: 'lead', field_name: 'name' }, condition: { type: 'text', mode: mode, value: inputs.search_query } }; break; case 'contact_email': condition = { type: 'has_related', this_object_type: 'lead', related_object_type: 'contact', related_query: { type: 'has_related', this_object_type: 'contact', related_object_type: 'contact_email', related_query: { type: 'field_condition', field: { type: 'regular_field', object_type: 'contact_email', field_name: 'email' }, condition: { type: 'text', mode: 'phrase', value: inputs.search_query } } } }; break; case 'status': condition = { type: 'field_condition', field: { type: 'regular_field', object_type: 'lead', field_name: 'status_id' }, condition: { type: 'reference', reference_type: 'status.lead', object_ids: statusIds ?? [] } }; break; default: throw new Error(`Unsupported search type: ${inputs.search_type}`); } return { query: { type: 'and', queries: [{ type: 'object_type', object_type: 'lead' }, condition] }, _fields: { lead: ['id', 'name', 'status_label', 'contacts'], contact: ['id', 'name', 'emails', 'phones'] } }; };\nif (inputs.search_type === 'status') { request.method = 'GET'; request.url = '/status/lead/'; request.body = null; return request; }\nrequest.body = { _limit: 100, ...searchBody([]) };\nreturn request;",
-      "afterResponse": "const searchBody = (statusIds) => { const mode = (inputs.match_type || 'contains') === 'exact' ? 'phrase' : 'full_words'; let condition; switch (inputs.search_type) { case 'name': condition = { type: 'field_condition', field: { type: 'regular_field', object_type: 'lead', field_name: 'name' }, condition: { type: 'text', mode: mode, value: inputs.search_query } }; break; case 'contact_email': condition = { type: 'has_related', this_object_type: 'lead', related_object_type: 'contact', related_query: { type: 'has_related', this_object_type: 'contact', related_object_type: 'contact_email', related_query: { type: 'field_condition', field: { type: 'regular_field', object_type: 'contact_email', field_name: 'email' }, condition: { type: 'text', mode: 'phrase', value: inputs.search_query } } } }; break; case 'status': condition = { type: 'field_condition', field: { type: 'regular_field', object_type: 'lead', field_name: 'status_id' }, condition: { type: 'reference', reference_type: 'status.lead', object_ids: statusIds ?? [] } }; break; default: throw new Error(`Unsupported search type: ${inputs.search_type}`); } return { query: { type: 'and', queries: [{ type: 'object_type', object_type: 'lead' }, condition] }, _fields: { lead: ['id', 'name', 'status_label', 'contacts'], contact: ['id', 'name', 'emails', 'phones'] } }; };\nconst searchAll = (first, body) => { const result = []; let answer = first; for (;;) { const data = answer?.data; if (!data || data.length === 0) break; result.push(...data); const cursor = answer.cursor; if (!cursor) break; answer = call({ method: 'POST', url: '/data/search/', body: { _limit: 100, cursor, ...body } }); } return { found: result.length > 0, result }; };\nif (inputs.search_type !== 'status') return searchAll(response, searchBody([]));\nconst label = inputs.search_query.trim().toLowerCase(), exact = inputs.match_type === 'exact';\nconst ids = (response.data ?? []).filter((item) => { const own = item.label.toLowerCase(); return exact ? own === label : own.includes(label); }).map((item) => item.id);\nif (ids.length === 0) return { found: false, result: [] };\nconst body = searchBody(ids);\nreturn searchAll(call({ method: 'POST', url: '/data/search/', body: { _limit: 100, ...body } }), body);"
+      "beforeRequest": "const searchBody = () => { const mode = (inputs.match_type || 'contains') === 'exact' ? 'phrase' : 'full_words'; let condition; switch (inputs.search_type) { case 'name': condition = { type: 'field_condition', field: { type: 'regular_field', object_type: 'lead', field_name: 'name' }, condition: { type: 'text', mode: mode, value: inputs.search_query } }; break; case 'contact_email': condition = { type: 'has_related', this_object_type: 'lead', related_object_type: 'contact', related_query: { type: 'has_related', this_object_type: 'contact', related_object_type: 'contact_email', related_query: { type: 'field_condition', field: { type: 'regular_field', object_type: 'contact_email', field_name: 'email' }, condition: { type: 'text', mode: 'phrase', value: inputs.search_query } } } }; break; default: throw new Error(`Unsupported search type: ${inputs.search_type}`); } return { query: { type: 'and', queries: [{ type: 'object_type', object_type: 'lead' }, condition] }, _fields: { lead: ['id', 'name', 'status_label', 'contacts'], contact: ['id', 'name', 'emails', 'phones'] } }; };\nif (inputs.search_type === 'status') { request.method = 'GET'; request.url = '/status/lead/'; request.body = null; return request; }\nrequest.body = { _limit: 100, ...searchBody() };\nreturn request;",
+      "afterResponse": "const searchAll = (first, body) => { const result = []; let answer = first; for (;;) { const data = answer?.data; if (!data || data.length === 0) break; result.push(...data); const cursor = answer.cursor; if (!cursor) break; answer = call({ method: 'POST', url: '/data/search/', body: { _limit: 100, cursor, ...body } }); } return { found: result.length > 0, result }; };\nif (inputs.search_type !== 'status') { const { _limit, ...body } = request.body; return searchAll(response, body); }\nconst label = inputs.search_query.trim().toLowerCase(), exact = inputs.match_type === 'exact';\nconst ids = (response.data ?? []).filter((item) => { const own = item.label.toLowerCase(); return exact ? own === label : own.includes(label); }).map((item) => item.id);\nif (ids.length === 0) return { found: false, result: [] };\nconst body = { query: { type: 'and', queries: [{ type: 'object_type', object_type: 'lead' }, { type: 'field_condition', field: { type: 'regular_field', object_type: 'lead', field_name: 'status_id' }, condition: { type: 'reference', reference_type: 'status.lead', object_ids: ids } }] }, _fields: { lead: ['id', 'name', 'status_label', 'contacts'], contact: ['id', 'name', 'emails', 'phones'] } };\nreturn searchAll(call({ method: 'POST', url: '/data/search/', body: { _limit: 100, ...body } }), body);"
     },
     "create_opportunity": {
       "label": "Create Opportunity with Name",
       "description": "Create a new opportunity.",
+      "group": "Opportunities",
       "inputs": {
         "lead_id": {
           "label": "Lead",
@@ -246,6 +249,7 @@
     "create_contact": {
       "label": "Create Contact",
       "description": "Creates a new contact.",
+      "group": "Contacts",
       "inputs": {
         "lead_id": {
           "label": "Lead",
@@ -310,6 +314,7 @@
     "find_contact": {
       "label": "Find Contacts by Name, Email, Phone or Lead",
       "description": "Search for contacts by name, email, or other criteria with advanced filtering",
+      "group": "Contacts",
       "inputs": {
         "search_type": {
           "label": "Search Type",
@@ -359,14 +364,15 @@
         "url": "https://api.close.com/api/v1/data/search/"
       },
       "beforeRequest": "const searchBody = () => { const mode = (inputs.match_type || 'contains') === 'exact' ? 'phrase' : 'full_words'; let condition; switch (inputs.search_type) { case 'name': condition = { type: 'field_condition', field: { type: 'regular_field', object_type: 'contact', field_name: 'name' }, condition: { type: 'text', mode: mode, value: inputs.search_query } }; break; case 'email': condition = { type: 'has_related', this_object_type: 'contact', related_object_type: 'contact_email', related_query: { type: 'field_condition', field: { type: 'regular_field', object_type: 'contact_email', field_name: 'email' }, condition: { type: 'text', mode: 'phrase', value: inputs.search_query } } }; break; case 'phone': condition = { type: 'has_related', this_object_type: 'contact', related_object_type: 'contact_phone', related_query: { type: 'field_condition', field: { type: 'regular_field', object_type: 'contact_phone', field_name: 'phone' }, condition: { type: 'text', mode: 'phrase', value: inputs.search_query } } }; break; case 'lead_id': condition = { type: 'field_condition', field: { type: 'regular_field', object_type: 'contact', field_name: 'lead_id' }, condition: { type: 'reference', reference_type: 'lead', object_ids: [inputs.search_query.trim()] } }; break; default: throw new Error(`Unsupported search type: ${inputs.search_type}`); } return { query: { type: 'and', queries: [{ type: 'object_type', object_type: 'contact' }, condition] }, _fields: { lead: ['id', 'name', 'status_label', 'contacts'], contact: ['title', 'id', 'name', 'emails', 'lead_id', 'phones'] } }; };\nrequest.body = { _limit: 100, ...searchBody() };\nreturn request;",
-      "afterResponse": "const searchBody = () => { const mode = (inputs.match_type || 'contains') === 'exact' ? 'phrase' : 'full_words'; let condition; switch (inputs.search_type) { case 'name': condition = { type: 'field_condition', field: { type: 'regular_field', object_type: 'contact', field_name: 'name' }, condition: { type: 'text', mode: mode, value: inputs.search_query } }; break; case 'email': condition = { type: 'has_related', this_object_type: 'contact', related_object_type: 'contact_email', related_query: { type: 'field_condition', field: { type: 'regular_field', object_type: 'contact_email', field_name: 'email' }, condition: { type: 'text', mode: 'phrase', value: inputs.search_query } } }; break; case 'phone': condition = { type: 'has_related', this_object_type: 'contact', related_object_type: 'contact_phone', related_query: { type: 'field_condition', field: { type: 'regular_field', object_type: 'contact_phone', field_name: 'phone' }, condition: { type: 'text', mode: 'phrase', value: inputs.search_query } } }; break; case 'lead_id': condition = { type: 'field_condition', field: { type: 'regular_field', object_type: 'contact', field_name: 'lead_id' }, condition: { type: 'reference', reference_type: 'lead', object_ids: [inputs.search_query.trim()] } }; break; default: throw new Error(`Unsupported search type: ${inputs.search_type}`); } return { query: { type: 'and', queries: [{ type: 'object_type', object_type: 'contact' }, condition] }, _fields: { lead: ['id', 'name', 'status_label', 'contacts'], contact: ['title', 'id', 'name', 'emails', 'lead_id', 'phones'] } }; };\nconst searchAll = (first, body) => { const result = []; let answer = first; for (;;) { const data = answer?.data; if (!data || data.length === 0) break; result.push(...data); const cursor = answer.cursor; if (!cursor) break; answer = call({ method: 'POST', url: '/data/search/', body: { _limit: 100, cursor, ...body } }); } return { found: result.length > 0, result }; };\nreturn searchAll(response, searchBody());"
+      "afterResponse": "const searchAll = (first, body) => { const result = []; let answer = first; for (;;) { const data = answer?.data; if (!data || data.length === 0) break; result.push(...data); const cursor = answer.cursor; if (!cursor) break; answer = call({ method: 'POST', url: '/data/search/', body: { _limit: 100, cursor, ...body } }); } return { found: result.length > 0, result }; };\nconst { _limit, ...body } = request.body;\nreturn searchAll(response, body);"
     },
     "create_note": {
       "label": "Create Note",
       "description": "Add a note to a lead in Close.",
+      "group": "Activities",
       "inputs": {
         "leadId": {
-          "label": "Lead ID",
+          "label": "Lead",
           "required": true,
           "list": "leads"
         },
@@ -395,25 +401,26 @@
     "create_opportunity_ai": {
       "label": "Create Opportunity with Close Date",
       "description": "Create an opportunity (deal) on a lead.",
+      "group": "Opportunities",
       "inputs": {
         "leadId": {
-          "label": "Lead ID",
-          "description": "Lead to attach the opportunity to (lead_...).",
+          "label": "Lead",
+          "description": "The lead to attach the opportunity to.",
           "required": true,
           "list": "leads"
         },
         "statusId": {
-          "label": "Status ID",
-          "description": "Opportunity status ID (stat_...). Use List Pipelines to find IDs.",
+          "label": "Status",
+          "description": "The opportunity's status.",
           "list": "opportunity_statuses"
         },
         "contactId": {
           "label": "Contact ID",
-          "description": "Contact on the lead (cont_...)."
+          "description": "The ID of a contact on the lead, which starts with cont_."
         },
         "userId": {
-          "label": "Owner User ID",
-          "description": "User who owns the opportunity (user_...).",
+          "label": "Owner",
+          "description": "The user who owns the opportunity.",
           "list": "users"
         },
         "valueCents": {
@@ -457,10 +464,11 @@
     "create_task": {
       "label": "Create Task",
       "description": "Create a to-do task on a lead.",
+      "group": "Tasks",
       "inputs": {
         "leadId": {
-          "label": "Lead ID",
-          "description": "lead_...",
+          "label": "Lead",
+          "description": "The lead's ID, which starts with lead_.",
           "required": true,
           "list": "leads"
         },
@@ -470,8 +478,8 @@
           "required": true
         },
         "assignedTo": {
-          "label": "Assigned To (user ID)",
-          "description": "user_...",
+          "label": "Assigned To",
+          "description": "The user's ID, which starts with user_.",
           "list": "users"
         },
         "date": {
@@ -496,6 +504,7 @@
     "delete_activity": {
       "label": "Delete Activity",
       "description": "Permanently delete a note, call, email, SMS or meeting.",
+      "group": "Activities",
       "inputs": {
         "activityType": {
           "label": "Activity Type",
@@ -539,10 +548,11 @@
     "delete_contact": {
       "label": "Delete Contact",
       "description": "Permanently delete a contact person from its lead.",
+      "group": "Contacts",
       "inputs": {
         "contactId": {
           "label": "Contact ID",
-          "description": "cont_...",
+          "description": "The contact's ID, which starts with cont_.",
           "required": true
         }
       },
@@ -556,10 +566,11 @@
     "delete_lead": {
       "label": "Delete Lead",
       "description": "Permanently delete a lead with its contacts, opportunities, tasks and activities.",
+      "group": "Leads",
       "inputs": {
         "leadId": {
-          "label": "Lead ID",
-          "description": "lead_...",
+          "label": "Lead",
+          "description": "The lead's ID, which starts with lead_.",
           "required": true,
           "list": "leads"
         }
@@ -573,11 +584,12 @@
     },
     "delete_opportunity": {
       "label": "Delete Opportunity",
-      "description": "Permanently delete a opportunity.",
+      "description": "Permanently delete an opportunity.",
+      "group": "Opportunities",
       "inputs": {
         "opportunityId": {
           "label": "Opportunity ID",
-          "description": "oppo_...",
+          "description": "The opportunity's ID, which starts with oppo_.",
           "required": true
         }
       },
@@ -591,10 +603,11 @@
     "delete_task": {
       "label": "Delete Task",
       "description": "Permanently delete a task.",
+      "group": "Tasks",
       "inputs": {
         "taskId": {
           "label": "Task ID",
-          "description": "task_...",
+          "description": "The task's ID, which starts with task_.",
           "required": true
         }
       },
@@ -608,6 +621,7 @@
     "get_activity": {
       "label": "Get Activity",
       "description": "Get one note, call, email, SMS or meeting by ID.",
+      "group": "Activities",
       "inputs": {
         "activityType": {
           "label": "Activity Type",
@@ -653,10 +667,11 @@
     "get_contact": {
       "label": "Get Contact",
       "description": "Get one contact by its ID.",
+      "group": "Contacts",
       "inputs": {
         "contactId": {
           "label": "Contact ID",
-          "description": "cont_...",
+          "description": "The contact's ID, which starts with cont_.",
           "required": true
         }
       },
@@ -672,6 +687,7 @@
     "get_current_user": {
       "label": "Get Current User",
       "description": "Get the Close user who owns the API key.",
+      "group": "Account",
       "inputs": {},
       "request": {
         "url": "https://api.close.com/api/v1/me/",
@@ -688,10 +704,11 @@
     "get_lead": {
       "label": "Get Lead",
       "description": "Get one lead by its ID.",
+      "group": "Leads",
       "inputs": {
         "leadId": {
-          "label": "Lead ID",
-          "description": "lead_...",
+          "label": "Lead",
+          "description": "The lead's ID, which starts with lead_.",
           "required": true,
           "list": "leads"
         }
@@ -708,10 +725,11 @@
     "get_opportunity": {
       "label": "Get Opportunity",
       "description": "Get one opportunity by ID.",
+      "group": "Opportunities",
       "inputs": {
         "opportunityId": {
           "label": "Opportunity ID",
-          "description": "oppo_...",
+          "description": "The opportunity's ID, which starts with oppo_.",
           "required": true
         }
       },
@@ -727,10 +745,11 @@
     "get_task": {
       "label": "Get Task",
       "description": "Get one task by ID.",
+      "group": "Tasks",
       "inputs": {
         "taskId": {
           "label": "Task ID",
-          "description": "task_...",
+          "description": "The task's ID, which starts with task_.",
           "required": true
         }
       },
@@ -746,9 +765,10 @@
     "list_activities": {
       "label": "List Activities",
       "description": "List notes, calls, emails, SMS and meetings, newest first.",
+      "group": "Activities",
       "inputs": {
         "leadId": {
-          "label": "Lead ID",
+          "label": "Lead",
           "list": "leads"
         },
         "type": {
@@ -781,7 +801,7 @@
           "label": "Contact ID"
         },
         "userId": {
-          "label": "User ID",
+          "label": "User",
           "list": "users"
         },
         "createdAfter": {
@@ -809,17 +829,18 @@
     "list_opportunities": {
       "label": "List Opportunities",
       "description": "List opportunities with optional filters.",
+      "group": "Opportunities",
       "inputs": {
         "leadId": {
-          "label": "Lead ID",
+          "label": "Lead",
           "list": "leads"
         },
         "userId": {
-          "label": "Owner User ID",
+          "label": "Owner",
           "list": "users"
         },
         "statusId": {
-          "label": "Status ID",
+          "label": "Status",
           "list": "opportunity_statuses"
         },
         "statusType": {
@@ -854,6 +875,7 @@
     "list_sequence_subscriptions": {
       "label": "List Sequence Subscriptions",
       "description": "List sequence subscriptions for a sequence, contact or lead.",
+      "group": "Sequences",
       "inputs": {
         "sequenceId": {
           "label": "Sequence ID"
@@ -862,7 +884,7 @@
           "label": "Contact ID"
         },
         "leadId": {
-          "label": "Lead ID",
+          "label": "Lead",
           "list": "leads"
         },
         "limit": {
@@ -885,6 +907,7 @@
     "list_sequences": {
       "label": "List Sequences",
       "description": "List email/call sequences (workflows).",
+      "group": "Sequences",
       "inputs": {
         "limit": {
           "label": "Limit",
@@ -906,6 +929,7 @@
     "list_smart_views": {
       "label": "List Smart Views",
       "description": "List saved Smart Views.",
+      "group": "Account",
       "inputs": {
         "type": {
           "label": "Type",
@@ -978,13 +1002,14 @@
     "list_tasks": {
       "label": "List Tasks",
       "description": "List tasks with optional filters.",
+      "group": "Tasks",
       "inputs": {
         "leadId": {
-          "label": "Lead ID",
+          "label": "Lead",
           "list": "leads"
         },
         "assignedTo": {
-          "label": "Assigned To (user ID)",
+          "label": "Assigned To",
           "list": "users"
         },
         "isComplete": {
@@ -1029,6 +1054,7 @@
     "list_users": {
       "label": "List Users",
       "description": "List the users in your Close organization.",
+      "group": "Account",
       "inputs": {
         "limit": {
           "label": "Limit",
@@ -1050,9 +1076,10 @@
     "log_call": {
       "label": "Log Call",
       "description": "Record a call made outside Close on a lead.",
+      "group": "Activities",
       "inputs": {
         "leadId": {
-          "label": "Lead ID",
+          "label": "Lead",
           "required": true,
           "list": "leads"
         },
@@ -1101,9 +1128,10 @@
     "log_email": {
       "label": "Log Email",
       "description": "Record an email that was already sent or received, without sending anything.",
+      "group": "Activities",
       "inputs": {
         "leadId": {
-          "label": "Lead ID",
+          "label": "Lead",
           "required": true,
           "list": "leads"
         },
@@ -1159,6 +1187,7 @@
     "pause_sequence_subscription": {
       "label": "Pause Sequence Subscription",
       "description": "Pause a contact sequence subscription.",
+      "group": "Sequences",
       "inputs": {
         "subscriptionId": {
           "label": "Subscription ID",
@@ -1180,8 +1209,9 @@
       "beforeRequest": "const optionalText = (value) => { if (typeof value === 'number' && Number.isFinite(value)) return String(value); if (typeof value !== 'string') return undefined; const trimmed = value.trim(); return trimmed === '' ? undefined : trimmed; };\nconst requiredText = (value, label) => { const text = optionalText(value); if (text === undefined) throw new Error(`${label} is required.`); return text; };\nconst closeId = (value, label, prefix) => { const id = requiredText(value, label); if (!/^[A-Za-z0-9_-]+$/.test(id) || (prefix !== undefined && !id.startsWith(`${prefix}_`))) throw new Error(`${label} must be a Close ID${prefix ? ` starting with \"${prefix}_\"` : ''}, e.g. ${prefix ?? 'lead'}_abc123.`); return id; };\nconst lastSegment = (url, value) => url.replace(/[^/]*\\/$/, `${value}/`);\nrequest.url = lastSegment(request.url, closeId(inputs.subscriptionId, 'Subscription ID', 'sub'));\nreturn request;"
     },
     "search_contacts": {
-      "label": "Search Contacts by Text and Lead, One Page",
-      "description": "Find contacts by text and/or lead.",
+      "label": "Search Contacts",
+      "description": "Find contacts by text and/or lead, one page at a time.",
+      "group": "Contacts",
       "inputs": {
         "text": {
           "label": "Text",
@@ -1194,8 +1224,8 @@
           "defaultValue": "false"
         },
         "leadId": {
-          "label": "Lead ID",
-          "description": "Only contacts of this lead_...",
+          "label": "Lead",
+          "description": "Only contacts of this lead.",
           "list": "leads"
         },
         "limit": {
@@ -1219,8 +1249,9 @@
       }
     },
     "search_leads": {
-      "label": "Search Leads by Text and Status, One Page",
-      "description": "Find leads by text and/or status.",
+      "label": "Search Leads",
+      "description": "Find leads by text and/or status, one page at a time.",
+      "group": "Leads",
       "inputs": {
         "text": {
           "label": "Text",
@@ -1233,8 +1264,8 @@
           "defaultValue": "false"
         },
         "statusId": {
-          "label": "Lead Status ID",
-          "description": "stat_... from List Lead Statuses.",
+          "label": "Lead Status",
+          "description": "Only leads with this status.",
           "list": "lead_statuses"
         },
         "limit": {
@@ -1260,9 +1291,10 @@
     "send_sms": {
       "label": "Send SMS",
       "description": "Send a real text message (not just a log entry) to a lead from a Close phone number.",
+      "group": "Activities",
       "inputs": {
         "leadId": {
-          "label": "Lead ID",
+          "label": "Lead",
           "required": true,
           "list": "leads"
         },
@@ -1296,6 +1328,7 @@
     "subscribe_contact_to_sequence": {
       "label": "Subscribe Contact to Sequence",
       "description": "Enroll a contact in a Close sequence (workflow).",
+      "group": "Sequences",
       "inputs": {
         "sequenceId": {
           "label": "Sequence ID",
@@ -1341,10 +1374,11 @@
     "update_contact": {
       "label": "Update Contact",
       "description": "Change the name, title, email, phone or custom fields of a contact.",
+      "group": "Contacts",
       "inputs": {
         "contactId": {
           "label": "Contact ID",
-          "description": "cont_...",
+          "description": "The contact's ID, which starts with cont_.",
           "required": true
         },
         "name": {
@@ -1368,7 +1402,7 @@
         },
         "customFields": {
           "label": "Custom Fields",
-          "description": "Object of cf_... id to value; null clears a field.",
+          "description": "Object of custom field ID (cf_...) to value; null clears a field.",
           "type": "json"
         }
       },
@@ -1385,10 +1419,11 @@
     "update_lead": {
       "label": "Update Lead",
       "description": "Change the name, status, website, description or custom fields of a lead.",
+      "group": "Leads",
       "inputs": {
         "leadId": {
-          "label": "Lead ID",
-          "description": "lead_...",
+          "label": "Lead",
+          "description": "The lead's ID, which starts with lead_.",
           "required": true,
           "list": "leads"
         },
@@ -1405,13 +1440,13 @@
           "description": "Pass a space to clear it."
         },
         "statusId": {
-          "label": "Lead Status ID",
-          "description": "stat_... from List Lead Statuses.",
+          "label": "Lead Status",
+          "description": "The lead's status.",
           "list": "lead_statuses"
         },
         "customFields": {
           "label": "Custom Fields",
-          "description": "Object of cf_... id to value; null clears a field.",
+          "description": "Object of custom field ID (cf_...) to value; null clears a field.",
           "type": "json"
         }
       },
@@ -1428,6 +1463,7 @@
     "update_note": {
       "label": "Update Note",
       "description": "Replace the text of a note in Close.",
+      "group": "Activities",
       "inputs": {
         "noteId": {
           "label": "Note ID",
@@ -1452,24 +1488,25 @@
     "update_opportunity": {
       "label": "Update Opportunity",
       "description": "Change fields on an opportunity.",
+      "group": "Opportunities",
       "inputs": {
         "opportunityId": {
           "label": "Opportunity ID",
-          "description": "oppo_...",
+          "description": "The opportunity's ID, which starts with oppo_.",
           "required": true
         },
         "statusId": {
-          "label": "Status ID",
-          "description": "Opportunity status ID (stat_...). Use List Pipelines to find IDs.",
+          "label": "Status",
+          "description": "The opportunity's status.",
           "list": "opportunity_statuses"
         },
         "contactId": {
           "label": "Contact ID",
-          "description": "Contact on the lead (cont_...)."
+          "description": "The ID of a contact on the lead, which starts with cont_."
         },
         "userId": {
-          "label": "Owner User ID",
-          "description": "User who owns the opportunity (user_...).",
+          "label": "Owner",
+          "description": "The user who owns the opportunity.",
           "list": "users"
         },
         "valueCents": {
@@ -1514,10 +1551,11 @@
     "update_task": {
       "label": "Update Task",
       "description": "Change, reassign or complete a task.",
+      "group": "Tasks",
       "inputs": {
         "taskId": {
           "label": "Task ID",
-          "description": "task_...",
+          "description": "The task's ID, which starts with task_.",
           "required": true
         },
         "text": {
@@ -1525,8 +1563,8 @@
           "type": "multiline"
         },
         "assignedTo": {
-          "label": "Assigned To (user ID)",
-          "description": "user_...",
+          "label": "Assigned To",
+          "description": "The user's ID, which starts with user_.",
           "list": "users"
         },
         "date": {
@@ -1551,6 +1589,7 @@
     "list_custom_activity_types": {
       "label": "List Custom Activity Types",
       "description": "List the custom activity types defined in Close.",
+      "group": "Activities",
       "inputs": {},
       "request": {
         "url": "https://api.close.com/api/v1/custom_activity/",
@@ -1564,6 +1603,7 @@
     "list_custom_fields": {
       "label": "List Custom Fields",
       "description": "List the custom fields for leads, contacts, opportunities or activities.",
+      "group": "Account",
       "inputs": {
         "objectType": {
           "label": "Object Type",
@@ -1607,6 +1647,7 @@
     "list_lead_statuses": {
       "label": "List Lead Statuses",
       "description": "List the lead statuses defined in Close.",
+      "group": "Leads",
       "inputs": {},
       "request": {
         "url": "https://api.close.com/api/v1/status/lead/",
@@ -1620,6 +1661,7 @@
     "list_pipelines": {
       "label": "List Pipelines",
       "description": "List opportunity pipelines and their statuses.",
+      "group": "Opportunities",
       "inputs": {},
       "request": {
         "url": "https://api.close.com/api/v1/pipeline/",
@@ -1633,16 +1675,17 @@
     "merge_leads": {
       "label": "Merge Leads",
       "description": "Merge a duplicate lead into another lead.",
+      "group": "Leads",
       "inputs": {
         "sourceLeadId": {
-          "label": "Source Lead ID",
-          "description": "lead_... to merge away (it is deleted).",
+          "label": "Source Lead",
+          "description": "The lead to merge away, which is deleted.",
           "required": true,
           "list": "leads"
         },
         "destinationLeadId": {
-          "label": "Destination Lead ID",
-          "description": "lead_... that is kept.",
+          "label": "Destination Lead",
+          "description": "The lead that is kept.",
           "required": true,
           "list": "leads"
         }
@@ -1656,6 +1699,83 @@
       "outputs": {
         "id": "$.id"
       }
+    }
+  },
+  "triggers": {
+    "new_lead_created": {
+      "label": "New Lead Created",
+      "description": "Triggers when a new lead is created.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.close.com/api/v1/webhook/",
+          "body": {
+            "url": "{{webhookUrl}}",
+            "events": [
+              {
+                "object_type": "lead",
+                "action": "created"
+              }
+            ]
+          }
+        },
+        "afterResponse": "const storeKey = 'new-lead-trigger';\nif (typeof response?.id !== 'string' || typeof response.signature_key !== 'string') throw new Error('Close did not return a webhook ID and signature key.');\nmemory[storeKey] = { id: response.id, signatureKey: response.signature_key };\nreturn response.id;",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.close.com/api/v1/webhook/{{webhookId}}/"
+        }
+      },
+      "afterResponse": "const storeKey = 'new-lead-trigger', objectType = 'lead';\nconst isRecord = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);\nconst utf8 = (text) => { const bytes = []; for (const character of text) { let code = character.codePointAt(0); if (code >= 0xd800 && code <= 0xdfff) code = 0xfffd; if (code < 0x80) bytes.push(code); else if (code < 0x800) bytes.push(0xc0 | (code >> 6), 0x80 | (code & 63)); else if (code < 0x10000) bytes.push(0xe0 | (code >> 12), 0x80 | ((code >> 6) & 63), 0x80 | (code & 63)); else bytes.push(0xf0 | (code >> 18), 0x80 | ((code >> 12) & 63), 0x80 | ((code >> 6) & 63), 0x80 | (code & 63)); } return bytes; };\nconst sha256 = (message) => {\n  const rounds = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];\n  let state = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];\n  const bytes = [...message], bits = bytes.length * 8;\n  bytes.push(0x80);\n  while (bytes.length % 64 !== 56) bytes.push(0);\n  for (let shift = 7; shift >= 0; shift--) bytes.push(Math.floor(bits / 2 ** (8 * shift)) & 255);\n  const rotate = (word, count) => (word >>> count) | (word << (32 - count));\n  for (let block = 0; block < bytes.length; block += 64) {\n    const words = [];\n    for (let index = 0; index < 16; index++) words[index] = (bytes[block + 4 * index] << 24) | (bytes[block + 4 * index + 1] << 16) | (bytes[block + 4 * index + 2] << 8) | bytes[block + 4 * index + 3];\n    for (let index = 16; index < 64; index++) words[index] = (words[index - 16] + (rotate(words[index - 15], 7) ^ rotate(words[index - 15], 18) ^ (words[index - 15] >>> 3)) + words[index - 7] + (rotate(words[index - 2], 17) ^ rotate(words[index - 2], 19) ^ (words[index - 2] >>> 10))) | 0;\n    let [a, b, c, d, e, f, g, h] = state;\n    for (let index = 0; index < 64; index++) {\n      const first = (h + (rotate(e, 6) ^ rotate(e, 11) ^ rotate(e, 25)) + ((e & f) ^ (~e & g)) + rounds[index] + words[index]) | 0;\n      const second = ((rotate(a, 2) ^ rotate(a, 13) ^ rotate(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) | 0;\n      h = g; g = f; f = e; e = (d + first) | 0; d = c; c = b; b = a; a = (first + second) | 0;\n    }\n    state = state.map((word, index) => (word + [a, b, c, d, e, f, g, h][index]) | 0);\n  }\n  return state.flatMap((word) => [word >>> 24 & 255, word >>> 16 & 255, word >>> 8 & 255, word & 255]);\n};\nconst hmac = (key, message) => { const padded = [...(key.length > 64 ? sha256(key) : key)]; while (padded.length < 64) padded.push(0); return sha256([...padded.map((byte) => byte ^ 0x5c), ...sha256([...padded.map((byte) => byte ^ 0x36), ...message])]); };\nconst hexBytes = (hex) => { const bytes = []; for (let index = 0; index + 1 < hex.length && /^[0-9a-f]{2}$/i.test(hex.substr(index, 2)); index += 2) bytes.push(parseInt(hex.substr(index, 2), 16)); return bytes; };\n// Close signs each delivery with the key it gave when the trigger subscribed.\nconst signed = () => {\n  const signatureKey = isRecord(memory[storeKey]) ? memory[storeKey].signatureKey : undefined, timestamp = received.headers['close-sig-timestamp'], hash = received.headers['close-sig-hash'], body = received.text;\n  if (!signatureKey || !timestamp || !hash || !body || !/^[0-9a-f]+$/i.test(hash)) return false;\n  const digest = hmac(hexBytes(signatureKey), utf8(timestamp + body)), given = hexBytes(hash);\n  return given.length === digest.length && given.every((byte, index) => byte === digest[index]);\n};\nif (!signed()) return [];\nconst event = isRecord(response) ? response.event : undefined;\nif (!isRecord(event) || event.object_type !== objectType || event.action !== 'created') return [];\nconst objectId = typeof event.object_id === 'string' ? event.object_id : isRecord(event.data) && typeof event.data.id === 'string' ? event.data.id : undefined;\nif (!objectId) return [];\n// Close may deliver an event again for up to 72 hours, so the events of the last 73 hours are remembered by hour.\nconst eventId = typeof event.id === 'string' ? event.id : objectId;\nif (memory[`${storeKey}-seen:${eventId}`]) return [];\nconst record = call({ method: 'GET', url: `/${objectType}/${encodeURIComponent(objectId)}/` });\nmemory[`${storeKey}-seen:${eventId}`] = true;\nconst hour = Math.floor(Date.now() / 3600000), bucket = (of) => `${storeKey}-seen-hour:${of}`;\nconst idsOf = (value) => Array.isArray(value) ? value.filter((id) => typeof id === 'string') : [];\nconst hours = Array.isArray(memory[`${storeKey}-seen-hours`]) ? memory[`${storeKey}-seen-hours`].filter(Number.isInteger) : [];\nif (!idsOf(memory[bucket(hour)]).includes(eventId)) memory[bucket(hour)] = [...idsOf(memory[bucket(hour)]), eventId];\nconst expired = hours.filter((of) => of < hour - 73).slice(0, 24);\nexpired.forEach((of) => { idsOf(memory[bucket(of)]).forEach((id) => delete memory[`${storeKey}-seen:${id}`]); delete memory[bucket(of)]; });\nif (expired.length > 0 || !hours.includes(hour)) memory[`${storeKey}-seen-hours`] = [...hours.filter((of) => !expired.includes(of) && of !== hour), hour];\nconst item = objectType === 'lead' || !isRecord(record) ? record : { ...record, custom: Object.fromEntries(Object.entries(record).filter(([key]) => key.startsWith('custom.')).map(([key, value]) => [key.slice(7), value])) };\nreturn [isRecord(item) ? { ...item, _dedupe_key: `close:${objectType}:${eventId}` } : item];"
+    },
+    "new_contact_added": {
+      "label": "New Contact Added",
+      "description": "Triggers when a new contact is created.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.close.com/api/v1/webhook/",
+          "body": {
+            "url": "{{webhookUrl}}",
+            "events": [
+              {
+                "object_type": "contact",
+                "action": "created"
+              }
+            ]
+          }
+        },
+        "afterResponse": "const storeKey = 'new-contact-trigger';\nif (typeof response?.id !== 'string' || typeof response.signature_key !== 'string') throw new Error('Close did not return a webhook ID and signature key.');\nmemory[storeKey] = { id: response.id, signatureKey: response.signature_key };\nreturn response.id;",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.close.com/api/v1/webhook/{{webhookId}}/"
+        }
+      },
+      "afterResponse": "const storeKey = 'new-contact-trigger', objectType = 'contact';\nconst isRecord = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);\nconst utf8 = (text) => { const bytes = []; for (const character of text) { let code = character.codePointAt(0); if (code >= 0xd800 && code <= 0xdfff) code = 0xfffd; if (code < 0x80) bytes.push(code); else if (code < 0x800) bytes.push(0xc0 | (code >> 6), 0x80 | (code & 63)); else if (code < 0x10000) bytes.push(0xe0 | (code >> 12), 0x80 | ((code >> 6) & 63), 0x80 | (code & 63)); else bytes.push(0xf0 | (code >> 18), 0x80 | ((code >> 12) & 63), 0x80 | ((code >> 6) & 63), 0x80 | (code & 63)); } return bytes; };\nconst sha256 = (message) => {\n  const rounds = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];\n  let state = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];\n  const bytes = [...message], bits = bytes.length * 8;\n  bytes.push(0x80);\n  while (bytes.length % 64 !== 56) bytes.push(0);\n  for (let shift = 7; shift >= 0; shift--) bytes.push(Math.floor(bits / 2 ** (8 * shift)) & 255);\n  const rotate = (word, count) => (word >>> count) | (word << (32 - count));\n  for (let block = 0; block < bytes.length; block += 64) {\n    const words = [];\n    for (let index = 0; index < 16; index++) words[index] = (bytes[block + 4 * index] << 24) | (bytes[block + 4 * index + 1] << 16) | (bytes[block + 4 * index + 2] << 8) | bytes[block + 4 * index + 3];\n    for (let index = 16; index < 64; index++) words[index] = (words[index - 16] + (rotate(words[index - 15], 7) ^ rotate(words[index - 15], 18) ^ (words[index - 15] >>> 3)) + words[index - 7] + (rotate(words[index - 2], 17) ^ rotate(words[index - 2], 19) ^ (words[index - 2] >>> 10))) | 0;\n    let [a, b, c, d, e, f, g, h] = state;\n    for (let index = 0; index < 64; index++) {\n      const first = (h + (rotate(e, 6) ^ rotate(e, 11) ^ rotate(e, 25)) + ((e & f) ^ (~e & g)) + rounds[index] + words[index]) | 0;\n      const second = ((rotate(a, 2) ^ rotate(a, 13) ^ rotate(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) | 0;\n      h = g; g = f; f = e; e = (d + first) | 0; d = c; c = b; b = a; a = (first + second) | 0;\n    }\n    state = state.map((word, index) => (word + [a, b, c, d, e, f, g, h][index]) | 0);\n  }\n  return state.flatMap((word) => [word >>> 24 & 255, word >>> 16 & 255, word >>> 8 & 255, word & 255]);\n};\nconst hmac = (key, message) => { const padded = [...(key.length > 64 ? sha256(key) : key)]; while (padded.length < 64) padded.push(0); return sha256([...padded.map((byte) => byte ^ 0x5c), ...sha256([...padded.map((byte) => byte ^ 0x36), ...message])]); };\nconst hexBytes = (hex) => { const bytes = []; for (let index = 0; index + 1 < hex.length && /^[0-9a-f]{2}$/i.test(hex.substr(index, 2)); index += 2) bytes.push(parseInt(hex.substr(index, 2), 16)); return bytes; };\n// Close signs each delivery with the key it gave when the trigger subscribed.\nconst signed = () => {\n  const signatureKey = isRecord(memory[storeKey]) ? memory[storeKey].signatureKey : undefined, timestamp = received.headers['close-sig-timestamp'], hash = received.headers['close-sig-hash'], body = received.text;\n  if (!signatureKey || !timestamp || !hash || !body || !/^[0-9a-f]+$/i.test(hash)) return false;\n  const digest = hmac(hexBytes(signatureKey), utf8(timestamp + body)), given = hexBytes(hash);\n  return given.length === digest.length && given.every((byte, index) => byte === digest[index]);\n};\nif (!signed()) return [];\nconst event = isRecord(response) ? response.event : undefined;\nif (!isRecord(event) || event.object_type !== objectType || event.action !== 'created') return [];\nconst objectId = typeof event.object_id === 'string' ? event.object_id : isRecord(event.data) && typeof event.data.id === 'string' ? event.data.id : undefined;\nif (!objectId) return [];\n// Close may deliver an event again for up to 72 hours, so the events of the last 73 hours are remembered by hour.\nconst eventId = typeof event.id === 'string' ? event.id : objectId;\nif (memory[`${storeKey}-seen:${eventId}`]) return [];\nconst record = call({ method: 'GET', url: `/${objectType}/${encodeURIComponent(objectId)}/` });\nmemory[`${storeKey}-seen:${eventId}`] = true;\nconst hour = Math.floor(Date.now() / 3600000), bucket = (of) => `${storeKey}-seen-hour:${of}`;\nconst idsOf = (value) => Array.isArray(value) ? value.filter((id) => typeof id === 'string') : [];\nconst hours = Array.isArray(memory[`${storeKey}-seen-hours`]) ? memory[`${storeKey}-seen-hours`].filter(Number.isInteger) : [];\nif (!idsOf(memory[bucket(hour)]).includes(eventId)) memory[bucket(hour)] = [...idsOf(memory[bucket(hour)]), eventId];\nconst expired = hours.filter((of) => of < hour - 73).slice(0, 24);\nexpired.forEach((of) => { idsOf(memory[bucket(of)]).forEach((id) => delete memory[`${storeKey}-seen:${id}`]); delete memory[bucket(of)]; });\nif (expired.length > 0 || !hours.includes(hour)) memory[`${storeKey}-seen-hours`] = [...hours.filter((of) => !expired.includes(of) && of !== hour), hour];\nconst item = objectType === 'lead' || !isRecord(record) ? record : { ...record, custom: Object.fromEntries(Object.entries(record).filter(([key]) => key.startsWith('custom.')).map(([key, value]) => [key.slice(7), value])) };\nreturn [isRecord(item) ? { ...item, _dedupe_key: `close:${objectType}:${eventId}` } : item];"
+    },
+    "new_opportunity_added": {
+      "label": "New Opportunity Added",
+      "description": "Triggers when a new opportunity is created.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.close.com/api/v1/webhook/",
+          "body": {
+            "url": "{{webhookUrl}}",
+            "events": [
+              {
+                "object_type": "opportunity",
+                "action": "created"
+              }
+            ]
+          }
+        },
+        "afterResponse": "const storeKey = 'new-opportunity-trigger';\nif (typeof response?.id !== 'string' || typeof response.signature_key !== 'string') throw new Error('Close did not return a webhook ID and signature key.');\nmemory[storeKey] = { id: response.id, signatureKey: response.signature_key };\nreturn response.id;",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.close.com/api/v1/webhook/{{webhookId}}/"
+        }
+      },
+      "afterResponse": "const storeKey = 'new-opportunity-trigger', objectType = 'opportunity';\nconst isRecord = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);\nconst utf8 = (text) => { const bytes = []; for (const character of text) { let code = character.codePointAt(0); if (code >= 0xd800 && code <= 0xdfff) code = 0xfffd; if (code < 0x80) bytes.push(code); else if (code < 0x800) bytes.push(0xc0 | (code >> 6), 0x80 | (code & 63)); else if (code < 0x10000) bytes.push(0xe0 | (code >> 12), 0x80 | ((code >> 6) & 63), 0x80 | (code & 63)); else bytes.push(0xf0 | (code >> 18), 0x80 | ((code >> 12) & 63), 0x80 | ((code >> 6) & 63), 0x80 | (code & 63)); } return bytes; };\nconst sha256 = (message) => {\n  const rounds = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];\n  let state = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];\n  const bytes = [...message], bits = bytes.length * 8;\n  bytes.push(0x80);\n  while (bytes.length % 64 !== 56) bytes.push(0);\n  for (let shift = 7; shift >= 0; shift--) bytes.push(Math.floor(bits / 2 ** (8 * shift)) & 255);\n  const rotate = (word, count) => (word >>> count) | (word << (32 - count));\n  for (let block = 0; block < bytes.length; block += 64) {\n    const words = [];\n    for (let index = 0; index < 16; index++) words[index] = (bytes[block + 4 * index] << 24) | (bytes[block + 4 * index + 1] << 16) | (bytes[block + 4 * index + 2] << 8) | bytes[block + 4 * index + 3];\n    for (let index = 16; index < 64; index++) words[index] = (words[index - 16] + (rotate(words[index - 15], 7) ^ rotate(words[index - 15], 18) ^ (words[index - 15] >>> 3)) + words[index - 7] + (rotate(words[index - 2], 17) ^ rotate(words[index - 2], 19) ^ (words[index - 2] >>> 10))) | 0;\n    let [a, b, c, d, e, f, g, h] = state;\n    for (let index = 0; index < 64; index++) {\n      const first = (h + (rotate(e, 6) ^ rotate(e, 11) ^ rotate(e, 25)) + ((e & f) ^ (~e & g)) + rounds[index] + words[index]) | 0;\n      const second = ((rotate(a, 2) ^ rotate(a, 13) ^ rotate(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) | 0;\n      h = g; g = f; f = e; e = (d + first) | 0; d = c; c = b; b = a; a = (first + second) | 0;\n    }\n    state = state.map((word, index) => (word + [a, b, c, d, e, f, g, h][index]) | 0);\n  }\n  return state.flatMap((word) => [word >>> 24 & 255, word >>> 16 & 255, word >>> 8 & 255, word & 255]);\n};\nconst hmac = (key, message) => { const padded = [...(key.length > 64 ? sha256(key) : key)]; while (padded.length < 64) padded.push(0); return sha256([...padded.map((byte) => byte ^ 0x5c), ...sha256([...padded.map((byte) => byte ^ 0x36), ...message])]); };\nconst hexBytes = (hex) => { const bytes = []; for (let index = 0; index + 1 < hex.length && /^[0-9a-f]{2}$/i.test(hex.substr(index, 2)); index += 2) bytes.push(parseInt(hex.substr(index, 2), 16)); return bytes; };\n// Close signs each delivery with the key it gave when the trigger subscribed.\nconst signed = () => {\n  const signatureKey = isRecord(memory[storeKey]) ? memory[storeKey].signatureKey : undefined, timestamp = received.headers['close-sig-timestamp'], hash = received.headers['close-sig-hash'], body = received.text;\n  if (!signatureKey || !timestamp || !hash || !body || !/^[0-9a-f]+$/i.test(hash)) return false;\n  const digest = hmac(hexBytes(signatureKey), utf8(timestamp + body)), given = hexBytes(hash);\n  return given.length === digest.length && given.every((byte, index) => byte === digest[index]);\n};\nif (!signed()) return [];\nconst event = isRecord(response) ? response.event : undefined;\nif (!isRecord(event) || event.object_type !== objectType || event.action !== 'created') return [];\nconst objectId = typeof event.object_id === 'string' ? event.object_id : isRecord(event.data) && typeof event.data.id === 'string' ? event.data.id : undefined;\nif (!objectId) return [];\n// Close may deliver an event again for up to 72 hours, so the events of the last 73 hours are remembered by hour.\nconst eventId = typeof event.id === 'string' ? event.id : objectId;\nif (memory[`${storeKey}-seen:${eventId}`]) return [];\nconst record = call({ method: 'GET', url: `/${objectType}/${encodeURIComponent(objectId)}/` });\nmemory[`${storeKey}-seen:${eventId}`] = true;\nconst hour = Math.floor(Date.now() / 3600000), bucket = (of) => `${storeKey}-seen-hour:${of}`;\nconst idsOf = (value) => Array.isArray(value) ? value.filter((id) => typeof id === 'string') : [];\nconst hours = Array.isArray(memory[`${storeKey}-seen-hours`]) ? memory[`${storeKey}-seen-hours`].filter(Number.isInteger) : [];\nif (!idsOf(memory[bucket(hour)]).includes(eventId)) memory[bucket(hour)] = [...idsOf(memory[bucket(hour)]), eventId];\nconst expired = hours.filter((of) => of < hour - 73).slice(0, 24);\nexpired.forEach((of) => { idsOf(memory[bucket(of)]).forEach((id) => delete memory[`${storeKey}-seen:${id}`]); delete memory[bucket(of)]; });\nif (expired.length > 0 || !hours.includes(hour)) memory[`${storeKey}-seen-hours`] = [...hours.filter((of) => !expired.includes(of) && of !== hour), hour];\nconst item = objectType === 'lead' || !isRecord(record) ? record : { ...record, custom: Object.fromEntries(Object.entries(record).filter(([key]) => key.startsWith('custom.')).map(([key, value]) => [key.slice(7), value])) };\nreturn [isRecord(item) ? { ...item, _dedupe_key: `close:${objectType}:${eventId}` } : item];"
     }
   }
 }

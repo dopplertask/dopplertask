@@ -32,9 +32,7 @@
           "limit": "100"
         }
       },
-      "items": "$.data",
-      "label": "$.name",
-      "value": "$.id"
+      "items": "$.data"
     },
     "invoices": {
       "request": {
@@ -44,8 +42,7 @@
         }
       },
       "items": "$.data",
-      "label": "$.number",
-      "value": "$.id"
+      "label": "$.number"
     },
     "payouts": {
       "request": {
@@ -55,8 +52,7 @@
         }
       },
       "items": "$.data",
-      "label": "$.id",
-      "value": "$.id"
+      "label": "$.id"
     },
     "payment_intents": {
       "request": {
@@ -67,8 +63,7 @@
         }
       },
       "items": "$.data",
-      "label": "$.description",
-      "value": "$.id"
+      "label": "$.description"
     },
     "products": {
       "request": {
@@ -78,9 +73,7 @@
           "limit": "100"
         }
       },
-      "items": "$.data",
-      "label": "$.name",
-      "value": "$.id"
+      "items": "$.data"
     }
   },
   "actions": {
@@ -195,7 +188,7 @@
             }
           ]
         },
-        "customer_id": {
+        "customer": {
           "label": "Customer ID",
           "description": "Starts with cus_. Find it on the customer's page in Stripe.",
           "list": "customers"
@@ -228,20 +221,19 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/subscriptions",
         "headers": {
           "Content-Type": "application/x-www-form-urlencoded"
         }
       },
-      "beforeRequest": "var form = (text) => encodeURIComponent(text).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar details = inputs.include_customer_details !== 'false';\nvar address = (after) => {\n  var pairs = [['limit', '100'], ['expand[]', 'data.items.data.price']];\n  if (details) pairs.push(['expand[]', 'data.customer']);\n  if (inputs.status) pairs.push(['status', inputs.status]);\n  if (inputs.customer_id) pairs.push(['customer', inputs.customer_id]);\n  if (inputs.created_after) pairs.push(['created[gte]', String(Math.floor(new Date(inputs.created_after).getTime() / 1000))]);\n  if (inputs.created_before) pairs.push(['created[lte]', String(Math.floor(new Date(inputs.created_before).getTime() / 1000))]);\n  if (after) pairs.push(['starting_after', after]);\n  return '/subscriptions?' + pairs.map((pair) => form(pair[0]) + '=' + form(pair[1])).join('&');\n};\nrequest.url = address();\nrequest.query = {};\nreturn request;",
-      "afterResponse": "var form = (text) => encodeURIComponent(text).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar details = inputs.include_customer_details !== 'false';\nvar address = (after) => {\n  var pairs = [['limit', '100'], ['expand[]', 'data.items.data.price']];\n  if (details) pairs.push(['expand[]', 'data.customer']);\n  if (inputs.status) pairs.push(['status', inputs.status]);\n  if (inputs.customer_id) pairs.push(['customer', inputs.customer_id]);\n  if (inputs.created_after) pairs.push(['created[gte]', String(Math.floor(new Date(inputs.created_after).getTime() / 1000))]);\n  if (inputs.created_before) pairs.push(['created[lte]', String(Math.floor(new Date(inputs.created_before).getTime() / 1000))]);\n  if (after) pairs.push(['starting_after', after]);\n  return '/subscriptions?' + pairs.map((pair) => form(pair[0]) + '=' + form(pair[1])).join('&');\n};\nvar limit = inputs.limit === '' || inputs.limit === undefined ? 100 : Number(inputs.limit);\nvar fetchAll = inputs.fetch_all === 'true';\nvar priceIds = inputs.price_ids ? inputs.price_ids.split(',').map((id) => id.trim()).filter((id) => id.length > 0) : [];\nvar matches = (subscription) => priceIds.length === 0 || subscription.items.data.some((item) => item.price && typeof item.price === 'object' && priceIds.includes(item.price.id));\nvar withCustomer = (subscription) => {\n  var result = Object.assign({}, subscription);\n  if (details && typeof subscription.customer === 'string') {\n    try { result.customer = call({method: 'GET', url: '/customers/' + subscription.customer}); } catch (e) {}\n  }\n  return result;\n};\nvar page = (after) => call({method: 'GET', url: address(after), headers: {'Content-Type': 'application/x-www-form-urlencoded'}});\nvar filters = {price_ids: inputs.price_ids ? priceIds : null, status: inputs.status || null, customer_id: inputs.customer_id || null,\n  created_after: inputs.created_after || null, created_before: inputs.created_before || null, limit: limit, fetch_all: fetchAll, include_customer_details: details};\nvar everything = fetchAll || limit <= 0 || isNaN(limit);\nvar most = everything || priceIds.length > 0 ? 50 : Math.ceil(limit / 100);\nvar fetched = [], kept = [], more = true, after, made = 0, answer = response;\nwhile (more && made < most) {\n  if (made > 0) answer = page(after);\n  var found = answer.data;\n  fetched = fetched.concat(found);\n  kept = kept.concat(found.filter(matches));\n  more = answer.has_more;\n  made++;\n  if (more && found.length > 0) after = found[found.length - 1].id;\n  if (!everything && kept.length >= limit) { kept = kept.slice(0, limit); break; }\n}\nvar subscriptions = kept.map(withCustomer);\nreturn {success: true, count: subscriptions.length, total_fetched: fetched.length, requests_made: made, has_more_available: more,\n  pagination_info: {limit_requested: everything ? 'All' : limit, fetch_all_enabled: fetchAll, max_requests_limit: most},\n  subscriptions: subscriptions, filters_applied: filters};"
+      "beforeRequest": "var form = (text) => encodeURIComponent(text).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar details = inputs.include_customer_details !== 'false';\nvar address = (after) => {\n  var pairs = [['limit', '100'], ['expand[]', 'data.items.data.price']];\n  if (details) pairs.push(['expand[]', 'data.customer']);\n  if (inputs.status) pairs.push(['status', inputs.status]);\n  if (inputs.customer) pairs.push(['customer', inputs.customer]);\n  if (inputs.created_after) pairs.push(['created[gte]', String(Math.floor(new Date(inputs.created_after).getTime() / 1000))]);\n  if (inputs.created_before) pairs.push(['created[lte]', String(Math.floor(new Date(inputs.created_before).getTime() / 1000))]);\n  if (after) pairs.push(['starting_after', after]);\n  return '/subscriptions?' + pairs.map((pair) => form(pair[0]) + '=' + form(pair[1])).join('&');\n};\nrequest.url = address();\nrequest.query = {};\nreturn request;",
+      "afterResponse": "var form = (text) => encodeURIComponent(text).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar details = inputs.include_customer_details !== 'false';\nvar address = (after) => {\n  var pairs = [['limit', '100'], ['expand[]', 'data.items.data.price']];\n  if (details) pairs.push(['expand[]', 'data.customer']);\n  if (inputs.status) pairs.push(['status', inputs.status]);\n  if (inputs.customer) pairs.push(['customer', inputs.customer]);\n  if (inputs.created_after) pairs.push(['created[gte]', String(Math.floor(new Date(inputs.created_after).getTime() / 1000))]);\n  if (inputs.created_before) pairs.push(['created[lte]', String(Math.floor(new Date(inputs.created_before).getTime() / 1000))]);\n  if (after) pairs.push(['starting_after', after]);\n  return '/subscriptions?' + pairs.map((pair) => form(pair[0]) + '=' + form(pair[1])).join('&');\n};\nvar limit = inputs.limit === '' || inputs.limit === undefined ? 100 : Number(inputs.limit);\nvar fetchAll = inputs.fetch_all === 'true';\nvar priceIds = inputs.price_ids ? inputs.price_ids.split(',').map((id) => id.trim()).filter((id) => id.length > 0) : [];\nvar matches = (subscription) => priceIds.length === 0 || subscription.items.data.some((item) => item.price && typeof item.price === 'object' && priceIds.includes(item.price.id));\nvar withCustomer = (subscription) => {\n  var result = Object.assign({}, subscription);\n  if (details && typeof subscription.customer === 'string') {\n    try { result.customer = call({method: 'GET', url: '/customers/' + subscription.customer}); } catch (e) {}\n  }\n  return result;\n};\nvar page = (after) => call({method: 'GET', url: address(after), headers: {'Content-Type': 'application/x-www-form-urlencoded'}});\nvar filters = {price_ids: inputs.price_ids ? priceIds : null, status: inputs.status || null, customer_id: inputs.customer || null,\n  created_after: inputs.created_after || null, created_before: inputs.created_before || null, limit: limit, fetch_all: fetchAll, include_customer_details: details};\nvar everything = fetchAll || limit <= 0 || isNaN(limit);\nvar most = everything || priceIds.length > 0 ? 50 : Math.ceil(limit / 100);\nvar fetched = [], kept = [], more = true, after, made = 0, answer = response;\nwhile (more && made < most) {\n  if (made > 0) answer = page(after);\n  var found = answer.data;\n  fetched = fetched.concat(found);\n  kept = kept.concat(found.filter(matches));\n  more = answer.has_more;\n  made++;\n  if (more && found.length > 0) after = found[found.length - 1].id;\n  if (!everything && kept.length >= limit) { kept = kept.slice(0, limit); break; }\n}\nvar subscriptions = kept.map(withCustomer);\nreturn {success: true, count: subscriptions.length, total_fetched: fetched.length, requests_made: made, has_more_available: more,\n  pagination_info: {limit_requested: everything ? 'All' : limit, fetch_all_enabled: fetchAll, max_requests_limit: most},\n  subscriptions: subscriptions, filters_applied: filters};"
     },
     "retrieve_customer": {
-      "label": "Retrieve Customer",
+      "label": "Get Customer",
       "description": "Get a customer's details by their ID.",
       "inputs": {
-        "id": {
+        "customer_id": {
           "label": "Customer ID",
           "description": "Starts with cus_. Find it on the customer's page in Stripe.",
           "required": true,
@@ -249,15 +241,14 @@
         }
       },
       "request": {
-        "method": "GET",
-        "url": "https://api.stripe.com/v1/customers/{{id}}"
+        "url": "https://api.stripe.com/v1/customers/{{customer_id}}"
       }
     },
     "update_customer": {
       "label": "Update Customer",
       "description": "Change a customer's details. Empty fields keep their value.",
       "inputs": {
-        "customer": {
+        "customer_id": {
           "label": "Customer",
           "required": true,
           "list": "customers"
@@ -295,7 +286,7 @@
       },
       "request": {
         "method": "POST",
-        "url": "https://api.stripe.com/v1/customers/{{customer}}",
+        "url": "https://api.stripe.com/v1/customers/{{customer_id}}",
         "headers": {
           "Content-Type": "application/x-www-form-urlencoded"
         },
@@ -426,7 +417,7 @@
       "beforeRequest": "if (inputs.collection_method === 'send_invoice' && !inputs.days_until_due) throw new Error(\"Add Days Until Due, or choose Auto-Charge.\");\nvar body = {};\n['customer', 'collection_method', 'days_until_due', 'trial_period_days', 'default_payment_method'].forEach((key) => { if (inputs[key]) body[key] = inputs[key]; });\nvar metadata = inputs.metadata ? JSON.parse(inputs.metadata) : null;\nvar add = (key, value) => {\n  if (value === null || value === undefined || value === '') return;\n  if (Array.isArray(value)) value.forEach((item, index) => add(key + '[' + index + ']', item));\n  else if (typeof value === 'object') Object.keys(value).forEach((name) => add(key + '[' + name + ']', value[name]));\n  else body[key] = String(value);\n};\nadd('metadata', metadata);\n(inputs.items ? JSON.parse(inputs.items) : []).forEach((item, index) => {\n  body['items[' + index + '][price]'] = String(item.price);\n  if (item.quantity) body['items[' + index + '][quantity]'] = String(item.quantity);\n});\nrequest.body = body;\nreturn request;"
     },
     "retrieve_invoice": {
-      "label": "Retrieve Invoice",
+      "label": "Get Invoice",
       "description": "Get the full details of an invoice.",
       "inputs": {
         "invoice_id": {
@@ -436,12 +427,11 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/invoices/{{invoice_id}}"
       }
     },
     "retrieve_payout": {
-      "label": "Retrieve Payout",
+      "label": "Get Payout",
       "description": "Get a payout's amount, status and arrival date.",
       "inputs": {
         "payout_id": {
@@ -451,7 +441,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/payouts/{{payout_id}}"
       }
     },
@@ -460,7 +449,7 @@
       "description": "Refund all or part of a successful payment.",
       "inputs": {
         "payment_intent": {
-          "label": "Payment",
+          "label": "Payment Intent",
           "description": "Only successful payments are listed.",
           "required": true,
           "list": "payment_intents"
@@ -510,18 +499,17 @@
       "beforeRequest": "var body = request.body;\nif (body.amount !== undefined) body.amount = Math.round(body.amount * 100);\nrequest.body = body;\nvar form = {};\nvar add = (key, value) => {\n  if (value === null || value === undefined || value === '') return;\n  if (Array.isArray(value)) value.forEach((item, index) => add(key + '[' + index + ']', item));\n  else if (typeof value === 'object') Object.keys(value).forEach((name) => add(key + '[' + name + ']', value[name]));\n  else form[key] = String(value);\n};\nObject.keys(request.body || {}).forEach((key) => add(key, request.body[key]));\nrequest.body = form;\nreturn request;"
     },
     "retrieve_payment_intent": {
-      "label": "Retrieve Payment",
-      "description": "Get the details of a successful payment.",
+      "label": "Get Payment Intent",
+      "description": "Get a payment intent's details by its ID.",
       "inputs": {
         "payment_intent_id": {
-          "label": "Payment",
+          "label": "Payment Intent",
           "description": "Only successful payments are listed.",
           "required": true,
           "list": "payment_intents"
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/payment_intents/{{payment_intent_id}}"
       }
     },
@@ -539,7 +527,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/customers/search"
       },
       "beforeRequest": "var query = inputs.query || (inputs.email ? \"email:'\" + inputs.email + \"'\" : '');\nif (!query) throw new Error('Provide either an Email or a raw Query to search.');\nrequest.query = {query: query};\nreturn request;"
@@ -626,7 +613,7 @@
       "label": "Create Invoice",
       "description": "Create a draft invoice in Stripe.",
       "inputs": {
-        "customer_id": {
+        "customer": {
           "label": "Customer ID",
           "description": "The Stripe customer ID (e.g., cus_...). Obtain it from Search Customers or List Customers.",
           "required": true,
@@ -670,7 +657,7 @@
           "Content-Type": "application/x-www-form-urlencoded"
         },
         "body": {
-          "customer": "{{customer_id}}",
+          "customer": "{{customer}}",
           "currency": "{{currency}}",
           "description": "{{description}}",
           "collection_method": "{{collection_method}}",
@@ -679,7 +666,7 @@
       },
       "beforeRequest": "var body = request.body;\nif (inputs.collection_method === 'send_invoice' && !inputs.days_until_due) throw new Error(\"days_until_due is required when collection_method is 'send_invoice'.\");\nif (inputs.collection_method !== 'send_invoice') delete body.days_until_due;\nreturn request;"
     },
-    "create_price_ai": {
+    "create_price": {
       "label": "Create Price",
       "description": "Create a one-time or recurring price for a product.",
       "inputs": {
@@ -763,7 +750,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/customers",
         "query": {
           "email": "{{email}}",
@@ -913,7 +899,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/payment_intents",
         "query": {
           "customer": "{{customer}}",
@@ -939,7 +924,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/payment_intents/search",
         "query": {
           "query": "{{query}}",
@@ -948,7 +932,7 @@
       }
     },
     "retrieve_charge": {
-      "label": "Retrieve Charge",
+      "label": "Get Charge",
       "description": "Retrieve a Stripe charge by its ID.",
       "inputs": {
         "charge_id": {
@@ -958,7 +942,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/charges/{{charge_id}}"
       }
     },
@@ -989,7 +972,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/charges",
         "query": {
           "customer": "{{customer}}",
@@ -1015,7 +997,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/charges/search",
         "query": {
           "query": "{{query}}",
@@ -1034,7 +1015,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/refunds/{{refund_id}}"
       }
     },
@@ -1058,7 +1038,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/refunds",
         "query": {
           "payment_intent": "{{payment_intent}}",
@@ -1114,7 +1093,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/invoices",
         "query": {
           "customer": "{{customer}}",
@@ -1140,7 +1118,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/invoices/search",
         "query": {
           "query": "{{query}}",
@@ -1237,7 +1214,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/invoices/{{invoice_id}}/lines",
         "query": {
           "limit": "{{limit}}"
@@ -1350,7 +1326,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/products/{{product_id}}"
       }
     },
@@ -1380,7 +1355,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/products",
         "query": {
           "active": "{{active}}",
@@ -1404,7 +1378,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/products/search",
         "query": {
           "query": "{{query}}",
@@ -1459,7 +1432,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/prices/{{price_id}}"
       }
     },
@@ -1511,7 +1483,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/prices",
         "query": {
           "product": "{{product}}",
@@ -1538,7 +1509,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/prices/search",
         "query": {
           "query": "{{query}}",
@@ -1607,7 +1577,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/subscriptions/{{subscription_id}}"
       }
     },
@@ -1627,7 +1596,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/subscription_items",
         "query": {
           "limit": "{{limit}}",
@@ -1646,7 +1614,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/payment_links/{{payment_link_id}}"
       }
     },
@@ -1675,7 +1642,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/payment_links",
         "query": {
           "active": "{{active}}",
@@ -1746,7 +1712,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/checkout/sessions/{{session_id}}"
       }
     },
@@ -1789,7 +1754,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/checkout/sessions",
         "query": {
           "customer": "{{customer}}",
@@ -1876,7 +1840,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/payment_methods/{{payment_method_id}}"
       }
     },
@@ -1901,7 +1864,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/customers/{{customer_id}}/payment_methods",
         "query": {
           "type": "{{type}}",
@@ -1989,7 +1951,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/coupons/{{coupon_id}}"
       }
     },
@@ -2004,7 +1965,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/coupons",
         "query": {
           "limit": "{{limit}}"
@@ -2072,7 +2032,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/promotion_codes/{{promotion_code_id}}"
       }
     },
@@ -2109,7 +2068,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/promotion_codes",
         "query": {
           "coupon": "{{coupon}}",
@@ -2120,10 +2078,9 @@
       }
     },
     "retrieve_balance": {
-      "label": "Retrieve Balance",
+      "label": "Get Balance",
       "description": "Get the current Stripe account balance.",
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/balance"
       }
     },
@@ -2153,7 +2110,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/balance_transactions",
         "query": {
           "type": "{{type}}",
@@ -2206,7 +2162,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/payouts",
         "query": {
           "status": "{{status}}",
@@ -2271,7 +2226,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/tax_rates/{{tax_rate_id}}"
       }
     },
@@ -2314,7 +2268,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/tax_rates",
         "query": {
           "active": "{{active}}",
@@ -2421,7 +2374,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/credit_notes/{{credit_note_id}}"
       }
     },
@@ -2446,7 +2398,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/credit_notes",
         "query": {
           "invoice": "{{invoice}}",
@@ -2476,7 +2427,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/events",
         "query": {
           "type": "{{type}}",
@@ -2496,7 +2446,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/events/{{event_id}}"
       }
     },
@@ -2511,7 +2460,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/disputes/{{dispute_id}}"
       }
     },
@@ -2541,7 +2489,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/disputes",
         "query": {
           "charge": "{{charge}}",
@@ -2566,7 +2513,6 @@
         }
       },
       "request": {
-        "method": "GET",
         "url": "https://api.stripe.com/v1/transfers",
         "query": {
           "destination": "{{destination}}",
@@ -2647,14 +2593,12 @@
             "url": "{{webhookUrl}}"
           }
         },
-        "id": "$.id",
         "unsubscribe": {
           "method": "DELETE",
           "url": "https://api.stripe.com/v1/webhook_endpoints/{{webhookId}}"
         }
       },
-      "afterResponse": "var item = response.data.object;\nreturn [item];",
-      "items": "$"
+      "items": "$.data.object"
     },
     "new_customer": {
       "label": "New Customer",
@@ -2671,14 +2615,12 @@
             "url": "{{webhookUrl}}"
           }
         },
-        "id": "$.id",
         "unsubscribe": {
           "method": "DELETE",
           "url": "https://api.stripe.com/v1/webhook_endpoints/{{webhookId}}"
         }
       },
-      "afterResponse": "var item = response.data.object;\nreturn [item];",
-      "items": "$"
+      "items": "$.data.object"
     },
     "payment_failed": {
       "label": "Payment Failed",
@@ -2695,14 +2637,12 @@
             "url": "{{webhookUrl}}"
           }
         },
-        "id": "$.id",
         "unsubscribe": {
           "method": "DELETE",
           "url": "https://api.stripe.com/v1/webhook_endpoints/{{webhookId}}"
         }
       },
-      "afterResponse": "var item = response.data.object;\nreturn [item];",
-      "items": "$"
+      "items": "$.data.object"
     },
     "new_subscription": {
       "label": "New Subscription",
@@ -2719,14 +2659,12 @@
             "url": "{{webhookUrl}}"
           }
         },
-        "id": "$.id",
         "unsubscribe": {
           "method": "DELETE",
           "url": "https://api.stripe.com/v1/webhook_endpoints/{{webhookId}}"
         }
       },
-      "afterResponse": "var item = response.data.object;\nreturn [item];",
-      "items": "$"
+      "items": "$.data.object"
     },
     "new_charge": {
       "label": "New Charge",
@@ -2743,14 +2681,12 @@
             "url": "{{webhookUrl}}"
           }
         },
-        "id": "$.id",
         "unsubscribe": {
           "method": "DELETE",
           "url": "https://api.stripe.com/v1/webhook_endpoints/{{webhookId}}"
         }
       },
-      "afterResponse": "var item = response.data.object;\nreturn [item];",
-      "items": "$"
+      "items": "$.data.object"
     },
     "new_invoice": {
       "label": "New Invoice",
@@ -2805,14 +2741,12 @@
             "url": "{{webhookUrl}}"
           }
         },
-        "id": "$.id",
         "unsubscribe": {
           "method": "DELETE",
           "url": "https://api.stripe.com/v1/webhook_endpoints/{{webhookId}}"
         }
       },
-      "afterResponse": "var item = response.data.object;\nif (inputs.status && item.status !== inputs.status) return [];\nif (inputs.customer && item.customer !== inputs.customer) return [];\nif (inputs.subscription && item.subscription !== inputs.subscription) return [];\nreturn [item];",
-      "items": "$"
+      "afterResponse": "var item = response.data.object;\nif (inputs.status && item.status !== inputs.status) return [];\nif (inputs.customer && item.customer !== inputs.customer) return [];\nif (inputs.subscription && item.subscription !== inputs.subscription) return [];\nreturn [item];"
     },
     "invoice_payment_failed": {
       "label": "Invoice Payment Failed",
@@ -2836,14 +2770,12 @@
             "url": "{{webhookUrl}}"
           }
         },
-        "id": "$.id",
         "unsubscribe": {
           "method": "DELETE",
           "url": "https://api.stripe.com/v1/webhook_endpoints/{{webhookId}}"
         }
       },
-      "afterResponse": "var item = response.data.object;\nif (inputs.customer && item.customer !== inputs.customer) return [];\nreturn [item];",
-      "items": "$"
+      "afterResponse": "var item = response.data.object;\nif (inputs.customer && item.customer !== inputs.customer) return [];\nreturn [item];"
     },
     "canceled_subscription": {
       "label": "Canceled Subscription",
@@ -2867,14 +2799,12 @@
             "url": "{{webhookUrl}}"
           }
         },
-        "id": "$.id",
         "unsubscribe": {
           "method": "DELETE",
           "url": "https://api.stripe.com/v1/webhook_endpoints/{{webhookId}}"
         }
       },
-      "afterResponse": "var item = response.data.object;\nif (inputs.customer && item.customer !== inputs.customer) return [];\nreturn [item];",
-      "items": "$"
+      "afterResponse": "var item = response.data.object;\nif (inputs.customer && item.customer !== inputs.customer) return [];\nreturn [item];"
     },
     "new_refund": {
       "label": "New Refund",
@@ -2902,14 +2832,12 @@
             "url": "{{webhookUrl}}"
           }
         },
-        "id": "$.id",
         "unsubscribe": {
           "method": "DELETE",
           "url": "https://api.stripe.com/v1/webhook_endpoints/{{webhookId}}"
         }
       },
-      "afterResponse": "var item = response.data.object;\nif (inputs.charge && item.charge !== inputs.charge) return [];\nif (inputs.payment_intent && item.payment_intent !== inputs.payment_intent) return [];\nreturn [item];",
-      "items": "$"
+      "afterResponse": "var item = response.data.object;\nif (inputs.charge && item.charge !== inputs.charge) return [];\nif (inputs.payment_intent && item.payment_intent !== inputs.payment_intent) return [];\nreturn [item];"
     },
     "new_dispute": {
       "label": "New Dispute",
@@ -2937,14 +2865,12 @@
             "url": "{{webhookUrl}}"
           }
         },
-        "id": "$.id",
         "unsubscribe": {
           "method": "DELETE",
           "url": "https://api.stripe.com/v1/webhook_endpoints/{{webhookId}}"
         }
       },
-      "afterResponse": "var item = response.data.object;\nif (inputs.charge && item.charge !== inputs.charge) return [];\nif (inputs.payment_intent && item.payment_intent !== inputs.payment_intent) return [];\nreturn [item];",
-      "items": "$"
+      "afterResponse": "var item = response.data.object;\nif (inputs.charge && item.charge !== inputs.charge) return [];\nif (inputs.payment_intent && item.payment_intent !== inputs.payment_intent) return [];\nreturn [item];"
     },
     "new_payment_link": {
       "label": "New Payment Link",
@@ -2961,14 +2887,12 @@
             "url": "{{webhookUrl}}"
           }
         },
-        "id": "$.id",
         "unsubscribe": {
           "method": "DELETE",
           "url": "https://api.stripe.com/v1/webhook_endpoints/{{webhookId}}"
         }
       },
-      "afterResponse": "var item = response.data.object;\nreturn [item];",
-      "items": "$"
+      "items": "$.data.object"
     },
     "updated_subscription": {
       "label": "Updated Subscription",
@@ -3031,14 +2955,12 @@
             "url": "{{webhookUrl}}"
           }
         },
-        "id": "$.id",
         "unsubscribe": {
           "method": "DELETE",
           "url": "https://api.stripe.com/v1/webhook_endpoints/{{webhookId}}"
         }
       },
-      "afterResponse": "var item = response.data.object;\nif (inputs.status && item.status !== inputs.status) return [];\nif (inputs.customer && item.customer !== inputs.customer) return [];\nreturn [item];",
-      "items": "$"
+      "afterResponse": "var item = response.data.object;\nif (inputs.status && item.status !== inputs.status) return [];\nif (inputs.customer && item.customer !== inputs.customer) return [];\nreturn [item];"
     },
     "checkout_session_completed": {
       "label": "Checkout Session Completed",
@@ -3062,14 +2984,12 @@
             "url": "{{webhookUrl}}"
           }
         },
-        "id": "$.id",
         "unsubscribe": {
           "method": "DELETE",
           "url": "https://api.stripe.com/v1/webhook_endpoints/{{webhookId}}"
         }
       },
-      "afterResponse": "var item = response.data.object;\nif (inputs.customer && item.customer !== inputs.customer) return [];\nreturn [item];",
-      "items": "$"
+      "afterResponse": "var item = response.data.object;\nif (inputs.customer && item.customer !== inputs.customer) return [];\nreturn [item];"
     }
   }
 }

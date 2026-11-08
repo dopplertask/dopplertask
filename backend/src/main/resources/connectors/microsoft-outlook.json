@@ -1,7 +1,7 @@
 {
   "name": "microsoft-outlook",
   "label": "Microsoft Outlook",
-  "description": "",
+  "description": "Email service by Microsoft",
   "icon": "",
   "hosts": [
     "graph.microsoft.com"
@@ -15,17 +15,17 @@
     "oauth2": {
       "authUrl": "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
       "tokenUrl": "https://login.microsoftonline.com/common/oauth2/v2.0/token",
-      "scope": "Mail.ReadWrite Mail.Send Calendars.Read offline_access User.Read openid email profile"
+      "scope": "Mail.ReadWrite Mail.Send offline_access User.Read openid email profile"
+    },
+    "headers": {
+      "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
     }
   },
   "lists": {
     "messages": {
       "request": {
         "method": "GET",
-        "url": "https://graph.microsoft.com/v1.0/me/messages?$top=50&$select=id,subject,from,receivedDateTime&$orderby=receivedDateTime%20desc",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        }
+        "url": "https://graph.microsoft.com/v1.0/me/messages?$top=50&$select=id,subject,from,receivedDateTime&$orderby=receivedDateTime%20desc"
       },
       "items": "$.value",
       "label": "$.subject",
@@ -34,10 +34,7 @@
     "folders": {
       "request": {
         "method": "GET",
-        "url": "https://graph.microsoft.com/v1.0/me/mailFolders?$top=100&$select=id,displayName,childFolderCount",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        }
+        "url": "https://graph.microsoft.com/v1.0/me/mailFolders?$top=100&$select=id,displayName,childFolderCount"
       },
       "items": "$.value",
       "label": "$.displayName",
@@ -46,10 +43,7 @@
     "draft_messages": {
       "request": {
         "method": "GET",
-        "url": "https://graph.microsoft.com/v1.0/me/mailFolders/drafts/messages?$top=50&$select=id,subject,from,toRecipients,receivedDateTime&$orderby=receivedDateTime%20desc",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        }
+        "url": "https://graph.microsoft.com/v1.0/me/mailFolders/drafts/messages?$top=50&$select=id,subject,from,toRecipients,receivedDateTime&$orderby=receivedDateTime%20desc"
       },
       "items": "$.value",
       "label": "$.subject",
@@ -62,8 +56,8 @@
       "description": "Reply to an Outlook email, or save the reply as a draft.",
       "inputs": {
         "messageId": {
-          "label": "Email",
-          "description": "The email to reply to.",
+          "label": "Message ID",
+          "description": "The message to reply to. Resolve one with List Messages or Search Messages.",
           "required": true,
           "list": "messages"
         },
@@ -75,12 +69,12 @@
           "type": "select",
           "options": [
             {
-              "value": "text",
-              "label": "Plain Text"
-            },
-            {
               "value": "html",
               "label": "HTML"
+            },
+            {
+              "value": "text",
+              "label": "Text"
             }
           ]
         },
@@ -90,12 +84,12 @@
           "required": true
         },
         "ccRecipients": {
-          "label": "Cc",
+          "label": "CC Email(s)",
           "description": "A JSON list of addresses, such as [\"ada@example.com\"].",
           "type": "json"
         },
         "bccRecipients": {
-          "label": "Bcc",
+          "label": "BCC Email(s)",
           "description": "A JSON list of addresses, such as [\"ada@example.com\"].",
           "type": "json"
         },
@@ -108,13 +102,10 @@
       },
       "request": {
         "method": "POST",
-        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/createReply",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        }
+        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/createReply"
       },
       "beforeRequest": "const list = (v) => { if (v === undefined || v === null || v === '') return []; try { const p = JSON.parse(v); return Array.isArray(p) ? p : [p]; } catch (e) { return String(v).split(',').map((s) => s.trim()).filter((s) => s); } };\nconst to = (v) => list(v).filter((a) => a != null).map((a) => String(a).trim()).filter((a) => a.length > 0).map((a) => ({emailAddress: {address: a}}));\nrequest.url = '/me/messages/' + inputs.messageId + '/createReply';\nrequest.body = {message: {body: {content: inputs.replyBody, contentType: inputs.bodyFormat || 'text'}, ccRecipients: to(inputs.ccRecipients), bccRecipients: to(inputs.bccRecipients), attachments: []}};\nreturn request;",
-      "afterResponse": "const H = {SdkVersion: 'graph-js/3.0.7 (featureUsage=7)'};\nconst draftId = response.id;\nif (inputs.draft === 'true') return {success: true, message: 'Draft created successfully.', draftId, draftLink: 'https://outlook.office.com/mail/drafts/id/' + draftId};\ncall({method: 'POST', url: '/me/messages/' + draftId + '/send', headers: H, body: {}});\nreturn {success: true, message: 'Reply sent successfully.', draftId};"
+      "afterResponse": "const draftId = response.id;\nif (inputs.draft === 'true') return {success: true, message: 'Draft created successfully.', draftId, draftLink: 'https://outlook.office.com/mail/drafts/id/' + draftId};\ncall({method: 'POST', url: '/me/messages/' + draftId + '/send', body: {}});\nreturn {success: true, message: 'Reply sent successfully.', draftId};"
     },
     "outlook_list_messages": {
       "label": "List Messages",
@@ -145,7 +136,6 @@
         "method": "GET",
         "url": "https://graph.microsoft.com/v1.0/me/messages",
         "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)",
           "Prefer": "outlook.body-content-type=\"text\""
         }
       },
@@ -158,7 +148,7 @@
       "inputs": {
         "messageId": {
           "label": "Message ID",
-          "description": "Outlook message ID. Resolve one with List Messages, Search Messages or Get Message.",
+          "description": "Outlook message ID. Resolve one with List Messages or Search Messages.",
           "required": true,
           "list": "messages"
         }
@@ -167,7 +157,6 @@
         "method": "GET",
         "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}",
         "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)",
           "Prefer": "outlook.body-content-type=\"text\""
         }
       }
@@ -197,7 +186,6 @@
         "method": "GET",
         "url": "https://graph.microsoft.com/v1.0/me/messages",
         "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)",
           "ConsistencyLevel": "eventual",
           "Prefer": "outlook.body-content-type=\"text\""
         }
@@ -225,12 +213,11 @@
         "method": "GET",
         "url": "https://graph.microsoft.com/v1.0/me/mailFolders/{{folderId}}/messages/delta",
         "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)",
           "Prefer": "odata.maxpagesize=50"
         }
       },
-      "beforeRequest": "const id = (v) => encodeURIComponent(String(v).trim());\nconst removal = (item) => { const {'@removed': gone, ...rest} = item; return {...rest, removed: gone !== undefined, removedReason: gone && gone.reason !== undefined ? gone.reason : null}; };\nconst deltaUrl = (link, pattern, operation) => {\n  const text = String(link).trim();\n  const hint = 'Expected an absolute URL on https://graph.microsoft.com whose path is /{v1.0|beta}/' + pattern.join('/') + '. Only pass a delta link that this action returned.';\n  if (!/^[a-z][a-z0-9+.-]*:\\/\\//i.test(text)) throw new Error(operation + ' failed: the supplied delta link is not an absolute URL. ' + hint);\n  const match = /^https:\\/\\/graph\\.microsoft\\.com(?=[\\/?#]|$)([^?#]*)/i.exec(text);\n  if (!match) throw new Error(operation + ' failed: the supplied delta link does not point at the Microsoft Graph endpoint of this connection. ' + hint);\n  const parts = match[1].split('/').filter((s) => s.length > 0).map((s) => { try { return decodeURIComponent(s); } catch (e) { return s; } });\n  if (parts.length === 0 || !['v1.0', 'beta'].includes(parts[0])) throw new Error(operation + ' failed: the supplied delta link does not target a supported Microsoft Graph API version. ' + hint);\n  const rest = parts.slice(1);\n  if (rest.length !== pattern.length || !pattern.every((p, i) => p === '*' ? rest[i].length > 0 : rest[i] === p)) throw new Error(operation + ' failed: the supplied delta link addresses /' + rest.join('/') + ', which is outside the mailbox and endpoint this action is configured for. ' + hint);\n  return text;\n};\nrequest.url = inputs.deltaLink ? deltaUrl(inputs.deltaLink, ['me', 'mailFolders', '*', 'messages', 'delta'], 'Listing Outlook message changes') : '/me/mailFolders/' + id(inputs.folderId) + '/messages/delta?$select=id,subject,bodyPreview,from,sender,toRecipients,ccRecipients,bccRecipients,replyTo,receivedDateTime,sentDateTime,createdDateTime,lastModifiedDateTime,hasAttachments,isRead,isDraft,importance,categories,flag,webLink,parentFolderId,conversationId,internetMessageId';\nreturn request;",
-      "afterResponse": "const removal = (item) => { const {'@removed': gone, ...rest} = item; return {...rest, removed: gone !== undefined, removedReason: gone && gone.reason !== undefined ? gone.reason : null}; };\nconst deltaUrl = (link, pattern, operation) => {\n  const text = String(link).trim();\n  const hint = 'Expected an absolute URL on https://graph.microsoft.com whose path is /{v1.0|beta}/' + pattern.join('/') + '. Only pass a delta link that this action returned.';\n  if (!/^[a-z][a-z0-9+.-]*:\\/\\//i.test(text)) throw new Error(operation + ' failed: the supplied delta link is not an absolute URL. ' + hint);\n  const match = /^https:\\/\\/graph\\.microsoft\\.com(?=[\\/?#]|$)([^?#]*)/i.exec(text);\n  if (!match) throw new Error(operation + ' failed: the supplied delta link does not point at the Microsoft Graph endpoint of this connection. ' + hint);\n  const parts = match[1].split('/').filter((s) => s.length > 0).map((s) => { try { return decodeURIComponent(s); } catch (e) { return s; } });\n  if (parts.length === 0 || !['v1.0', 'beta'].includes(parts[0])) throw new Error(operation + ' failed: the supplied delta link does not target a supported Microsoft Graph API version. ' + hint);\n  const rest = parts.slice(1);\n  if (rest.length !== pattern.length || !pattern.every((p, i) => p === '*' ? rest[i].length > 0 : rest[i] === p)) throw new Error(operation + ' failed: the supplied delta link addresses /' + rest.join('/') + ', which is outside the mailbox and endpoint this action is configured for. ' + hint);\n  return text;\n};\nconst changes = (response.value || []).map(removal);\nreturn {changes, count: changes.length, hasMore: !!response['@odata.nextLink'], nextLink: response['@odata.nextLink'] || null, deltaLink: response['@odata.deltaLink'] || null};"
+      "beforeRequest": "const id = (v) => encodeURIComponent(String(v).trim());\nconst deltaUrl = (link, pattern, operation) => {\n  const text = String(link).trim();\n  const hint = 'Expected an absolute URL on https://graph.microsoft.com whose path is /{v1.0|beta}/' + pattern.join('/') + '. Only pass a delta link that this action returned.';\n  if (!/^[a-z][a-z0-9+.-]*:\\/\\//i.test(text)) throw new Error(operation + ' failed: the supplied delta link is not an absolute URL. ' + hint);\n  const match = /^https:\\/\\/graph\\.microsoft\\.com(?=[\\/?#]|$)([^?#]*)/i.exec(text);\n  if (!match) throw new Error(operation + ' failed: the supplied delta link does not point at the Microsoft Graph endpoint of this connection. ' + hint);\n  const parts = match[1].split('/').filter((s) => s.length > 0).map((s) => { try { return decodeURIComponent(s); } catch (e) { return s; } });\n  if (parts.length === 0 || !['v1.0', 'beta'].includes(parts[0])) throw new Error(operation + ' failed: the supplied delta link does not target a supported Microsoft Graph API version. ' + hint);\n  const rest = parts.slice(1);\n  if (rest.length !== pattern.length || !pattern.every((p, i) => p === '*' ? rest[i].length > 0 : rest[i] === p)) throw new Error(operation + ' failed: the supplied delta link addresses /' + rest.join('/') + ', which is outside the mailbox and endpoint this action is configured for. ' + hint);\n  return text;\n};\nrequest.url = inputs.deltaLink ? deltaUrl(inputs.deltaLink, ['me', 'mailFolders', '*', 'messages', 'delta'], 'Listing Outlook message changes') : '/me/mailFolders/' + id(inputs.folderId) + '/messages/delta?$select=id,subject,bodyPreview,from,sender,toRecipients,ccRecipients,bccRecipients,replyTo,receivedDateTime,sentDateTime,createdDateTime,lastModifiedDateTime,hasAttachments,isRead,isDraft,importance,categories,flag,webLink,parentFolderId,conversationId,internetMessageId';\nreturn request;",
+      "afterResponse": "const removal = (item) => { const {'@removed': gone, ...rest} = item; return {...rest, removed: gone !== undefined, removedReason: gone && gone.reason !== undefined ? gone.reason : null}; };\nconst changes = (response.value || []).map(removal);\nreturn {changes, count: changes.length, hasMore: !!response['@odata.nextLink'], nextLink: response['@odata.nextLink'] || null, deltaLink: response['@odata.deltaLink'] || null};"
     },
     "outlook_send_email": {
       "label": "Send Email",
@@ -280,10 +267,7 @@
       },
       "request": {
         "method": "POST",
-        "url": "https://graph.microsoft.com/v1.0/me/sendMail",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        }
+        "url": "https://graph.microsoft.com/v1.0/me/sendMail"
       },
       "beforeRequest": "const list = (v) => { if (v === undefined || v === null || v === '') return []; try { const p = JSON.parse(v); return Array.isArray(p) ? p : [p]; } catch (e) { return String(v).split(',').map((s) => s.trim()).filter((s) => s); } };\nconst to = (v) => list(v).map((a) => ({emailAddress: {address: a}}));\nconst message = {subject: inputs.subject, body: {content: inputs.body, contentType: inputs.bodyFormat || 'text'}, toRecipients: to(inputs.recipients), ccRecipients: to(inputs.ccRecipients), bccRecipients: to(inputs.bccRecipients), attachments: []};\nrequest.body = {message, saveToSentItems: 'true'};\nreturn request;",
       "afterResponse": "const list = (v) => { if (v === undefined || v === null || v === '') return []; try { const p = JSON.parse(v); return Array.isArray(p) ? p : [p]; } catch (e) { return String(v).split(',').map((s) => s.trim()).filter((s) => s); } };\nreturn {success: true, message: 'Email sent successfully.', subject: inputs.subject, recipients: list(inputs.recipients)};"
@@ -340,10 +324,7 @@
       },
       "request": {
         "method": "POST",
-        "url": "https://graph.microsoft.com/v1.0/me/messages",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        }
+        "url": "https://graph.microsoft.com/v1.0/me/messages"
       },
       "beforeRequest": "const id = (v) => encodeURIComponent(String(v).trim());\nconst list = (v) => { if (v === undefined || v === null || v === '') return []; try { const p = JSON.parse(v); return Array.isArray(p) ? p : [p]; } catch (e) { return String(v).split(',').map((s) => s.trim()).filter((s) => s); } };\nconst to = (v) => list(v).map((a) => ({emailAddress: {address: a}}));\nconst message = {subject: inputs.subject, body: {content: inputs.body, contentType: inputs.bodyFormat || 'text'}, toRecipients: to(inputs.recipients), ccRecipients: to(inputs.ccRecipients), bccRecipients: to(inputs.bccRecipients), attachments: []};\nrequest.url = inputs.folderId ? '/me/mailFolders/' + id(inputs.folderId) + '/messages' : '/me/messages';\nrequest.body = message;\nreturn request;"
     },
@@ -361,9 +342,6 @@
       "request": {
         "method": "POST",
         "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/send",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        },
         "body": {}
       },
       "afterResponse": "return {success: true, message: 'Draft sent successfully.', messageId: inputs.messageId};"
@@ -374,7 +352,7 @@
       "inputs": {
         "messageId": {
           "label": "Message ID",
-          "description": "Outlook message ID. Resolve one with List Messages, Search Messages or Get Message.",
+          "description": "Outlook message ID. Resolve one with List Messages or Search Messages.",
           "required": true,
           "list": "messages"
         },
@@ -392,10 +370,7 @@
       },
       "request": {
         "method": "POST",
-        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/reply",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        }
+        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/reply"
       },
       "beforeRequest": "const list = (v) => { if (v === undefined || v === null || v === '') return []; try { const p = JSON.parse(v); return Array.isArray(p) ? p : [p]; } catch (e) { return String(v).split(',').map((s) => s.trim()).filter((s) => s); } };\nconst to = (v) => list(v).map((a) => ({emailAddress: {address: a}}));\nconst cc = to(inputs.ccRecipients);\nrequest.body = {comment: inputs.comment};\nif (cc.length > 0) request.body.message = {ccRecipients: cc};\nreturn request;",
       "afterResponse": "return {success: true, message: 'Reply sent successfully.', messageId: inputs.messageId};"
@@ -406,7 +381,7 @@
       "inputs": {
         "messageId": {
           "label": "Message ID",
-          "description": "Outlook message ID. Resolve one with List Messages, Search Messages or Get Message.",
+          "description": "Outlook message ID. Resolve one with List Messages or Search Messages.",
           "required": true,
           "list": "messages"
         },
@@ -420,9 +395,6 @@
       "request": {
         "method": "POST",
         "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/replyAll",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        },
         "body": {
           "comment": "{{comment}}"
         }
@@ -435,7 +407,7 @@
       "inputs": {
         "messageId": {
           "label": "Message ID",
-          "description": "Outlook message ID. Resolve one with List Messages, Search Messages or Get Message.",
+          "description": "Outlook message ID. Resolve one with List Messages or Search Messages.",
           "required": true,
           "list": "messages"
         },
@@ -453,10 +425,7 @@
       },
       "request": {
         "method": "POST",
-        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/forward",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        }
+        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/forward"
       },
       "beforeRequest": "const list = (v) => { if (v === undefined || v === null || v === '') return []; try { const p = JSON.parse(v); return Array.isArray(p) ? p : [p]; } catch (e) { return String(v).split(',').map((s) => s.trim()).filter((s) => s); } };\nconst to = (v) => list(v).map((a) => ({emailAddress: {address: a}}));\nrequest.body = {comment: inputs.comment || '', toRecipients: to(inputs.recipients)};\nreturn request;",
       "afterResponse": "const list = (v) => { if (v === undefined || v === null || v === '') return []; try { const p = JSON.parse(v); return Array.isArray(p) ? p : [p]; } catch (e) { return String(v).split(',').map((s) => s.trim()).filter((s) => s); } };\nreturn {success: true, message: 'Message forwarded successfully.', messageId: inputs.messageId, recipients: list(inputs.recipients)};"
@@ -467,7 +436,7 @@
       "inputs": {
         "messageId": {
           "label": "Message ID",
-          "description": "Outlook message ID. Resolve one with List Messages, Search Messages or Get Message.",
+          "description": "Outlook message ID. Resolve one with List Messages or Search Messages.",
           "required": true,
           "list": "messages"
         },
@@ -479,10 +448,7 @@
       },
       "request": {
         "method": "POST",
-        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/createReply",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        }
+        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/createReply"
       },
       "beforeRequest": "request.body = {comment: inputs.comment || ''};\nreturn request;"
     },
@@ -492,7 +458,7 @@
       "inputs": {
         "messageId": {
           "label": "Message ID",
-          "description": "Outlook message ID. Resolve one with List Messages, Search Messages or Get Message.",
+          "description": "Outlook message ID. Resolve one with List Messages or Search Messages.",
           "required": true,
           "list": "messages"
         },
@@ -504,10 +470,7 @@
       },
       "request": {
         "method": "POST",
-        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/createReplyAll",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        }
+        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/createReplyAll"
       },
       "beforeRequest": "request.body = {comment: inputs.comment || ''};\nreturn request;"
     },
@@ -517,7 +480,7 @@
       "inputs": {
         "messageId": {
           "label": "Message ID",
-          "description": "Outlook message ID. Resolve one with List Messages, Search Messages or Get Message.",
+          "description": "Outlook message ID. Resolve one with List Messages or Search Messages.",
           "required": true,
           "list": "messages"
         },
@@ -535,10 +498,7 @@
       },
       "request": {
         "method": "POST",
-        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/createForward",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        }
+        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/createForward"
       },
       "beforeRequest": "const list = (v) => { if (v === undefined || v === null || v === '') return []; try { const p = JSON.parse(v); return Array.isArray(p) ? p : [p]; } catch (e) { return String(v).split(',').map((s) => s.trim()).filter((s) => s); } };\nconst to = (v) => list(v).map((a) => ({emailAddress: {address: a}}));\nrequest.body = {comment: inputs.comment || '', toRecipients: to(inputs.recipients)};\nreturn request;"
     },
@@ -548,7 +508,7 @@
       "inputs": {
         "messageId": {
           "label": "Message ID",
-          "description": "Outlook message ID. Resolve one with List Messages, Search Messages or Get Message.",
+          "description": "Outlook message ID. Resolve one with List Messages or Search Messages.",
           "required": true,
           "list": "messages"
         },
@@ -645,48 +605,10 @@
         "method": "PATCH",
         "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}",
         "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)",
           "Prefer": "outlook.body-content-type=\"text\""
         }
       },
-      "beforeRequest": "const H = {SdkVersion: 'graph-js/3.0.7 (featureUsage=7)'};\nconst list = (v) => { if (v === undefined || v === null || v === '') return []; try { const p = JSON.parse(v); return Array.isArray(p) ? p : [p]; } catch (e) { return String(v).split(',').map((s) => s.trim()).filter((s) => s); } };\nconst add = list(inputs.categoriesToAdd), remove = list(inputs.categoriesToRemove), changes = {};\nif (inputs.isRead) changes.isRead = inputs.isRead === 'true';\nif (inputs.flagStatus) changes.flag = {flagStatus: inputs.flagStatus};\nif (inputs.importance) changes.importance = inputs.importance;\nif (inputs.subject) changes.subject = inputs.subject;\nif (inputs.body) changes.body = {content: inputs.body, contentType: inputs.bodyFormat || 'text'};\nconst categories = add.length > 0 || remove.length > 0;\nif (Object.keys(changes).length === 0 && !categories) throw new Error('Updating the Outlook message failed: no fields were supplied, so there is nothing to change.');\nif (categories) { const current = call({method: 'GET', url: request.url + '?$select=id,categories', headers: H}).categories || []; changes.categories = [...new Set([...current, ...add])].filter((c) => !remove.includes(c)); }\nrequest.body = changes;\nreturn request;"
-    },
-    "outlook_set_message_read_status": {
-      "label": "Mark Message Read / Unread",
-      "description": "Marks a message as read or unread.",
-      "inputs": {
-        "messageId": {
-          "label": "Message ID",
-          "description": "Outlook message ID. Resolve one with List Messages, Search Messages or Get Message.",
-          "required": true,
-          "list": "messages"
-        },
-        "isRead": {
-          "label": "Read State",
-          "required": true,
-          "defaultValue": "true",
-          "type": "select",
-          "options": [
-            {
-              "value": "true",
-              "label": "Mark as read"
-            },
-            {
-              "value": "false",
-              "label": "Mark as unread"
-            }
-          ]
-        }
-      },
-      "request": {
-        "method": "PATCH",
-        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)",
-          "Prefer": "outlook.body-content-type=\"text\""
-        }
-      },
-      "beforeRequest": "request.body = {isRead: inputs.isRead === 'true'};\nreturn request;"
+      "beforeRequest": "const list = (v) => { if (v === undefined || v === null || v === '') return []; try { const p = JSON.parse(v); return Array.isArray(p) ? p : [p]; } catch (e) { return String(v).split(',').map((s) => s.trim()).filter((s) => s); } };\nconst add = list(inputs.categoriesToAdd), remove = list(inputs.categoriesToRemove), changes = {};\nif (inputs.isRead) changes.isRead = inputs.isRead === 'true';\nif (inputs.flagStatus) changes.flag = {flagStatus: inputs.flagStatus};\nif (inputs.importance) changes.importance = inputs.importance;\nif (inputs.subject) changes.subject = inputs.subject;\nif (inputs.body) changes.body = {content: inputs.body, contentType: inputs.bodyFormat || 'text'};\nconst categories = add.length > 0 || remove.length > 0;\nif (Object.keys(changes).length === 0 && !categories) throw new Error('Updating the Outlook message failed: no fields were supplied, so there is nothing to change.');\nif (categories) { const current = call({method: 'GET', url: request.url + '?$select=id,categories'}).categories || []; changes.categories = [...new Set([...current, ...add])].filter((c) => !remove.includes(c)); }\nrequest.body = changes;\nreturn request;"
     },
     "outlook_move_message": {
       "label": "Move Message",
@@ -694,7 +616,7 @@
       "inputs": {
         "messageId": {
           "label": "Message ID",
-          "description": "Outlook message ID. Resolve one with List Messages, Search Messages or Get Message.",
+          "description": "Outlook message ID. Resolve one with List Messages or Search Messages.",
           "required": true,
           "list": "messages"
         },
@@ -708,9 +630,6 @@
       "request": {
         "method": "POST",
         "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/move",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        },
         "body": {
           "destinationId": "{{destinationFolderId}}"
         }
@@ -723,7 +642,7 @@
       "inputs": {
         "messageId": {
           "label": "Message ID",
-          "description": "Outlook message ID. Resolve one with List Messages, Search Messages or Get Message.",
+          "description": "Outlook message ID. Resolve one with List Messages or Search Messages.",
           "required": true,
           "list": "messages"
         },
@@ -737,9 +656,6 @@
       "request": {
         "method": "POST",
         "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/copy",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        },
         "body": {
           "destinationId": "{{destinationFolderId}}"
         }
@@ -752,17 +668,14 @@
       "inputs": {
         "messageId": {
           "label": "Message ID",
-          "description": "Outlook message ID. Resolve one with List Messages, Search Messages or Get Message.",
+          "description": "Outlook message ID. Resolve one with List Messages or Search Messages.",
           "required": true,
           "list": "messages"
         }
       },
       "request": {
         "method": "DELETE",
-        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        }
+        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}"
       },
       "afterResponse": "return {success: true, message: 'Message moved to Deleted Items.', messageId: inputs.messageId};"
     },
@@ -772,7 +685,7 @@
       "inputs": {
         "messageId": {
           "label": "Message ID",
-          "description": "Outlook message ID. Resolve one with List Messages, Search Messages or Get Message.",
+          "description": "Outlook message ID. Resolve one with List Messages or Search Messages.",
           "required": true,
           "list": "messages"
         },
@@ -787,9 +700,6 @@
       "request": {
         "method": "POST",
         "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/permanentDelete",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        },
         "body": {}
       },
       "beforeRequest": "if (inputs.confirm !== 'true') throw new Error('Permanently deleting the Outlook message was refused: enable Confirm Permanent Deletion to proceed, or use Delete Message (to Deleted Items) instead.');\nreturn request;",
@@ -801,7 +711,7 @@
       "inputs": {
         "messageIds": {
           "label": "Message IDs",
-          "description": "IDs of the messages to move. Resolve them with List Messages or Search Messages. A JSON list, such as [\"Red\"].",
+          "description": "IDs of the messages to move. Resolve them with List Messages or Search Messages. A JSON list, such as [\"AAMkAGI2TG93AAA=\"].",
           "type": "json",
           "required": true
         },
@@ -814,13 +724,10 @@
       },
       "request": {
         "method": "POST",
-        "url": "https://graph.microsoft.com/v1.0/$batch",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        }
+        "url": "https://graph.microsoft.com/v1.0/$batch"
       },
       "beforeRequest": "const id = (v) => encodeURIComponent(String(v).trim());\nconst list = (v) => { if (v === undefined || v === null || v === '') return []; try { const p = JSON.parse(v); return Array.isArray(p) ? p : [p]; } catch (e) { return String(v).split(',').map((s) => s.trim()).filter((s) => s); } };\nconst ids = list(inputs.messageIds);\nif (ids.length === 0) throw new Error('Batch moving Outlook messages failed: no message IDs were supplied.');\nrequest.body = {requests: ids.slice(0, 20).map((m, i) => ({id: String(i + 1), method: 'POST', url: '/me/messages/' + id(m) + '/move', headers: {'Content-Type': 'application/json'}, body: {destinationId: inputs.destinationFolderId}}))};\nreturn request;",
-      "afterResponse": "const H = {SdkVersion: 'graph-js/3.0.7 (featureUsage=7)'};\nconst id = (v) => encodeURIComponent(String(v).trim());\nconst list = (v) => { if (v === undefined || v === null || v === '') return []; try { const p = JSON.parse(v); return Array.isArray(p) ? p : [p]; } catch (e) { return String(v).split(',').map((s) => s.trim()).filter((s) => s); } };\nconst failure = (r) => { const b = r.body; if (b && typeof b === 'object' && 'error' in b) { const t = [b.error && b.error.code, b.error && b.error.message].filter(Boolean); if (t.length) return t.join(': '); } return typeof b === 'string' && b.length > 0 ? b.slice(0, 500) : 'Microsoft Graph returned HTTP ' + r.status + ' for this item.'; };\nconst batch = (requests, first) => { let answers = first ? (first.responses || []) : []; for (let n = first ? 20 : 0; n < requests.length; n += 20) answers = answers.concat(call({method: 'POST', url: '/$batch', headers: H, body: {requests: requests.slice(n, n + 20)}}).responses || []); return answers; };\nconst ids = list(inputs.messageIds), succeeded = [], failed = [];\nconst requests = ids.map((m, i) => ({id: String(i + 1), method: 'POST', url: '/me/messages/' + id(m) + '/move', headers: {'Content-Type': 'application/json'}, body: {destinationId: inputs.destinationFolderId}}));\nfor (const r of batch(requests, response)) { const m = ids[Number(r.id) - 1]; if (r.status >= 200 && r.status < 300) succeeded.push({messageId: m, newMessageId: (r.body || {}).id || null}); else failed.push({messageId: m, status: r.status, error: failure(r)}); }\nreturn {success: failed.length === 0, destinationFolderId: inputs.destinationFolderId, requestedCount: ids.length, succeededCount: succeeded.length, failedCount: failed.length, succeeded, failed};"
+      "afterResponse": "const id = (v) => encodeURIComponent(String(v).trim());\nconst list = (v) => { if (v === undefined || v === null || v === '') return []; try { const p = JSON.parse(v); return Array.isArray(p) ? p : [p]; } catch (e) { return String(v).split(',').map((s) => s.trim()).filter((s) => s); } };\nconst failure = (r) => { const b = r.body; if (b && typeof b === 'object' && 'error' in b) { const t = [b.error && b.error.code, b.error && b.error.message].filter(Boolean); if (t.length) return t.join(': '); } return typeof b === 'string' && b.length > 0 ? b.slice(0, 500) : 'Microsoft Graph returned HTTP ' + r.status + ' for this item.'; };\nconst batch = (requests, first) => { let answers = first ? (first.responses || []) : []; for (let n = first ? 20 : 0; n < requests.length; n += 20) answers = answers.concat(call({method: 'POST', url: '/$batch', body: {requests: requests.slice(n, n + 20)}}).responses || []); return answers; };\nconst ids = list(inputs.messageIds), succeeded = [], failed = [];\nconst requests = ids.map((m, i) => ({id: String(i + 1), method: 'POST', url: '/me/messages/' + id(m) + '/move', headers: {'Content-Type': 'application/json'}, body: {destinationId: inputs.destinationFolderId}}));\nfor (const r of batch(requests, response)) { const m = ids[Number(r.id) - 1]; if (r.status >= 200 && r.status < 300) succeeded.push({messageId: m, newMessageId: (r.body || {}).id || null}); else failed.push({messageId: m, status: r.status, error: failure(r)}); }\nreturn {success: failed.length === 0, destinationFolderId: inputs.destinationFolderId, requestedCount: ids.length, succeededCount: succeeded.length, failedCount: failed.length, succeeded, failed};"
     },
     "outlook_batch_update_messages": {
       "label": "Batch Update Messages",
@@ -828,7 +735,7 @@
       "inputs": {
         "messageIds": {
           "label": "Message IDs",
-          "description": "IDs of the messages to update. Resolve them with List Messages or Search Messages. A JSON list, such as [\"Red\"].",
+          "description": "IDs of the messages to update. Resolve them with List Messages or Search Messages. A JSON list, such as [\"AAMkAGI2TG93AAA=\"].",
           "type": "json",
           "required": true
         },
@@ -898,67 +805,10 @@
       },
       "request": {
         "method": "POST",
-        "url": "https://graph.microsoft.com/v1.0/$batch",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        }
+        "url": "https://graph.microsoft.com/v1.0/$batch"
       },
       "beforeRequest": "const id = (v) => encodeURIComponent(String(v).trim());\nconst list = (v) => { if (v === undefined || v === null || v === '') return []; try { const p = JSON.parse(v); return Array.isArray(p) ? p : [p]; } catch (e) { return String(v).split(',').map((s) => s.trim()).filter((s) => s); } };\nconst ids = list(inputs.messageIds), add = list(inputs.categoriesToAdd), remove = list(inputs.categoriesToRemove), changes = {};\nif (inputs.isRead) changes.isRead = inputs.isRead === 'true';\nif (inputs.flagStatus) changes.flag = {flagStatus: inputs.flagStatus};\nif (inputs.importance) changes.importance = inputs.importance;\nconst categories = add.length > 0 || remove.length > 0;\nconst reads = ids.map((m, i) => ({id: String(i + 1), method: 'GET', url: '/me/messages/' + id(m) + '?$select=id,categories'}));\nconst patches = (targets, kept) => targets.map((m, i) => ({id: String(i + 1), method: 'PATCH', url: '/me/messages/' + id(m), headers: {'Content-Type': 'application/json'}, body: categories ? {...changes, categories: kept.get(m)} : {...changes}}));\nif (ids.length === 0) throw new Error('Batch updating Outlook messages failed: no message IDs were supplied.');\nif (Object.keys(changes).length === 0 && !categories) throw new Error('Batch updating Outlook messages failed: no fields were supplied, so there is nothing to change.');\nrequest.body = {requests: (categories ? reads : patches(ids)).slice(0, 20)};\nreturn request;",
-      "afterResponse": "const H = {SdkVersion: 'graph-js/3.0.7 (featureUsage=7)'};\nconst id = (v) => encodeURIComponent(String(v).trim());\nconst list = (v) => { if (v === undefined || v === null || v === '') return []; try { const p = JSON.parse(v); return Array.isArray(p) ? p : [p]; } catch (e) { return String(v).split(',').map((s) => s.trim()).filter((s) => s); } };\nconst ids = list(inputs.messageIds), add = list(inputs.categoriesToAdd), remove = list(inputs.categoriesToRemove), changes = {};\nif (inputs.isRead) changes.isRead = inputs.isRead === 'true';\nif (inputs.flagStatus) changes.flag = {flagStatus: inputs.flagStatus};\nif (inputs.importance) changes.importance = inputs.importance;\nconst categories = add.length > 0 || remove.length > 0;\nconst reads = ids.map((m, i) => ({id: String(i + 1), method: 'GET', url: '/me/messages/' + id(m) + '?$select=id,categories'}));\nconst patches = (targets, kept) => targets.map((m, i) => ({id: String(i + 1), method: 'PATCH', url: '/me/messages/' + id(m), headers: {'Content-Type': 'application/json'}, body: categories ? {...changes, categories: kept.get(m)} : {...changes}}));\nconst failure = (r) => { const b = r.body; if (b && typeof b === 'object' && 'error' in b) { const t = [b.error && b.error.code, b.error && b.error.message].filter(Boolean); if (t.length) return t.join(': '); } return typeof b === 'string' && b.length > 0 ? b.slice(0, 500) : 'Microsoft Graph returned HTTP ' + r.status + ' for this item.'; };\nconst batch = (requests, first) => { let answers = first ? (first.responses || []) : []; for (let n = first ? 20 : 0; n < requests.length; n += 20) answers = answers.concat(call({method: 'POST', url: '/$batch', headers: H, body: {requests: requests.slice(n, n + 20)}}).responses || []); return answers; };\nconst failed = [], succeeded = [], kept = new Map();\nlet first = response;\nif (categories) { for (const r of batch(reads, response)) { const m = ids[Number(r.id) - 1]; if (r.status >= 200 && r.status < 300) kept.set(m, [...new Set([...((r.body || {}).categories || []), ...add])].filter((c) => !remove.includes(c))); else failed.push({messageId: m, status: r.status, error: failure(r)}); } first = null; }\nconst targets = categories ? ids.filter((m) => kept.has(m)) : ids;\nif (targets.length > 0) for (const r of batch(patches(targets, kept), first)) { const m = targets[Number(r.id) - 1]; if (r.status >= 200 && r.status < 300) succeeded.push({messageId: m}); else failed.push({messageId: m, status: r.status, error: failure(r)}); }\nreturn {success: failed.length === 0, requestedCount: ids.length, succeededCount: succeeded.length, failedCount: failed.length, succeeded, failed};"
-    },
-    "outlook_add_message_categories": {
-      "label": "Add Categories to Message",
-      "description": "Adds categories (labels) to a message.",
-      "inputs": {
-        "messageId": {
-          "label": "Message ID",
-          "description": "Outlook message ID. Resolve one with List Messages, Search Messages or Get Message.",
-          "required": true,
-          "list": "messages"
-        },
-        "categories": {
-          "label": "Categories",
-          "description": "Category names to add to the message. A JSON list, such as [\"Red\"].",
-          "type": "json",
-          "required": true
-        }
-      },
-      "request": {
-        "method": "PATCH",
-        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)",
-          "Prefer": "outlook.body-content-type=\"text\""
-        }
-      },
-      "beforeRequest": "const H = {SdkVersion: 'graph-js/3.0.7 (featureUsage=7)'};\nconst list = (v) => { if (v === undefined || v === null || v === '') return []; try { const p = JSON.parse(v); return Array.isArray(p) ? p : [p]; } catch (e) { return String(v).split(',').map((s) => s.trim()).filter((s) => s); } };\nconst current = call({method: 'GET', url: request.url + '?$select=id,categories', headers: H}).categories || [];\nconst wanted = list(inputs.categories);\nrequest.body = {categories: [...new Set([...current, ...wanted])]};\nreturn request;"
-    },
-    "outlook_remove_message_categories": {
-      "label": "Remove Categories from Message",
-      "description": "Removes categories (labels) from a message.",
-      "inputs": {
-        "messageId": {
-          "label": "Message ID",
-          "description": "Outlook message ID. Resolve one with List Messages, Search Messages or Get Message.",
-          "required": true,
-          "list": "messages"
-        },
-        "categories": {
-          "label": "Categories to Remove",
-          "description": "Category names to remove from the message. A JSON list, such as [\"Red\"].",
-          "type": "json",
-          "required": true
-        }
-      },
-      "request": {
-        "method": "PATCH",
-        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)",
-          "Prefer": "outlook.body-content-type=\"text\""
-        }
-      },
-      "beforeRequest": "const H = {SdkVersion: 'graph-js/3.0.7 (featureUsage=7)'};\nconst list = (v) => { if (v === undefined || v === null || v === '') return []; try { const p = JSON.parse(v); return Array.isArray(p) ? p : [p]; } catch (e) { return String(v).split(',').map((s) => s.trim()).filter((s) => s); } };\nconst current = call({method: 'GET', url: request.url + '?$select=id,categories', headers: H}).categories || [];\nconst wanted = list(inputs.categories);\nrequest.body = {categories: current.filter((c) => !wanted.includes(c))};\nreturn request;"
+      "afterResponse": "const id = (v) => encodeURIComponent(String(v).trim());\nconst list = (v) => { if (v === undefined || v === null || v === '') return []; try { const p = JSON.parse(v); return Array.isArray(p) ? p : [p]; } catch (e) { return String(v).split(',').map((s) => s.trim()).filter((s) => s); } };\nconst ids = list(inputs.messageIds), add = list(inputs.categoriesToAdd), remove = list(inputs.categoriesToRemove), changes = {};\nif (inputs.isRead) changes.isRead = inputs.isRead === 'true';\nif (inputs.flagStatus) changes.flag = {flagStatus: inputs.flagStatus};\nif (inputs.importance) changes.importance = inputs.importance;\nconst categories = add.length > 0 || remove.length > 0;\nconst reads = ids.map((m, i) => ({id: String(i + 1), method: 'GET', url: '/me/messages/' + id(m) + '?$select=id,categories'}));\nconst patches = (targets, kept) => targets.map((m, i) => ({id: String(i + 1), method: 'PATCH', url: '/me/messages/' + id(m), headers: {'Content-Type': 'application/json'}, body: categories ? {...changes, categories: kept.get(m)} : {...changes}}));\nconst failure = (r) => { const b = r.body; if (b && typeof b === 'object' && 'error' in b) { const t = [b.error && b.error.code, b.error && b.error.message].filter(Boolean); if (t.length) return t.join(': '); } return typeof b === 'string' && b.length > 0 ? b.slice(0, 500) : 'Microsoft Graph returned HTTP ' + r.status + ' for this item.'; };\nconst batch = (requests, first) => { let answers = first ? (first.responses || []) : []; for (let n = first ? 20 : 0; n < requests.length; n += 20) answers = answers.concat(call({method: 'POST', url: '/$batch', body: {requests: requests.slice(n, n + 20)}}).responses || []); return answers; };\nconst failed = [], succeeded = [], kept = new Map();\nlet first = response;\nif (categories) { for (const r of batch(reads, response)) { const m = ids[Number(r.id) - 1]; if (r.status >= 200 && r.status < 300) kept.set(m, [...new Set([...((r.body || {}).categories || []), ...add])].filter((c) => !remove.includes(c))); else failed.push({messageId: m, status: r.status, error: failure(r)}); } first = null; }\nconst targets = categories ? ids.filter((m) => kept.has(m)) : ids;\nif (targets.length > 0) for (const r of batch(patches(targets, kept), first)) { const m = targets[Number(r.id) - 1]; if (r.status >= 200 && r.status < 300) succeeded.push({messageId: m}); else failed.push({messageId: m, status: r.status, error: failure(r)}); }\nreturn {success: failed.length === 0, requestedCount: ids.length, succeededCount: succeeded.length, failedCount: failed.length, succeeded, failed};"
     },
     "outlook_add_message_attachment": {
       "label": "Add Attachment to Draft",
@@ -984,9 +834,6 @@
       "request": {
         "method": "POST",
         "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/attachments",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        },
         "body": {
           "@odata.type": "#microsoft.graph.fileAttachment",
           "name": "{{fileName}}",
@@ -1002,17 +849,14 @@
       "inputs": {
         "messageId": {
           "label": "Message ID",
-          "description": "Outlook message ID. Resolve one with List Messages, Search Messages or Get Message.",
+          "description": "Outlook message ID. Resolve one with List Messages or Search Messages.",
           "required": true,
           "list": "messages"
         }
       },
       "request": {
         "method": "GET",
-        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/attachments?$select=id,name,contentType,size,isInline,lastModifiedDateTime",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        }
+        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/attachments?$select=id,name,contentType,size,isInline,lastModifiedDateTime"
       },
       "afterResponse": "const attachment = (a) => ({id: a.id ?? null, name: a.name ?? null, contentType: a.contentType ?? null, size: a.size ?? null, isInline: a.isInline ?? null, lastModifiedDateTime: a.lastModifiedDateTime ?? null, attachmentType: a['@odata.type'] ?? null});\nconst items = response.value || [];\nreturn {messageId: inputs.messageId, attachments: items.map(attachment), count: items.length};"
     },
@@ -1022,7 +866,7 @@
       "inputs": {
         "messageId": {
           "label": "Message ID",
-          "description": "Outlook message ID. Resolve one with List Messages, Search Messages or Get Message.",
+          "description": "Outlook message ID. Resolve one with List Messages or Search Messages.",
           "required": true,
           "list": "messages"
         },
@@ -1034,12 +878,27 @@
       },
       "request": {
         "method": "GET",
-        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/attachments/{{attachmentId}}?$select=id,name,contentType,size,isInline,lastModifiedDateTime",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        }
+        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/attachments/{{attachmentId}}?$select=id,name,contentType,size,isInline,lastModifiedDateTime"
       },
       "afterResponse": "const attachment = (a) => ({id: a.id ?? null, name: a.name ?? null, contentType: a.contentType ?? null, size: a.size ?? null, isInline: a.isInline ?? null, lastModifiedDateTime: a.lastModifiedDateTime ?? null, attachmentType: a['@odata.type'] ?? null});\nreturn {messageId: inputs.messageId, ...attachment(response || {})};"
+    },
+    "downloadAttachment": {
+      "label": "Download Attachment",
+      "description": "Keeps every file attached to a message as a file of the run, for later steps.",
+      "inputs": {
+        "messageId": {
+          "label": "Message ID",
+          "description": "Outlook message ID. Resolve one with List Messages or Search Messages.",
+          "required": true,
+          "list": "messages"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/attachments"
+      },
+      "beforeRequest": "request.url = '/me/messages/' + inputs.messageId + '/attachments';\nreturn request;",
+      "afterResponse": "return response.value.filter((a) => a.name && a.contentBytes).map((a) => ({...a, file: keepFile(a.name, a.contentBytes)}));"
     },
     "outlook_delete_message_attachment": {
       "label": "Delete Message Attachment",
@@ -1047,7 +906,7 @@
       "inputs": {
         "messageId": {
           "label": "Message ID",
-          "description": "Outlook message ID. Resolve one with List Messages, Search Messages or Get Message.",
+          "description": "Outlook message ID. Resolve one with List Messages or Search Messages.",
           "required": true,
           "list": "messages"
         },
@@ -1059,10 +918,7 @@
       },
       "request": {
         "method": "DELETE",
-        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/attachments/{{attachmentId}}",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        }
+        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/attachments/{{attachmentId}}"
       },
       "afterResponse": "return {success: true, message: 'Attachment deleted.', messageId: inputs.messageId, attachmentId: inputs.attachmentId};"
     },
@@ -1079,10 +935,7 @@
       },
       "request": {
         "method": "GET",
-        "url": "https://graph.microsoft.com/v1.0/me/mailFolders",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        }
+        "url": "https://graph.microsoft.com/v1.0/me/mailFolders"
       },
       "beforeRequest": "const num = (v, d) => v === undefined || v === null || v === '' ? d : Number(v);\nrequest.url = '/me/mailFolders?includeHiddenFolders=true&$select=id,displayName,parentFolderId,childFolderCount,unreadItemCount,totalItemCount,isHidden&$top=' + Math.min(Math.max(num(inputs.maxResults, 50), 1), 100);\nreturn request;",
       "afterResponse": "const folders = response.value || [];\nconst next = response['@odata.nextLink'];\nreturn {folders, count: folders.length, hasMore: !!next, nextLink: next || null};"
@@ -1107,10 +960,7 @@
       },
       "request": {
         "method": "GET",
-        "url": "https://graph.microsoft.com/v1.0/me/mailFolders/{{folderId}}/childFolders",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        }
+        "url": "https://graph.microsoft.com/v1.0/me/mailFolders/{{folderId}}/childFolders"
       },
       "beforeRequest": "const id = (v) => encodeURIComponent(String(v).trim());\nconst num = (v, d) => v === undefined || v === null || v === '' ? d : Number(v);\nrequest.url = '/me/mailFolders/' + id(inputs.folderId) + '/childFolders?includeHiddenFolders=true&$select=id,displayName,parentFolderId,childFolderCount,unreadItemCount,totalItemCount,isHidden&$top=' + Math.min(Math.max(num(inputs.maxResults, 50), 1), 100);\nreturn request;",
       "afterResponse": "const folders = response.value || [];\nconst next = response['@odata.nextLink'];\nreturn {parentFolderId: inputs.folderId, folders, count: folders.length, hasMore: !!next, nextLink: next || null};"
@@ -1129,10 +979,7 @@
       },
       "request": {
         "method": "GET",
-        "url": "https://graph.microsoft.com/v1.0/me/mailFolders/{{folderId}}?$select=id,displayName,parentFolderId,childFolderCount,unreadItemCount,totalItemCount,isHidden",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        }
+        "url": "https://graph.microsoft.com/v1.0/me/mailFolders/{{folderId}}?$select=id,displayName,parentFolderId,childFolderCount,unreadItemCount,totalItemCount,isHidden"
       }
     },
     "outlook_create_mail_folder": {
@@ -1152,13 +999,10 @@
       },
       "request": {
         "method": "GET",
-        "url": "https://graph.microsoft.com/v1.0/me/mailFolders",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        }
+        "url": "https://graph.microsoft.com/v1.0/me/mailFolders"
       },
       "beforeRequest": "const id = (v) => encodeURIComponent(String(v).trim());\nconst query = (s) => s.replace(/[\\ud800-\\udbff][\\udc00-\\udfff]|[^\\x21\\x24-\\x26\\x28-\\x3b\\x3d\\x3f-\\x5b\\x5d\\x5f\\x61-\\x7a\\x7e]/g, (c) => c === \"'\" ? '%27' : encodeURIComponent(c));\nconst parent = inputs.parentFolderId ? '/me/mailFolders/' + id(inputs.parentFolderId) + '/childFolders' : '/me/mailFolders';\nrequest.url = parent + '?' + query('includeHiddenFolders=true&$select=id,displayName,parentFolderId,childFolderCount,unreadItemCount,totalItemCount,isHidden&$filter=' + encodeURIComponent(\"displayName eq '\" + inputs.displayName.trim().replace(/'/g, \"''\") + \"'\"));\nreturn request;",
-      "afterResponse": "const H = {SdkVersion: 'graph-js/3.0.7 (featureUsage=7)'};\nconst id = (v) => encodeURIComponent(String(v).trim());\nconst name = inputs.displayName.trim().toLowerCase();\nconst found = (response.value || []).find((f) => (f.displayName || '').toLowerCase() === name);\nif (found) return {created: false, folder: found, folderId: found.id ?? null};\nconst folder = call({method: 'POST', url: inputs.parentFolderId ? '/me/mailFolders/' + id(inputs.parentFolderId) + '/childFolders' : '/me/mailFolders', headers: H, body: {displayName: inputs.displayName}});\nreturn {created: true, folder, folderId: (folder && folder.id) ?? null};"
+      "afterResponse": "const id = (v) => encodeURIComponent(String(v).trim());\nconst name = inputs.displayName.trim().toLowerCase();\nconst found = (response.value || []).find((f) => (f.displayName || '').toLowerCase() === name);\nif (found) return {created: false, folder: found, folderId: found.id ?? null};\nconst folder = call({method: 'POST', url: inputs.parentFolderId ? '/me/mailFolders/' + id(inputs.parentFolderId) + '/childFolders' : '/me/mailFolders', body: {displayName: inputs.displayName}});\nreturn {created: true, folder, folderId: (folder && folder.id) ?? null};"
     },
     "outlook_update_mail_folder": {
       "label": "Rename Mail Folder",
@@ -1178,9 +1022,6 @@
       "request": {
         "method": "PATCH",
         "url": "https://graph.microsoft.com/v1.0/me/mailFolders/{{folderId}}",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        },
         "body": {
           "displayName": "{{displayName}}"
         }
@@ -1199,10 +1040,7 @@
       },
       "request": {
         "method": "DELETE",
-        "url": "https://graph.microsoft.com/v1.0/me/mailFolders/{{folderId}}",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        }
+        "url": "https://graph.microsoft.com/v1.0/me/mailFolders/{{folderId}}"
       },
       "afterResponse": "return {success: true, message: 'Mail folder deleted.', folderId: inputs.folderId};"
     },
@@ -1226,9 +1064,6 @@
       "request": {
         "method": "POST",
         "url": "https://graph.microsoft.com/v1.0/me/mailFolders/{{folderId}}/copy",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        },
         "body": {
           "destinationId": "{{destinationFolderId}}"
         }
@@ -1255,9 +1090,6 @@
       "request": {
         "method": "POST",
         "url": "https://graph.microsoft.com/v1.0/me/mailFolders/{{folderId}}/move",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        },
         "body": {
           "destinationId": "{{destinationFolderId}}"
         }
@@ -1277,12 +1109,11 @@
         "method": "GET",
         "url": "https://graph.microsoft.com/v1.0/me/mailFolders/delta",
         "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)",
           "Prefer": "odata.maxpagesize=50"
         }
       },
-      "beforeRequest": "const removal = (item) => { const {'@removed': gone, ...rest} = item; return {...rest, removed: gone !== undefined, removedReason: gone && gone.reason !== undefined ? gone.reason : null}; };\nconst deltaUrl = (link, pattern, operation) => {\n  const text = String(link).trim();\n  const hint = 'Expected an absolute URL on https://graph.microsoft.com whose path is /{v1.0|beta}/' + pattern.join('/') + '. Only pass a delta link that this action returned.';\n  if (!/^[a-z][a-z0-9+.-]*:\\/\\//i.test(text)) throw new Error(operation + ' failed: the supplied delta link is not an absolute URL. ' + hint);\n  const match = /^https:\\/\\/graph\\.microsoft\\.com(?=[\\/?#]|$)([^?#]*)/i.exec(text);\n  if (!match) throw new Error(operation + ' failed: the supplied delta link does not point at the Microsoft Graph endpoint of this connection. ' + hint);\n  const parts = match[1].split('/').filter((s) => s.length > 0).map((s) => { try { return decodeURIComponent(s); } catch (e) { return s; } });\n  if (parts.length === 0 || !['v1.0', 'beta'].includes(parts[0])) throw new Error(operation + ' failed: the supplied delta link does not target a supported Microsoft Graph API version. ' + hint);\n  const rest = parts.slice(1);\n  if (rest.length !== pattern.length || !pattern.every((p, i) => p === '*' ? rest[i].length > 0 : rest[i] === p)) throw new Error(operation + ' failed: the supplied delta link addresses /' + rest.join('/') + ', which is outside the mailbox and endpoint this action is configured for. ' + hint);\n  return text;\n};\nif (inputs.deltaLink) request.url = deltaUrl(inputs.deltaLink, ['me', 'mailFolders', 'delta'], 'Listing the Outlook mail folder changes');\nreturn request;",
-      "afterResponse": "const removal = (item) => { const {'@removed': gone, ...rest} = item; return {...rest, removed: gone !== undefined, removedReason: gone && gone.reason !== undefined ? gone.reason : null}; };\nconst deltaUrl = (link, pattern, operation) => {\n  const text = String(link).trim();\n  const hint = 'Expected an absolute URL on https://graph.microsoft.com whose path is /{v1.0|beta}/' + pattern.join('/') + '. Only pass a delta link that this action returned.';\n  if (!/^[a-z][a-z0-9+.-]*:\\/\\//i.test(text)) throw new Error(operation + ' failed: the supplied delta link is not an absolute URL. ' + hint);\n  const match = /^https:\\/\\/graph\\.microsoft\\.com(?=[\\/?#]|$)([^?#]*)/i.exec(text);\n  if (!match) throw new Error(operation + ' failed: the supplied delta link does not point at the Microsoft Graph endpoint of this connection. ' + hint);\n  const parts = match[1].split('/').filter((s) => s.length > 0).map((s) => { try { return decodeURIComponent(s); } catch (e) { return s; } });\n  if (parts.length === 0 || !['v1.0', 'beta'].includes(parts[0])) throw new Error(operation + ' failed: the supplied delta link does not target a supported Microsoft Graph API version. ' + hint);\n  const rest = parts.slice(1);\n  if (rest.length !== pattern.length || !pattern.every((p, i) => p === '*' ? rest[i].length > 0 : rest[i] === p)) throw new Error(operation + ' failed: the supplied delta link addresses /' + rest.join('/') + ', which is outside the mailbox and endpoint this action is configured for. ' + hint);\n  return text;\n};\nconst changes = (response.value || []).map(removal);\nreturn {changes, count: changes.length, hasMore: !!response['@odata.nextLink'], nextLink: response['@odata.nextLink'] || null, deltaLink: response['@odata.deltaLink'] || null};"
+      "beforeRequest": "const deltaUrl = (link, pattern, operation) => {\n  const text = String(link).trim();\n  const hint = 'Expected an absolute URL on https://graph.microsoft.com whose path is /{v1.0|beta}/' + pattern.join('/') + '. Only pass a delta link that this action returned.';\n  if (!/^[a-z][a-z0-9+.-]*:\\/\\//i.test(text)) throw new Error(operation + ' failed: the supplied delta link is not an absolute URL. ' + hint);\n  const match = /^https:\\/\\/graph\\.microsoft\\.com(?=[\\/?#]|$)([^?#]*)/i.exec(text);\n  if (!match) throw new Error(operation + ' failed: the supplied delta link does not point at the Microsoft Graph endpoint of this connection. ' + hint);\n  const parts = match[1].split('/').filter((s) => s.length > 0).map((s) => { try { return decodeURIComponent(s); } catch (e) { return s; } });\n  if (parts.length === 0 || !['v1.0', 'beta'].includes(parts[0])) throw new Error(operation + ' failed: the supplied delta link does not target a supported Microsoft Graph API version. ' + hint);\n  const rest = parts.slice(1);\n  if (rest.length !== pattern.length || !pattern.every((p, i) => p === '*' ? rest[i].length > 0 : rest[i] === p)) throw new Error(operation + ' failed: the supplied delta link addresses /' + rest.join('/') + ', which is outside the mailbox and endpoint this action is configured for. ' + hint);\n  return text;\n};\nif (inputs.deltaLink) request.url = deltaUrl(inputs.deltaLink, ['me', 'mailFolders', 'delta'], 'Listing the Outlook mail folder changes');\nreturn request;",
+      "afterResponse": "const removal = (item) => { const {'@removed': gone, ...rest} = item; return {...rest, removed: gone !== undefined, removedReason: gone && gone.reason !== undefined ? gone.reason : null}; };\nconst changes = (response.value || []).map(removal);\nreturn {changes, count: changes.length, hasMore: !!response['@odata.nextLink'], nextLink: response['@odata.nextLink'] || null, deltaLink: response['@odata.deltaLink'] || null};"
     },
     "outlook_list_focused_inbox_overrides": {
       "label": "List Focused Inbox Overrides",
@@ -1290,10 +1121,7 @@
       "inputs": {},
       "request": {
         "method": "GET",
-        "url": "https://graph.microsoft.com/v1.0/me/inferenceClassification/overrides",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        }
+        "url": "https://graph.microsoft.com/v1.0/me/inferenceClassification/overrides"
       },
       "afterResponse": "const overrides = response.value || [];\nreturn {overrides, count: overrides.length};"
     },
@@ -1330,9 +1158,6 @@
       "request": {
         "method": "POST",
         "url": "https://graph.microsoft.com/v1.0/me/inferenceClassification/overrides",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        },
         "body": {
           "classifyAs": "{{classifyAs}}",
           "senderEmailAddress": {
@@ -1370,9 +1195,6 @@
       "request": {
         "method": "PATCH",
         "url": "https://graph.microsoft.com/v1.0/me/inferenceClassification/overrides/{{overrideId}}",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        },
         "body": {
           "classifyAs": "{{classifyAs}}"
         }
@@ -1390,10 +1212,7 @@
       },
       "request": {
         "method": "DELETE",
-        "url": "https://graph.microsoft.com/v1.0/me/inferenceClassification/overrides/{{overrideId}}",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        }
+        "url": "https://graph.microsoft.com/v1.0/me/inferenceClassification/overrides/{{overrideId}}"
       },
       "afterResponse": "return {success: true, message: 'Focused Inbox override deleted.', overrideId: inputs.overrideId};"
     },
@@ -1410,10 +1229,7 @@
       },
       "request": {
         "method": "POST",
-        "url": "https://graph.microsoft.com/v1.0/me/getMailTips",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        }
+        "url": "https://graph.microsoft.com/v1.0/me/getMailTips"
       },
       "beforeRequest": "const list = (v) => { if (v === undefined || v === null || v === '') return []; try { const p = JSON.parse(v); return Array.isArray(p) ? p : [p]; } catch (e) { return String(v).split(',').map((s) => s.trim()).filter((s) => s); } };\nconst addresses = list(inputs.emailAddresses);\nif (addresses.length === 0) throw new Error('Reading Outlook mail tips failed: no recipient addresses were supplied.');\nrequest.body = {EmailAddresses: addresses, MailTipsOptions: 'automaticReplies, mailboxFullStatus, customMailTip, externalMemberCount, maxMessageSize, deliveryRestriction, moderationStatus, recipientScope, totalMemberCount'};\nreturn request;",
       "afterResponse": "const mailTips = (response && response.value) || [];\nreturn {mailTips, count: mailTips.length};"
@@ -1424,10 +1240,7 @@
       "inputs": {},
       "request": {
         "method": "GET",
-        "url": "https://graph.microsoft.com/v1.0/me?$select=id,displayName,mail,userPrincipalName",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        }
+        "url": "https://graph.microsoft.com/v1.0/me?$select=id,displayName,mail,userPrincipalName"
       },
       "afterResponse": "return {id: response.id ?? null, displayName: response.displayName ?? null, mail: response.mail ?? null, userPrincipalName: response.userPrincipalName ?? null, source: 'graph'};"
     },
@@ -1437,10 +1250,7 @@
       "inputs": {},
       "request": {
         "method": "GET",
-        "url": "https://graph.microsoft.com/v1.0/me/outlook/supportedTimeZones",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        }
+        "url": "https://graph.microsoft.com/v1.0/me/outlook/supportedTimeZones"
       },
       "afterResponse": "const timeZones = response.value || [];\nreturn {timeZones, count: timeZones.length};"
     }
@@ -1461,16 +1271,11 @@
       },
       "request": {
         "method": "GET",
-        "url": "https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
-        }
+        "url": "https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages"
       },
-      "items": "$",
-      "newBy": "time",
       "key": "$.receivedDateTime",
       "beforeRequest": "const since = inputs.lastPollTime ? '$filter=receivedDateTime%20gt%20' + new Date(Number(inputs.lastPollTime)).toISOString() : '$top=10';\nrequest.url = '/me/mailFolders/inbox/messages?' + since + '&$orderby=receivedDateTime%20desc';\nreturn request;",
-      "afterResponse": "const items = [];\nlet page = response;\nwhile ((page.value || []).length > 0) {\n  items.push(...page.value);\n  if (!inputs.lastPollTime || !page['@odata.nextLink']) break;\n  page = call({method: 'GET', url: page['@odata.nextLink'], headers: {SdkVersion: 'graph-js/3.0.7 (featureUsage=7)'}});\n}\nconst lower = (v) => v == null ? v : String(v).toLowerCase();\nreturn items.filter((m) => !inputs.sender || lower(m.from?.emailAddress?.address) === lower(inputs.sender))\n  .filter((m) => !inputs.recipient || (m.toRecipients || []).some((r) => lower(r.emailAddress?.address) === lower(inputs.recipient)));"
+      "afterResponse": "const items = [];\nlet page = response;\nwhile ((page.value || []).length > 0) {\n  items.push(...page.value);\n  if (!inputs.lastPollTime || !page['@odata.nextLink']) break;\n  page = call({method: 'GET', url: page['@odata.nextLink']});\n}\nconst lower = (v) => v == null ? v : String(v).toLowerCase();\nreturn items.filter((m) => !inputs.sender || lower(m.from?.emailAddress?.address) === lower(inputs.sender))\n  .filter((m) => !inputs.recipient || (m.toRecipients || []).some((r) => lower(r.emailAddress?.address) === lower(inputs.recipient)));"
     },
     "newEmailInFolder": {
       "label": "New Email in Folder",
@@ -1478,23 +1283,49 @@
       "inputs": {
         "folderId": {
           "label": "Folder",
-          "description": "New emails in this folder start the flow.",
+          "description": "New emails in this folder start the task.",
           "required": true,
           "list": "folders"
         }
       },
       "request": {
         "method": "GET",
-        "url": "https://graph.microsoft.com/v1.0/me/mailFolders/{{folderId}}/messages",
-        "headers": {
-          "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+        "url": "https://graph.microsoft.com/v1.0/me/mailFolders/{{folderId}}/messages"
+      },
+      "key": "$.createdDateTime",
+      "beforeRequest": "const since = inputs.lastPollTime ? '$filter=createdDateTime%20gt%20' + new Date(Number(inputs.lastPollTime)).toISOString() : '$top=10';\nrequest.url = '/me/mailFolders/' + inputs.folderId + '/messages?' + since + '&$orderby=createdDateTime%20desc';\nreturn request;",
+      "afterResponse": "const items = [];\nlet page = response;\nwhile ((page.value || []).length > 0) {\n  items.push(...page.value);\n  if (!inputs.lastPollTime || !page['@odata.nextLink']) break;\n  page = call({method: 'GET', url: page['@odata.nextLink']});\n}\nreturn items;"
+    },
+    "newAttachment": {
+      "label": "New Attachment",
+      "description": "Triggers once for each file attached to a new email, with the file.",
+      "inputs": {
+        "folderId": {
+          "label": "Folder",
+          "description": "Leave empty to watch the whole mailbox, including sent mail.",
+          "list": "folders"
+        },
+        "sender": {
+          "label": "From",
+          "description": "Only emails whose sender address contains this text."
+        },
+        "attachmentNameFilter": {
+          "label": "Attachment Name",
+          "description": "Only attachments whose file name contains this text."
+        },
+        "fileExtension": {
+          "label": "File Extension",
+          "description": "Only attachments with this extension. Separate several with commas, such as pdf, docx."
         }
       },
-      "items": "$",
-      "newBy": "time",
-      "key": "$.createdDateTime",
-      "beforeRequest": "const since = inputs.lastPollTime ? '$filter=createdDateTime%20gt%20' + new Date(Number(inputs.lastPollTime)).toISOString() : '$top=10';\n// The original puts the folder ID in the path as given.\nrequest.url = '/me/mailFolders/' + inputs.folderId + '/messages?' + since + '&$orderby=createdDateTime%20desc';\nreturn request;",
-      "afterResponse": "const items = [];\nlet page = response;\nwhile ((page.value || []).length > 0) {\n  items.push(...page.value);\n  if (!inputs.lastPollTime || !page['@odata.nextLink']) break;\n  page = call({method: 'GET', url: page['@odata.nextLink'], headers: {SdkVersion: 'graph-js/3.0.7 (featureUsage=7)'}});\n}\nreturn items;"
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/messages"
+      },
+      "newBy": "unseen",
+      "key": "$.id",
+      "beforeRequest": "const cursor = memory.pollCursor || (memory.pollCursor = {epochMilliSeconds: Date.now(), seenMessageIds: []});\nconst since = ('receivedDateTime ge ' + new Date(cursor.epochMilliSeconds).toISOString() + ' and hasAttachments eq true').replace(/ /g, '%20');\nrequest.url = (inputs.folderId ? '/me/mailFolders/' + inputs.folderId + '/messages' : '/me/messages') + '?$filter=' + since + '&$select=id,subject,from,sender,receivedDateTime,parentFolderId&$orderby=receivedDateTime%20desc';\nreturn request;",
+      "afterResponse": "const cursor = memory.pollCursor, time = (m) => Date.parse(m.receivedDateTime), messages = [];\nlet page = response;\nwhile (page.value.length > 0) {\n  messages.push(...page.value);\n  if (!page['@odata.nextLink']) break;\n  page = call({method: 'GET', url: page['@odata.nextLink']});\n}\nconst sender = (inputs.sender || '').trim().toLowerCase(), name = (inputs.attachmentNameFilter || '').trim().toLowerCase();\nconst extensions = (inputs.fileExtension || '').split(',').map((e) => e.trim().toLowerCase().replace(/^\\./, '')).filter((e) => e.length > 0);\nconst wanted = (a) => { const n = a.name?.toLowerCase(); return (!name || n?.includes(name)) && (extensions.length === 0 || extensions.some((e) => n?.endsWith('.' + e))); };\nconst fromSender = (m) => !sender || [m.from?.emailAddress?.address, m.sender?.emailAddress?.address].some((a) => a != null && a.toLowerCase().includes(sender));\nconst unseen = (m) => time(m) !== cursor.epochMilliSeconds ? time(m) > cursor.epochMilliSeconds : !!cursor.seenMessageIds && !cursor.seenMessageIds.includes(m.id);\nconst items = [];\nfor (const m of messages.filter(unseen).filter(fromSender)) {\n  for (const a of call({method: 'GET', url: '/me/messages/' + m.id + '/attachments'}).value) {\n    const {contentBytes, ...rest} = a;\n    if (!wanted(a) || !a.name || !contentBytes || a['@odata.type'] !== '#microsoft.graph.fileAttachment') continue;\n    items.push({file: keepFile(a.name, contentBytes), messageId: m.id, messageSubject: m.subject, messageSender: m.sender, messageReceivedDateTime: m.receivedDateTime, parentFolderId: m.parentFolderId, ...rest});\n  }\n}\nconst newest = messages.reduce((t, m) => Math.max(t, time(m)), cursor.epochMilliSeconds);\nconst atNewest = messages.filter((m) => time(m) === newest).map((m) => m.id);\nmemory.pollCursor = {epochMilliSeconds: newest, seenMessageIds: [...new Set([...atNewest, ...(newest === cursor.epochMilliSeconds ? cursor.seenMessageIds || [] : [])])]};\nreturn items;"
     }
   }
 }

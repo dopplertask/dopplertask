@@ -1,7 +1,7 @@
 {
   "name": "pushover",
   "label": "Pushover",
-  "description": "Simple push notification service",
+  "description": "Manage Pushover delivery groups, emergency receipts, licenses and message limits",
   "icon": "",
   "hosts": [
     "api.pushover.net"
@@ -31,7 +31,7 @@
       "inputs": {
         "receipt": {
           "label": "Receipt",
-          "description": "Receipt id returned by Send Push Message at emergency priority (2).",
+          "description": "Receipt id that Pushover returned for a message sent at emergency priority (2).",
           "required": true
         }
       },
@@ -49,7 +49,7 @@
       "inputs": {
         "tag": {
           "label": "Tag",
-          "description": "A single tag that was supplied in the Tags parameter at send time, for example deploy. One tag only, with no spaces or slashes.",
+          "description": "A single tag that the emergency messages were sent with, for example deploy. One tag only, with no spaces or slashes.",
           "required": true
         }
       },
@@ -59,6 +59,27 @@
       },
       "outputs": {
         "canceled": "$.canceled"
+      }
+    },
+    "create_delivery_group": {
+      "label": "Create Delivery Group",
+      "description": "Create a Pushover delivery group, or return the existing one with that name",
+      "inputs": {
+        "name": {
+          "label": "Name",
+          "description": "Name of the delivery group, for example On-Call Engineers. Matching against existing groups ignores case, and the name is returned exactly as Pushover stores it.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.pushover.net/1/groups.json?token={{credential.api_token}}"
+      },
+      "afterResponse": "const wanted = inputs.name.trim().toLowerCase();\nconst matching = (answer) => ((answer && answer.groups) || []).find((group) => group.name.trim().toLowerCase() === wanted);\nconst existing = matching(response);\nif (existing !== undefined) return { group: existing.group, name: existing.name, created: false };\ntry {\n  return { group: call({ method: 'POST', url: '/groups.json', body: { name: inputs.name } }).group, name: inputs.name, created: true };\n} catch (error) {\n  const message = String((error && error.message) || error);\n  const status = /status (\\d+)/.exec(message);\n  if ((status && Number(status[1]) >= 500) || !/already (exists|been taken|in use)|has already been|must be unique/i.test(message)) throw error;\n  const raced = matching(call({ method: 'GET', url: request.url }));\n  if (raced === undefined) throw error;\n  return { group: raced.group, name: raced.name, created: false };\n}",
+      "outputs": {
+        "group": "$.group",
+        "name": "$.name",
+        "created": "$.created"
       }
     },
     "rename_delivery_group": {
@@ -150,7 +171,7 @@
       }
     },
     "disable_group_user": {
-      "label": "Disable Group User",
+      "label": "Disable User in Delivery Group",
       "description": "Temporarily stop a group member from receiving group messages",
       "inputs": {
         "group_key": {
@@ -176,7 +197,7 @@
       }
     },
     "enable_group_user": {
-      "label": "Enable Group User",
+      "label": "Enable User in Delivery Group",
       "description": "Resume group deliveries to a suspended group member",
       "inputs": {
         "group_key": {
@@ -253,7 +274,7 @@
       "inputs": {
         "receipt": {
           "label": "Receipt",
-          "description": "Receipt id returned by Send Push Message at emergency priority, for example rXXXXXXXXXXXXXXXXXXXXXXXXXXXXX.",
+          "description": "Receipt id that Pushover returned for a message sent at emergency priority (2), for example rXXXXXXXXXXXXXXXXXXXXXXXXXXXXX.",
           "required": true
         }
       },
@@ -299,7 +320,7 @@
       "inputs": {
         "group_key": {
           "label": "Group Key",
-          "description": "The 30-character delivery group key. Resolve it with List Delivery Groups; this is not the user key stored on the connection.",
+          "description": "The 30-character delivery group key. Resolve it with List Delivery Groups.",
           "required": true
         }
       },

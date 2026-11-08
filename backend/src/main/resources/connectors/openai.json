@@ -447,6 +447,368 @@
       "beforeRequest": "const texts = [inputs.query, ...JSON.parse(inputs.documents).map(String)];\nrequest.body.input = texts.slice(0, 2048);\nreturn request;",
       "afterResponse": "const documents = JSON.parse(inputs.documents).map(String);\nconst texts = [inputs.query, ...documents];\nconst vectors = response.data.map((item) => item.embedding);\nlet tokens = response.usage?.total_tokens ?? 0;\nfor (let start = 2048; start < texts.length; start += 2048) {\n  const page = call({ method: 'POST', url: '/embeddings', body: { model: inputs.model, input: texts.slice(start, start + 2048) } });\n  vectors.push(...page.data.map((item) => item.embedding));\n  tokens += page.usage?.total_tokens ?? 0;\n}\nconst cosine = (a, b) => {\n  let dot = 0, normA = 0, normB = 0;\n  for (let index = 0; index < a.length; index++) { dot += a[index] * b[index]; normA += a[index] * a[index]; normB += b[index] * b[index]; }\n  const norm = Math.sqrt(normA) * Math.sqrt(normB);\n  return norm === 0 ? 0 : dot / norm;\n};\nconst [query, ...rest] = vectors;\nconst ranked = rest.map((vector, index) => ({ document: documents[index], index, score: cosine(query, vector) })).sort((a, b) => b.score - a.score);\nconst topK = inputs.topK === '' ? NaN : Number(inputs.topK);\nconst results = topK > 0 ? ranked.slice(0, topK) : ranked;\nreturn { bestMatch: results[0] ?? null, results, usage: { total_tokens: tokens } };"
     },
+    "generate_image": {
+      "label": "Generate Image",
+      "description": "Create an image from a text description.",
+      "inputs": {
+        "model": {
+          "label": "Model",
+          "description": "The OpenAI model that draws the image.",
+          "required": true,
+          "defaultValue": "gpt-image-2",
+          "list": "models"
+        },
+        "prompt": {
+          "label": "Prompt",
+          "description": "Describe the image you want.",
+          "type": "multiline",
+          "required": true
+        },
+        "resolution": {
+          "label": "Size",
+          "description": "Image shape. Auto lets the model choose.",
+          "type": "select",
+          "defaultValue": "auto",
+          "options": [
+            {
+              "value": "auto",
+              "label": "Auto"
+            },
+            {
+              "value": "1024x1024",
+              "label": "Square"
+            },
+            {
+              "value": "1536x1024",
+              "label": "Landscape"
+            },
+            {
+              "value": "1024x1536",
+              "label": "Portrait"
+            }
+          ]
+        },
+        "quality": {
+          "label": "Quality",
+          "description": "Higher quality takes longer and costs more.",
+          "type": "select",
+          "defaultValue": "auto",
+          "options": [
+            {
+              "value": "auto",
+              "label": "Auto"
+            },
+            {
+              "value": "low",
+              "label": "Low"
+            },
+            {
+              "value": "medium",
+              "label": "Medium"
+            },
+            {
+              "value": "high",
+              "label": "High"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/images/generations",
+        "body": {
+          "model": "{{model}}",
+          "prompt": "{{prompt}}",
+          "quality": "{{quality}}",
+          "size": "{{resolution}}"
+        }
+      },
+      "afterResponse": "const kebab = (text) => text.replace(/([a-z])([A-Z])/g, '$1-$2').replace(/\\s+/g, '-').replace(/_/g, '-').toLowerCase().replace(/^-+|-+$/g, '');\nconst images = (response.data ?? []).map((image, index) => {\n  // A dall-e model links to the image on another host, which the credential may not go to.\n  if (!image.b64_json) throw new Error(image.url ? `Image ${index + 1} came as a link, which this step cannot download. Choose a gpt-image model.` : `Image ${index + 1} has no URL or base64 data`);\n  const fileName = `${Array.from({ length: 16 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}-${kebab(inputs.prompt).slice(0, 40)}-${index + 1}.png`;\n  return { url: keepFile(fileName, image.b64_json), fileName, revised_prompt: image.revised_prompt };\n});\nreturn { ...response, images };"
+    },
+    "transcribe": {
+      "label": "Transcribe Audio",
+      "description": "Turn speech in an audio file into text.",
+      "inputs": {
+        "audio": {
+          "label": "Audio",
+          "description": "The recording to transcribe.",
+          "type": "file",
+          "required": true
+        },
+        "language": {
+          "label": "Language",
+          "description": "The language spoken in the recording.",
+          "type": "select",
+          "defaultValue": "en",
+          "options": [
+            {
+              "value": "af",
+              "label": "Afrikaans"
+            },
+            {
+              "value": "ar",
+              "label": "Arabic"
+            },
+            {
+              "value": "hy",
+              "label": "Armenian"
+            },
+            {
+              "value": "az",
+              "label": "Azerbaijani"
+            },
+            {
+              "value": "be",
+              "label": "Belarusian"
+            },
+            {
+              "value": "bs",
+              "label": "Bosnian"
+            },
+            {
+              "value": "bg",
+              "label": "Bulgarian"
+            },
+            {
+              "value": "ca",
+              "label": "Catalan"
+            },
+            {
+              "value": "zh",
+              "label": "Chinese (Simplified)"
+            },
+            {
+              "value": "hr",
+              "label": "Croatian"
+            },
+            {
+              "value": "cs",
+              "label": "Czech"
+            },
+            {
+              "value": "da",
+              "label": "Danish"
+            },
+            {
+              "value": "nl",
+              "label": "Dutch"
+            },
+            {
+              "value": "en",
+              "label": "English"
+            },
+            {
+              "value": "et",
+              "label": "Estonian"
+            },
+            {
+              "value": "fi",
+              "label": "Finnish"
+            },
+            {
+              "value": "fr",
+              "label": "French"
+            },
+            {
+              "value": "gl",
+              "label": "Galician"
+            },
+            {
+              "value": "de",
+              "label": "German"
+            },
+            {
+              "value": "el",
+              "label": "Greek"
+            },
+            {
+              "value": "he",
+              "label": "Hebrew"
+            },
+            {
+              "value": "hi",
+              "label": "Hindi"
+            },
+            {
+              "value": "hu",
+              "label": "Hungarian"
+            },
+            {
+              "value": "is",
+              "label": "Icelandic"
+            },
+            {
+              "value": "id",
+              "label": "Indonesian"
+            },
+            {
+              "value": "it",
+              "label": "Italian"
+            },
+            {
+              "value": "ja",
+              "label": "Japanese"
+            },
+            {
+              "value": "kn",
+              "label": "Kannada"
+            },
+            {
+              "value": "kk",
+              "label": "Kazakh"
+            },
+            {
+              "value": "ko",
+              "label": "Korean"
+            },
+            {
+              "value": "lv",
+              "label": "Latvian"
+            },
+            {
+              "value": "lt",
+              "label": "Lithuanian"
+            },
+            {
+              "value": "mk",
+              "label": "Macedonian"
+            },
+            {
+              "value": "ms",
+              "label": "Malay"
+            },
+            {
+              "value": "mi",
+              "label": "Maori"
+            },
+            {
+              "value": "mr",
+              "label": "Marathi"
+            },
+            {
+              "value": "ne",
+              "label": "Nepali"
+            },
+            {
+              "value": "no",
+              "label": "Norwegian"
+            },
+            {
+              "value": "fa",
+              "label": "Persian"
+            },
+            {
+              "value": "pl",
+              "label": "Polish"
+            },
+            {
+              "value": "pt",
+              "label": "Portuguese"
+            },
+            {
+              "value": "ro",
+              "label": "Romanian"
+            },
+            {
+              "value": "ru",
+              "label": "Russian"
+            },
+            {
+              "value": "sr",
+              "label": "Serbian"
+            },
+            {
+              "value": "sk",
+              "label": "Slovak"
+            },
+            {
+              "value": "sl",
+              "label": "Slovenian"
+            },
+            {
+              "value": "es",
+              "label": "Spanish"
+            },
+            {
+              "value": "sw",
+              "label": "Swahili"
+            },
+            {
+              "value": "sv",
+              "label": "Swedish"
+            },
+            {
+              "value": "tl",
+              "label": "Tagalog"
+            },
+            {
+              "value": "ta",
+              "label": "Tamil"
+            },
+            {
+              "value": "th",
+              "label": "Thai"
+            },
+            {
+              "value": "tr",
+              "label": "Turkish"
+            },
+            {
+              "value": "uk",
+              "label": "Ukrainian"
+            },
+            {
+              "value": "ur",
+              "label": "Urdu"
+            },
+            {
+              "value": "vi",
+              "label": "Vietnamese"
+            },
+            {
+              "value": "cy",
+              "label": "Welsh"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/audio/transcriptions",
+        "headers": {
+          "Content-Type": "multipart/form-data"
+        },
+        "body": {
+          "file": "{{audio}}",
+          "model": "whisper-1",
+          "language": "{{language}}"
+        }
+      },
+      "beforeRequest": "// Maori was once listed as ma. A language the model does not know is sent as English.\nconst language = inputs.language === 'ma' ? 'mi' : inputs.language;\nrequest.body.language = 'af ar hy az be bs bg ca zh hr cs da nl en et fi fr gl de el he hi hu is id it ja kn kk ko lv lt mk ms mi mr ne no fa pl pt ro ru sr sk sl es sw sv tl ta th tr uk ur vi cy'.split(' ').includes(language) ? language : 'en';\nreturn request;"
+    },
+    "translate": {
+      "label": "Translate Audio",
+      "description": "Turn speech in any language into English text.",
+      "inputs": {
+        "audio": {
+          "label": "Audio",
+          "description": "The recording to translate.",
+          "type": "file",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/audio/translations",
+        "headers": {
+          "Content-Type": "multipart/form-data"
+        },
+        "body": {
+          "file": "{{audio}}",
+          "model": "whisper-1"
+        }
+      }
+    },
     "list_files": {
       "label": "List Files",
       "description": "List the files in your OpenAI account.",
@@ -539,7 +901,7 @@
       "inputs": {
         "fileId": {
           "label": "File ID",
-          "description": "Starts with file-. Upload, List and Find File return it.",
+          "description": "Starts with file-. List Files and Find File return it.",
           "required": true
         }
       },

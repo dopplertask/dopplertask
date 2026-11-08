@@ -20,7 +20,7 @@
       },
       "apiKey": {
         "label": "API Key",
-        "description": "Service Role Key (for actions) or Anonymous Key (for basic triggers). Find your keys in Settings, API, Project API keys.",
+        "description": "The Service Role Key, which the user actions need, or the Anonymous Key for tables your Row Level Security allows. Find your keys in Settings, API, Project API keys.",
         "required": true,
         "secret": true
       }
@@ -35,6 +35,7 @@
     "create_row": {
       "label": "Create Row",
       "description": "Create a new row in a table",
+      "group": "Rows",
       "inputs": {
         "table_name": {
           "label": "Table",
@@ -68,6 +69,7 @@
     "delete_rows": {
       "label": "Delete Rows",
       "description": "Remove rows matching filter criteria from a table",
+      "group": "Rows",
       "inputs": {
         "table_name": {
           "label": "Table",
@@ -155,12 +157,13 @@
           "Content-Profile": "public"
         }
       },
-      "beforeRequest": "const encode = (text) => encodeURIComponent(String(text)).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst queryOf = (pairs) => pairs.map(([key, value]) => encode(key) + '=' + encode(value)).join('&');\nconst inList = (values) => 'in.(' + [...new Set(values)].map((v) => typeof v === 'string' && /[,()]/.test(v) ? '\"' + v + '\"' : '' + v).join(',') + ')';\nconst list = inputs.filter_values ? JSON.parse(inputs.filter_values) : [];\nconst need = (check) => { if (!inputs.filter_value) throw new Error('Filter value is required for ' + check); return inputs.filter_value; };\nconst column = inputs.filter_column;\nconst pairs = [];\nswitch (inputs.filter_type) {\n  case 'eq': pairs.push([column, 'eq.' + need('equality check')]); break;\n  case 'neq': pairs.push([column, 'neq.' + need('not-equals check')]); break;\n  case 'in': if (!list || list.length === 0) throw new Error('Filter values are required for \"in\" filter type'); pairs.push([column, inList(list)]); break;\n  case 'gt': pairs.push([column, 'gt.' + need('greater-than check')]); break;\n  case 'gte': pairs.push([column, 'gte.' + need('greater-than-or-equal check')]); break;\n  case 'lt': pairs.push([column, 'lt.' + need('less-than check')]); break;\n  case 'lte': pairs.push([column, 'lte.' + need('less-than-or-equal check')]); break;\n  case 'is_null': pairs.push([column, 'is.null']); break;\n  case 'is_not_null': pairs.push([column, 'not.is.null']); break;\n  case 'like': pairs.push([column, 'like.' + need('like pattern matching')]); break;\n  case 'ilike': pairs.push([column, 'ilike.' + need('case-insensitive like pattern matching')]); break;\n  default: throw new Error('Unsupported filter type: ' + inputs.filter_type);\n}\nconst returning = inputs.return_deleted === 'true';\nif (returning) pairs.push(['select', '*']);\nrequest.headers.Prefer = returning ? 'return=representation' : '';\nrequest.url += '?' + queryOf(pairs);\nreturn request;",
+      "beforeRequest": "const encode = (text) => encodeURIComponent(String(text)).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst queryOf = (pairs) => pairs.map(([key, value]) => encode(key) + '=' + encode(value)).join('&');\nconst inList = (values) => 'in.(' + [...new Set(values)].map((v) => typeof v === 'string' && /[,()]/.test(v) ? '\"' + v + '\"' : '' + v).join(',') + ')';\nconst checks = {eq: 'equality check', neq: 'not-equals check', gt: 'greater-than check', gte: 'greater-than-or-equal check', lt: 'less-than check', lte: 'less-than-or-equal check', like: 'like pattern matching', ilike: 'case-insensitive like pattern matching'};\nconst type = inputs.filter_type, column = inputs.filter_column, pairs = [];\nif (type in checks) {\n  if (!inputs.filter_value) throw new Error('Filter value is required for ' + checks[type]);\n  pairs.push([column, type + '.' + inputs.filter_value]);\n}\nelse if (type === 'in') {\n  const list = inputs.filter_values ? JSON.parse(inputs.filter_values) : [];\n  if (!list || list.length === 0) throw new Error('Filter values are required for \"in\" filter type');\n  pairs.push([column, inList(list)]);\n}\nelse if (type === 'is_null') pairs.push([column, 'is.null']);\nelse if (type === 'is_not_null') pairs.push([column, 'not.is.null']);\nelse throw new Error('Unsupported filter type: ' + type);\nconst returning = inputs.return_deleted === 'true';\nif (returning) pairs.push(['select', '*']);\nrequest.headers.Prefer = returning ? 'return=representation' : '';\nrequest.url += '?' + queryOf(pairs);\nreturn request;",
       "afterResponse": "return inputs.return_deleted === 'true' ? {success: true, deleted_rows: response} : {success: true};"
     },
     "update_row": {
       "label": "Update Row",
       "description": "Update rows in a table based on filter criteria",
+      "group": "Rows",
       "inputs": {
         "table_name": {
           "label": "Table",
@@ -223,12 +226,13 @@
         },
         "body": "{{update_data}}"
       },
-      "beforeRequest": "const encode = (text) => encodeURIComponent(String(text)).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst queryOf = (pairs) => pairs.map(([key, value]) => encode(key) + '=' + encode(value)).join('&');\nconst inList = (values) => 'in.(' + [...new Set(values)].map((v) => typeof v === 'string' && /[,()]/.test(v) ? '\"' + v + '\"' : '' + v).join(',') + ')';\nconst list = inputs.filter_values ? JSON.parse(inputs.filter_values) : [];\nconst need = (check) => { if (!inputs.filter_value) throw new Error('Filter value is required for ' + check); return inputs.filter_value; };\nconst column = inputs.filter_column;\nconst pairs = [];\nswitch (inputs.filter_type) {\n  case 'eq': pairs.push([column, 'eq.' + need('equality check')]); break;\n  case 'in': if (!list || list.length === 0) throw new Error('Filter values are required for \"in list\" filter type'); pairs.push([column, inList(list)]); break;\n  case 'gt': pairs.push([column, 'gt.' + need('greater-than check')]); break;\n  default: throw new Error('Unsupported filter type: ' + inputs.filter_type);\n}\nconst returning = inputs.return_updated === 'true';\nif (returning) pairs.push(['select', '*']);\nrequest.headers.Prefer = returning ? 'return=representation' : '';\nrequest.url += '?' + queryOf(pairs);\nreturn request;",
+      "beforeRequest": "const encode = (text) => encodeURIComponent(String(text)).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst queryOf = (pairs) => pairs.map(([key, value]) => encode(key) + '=' + encode(value)).join('&');\nconst inList = (values) => 'in.(' + [...new Set(values)].map((v) => typeof v === 'string' && /[,()]/.test(v) ? '\"' + v + '\"' : '' + v).join(',') + ')';\nconst checks = {eq: 'equality check', gt: 'greater-than check'};\nconst type = inputs.filter_type, column = inputs.filter_column, pairs = [];\nif (type in checks) {\n  if (!inputs.filter_value) throw new Error('Filter value is required for ' + checks[type]);\n  pairs.push([column, type + '.' + inputs.filter_value]);\n}\nelse if (type === 'in') {\n  const list = inputs.filter_values ? JSON.parse(inputs.filter_values) : [];\n  if (!list || list.length === 0) throw new Error('Filter values are required for \"in list\" filter type');\n  pairs.push([column, inList(list)]);\n}\nelse throw new Error('Unsupported filter type: ' + type);\nconst returning = inputs.return_updated === 'true';\nif (returning) pairs.push(['select', '*']);\nrequest.headers.Prefer = returning ? 'return=representation' : '';\nrequest.url += '?' + queryOf(pairs);\nreturn request;",
       "afterResponse": "return inputs.return_updated === 'true' ? {success: true, updated_rows: response} : {success: true};"
     },
     "upsert_row": {
       "label": "Upsert Row",
       "description": "Insert or update a row in a table",
+      "group": "Rows",
       "inputs": {
         "table_name": {
           "label": "Table",
@@ -267,6 +271,7 @@
     "search_rows": {
       "label": "Search Rows",
       "description": "Search for rows in a table with filters and pagination",
+      "group": "Rows",
       "inputs": {
         "table_name": {
           "label": "Table",
@@ -293,6 +298,25 @@
           "description": "Between 1 and 1000.",
           "type": "number",
           "defaultValue": "20"
+        },
+        "countOption": {
+          "label": "Total Count",
+          "description": "Leave empty to skip counting; count is then 0.",
+          "type": "select",
+          "options": [
+            {
+              "value": "exact",
+              "label": "Exact"
+            },
+            {
+              "value": "planned",
+              "label": "Planned"
+            },
+            {
+              "value": "estimated",
+              "label": "Estimated"
+            }
+          ]
         }
       },
       "request": {
@@ -302,12 +326,48 @@
           "Accept-Profile": "public"
         }
       },
-      "beforeRequest": "const encode = (text) => encodeURIComponent(String(text)).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst queryOf = (pairs) => pairs.map(([key, value]) => encode(key) + '=' + encode(value)).join('&');\nconst inList = (values) => 'in.(' + [...new Set(values)].map((v) => typeof v === 'string' && /[,()]/.test(v) ? '\"' + v + '\"' : '' + v).join(',') + ')';\nconst columns = inputs.columns;\nif (columns && !/^[a-zA-Z0-9_,.\\s\\->\"*]+$/.test(columns)) throw new Error('Invalid column specification. Only alphanumeric characters, underscores, commas, dots, arrows, quotes, and asterisks are allowed.');\nlet quoted = false;\nconst pairs = [['select', (columns || '*').split('').map((c) => { if (/\\s/.test(c) && !quoted) return ''; if (c === '\"') quoted = !quoted; return c; }).join('')]];\nconst filters = inputs.filters ? JSON.parse(inputs.filters) : [];\nconst set = (name, value) => typeof value === 'string' ? name + '.' + value : Array.isArray(value) ? name + '.{' + value.join(',') + '}' : name + '.' + JSON.stringify(value);\nif (Array.isArray(filters)) for (const filter of filters) {\n  if (!filter.field || !filter.operator) throw new Error('Filter must have both field and operator specified');\n  if (!/^[a-zA-Z0-9_.\\->\"]+$/.test(filter.field)) throw new Error('Invalid field name: ' + filter.field + '. Only alphanumeric characters, underscores, dots, and arrows are allowed.');\n  const value = filter.value;\n  try {\n    switch (filter.operator) {\n      case 'eq': case 'neq': case 'gt': case 'gte': case 'lt': case 'lte': case 'is': pairs.push([filter.field, filter.operator + '.' + value]); break;\n      case 'like': case 'ilike': pairs.push([filter.field, filter.operator + '.' + String(value)]); break;\n      case 'in': pairs.push([filter.field, inList(Array.isArray(value) ? value : String(value).split(','))]); break;\n      case 'contains': case 'containedBy':\n        if (!(typeof value == 'string' || Array.isArray(value) || value && typeof value == 'object')) throw new Error((filter.operator === 'contains' ? 'Contains' : 'ContainedBy') + ' operator requires string, array, or object value');\n        pairs.push([filter.field, set(filter.operator === 'contains' ? 'cs' : 'cd', value)]); break;\n      default: throw new Error('Unsupported filter operator: ' + filter.operator);\n    }\n  } catch (e) { throw new Error(\"Failed to apply filter on field '\" + filter.field + \"' with operator '\" + filter.operator + \"': \" + e.message); }\n}\nconst page = Math.max(1, Number(inputs.page) || 1), size = Math.min(1000, Math.max(1, Number(inputs.pageSize) || 20));\npairs.push(['offset', (page - 1) * size], ['limit', size]);\nrequest.url += '?' + queryOf(pairs);\nreturn request;",
-      "afterResponse": "const page = Math.max(1, Number(inputs.page) || 1), size = Math.min(1000, Math.max(1, Number(inputs.pageSize) || 20)), from = (page - 1) * size;\nconst data = Array.isArray(response) ? response : [];\nreturn {data, count: 0, page, pageSize: size, total_pages: 0, range: {from, to: from + size - 1, returned: data.length}};"
+      "beforeRequest": "const encode = (text) => encodeURIComponent(String(text)).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst queryOf = (pairs) => pairs.map(([key, value]) => encode(key) + '=' + encode(value)).join('&');\nconst inList = (values) => 'in.(' + [...new Set(values)].map((v) => typeof v === 'string' && /[,()]/.test(v) ? '\"' + v + '\"' : '' + v).join(',') + ')';\nconst columns = inputs.columns;\nif (columns && !/^[a-zA-Z0-9_,.\\s\\->\"*]+$/.test(columns)) throw new Error('Invalid column specification. Only alphanumeric characters, underscores, commas, dots, arrows, quotes, and asterisks are allowed.');\nlet quoted = false;\nconst pairs = [['select', (columns || '*').split('').map((c) => { if (/\\s/.test(c) && !quoted) return ''; if (c === '\"') quoted = !quoted; return c; }).join('')]];\nconst filters = inputs.filters ? JSON.parse(inputs.filters) : [];\nconst set = (name, value) => typeof value === 'string' ? name + '.' + value : Array.isArray(value) ? name + '.{' + value.join(',') + '}' : name + '.' + JSON.stringify(value);\nif (Array.isArray(filters)) for (const filter of filters) {\n  if (!filter.field || !filter.operator) throw new Error('Filter must have both field and operator specified');\n  if (!/^[a-zA-Z0-9_.\\->\"]+$/.test(filter.field)) throw new Error('Invalid field name: ' + filter.field + '. Only alphanumeric characters, underscores, dots, and arrows are allowed.');\n  const value = filter.value;\n  try {\n    switch (filter.operator) {\n      case 'eq': case 'neq': case 'gt': case 'gte': case 'lt': case 'lte': case 'is': pairs.push([filter.field, filter.operator + '.' + value]); break;\n      case 'like': case 'ilike': pairs.push([filter.field, filter.operator + '.' + String(value)]); break;\n      case 'in': pairs.push([filter.field, inList(Array.isArray(value) ? value : String(value).split(','))]); break;\n      case 'contains': case 'containedBy':\n        if (!(typeof value == 'string' || Array.isArray(value) || value && typeof value == 'object')) throw new Error((filter.operator === 'contains' ? 'Contains' : 'ContainedBy') + ' operator requires string, array, or object value');\n        pairs.push([filter.field, set(filter.operator === 'contains' ? 'cs' : 'cd', value)]); break;\n      default: throw new Error('Unsupported filter operator: ' + filter.operator);\n    }\n  } catch (e) { throw new Error(\"Failed to apply filter on field '\" + filter.field + \"' with operator '\" + filter.operator + \"': \" + e.message); }\n}\nconst page = Math.max(1, Number(inputs.page) || 1), size = Math.min(1000, Math.max(1, Number(inputs.pageSize) || 20));\npairs.push(['offset', (page - 1) * size], ['limit', size]);\nif (inputs.countOption) request.headers.Prefer = 'count=' + inputs.countOption;\nrequest.url += '?' + queryOf(pairs);\nreturn request;",
+      "afterResponse": "const page = Math.max(1, Number(inputs.page) || 1), size = Math.min(1000, Math.max(1, Number(inputs.pageSize) || 20)), from = (page - 1) * size;\nconst range = Object.entries(received.headers || {}).find(([name]) => name.toLowerCase() === 'content-range');\nconst count = inputs.countOption && range && String(range[1]).split('/').length > 1 ? parseInt(String(range[1]).split('/')[1]) || 0 : 0;\nconst data = Array.isArray(response) ? response : [];\nreturn {data, count, page, pageSize: size, total_pages: count ? Math.ceil(count / size) : 0, range: {from, to: from + size - 1, returned: data.length}};"
+    },
+    "upload-file": {
+      "label": "Upload File",
+      "description": "Uploads a file to a Storage bucket.",
+      "group": "Storage",
+      "inputs": {
+        "bucket": {
+          "label": "Bucket",
+          "description": "The bucket's name, as shown in Storage.",
+          "required": true
+        },
+        "filePath": {
+          "label": "File Path",
+          "description": "Where to save it in the bucket, including the file name.",
+          "required": true
+        },
+        "file": {
+          "label": "File",
+          "description": "A file from an earlier step.",
+          "type": "file",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.url}}/storage/v1/object/{{bucket}}",
+        "headers": {
+          "Content-Type": "text/plain;charset=UTF-8",
+          "Cache-Control": "max-age=3600",
+          "X-Upsert": "false"
+        },
+        "body": "{{file}}"
+      },
+      "beforeRequest": "request.url += '/' + encodeURI(inputs.filePath.replace(/^\\/|\\/$/g, '').replace(/\\/+/g, '/'));\nreturn request;",
+      "afterResponse": "return {publicUrl: encodeURI(request.url.split('/storage/v1/object/')[0] + '/storage/v1/object/public/' + inputs.bucket + '/' + inputs.filePath)};"
     },
     "create_bucket": {
       "label": "Create Storage Bucket",
       "description": "Creates a new Storage bucket, public or private.",
+      "group": "Storage",
       "inputs": {
         "name": {
           "label": "Bucket Name",
@@ -342,6 +402,7 @@
     "list_buckets": {
       "label": "List Storage Buckets",
       "description": "Lists all Storage buckets in the project.",
+      "group": "Storage",
       "request": {
         "method": "GET",
         "url": "https://{{credential.url}}/storage/v1/bucket"
@@ -351,8 +412,9 @@
     "delete_bucket": {
       "label": "Delete Storage Bucket",
       "description": "Permanently deletes a Storage bucket. The bucket must be empty first.",
+      "group": "Storage",
       "inputs": {
-        "name": {
+        "bucket": {
           "label": "Bucket",
           "description": "The bucket's name, as shown in Storage.",
           "required": true
@@ -360,7 +422,7 @@
       },
       "request": {
         "method": "DELETE",
-        "url": "https://{{credential.url}}/storage/v1/bucket/{{name}}",
+        "url": "https://{{credential.url}}/storage/v1/bucket/{{bucket}}",
         "body": {}
       },
       "afterResponse": "return {success: true};"
@@ -368,6 +430,7 @@
     "list_files": {
       "label": "List Files in Bucket",
       "description": "Lists files and folders inside a Storage bucket, optionally under a specific folder path.",
+      "group": "Storage",
       "inputs": {
         "bucket": {
           "label": "Bucket",
@@ -392,11 +455,12 @@
         }
       },
       "beforeRequest": "request.body.prefix = inputs.path || '';\nreturn request;",
-      "afterResponse": "const files = new Map();\nlet page = response, offset = 0;\nwhile (true) {\n  const items = Array.isArray(page) ? page : [];\n  for (const file of items) if (!files.has(file.name)) files.set(file.name, file);\n  if (items.length !== 100) break;\n  offset += 90;\n  page = call({method: 'POST', url: '/storage/v1/object/list/' + encodeURIComponent(inputs.bucket), body: {limit: 100, offset, sortBy: {column: 'name', order: 'asc'}, prefix: inputs.path || ''}});\n}\nreturn {files: [...files.values()].map((p) => ({name: p.name, id: p.id, updated_at: p.updated_at, created_at: p.created_at, last_accessed_at: p.last_accessed_at, size: p.metadata?.size ?? null, mimetype: p.metadata?.mimetype ?? null}))};"
+      "afterResponse": "const files = new Map();\nlet page = response, offset = 0;\nwhile (true) {\n  const items = Array.isArray(page) ? page : [];\n  for (const file of items) if (!files.has(file.name)) files.set(file.name, file);\n  if (items.length !== 100) break;\n  // The original steps back 10 files on each page and keeps the first of each name.\n  offset += 90;\n  page = call({method: 'POST', url: request.url, body: {...request.body, offset}});\n}\nreturn {files: [...files.values()].map((p) => ({name: p.name, id: p.id, updated_at: p.updated_at, created_at: p.created_at, last_accessed_at: p.last_accessed_at, size: p.metadata?.size ?? null, mimetype: p.metadata?.mimetype ?? null}))};"
     },
     "delete_file": {
       "label": "Delete Files",
       "description": "Permanently deletes one or more files from a Storage bucket.",
+      "group": "Storage",
       "inputs": {
         "bucket": {
           "label": "Bucket",
@@ -419,9 +483,42 @@
       },
       "afterResponse": "return {deleted_files: (Array.isArray(response) ? response : []).map((file) => ({name: file.name}))};"
     },
+    "create_signed_url": {
+      "label": "Create Temporary File Link",
+      "description": "Generates a time-limited URL that grants temporary access to a file in a private Storage bucket.",
+      "group": "Storage",
+      "inputs": {
+        "bucket": {
+          "label": "Bucket",
+          "description": "The bucket's name, as shown in Storage.",
+          "required": true
+        },
+        "path": {
+          "label": "File Path",
+          "description": "The file's path in the bucket, including its name.",
+          "required": true
+        },
+        "expiresIn": {
+          "label": "Expires In",
+          "description": "Seconds the link stays valid. Default is one hour.",
+          "type": "number",
+          "defaultValue": "3600"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.url}}/storage/v1/object/sign/{{bucket}}",
+        "body": {
+          "expiresIn": "{{expiresIn}}"
+        }
+      },
+      "beforeRequest": "request.url += '/' + encodeURI(inputs.path);\nrequest.body.expiresIn = Number(inputs.expiresIn) || 3600;\nreturn request;",
+      "afterResponse": "return {signedUrl: encodeURI(request.url.split('/object/sign/')[0] + response.signedURL)};"
+    },
     "list_users": {
       "label": "List Users",
       "description": "Lists the users registered in the project's Auth system. Requires the Service Role Key.",
+      "group": "Users",
       "inputs": {
         "page": {
           "label": "Page",
@@ -449,6 +546,7 @@
     "get_user": {
       "label": "Get User",
       "description": "Gets a single user's Auth record by ID. Requires the Service Role Key.",
+      "group": "Users",
       "inputs": {
         "userId": {
           "label": "User ID",
@@ -468,6 +566,7 @@
     "create_user": {
       "label": "Create User",
       "description": "Creates a user in Supabase Auth. Requires the Service Role Key.",
+      "group": "Users",
       "inputs": {
         "email": {
           "label": "Email",
@@ -514,6 +613,7 @@
     "update_user": {
       "label": "Update User",
       "description": "Updates a user's email, phone, password, or metadata. Requires the Service Role Key.",
+      "group": "Users",
       "inputs": {
         "userId": {
           "label": "User ID",
@@ -557,6 +657,7 @@
     "delete_user": {
       "label": "Delete User",
       "description": "Permanently deletes a user from the project's Auth system. Requires the Service Role Key.",
+      "group": "Users",
       "inputs": {
         "userId": {
           "label": "User ID",
@@ -580,6 +681,7 @@
     "invite_user": {
       "label": "Invite User by Email",
       "description": "Sends an invite email to a new user, who sets their own password when accepting. Requires the Service Role Key.",
+      "group": "Users",
       "inputs": {
         "email": {
           "label": "Email",

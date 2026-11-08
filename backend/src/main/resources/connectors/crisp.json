@@ -19,7 +19,7 @@
         "secret": true,
         "required": true
       },
-      "token": {
+      "key": {
         "label": "Key",
         "description": "The key of your Crisp Marketplace plugin's production token keypair.",
         "secret": true,
@@ -28,7 +28,7 @@
     },
     "basic": {
       "username": "{{credential.identifier}}",
-      "password": "{{credential.token}}"
+      "password": "{{credential.key}}"
     },
     "headers": {
       "X-Crisp-Tier": "plugin"
@@ -45,8 +45,8 @@
           "required": true
         },
         "sessionId": {
-          "label": "Conversation ID (session_id)",
-          "description": "You can obtain session from URL address bar.It starts with 'session_'.",
+          "label": "Conversation ID",
+          "description": "You can find it in the address bar. It starts with 'session_'.",
           "required": true
         },
         "content": {
@@ -79,11 +79,11 @@
           "required": true
         },
         "email": {
-          "label": "Customer Email",
+          "label": "Email",
           "required": true
         },
-        "username": {
-          "label": "Customer Username",
+        "name": {
+          "label": "Name",
           "required": true
         },
         "messageFrom": {
@@ -111,7 +111,7 @@
         "method": "GET",
         "url": "https://api.crisp.chat/v1/website/{{websiteId}}/conversation"
       },
-      "beforeRequest": "const upsert = (body) => {\n  try {\n    call({method: 'PUT', url: '/website/' + inputs.websiteId + '/people/profile/' + inputs.email, body});\n  } catch (e) {\n    if (String(e && e.message || e).includes('status 404')) call({method: 'POST', url: '/website/' + inputs.websiteId + '/people/profile', body});\n  }\n};\nupsert({email: inputs.email, person: {nickname: inputs.username}});\nconst site = '/website/' + inputs.websiteId + '/conversation';\nconst session = call({method: 'POST', url: site, body: {}}).data.session_id;\ncall({method: 'POST', url: site + '/' + session + '/message', body: {type: 'text', from: inputs.messageFrom, origin: 'chat', content: inputs.message}});\ncall({method: 'PATCH', url: site + '/' + session + '/meta', body: {email: inputs.email, nickname: inputs.username}});\nrequest.url = site + '/' + session;\nreturn request;",
+      "beforeRequest": "const profile = '/website/' + inputs.websiteId + '/people/profile';\nconst upsert = (body) => {\n  try {\n    call({method: 'PUT', url: profile + '/' + inputs.email, body});\n  } catch (e) {\n    const message = String(e && e.message || e);\n    // The original creates the profile on a 404, goes on after any other status and stops on other errors.\n    if (message.includes('status 404')) call({method: 'POST', url: profile, body});\n    else if (!message.includes('with status ')) throw e;\n  }\n};\nupsert({email: inputs.email, person: {nickname: inputs.name}});\nconst site = '/website/' + inputs.websiteId + '/conversation';\nconst session = call({method: 'POST', url: site, body: {}}).data.session_id;\ncall({method: 'POST', url: site + '/' + session + '/message', body: {type: 'text', from: inputs.messageFrom, origin: 'chat', content: inputs.message}});\ncall({method: 'PATCH', url: site + '/' + session + '/meta', body: {email: inputs.email, nickname: inputs.name}});\nrequest.url = site + '/' + session;\nreturn request;",
       "outputs": {
         "sessionId": "$.data.session_id"
       }
@@ -153,9 +153,9 @@
       },
       "request": {
         "method": "GET",
-        "url": "https://api.crisp.chat/v1/website/{{websiteId}}/people/profile/{{email}}"
+        "url": "https://api.crisp.chat/v1/website/{{websiteId}}/people/profile"
       },
-      "beforeRequest": "const upsert = (body) => {\n  try {\n    call({method: 'PUT', url: '/website/' + inputs.websiteId + '/people/profile/' + inputs.email, body});\n  } catch (e) {\n    if (String(e && e.message || e).includes('status 404')) call({method: 'POST', url: '/website/' + inputs.websiteId + '/people/profile', body});\n  }\n};\nconst contact = {email: inputs.email, person: {nickname: inputs.name}};\nif (inputs.notepad) contact.notepad = inputs.notepad;\nif (inputs.phone) contact.person.phone = inputs.phone;\nif (inputs.address) contact.person.address = inputs.address;\nif (inputs.website) contact.person.website = inputs.website;\nif (inputs.company) contact.company = {name: inputs.company};\nupsert(contact);\nrequest.url = '/website/' + inputs.websiteId + '/people/profile/' + inputs.email;\nreturn request;",
+      "beforeRequest": "const profile = '/website/' + inputs.websiteId + '/people/profile';\nconst upsert = (body) => {\n  try {\n    call({method: 'PUT', url: profile + '/' + inputs.email, body});\n  } catch (e) {\n    const message = String(e && e.message || e);\n    // The original creates the profile on a 404, goes on after any other status and stops on other errors.\n    if (message.includes('status 404')) call({method: 'POST', url: profile, body});\n    else if (!message.includes('with status ')) throw e;\n  }\n};\nconst contact = {email: inputs.email, person: {nickname: inputs.name}};\nif (inputs.notepad) contact.notepad = inputs.notepad;\nif (inputs.phone) contact.person.phone = inputs.phone;\nif (inputs.address) contact.person.address = inputs.address;\nif (inputs.website) contact.person.website = inputs.website;\nif (inputs.company) contact.company = {name: inputs.company};\nupsert(contact);\n// The original puts the email in the address as it is.\nrequest.url = profile + '/' + inputs.email;\nreturn request;",
       "outputs": {
         "peopleId": "$.data.people_id"
       }
@@ -170,8 +170,8 @@
           "required": true
         },
         "sessionId": {
-          "label": "Conversation ID (session_id)",
-          "description": "You can obtain session from URL address bar.It starts with 'session_'.",
+          "label": "Conversation ID",
+          "description": "You can find it in the address bar. It starts with 'session_'.",
           "required": true
         },
         "state": {
@@ -244,16 +244,13 @@
       },
       "request": {
         "method": "GET",
-        "url": "https://api.crisp.chat/v1/website/{{websiteId}}/people/profiles/1",
-        "query": {
-          "per_page": "50"
-        }
+        "url": "https://api.crisp.chat/v1/website/{{websiteId}}/people/profiles/1?per_page=50"
       },
       "items": "$",
       "newBy": "time",
       "key": "$.created_at",
-      "beforeRequest": "// The original sends the time with spaces as +.\nif (inputs.lastPollTime) request.url += '?filter_date_start=' + encodeURIComponent(new Date(Number(inputs.lastPollTime)).toUTCString()).replace(/%20/g, '+');\nreturn request;",
-      "afterResponse": "const items = [];\nlet page = response.data || [];\nfor (let number = 2; page.length > 0; number++) {\n  items.push(...page);\n  if (!inputs.lastPollTime) break;\n  page = call({method: 'GET', url: '/website/' + inputs.websiteId + '/people/profiles/' + number + '?filter_date_start=' + encodeURIComponent(new Date(Number(inputs.lastPollTime)).toUTCString()).replace(/%20/g, '+'), query: {per_page: '50'}}).data || [];\n}\nreturn items;"
+      "beforeRequest": "// The original sends the time with spaces as +.\nif (inputs.lastPollTime) request.url += '&filter_date_start=' + encodeURIComponent(new Date(Number(inputs.lastPollTime)).toUTCString()).replace(/%20/g, '+');\nreturn request;",
+      "afterResponse": "if (!inputs.lastPollTime) return response.data || [];\nconst since = encodeURIComponent(new Date(Number(inputs.lastPollTime)).toUTCString()).replace(/%20/g, '+');\nconst items = [];\nlet page = response.data || [];\nfor (let number = 2; page.length > 0; number++) {\n  items.push(...page);\n  page = call({method: 'GET', url: '/website/' + inputs.websiteId + '/people/profiles/' + number + '?per_page=50&filter_date_start=' + since}).data || [];\n}\nreturn items;"
     },
     "new_conversation": {
       "label": "New Conversation Created",
@@ -267,16 +264,13 @@
       },
       "request": {
         "method": "GET",
-        "url": "https://api.crisp.chat/v1/website/{{websiteId}}/conversations/1",
-        "query": {
-          "per_page": "50"
-        }
+        "url": "https://api.crisp.chat/v1/website/{{websiteId}}/conversations/1?per_page=50"
       },
       "items": "$",
       "newBy": "time",
       "key": "$.created_at",
-      "beforeRequest": "// The original sends the time with spaces as +.\nif (inputs.lastPollTime) request.url += '?filter_date_start=' + encodeURIComponent(new Date(Number(inputs.lastPollTime)).toUTCString()).replace(/%20/g, '+');\nreturn request;",
-      "afterResponse": "const items = [];\nlet page = response.data || [];\nfor (let number = 2; page.length > 0; number++) {\n  items.push(...page);\n  if (!inputs.lastPollTime) break;\n  page = call({method: 'GET', url: '/website/' + inputs.websiteId + '/conversations/' + number + '?filter_date_start=' + encodeURIComponent(new Date(Number(inputs.lastPollTime)).toUTCString()).replace(/%20/g, '+'), query: {per_page: '50'}}).data || [];\n}\nreturn items;"
+      "beforeRequest": "// The original sends the time with spaces as +.\nif (inputs.lastPollTime) request.url += '&filter_date_start=' + encodeURIComponent(new Date(Number(inputs.lastPollTime)).toUTCString()).replace(/%20/g, '+');\nreturn request;",
+      "afterResponse": "if (!inputs.lastPollTime) return response.data || [];\nconst since = encodeURIComponent(new Date(Number(inputs.lastPollTime)).toUTCString()).replace(/%20/g, '+');\nconst items = [];\nlet page = response.data || [];\nfor (let number = 2; page.length > 0; number++) {\n  items.push(...page);\n  page = call({method: 'GET', url: '/website/' + inputs.websiteId + '/conversations/' + number + '?per_page=50&filter_date_start=' + since}).data || [];\n}\nreturn items;"
     }
   }
 }

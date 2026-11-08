@@ -4,7 +4,8 @@
   "description": "Enjoy the videos and music you love, upload original content, and share it all with friends, family, and the world on YouTube",
   "icon": "youtube",
   "hosts": [
-    "www.googleapis.com"
+    "www.googleapis.com",
+    "www.youtube.com"
   ],
   "baseUrl": "https://www.googleapis.com/youtube/v3",
   "upstream": {
@@ -15,7 +16,7 @@
     "oauth2": {
       "authUrl": "https://accounts.google.com/o/oauth2/auth",
       "tokenUrl": "https://oauth2.googleapis.com/token",
-      "scope": "https://www.googleapis.com/auth/youtube https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.force-ssl email",
+      "scope": "https://www.googleapis.com/auth/youtube https://www.googleapis.com/auth/youtube.force-ssl email",
       "authParameters": "access_type=offline&prompt=consent"
     }
   },
@@ -82,7 +83,7 @@
       "inputs": {
         "videoId": {
           "label": "Video ID",
-          "description": "The v= value in the video's URL.",
+          "description": "The v= value in the video's URL, such as dQw4w9WgXcQ.",
           "required": true
         },
         "captionIds": {
@@ -110,8 +111,8 @@
       "description": "Retrieve a video by ID, including its statistics and duration.",
       "inputs": {
         "videoIds": {
-          "label": "Video ID",
-          "description": "A video ID, or several separated by commas: the v= value in the URL.",
+          "label": "Video IDs",
+          "description": "A video ID, or several separated by commas: the v= value in each video's URL.",
           "required": true
         }
       },
@@ -130,7 +131,7 @@
       "inputs": {
         "channelId": {
           "label": "Channel ID",
-          "description": "Starts with UC. Leave empty to look the channel up by Handle."
+          "description": "The channel's ID, which starts with UC. Leave empty to look the channel up by Handle."
         },
         "handle": {
           "label": "Handle",
@@ -139,9 +140,13 @@
       },
       "request": {
         "method": "GET",
-        "url": "https://www.googleapis.com/youtube/v3/channels"
+        "url": "https://www.googleapis.com/youtube/v3/channels",
+        "query": {
+          "part": "snippet,contentDetails,statistics",
+          "id": "{{channelId}}"
+        }
       },
-      "beforeRequest": "if (!inputs.channelId && !inputs.handle) throw new Error('Provide either a Channel ID or a Handle.');\nvar query = {part: 'snippet,contentDetails,statistics'};\nif (inputs.channelId) query.id = inputs.channelId;\nelse query.forHandle = inputs.handle.startsWith('@') ? inputs.handle : '@' + inputs.handle;\nrequest.query = query;\nreturn request;"
+      "beforeRequest": "if (!inputs.channelId && !inputs.handle) throw new Error('Provide either a Channel ID or a Handle.');\nif (!inputs.channelId) request.query.forHandle = inputs.handle.startsWith('@') ? inputs.handle : '@' + inputs.handle;\nreturn request;"
     },
     "list_playlists": {
       "label": "List Playlists",
@@ -154,7 +159,7 @@
         },
         "maxResults": {
           "label": "Max Results",
-          "description": "How many playlists to return, up to 50.",
+          "description": "How many playlists to return, from 1 to 50.",
           "type": "number",
           "defaultValue": "25"
         },
@@ -165,13 +170,18 @@
       },
       "request": {
         "method": "GET",
-        "url": "https://www.googleapis.com/youtube/v3/playlists"
+        "url": "https://www.googleapis.com/youtube/v3/playlists",
+        "query": {
+          "part": "snippet,contentDetails,status",
+          "channelId": "{{channelId}}",
+          "pageToken": "{{pageToken}}"
+        }
       },
-      "beforeRequest": "var query = {part: 'snippet,contentDetails,status', channelId: inputs.channelId};\nif (inputs.maxResults !== '') { var max = Math.trunc(Number(inputs.maxResults)); if (!Number.isFinite(max) || max < 1 || max > 50) throw new Error('Max Results must be between 1 and 50.'); }\nquery.maxResults = String(Math.trunc(Number(inputs.maxResults === '' ? 25 : inputs.maxResults)));\nif (inputs.pageToken) query.pageToken = inputs.pageToken;\nrequest.query = query;\nreturn request;"
+      "beforeRequest": "var max = inputs.maxResults === '' ? 25 : Math.trunc(Number(inputs.maxResults));\nif (!(max >= 1 && max <= 50)) throw new Error('Max Results must be between 1 and 50.');\nrequest.query.maxResults = String(max);\nreturn request;"
     },
     "create_playlist": {
       "label": "Create Playlist",
-      "description": "Create a new playlist on the authenticated account channel.",
+      "description": "Create a new playlist on the connected account's channel.",
       "inputs": {
         "title": {
           "label": "Title",
@@ -236,7 +246,7 @@
       "inputs": {
         "playlistId": {
           "label": "Playlist ID",
-          "description": "The playlist to update. This is the `list` parameter in a playlist URL (e.g. `PLbpi6ZahtOH6Ar_3GPy3workLYfGa7mGm`).",
+          "description": "The playlist to update. The list= value in the playlist's URL.",
           "required": true
         },
         "title": {
@@ -318,7 +328,7 @@
       "inputs": {
         "playlistId": {
           "label": "Playlist ID",
-          "description": "The playlist to delete. This is the `list` parameter in a playlist URL.",
+          "description": "The playlist to delete. The list= value in the playlist's URL.",
           "required": true
         }
       },
@@ -337,12 +347,12 @@
       "inputs": {
         "playlistId": {
           "label": "Playlist ID",
-          "description": "The playlist to add to. This is the `list` parameter in a playlist URL.",
+          "description": "The playlist to add to. The list= value in the playlist's URL.",
           "required": true
         },
         "videoId": {
           "label": "Video ID",
-          "description": "The `v` parameter in a YouTube URL (e.g. `dQw4w9WgXcQ`).",
+          "description": "The v= value in the video's URL, such as dQw4w9WgXcQ.",
           "required": true
         },
         "position": {
@@ -397,7 +407,7 @@
       "inputs": {
         "videoId": {
           "label": "Video ID",
-          "description": "The `v` parameter in a YouTube URL (e.g. `dQw4w9WgXcQ`).",
+          "description": "The v= value in the video's URL, such as dQw4w9WgXcQ.",
           "required": true
         },
         "text": {
@@ -482,7 +492,7 @@
     },
     "set_comment_moderation_status": {
       "label": "Set Comment Moderation Status",
-      "description": "Publish, hold for review, or reject comments on the connected account videos.",
+      "description": "Publish, hold for review, or reject comments on the connected account's videos.",
       "inputs": {
         "commentIds": {
           "label": "Comment IDs",
@@ -528,9 +538,13 @@
       },
       "request": {
         "method": "POST",
-        "url": "https://www.googleapis.com/youtube/v3/comments/setModerationStatus"
+        "url": "https://www.googleapis.com/youtube/v3/comments/setModerationStatus",
+        "query": {
+          "id": "{{commentIds}}",
+          "moderationStatus": "{{moderationStatus}}"
+        }
       },
-      "beforeRequest": "if (inputs.banAuthor === 'yes' && inputs.moderationStatus !== 'rejected') throw new Error('Ban Author can only be used together with the Rejected moderation status.');\nrequest.query = {id: inputs.commentIds, moderationStatus: inputs.moderationStatus};\nif (inputs.banAuthor === 'yes') request.query.banAuthor = 'true';\nreturn request;",
+      "beforeRequest": "if (inputs.banAuthor === 'yes' && inputs.moderationStatus !== 'rejected') throw new Error('Ban Author can only be used together with the Rejected moderation status.');\nif (inputs.banAuthor === 'yes') request.query.banAuthor = 'true';\nreturn request;",
       "afterResponse": "return {success: true, commentIds: inputs.commentIds, moderationStatus: inputs.moderationStatus};"
     },
     "rate_video": {
@@ -539,7 +553,7 @@
       "inputs": {
         "videoId": {
           "label": "Video ID",
-          "description": "The `v` parameter in a YouTube URL (e.g. `dQw4w9WgXcQ`).",
+          "description": "The v= value in the video's URL, such as dQw4w9WgXcQ.",
           "required": true
         },
         "rating": {
@@ -579,7 +593,7 @@
       "inputs": {
         "videoIds": {
           "label": "Video IDs",
-          "description": "A video ID, or a comma-separated list of up to 50 IDs (e.g. `dQw4w9WgXcQ,abc123`).",
+          "description": "A video ID, or up to 50 separated by commas: the v= value in each video's URL.",
           "required": true
         }
       },
@@ -597,15 +611,15 @@
       "inputs": {
         "channelId": {
           "label": "Channel ID",
-          "description": "Channel ID starting with `UC`. Leave blank to list the authenticated account own activity."
+          "description": "The channel's ID, which starts with UC. Leave empty to list the connected account's own activity."
         },
         "publishedAfter": {
           "label": "Published After",
-          "description": "Only include activities created at or after this datetime (RFC 3339)."
+          "description": "Only activities created at or after this time (RFC 3339)."
         },
         "publishedBefore": {
           "label": "Published Before",
-          "description": "Only include activities created before this datetime (RFC 3339)."
+          "description": "Only activities created before this time (RFC 3339)."
         },
         "regionCode": {
           "label": "Region Code",
@@ -613,20 +627,28 @@
         },
         "maxResults": {
           "label": "Max Results",
-          "description": "Number of activities to return (0-50, default 25).",
+          "description": "How many activities to return, from 0 to 50.",
           "type": "number",
           "defaultValue": "25"
         },
         "pageToken": {
           "label": "Page Token",
-          "description": "Token from a previous response, to fetch the next page."
+          "description": "The nextPageToken from an earlier run, to get the next page."
         }
       },
       "request": {
         "method": "GET",
-        "url": "https://www.googleapis.com/youtube/v3/activities"
+        "url": "https://www.googleapis.com/youtube/v3/activities",
+        "query": {
+          "part": "snippet,contentDetails",
+          "channelId": "{{channelId}}",
+          "publishedAfter": "{{publishedAfter}}",
+          "publishedBefore": "{{publishedBefore}}",
+          "regionCode": "{{regionCode}}",
+          "pageToken": "{{pageToken}}"
+        }
       },
-      "beforeRequest": "var query = {part: 'snippet,contentDetails'};\nif (inputs.maxResults !== '') { var max = Math.trunc(Number(inputs.maxResults)); if (!Number.isFinite(max) || max < 0 || max > 50) throw new Error('Max Results must be between 0 and 50.'); }\nquery.maxResults = String(Math.trunc(Number(inputs.maxResults === '' ? 25 : inputs.maxResults)));\nif (inputs.channelId) query.channelId = inputs.channelId; else query.mine = 'true';\nif (inputs.publishedAfter) query.publishedAfter = inputs.publishedAfter;\nif (inputs.publishedBefore) query.publishedBefore = inputs.publishedBefore;\nif (inputs.regionCode) query.regionCode = inputs.regionCode;\nif (inputs.pageToken) query.pageToken = inputs.pageToken;\nrequest.query = query;\nreturn request;"
+      "beforeRequest": "var max = inputs.maxResults === '' ? 25 : Math.trunc(Number(inputs.maxResults));\nif (!(max >= 0 && max <= 50)) throw new Error('Max Results must be between 0 and 50.');\nrequest.query.maxResults = String(max);\nif (!inputs.channelId) request.query.mine = 'true';\nreturn request;"
     },
     "list_my_subscriptions": {
       "label": "List My Subscriptions",
@@ -657,20 +679,27 @@
         },
         "maxResults": {
           "label": "Max Results",
-          "description": "Number of subscriptions to return (0-50, default 25).",
+          "description": "How many subscriptions to return, from 0 to 50.",
           "type": "number",
           "defaultValue": "25"
         },
         "pageToken": {
           "label": "Page Token",
-          "description": "Token from a previous response, to fetch the next page."
+          "description": "The nextPageToken from an earlier run, to get the next page."
         }
       },
       "request": {
         "method": "GET",
-        "url": "https://www.googleapis.com/youtube/v3/subscriptions"
+        "url": "https://www.googleapis.com/youtube/v3/subscriptions",
+        "query": {
+          "part": "snippet,contentDetails",
+          "mine": "true",
+          "order": "{{order}}",
+          "forChannelId": "{{forChannelId}}",
+          "pageToken": "{{pageToken}}"
+        }
       },
-      "beforeRequest": "var query = {part: 'snippet,contentDetails', mine: 'true'};\nif (inputs.maxResults !== '') { var max = Math.trunc(Number(inputs.maxResults)); if (!Number.isFinite(max) || max < 0 || max > 50) throw new Error('Max Results must be between 0 and 50.'); }\nquery.maxResults = String(Math.trunc(Number(inputs.maxResults === '' ? 25 : inputs.maxResults)));\nif (inputs.order) query.order = inputs.order;\nif (inputs.forChannelId) query.forChannelId = inputs.forChannelId;\nif (inputs.pageToken) query.pageToken = inputs.pageToken;\nrequest.query = query;\nreturn request;"
+      "beforeRequest": "var max = inputs.maxResults === '' ? 25 : Math.trunc(Number(inputs.maxResults));\nif (!(max >= 0 && max <= 50)) throw new Error('Max Results must be between 0 and 50.');\nrequest.query.maxResults = String(max);\nreturn request;"
     },
     "list_trending_videos": {
       "label": "List Trending Videos",
@@ -678,7 +707,7 @@
       "inputs": {
         "regionCode": {
           "label": "Region Code",
-          "description": "ISO 3166-1 alpha-2 country code (for example: US, DE, JP). Defaults to US.",
+          "description": "ISO 3166-1 alpha-2 country code (for example: US, DE, JP). Empty: US.",
           "defaultValue": "US"
         },
         "videoCategoryId": {
@@ -687,24 +716,30 @@
         },
         "maxResults": {
           "label": "Max Results",
-          "description": "Number of videos to return (1-50, default 25).",
+          "description": "How many videos to return, from 1 to 50.",
           "type": "number",
           "defaultValue": "25"
         },
         "pageToken": {
           "label": "Page Token",
-          "description": "Token from a previous response, to fetch the next page."
+          "description": "The nextPageToken from an earlier run, to get the next page."
         }
       },
       "request": {
         "method": "GET",
-        "url": "https://www.googleapis.com/youtube/v3/videos"
+        "url": "https://www.googleapis.com/youtube/v3/videos",
+        "query": {
+          "part": "snippet,contentDetails,statistics",
+          "chart": "mostPopular",
+          "videoCategoryId": "{{videoCategoryId}}",
+          "pageToken": "{{pageToken}}"
+        }
       },
-      "beforeRequest": "var query = {part: 'snippet,contentDetails,statistics', chart: 'mostPopular', regionCode: inputs.regionCode || 'US'};\nif (inputs.maxResults !== '') { var max = Math.trunc(Number(inputs.maxResults)); if (!Number.isFinite(max) || max < 1 || max > 50) throw new Error('Max Results must be between 1 and 50.'); }\nquery.maxResults = String(Math.trunc(Number(inputs.maxResults === '' ? 25 : inputs.maxResults)));\nif (inputs.videoCategoryId) query.videoCategoryId = inputs.videoCategoryId;\nif (inputs.pageToken) query.pageToken = inputs.pageToken;\nrequest.query = query;\nreturn request;"
+      "beforeRequest": "var max = inputs.maxResults === '' ? 25 : Math.trunc(Number(inputs.maxResults));\nif (!(max >= 1 && max <= 50)) throw new Error('Max Results must be between 1 and 50.');\nrequest.query.maxResults = String(max);\nrequest.query.regionCode = inputs.regionCode || 'US';\nreturn request;"
     },
     "list_channel_videos": {
       "label": "List Channel Videos",
-      "description": "List the videos uploaded by a channel, resolved from its uploads playlist.",
+      "description": "List the videos a channel has uploaded.",
       "inputs": {
         "channel": {
           "label": "Channel ID or Handle",
@@ -713,21 +748,24 @@
         },
         "maxResults": {
           "label": "Max Results",
-          "description": "Number of videos to return (0-50, default 25).",
+          "description": "How many videos to return, from 0 to 50.",
           "type": "number",
           "defaultValue": "25"
         },
         "pageToken": {
           "label": "Page Token",
-          "description": "Token from a previous response, to fetch the next page."
+          "description": "The nextPageToken from an earlier run, to get the next page."
         }
       },
       "request": {
         "method": "GET",
-        "url": "https://www.googleapis.com/youtube/v3/channels"
+        "url": "https://www.googleapis.com/youtube/v3/channels",
+        "query": {
+          "part": "contentDetails"
+        }
       },
-      "beforeRequest": "var query = {part: 'contentDetails'};\nif (inputs.maxResults !== '') { var max = Math.trunc(Number(inputs.maxResults)); if (!Number.isFinite(max) || max < 0 || max > 50) throw new Error('Max Results must be between 0 and 50.'); }\nif (inputs.channel.startsWith('UC')) query.id = inputs.channel;\nelse query.forHandle = inputs.channel.startsWith('@') ? inputs.channel : '@' + inputs.channel;\nrequest.query = query;\nreturn request;",
-      "afterResponse": "var channel = (response.items || [])[0];\nif (!channel) throw new Error('No YouTube channel matched \"' + inputs.channel + '\". Provide a channel ID starting with \"UC\" or a handle such as \"@GoogleDevelopers\".');\nvar uploads = channel.contentDetails && channel.contentDetails.relatedPlaylists && channel.contentDetails.relatedPlaylists.uploads;\nif (!uploads) return {kind: 'youtube#playlistItemListResponse', items: [], pageInfo: {totalResults: 0, resultsPerPage: 0}};\nvar query = {part: 'snippet,contentDetails,status', playlistId: uploads, maxResults: String(Math.trunc(Number(inputs.maxResults === '' ? 25 : inputs.maxResults)))};\nif (inputs.pageToken) query.pageToken = inputs.pageToken;\ntry {\n  return call({method: 'GET', url: '/playlistItems', query: query});\n} catch (error) {\n  if (/ 404/.test(String(error && error.message))) throw new Error('Channel \"' + channel.id + '\" reports uploads playlist \"' + uploads + '\", but YouTube cannot read it. This happens on some brand accounts and on channels whose uploads are not publicly listed. Use Search YouTube with this channel ID if you accept its higher quota cost and 500-result cap.');\n  throw error;\n}"
+      "beforeRequest": "var max = inputs.maxResults === '' ? 25 : Math.trunc(Number(inputs.maxResults));\nif (!(max >= 0 && max <= 50)) throw new Error('Max Results must be between 0 and 50.');\nif (inputs.channel.startsWith('UC')) request.query.id = inputs.channel;\nelse request.query.forHandle = inputs.channel.startsWith('@') ? inputs.channel : '@' + inputs.channel;\nreturn request;",
+      "afterResponse": "var channel = (response.items || [])[0];\nif (!channel) throw new Error('No YouTube channel matched \"' + inputs.channel + '\". Provide a channel ID starting with \"UC\" or a handle such as \"@GoogleDevelopers\".');\nvar uploads = channel.contentDetails && channel.contentDetails.relatedPlaylists && channel.contentDetails.relatedPlaylists.uploads;\nif (!uploads) return {kind: 'youtube#playlistItemListResponse', items: [], pageInfo: {totalResults: 0, resultsPerPage: 0}};\nvar query = {part: 'snippet,contentDetails,status', playlistId: uploads, maxResults: String(inputs.maxResults === '' ? 25 : Math.trunc(Number(inputs.maxResults)))};\nif (inputs.pageToken) query.pageToken = inputs.pageToken;\ntry {\n  return call({method: 'GET', url: '/playlistItems', query: query});\n} catch (error) {\n  if (/ 404/.test(String(error && error.message))) throw new Error('Channel \"' + channel.id + '\" reports uploads playlist \"' + uploads + '\", but YouTube cannot read it. This happens on some brand accounts and on channels whose uploads are not publicly listed. Use Search YouTube with this channel ID if you accept its higher quota cost and 500-result cap.');\n  throw error;\n}"
     },
     "update_video_metadata": {
       "label": "Update Video Metadata",
@@ -735,7 +773,7 @@
       "inputs": {
         "videoId": {
           "label": "Video ID",
-          "description": "The `v` parameter in a YouTube URL (e.g. `dQw4w9WgXcQ`).",
+          "description": "The v= value in the video's URL, such as dQw4w9WgXcQ.",
           "required": true
         },
         "title": {
@@ -898,7 +936,7 @@
     },
     "search_youtube": {
       "label": "Search YouTube",
-      "description": "Search YouTube videos, channels, and playlists using the YouTube Data API search.list endpoint.",
+      "description": "Search YouTube for videos, channels and playlists.",
       "inputs": {
         "query": {
           "label": "Query",
@@ -1027,7 +1065,7 @@
         },
         "maxResults": {
           "label": "Max Results",
-          "description": "How many results to return, up to 50.",
+          "description": "How many results to return, from 0 to 50.",
           "type": "number",
           "defaultValue": "25"
         },
@@ -1246,11 +1284,11 @@
         "method": "GET",
         "url": "https://www.googleapis.com/youtube/v3/search"
       },
-      "beforeRequest": "var type = inputs.type === 'any' || !inputs.type ? 'video,channel,playlist' : inputs.type;\nvar on = (name) => inputs[name] === 'true';\nvar videoOnly = ['eventType', 'location', 'locationRadius', 'videoCaption', 'videoCategoryId', 'videoDefinition', 'videoDimension', 'videoDuration', 'videoEmbeddable', 'videoLicense', 'videoPaidProductPlacement', 'videoSyndicated', 'videoType'].some((name) => inputs[name]);\nif (videoOnly && type !== 'video') throw new Error('Video-only filters require Type to be set to \"Video\".');\nif ((inputs.location && !inputs.locationRadius) || (!inputs.location && inputs.locationRadius)) throw new Error('Location and Location Radius must be provided together.');\nif ([on('forContentOwner'), on('forDeveloper'), on('forMine')].filter((value) => value).length > 1) throw new Error('Only one of For Content Owner, For Developer, or For Mine can be enabled.');\nif (on('forContentOwner')) {\n  if (type !== 'video') throw new Error('For Content Owner requires Type to be set to \"Video\".');\n  if (!inputs.onBehalfOfContentOwner) throw new Error('On Behalf Of Content Owner is required when For Content Owner is enabled.');\n}\nif (on('forMine') && type !== 'video') throw new Error('For Mine requires Type to be set to \"Video\".');\nvar restricted = ['videoDefinition', 'videoDimension', 'videoDuration', 'videoEmbeddable', 'videoLicense', 'videoPaidProductPlacement', 'videoSyndicated', 'videoType'].some((name) => inputs[name]);\nif ((on('forContentOwner') || on('forMine')) && restricted) throw new Error('For Content Owner and For Mine cannot be combined with Video Definition, Video Dimension, Video Duration, Video Embeddable, Video License, Video Paid Product Placement, Video Syndicated, or Video Type.');\n// The original sends its parameters in this order, encoded as a form would, with + for a space.\nvar form = (value) => encodeURIComponent(value).replace(/%20/g, '+').replace(/[!'()~]/g, (sign) => '%' + sign.charCodeAt(0).toString(16).toUpperCase());\nvar query = [['part', 'snippet'], ['type', type]];\nif (inputs.query) query.push(['q', inputs.query]);\n['forContentOwner', 'forDeveloper', 'forMine'].forEach((name) => { if (on(name)) query.push([name, 'true']); });\n['onBehalfOfContentOwner', 'channelId', 'channelType', 'order', 'safeSearch', 'publishedAfter', 'publishedBefore', 'pageToken', 'regionCode', 'topicId', 'relevanceLanguage', 'eventType', 'location', 'locationRadius', 'videoCategoryId', 'videoDuration', 'videoDefinition', 'videoDimension', 'videoEmbeddable', 'videoLicense', 'videoPaidProductPlacement', 'videoSyndicated', 'videoType', 'videoCaption'].forEach((name) => { if (inputs[name]) query.push([name, inputs[name]]); });\nif (inputs.maxResults !== '') { var max = Math.trunc(Number(inputs.maxResults)); if (!Number.isFinite(max) || max < 0 || max > 50) throw new Error('Max Results must be between 0 and 50.'); query.push(['maxResults', String(max)]); }\nrequest.url += '?' + query.map((pair) => pair[0] + '=' + form(pair[1])).join('&');\nreturn request;"
+      "beforeRequest": "var type = inputs.type === 'any' || !inputs.type ? 'video,channel,playlist' : inputs.type;\nvar on = (name) => inputs[name] === 'true';\nvar videoOnly = ['eventType', 'location', 'locationRadius', 'videoCaption', 'videoCategoryId', 'videoDefinition', 'videoDimension', 'videoDuration', 'videoEmbeddable', 'videoLicense', 'videoPaidProductPlacement', 'videoSyndicated', 'videoType'].some((name) => inputs[name]);\nif (videoOnly && type !== 'video') throw new Error('Video-only filters require Type to be set to \"Video\".');\nif ((inputs.location && !inputs.locationRadius) || (!inputs.location && inputs.locationRadius)) throw new Error('Location and Location Radius must be provided together.');\nif ([on('forContentOwner'), on('forDeveloper'), on('forMine')].filter((value) => value).length > 1) throw new Error('Only one of For Content Owner, For Developer, or For Mine can be enabled.');\nif (on('forContentOwner')) {\n  if (type !== 'video') throw new Error('For Content Owner requires Type to be set to \"Video\".');\n  if (!inputs.onBehalfOfContentOwner) throw new Error('On Behalf Of Content Owner is required when For Content Owner is enabled.');\n}\nif (on('forMine') && type !== 'video') throw new Error('For Mine requires Type to be set to \"Video\".');\nvar restricted = ['videoDefinition', 'videoDimension', 'videoDuration', 'videoEmbeddable', 'videoLicense', 'videoPaidProductPlacement', 'videoSyndicated', 'videoType'].some((name) => inputs[name]);\nif ((on('forContentOwner') || on('forMine')) && restricted) throw new Error('For Content Owner and For Mine cannot be combined with Video Definition, Video Dimension, Video Duration, Video Embeddable, Video License, Video Paid Product Placement, Video Syndicated, or Video Type.');\n// The original sends its parameters in this order, encoded as a form would, with + for a space.\nvar form = (value) => encodeURIComponent(value).replace(/%20/g, '+').replace(/[!'()~]/g, (sign) => '%' + sign.charCodeAt(0).toString(16).toUpperCase());\nvar query = [['part', 'snippet'], ['type', type]];\nif (inputs.query) query.push(['q', inputs.query]);\n['forContentOwner', 'forDeveloper', 'forMine'].forEach((name) => { if (on(name)) query.push([name, 'true']); });\n['onBehalfOfContentOwner', 'channelId', 'channelType', 'order', 'safeSearch', 'publishedAfter', 'publishedBefore', 'pageToken', 'regionCode', 'topicId', 'relevanceLanguage', 'eventType', 'location', 'locationRadius', 'videoCategoryId', 'videoDuration', 'videoDefinition', 'videoDimension', 'videoEmbeddable', 'videoLicense', 'videoPaidProductPlacement', 'videoSyndicated', 'videoType', 'videoCaption'].forEach((name) => { if (inputs[name]) query.push([name, inputs[name]]); });\nif (inputs.maxResults !== '') { var max = Math.trunc(Number(inputs.maxResults)); if (!(max >= 0 && max <= 50)) throw new Error('Max Results must be between 0 and 50.'); query.push(['maxResults', String(max)]); }\nrequest.url += '?' + query.map((pair) => pair[0] + '=' + form(pair[1])).join('&');\nreturn request;"
     },
     "list_playlist_videos": {
       "label": "List Playlist Videos",
-      "description": "Returns videos in a YouTube playlist. You can filter by playlist ID or by specific item IDs.",
+      "description": "List the videos in a playlist, or the playlist items with the given IDs.",
       "inputs": {
         "playlistId": {
           "label": "Playlist ID",
@@ -1262,7 +1300,7 @@
         },
         "maxResults": {
           "label": "Max Results",
-          "description": "How many items to return, up to 50.",
+          "description": "How many items to return, from 0 to 50.",
           "type": "number",
           "defaultValue": "50"
         },
@@ -1277,9 +1315,16 @@
       },
       "request": {
         "method": "GET",
-        "url": "https://www.googleapis.com/youtube/v3/playlistItems"
+        "url": "https://www.googleapis.com/youtube/v3/playlistItems",
+        "query": {
+          "part": "snippet,contentDetails,status",
+          "playlistId": "{{playlistId}}",
+          "id": "{{itemIds}}",
+          "pageToken": "{{pageToken}}",
+          "videoId": "{{videoId}}"
+        }
       },
-      "beforeRequest": "if (!inputs.playlistId && !inputs.itemIds) throw new Error('You must provide either a Playlist ID or Item IDs.');\nif (inputs.playlistId && inputs.itemIds) throw new Error('Provide either a Playlist ID or Item IDs, not both.');\nif (inputs.videoId && !inputs.playlistId) throw new Error('Filter by Video ID can only be used together with a Playlist ID.');\nvar query = {part: 'snippet,contentDetails,status'};\nif (inputs.playlistId) query.playlistId = inputs.playlistId;\nif (inputs.itemIds) query.id = inputs.itemIds;\nif (inputs.maxResults !== '') { var max = Math.trunc(Number(inputs.maxResults)); if (!Number.isFinite(max) || max < 0 || max > 50) throw new Error('Max Results must be between 0 and 50.'); }\nif (inputs.maxResults !== '') query.maxResults = String(Math.trunc(Number(inputs.maxResults)));\nif (inputs.pageToken) query.pageToken = inputs.pageToken;\nif (inputs.videoId) query.videoId = inputs.videoId;\nrequest.query = query;\nreturn request;"
+      "beforeRequest": "if (!inputs.playlistId && !inputs.itemIds) throw new Error('You must provide either a Playlist ID or Item IDs.');\nif (inputs.playlistId && inputs.itemIds) throw new Error('Provide either a Playlist ID or Item IDs, not both.');\nif (inputs.videoId && !inputs.playlistId) throw new Error('Filter by Video ID can only be used together with a Playlist ID.');\nif (inputs.maxResults !== '') {\n  var max = Math.trunc(Number(inputs.maxResults));\n  if (!(max >= 0 && max <= 50)) throw new Error('Max Results must be between 0 and 50.');\n  request.query.maxResults = String(max);\n}\nreturn request;"
     },
     "list_comment_threads": {
       "label": "List Comment Threads",
@@ -1287,7 +1332,7 @@
       "inputs": {
         "videoId": {
           "label": "Video ID",
-          "description": "The v= value in the video's URL.",
+          "description": "The v= value in the video's URL, such as dQw4w9WgXcQ.",
           "required": true
         },
         "order": {
@@ -1307,7 +1352,7 @@
         },
         "maxResults": {
           "label": "Max Results",
-          "description": "How many comment threads to return, up to 100.",
+          "description": "How many comment threads to return, from 1 to 100.",
           "type": "number",
           "defaultValue": "20"
         },
@@ -1318,9 +1363,36 @@
       },
       "request": {
         "method": "GET",
-        "url": "https://www.googleapis.com/youtube/v3/commentThreads"
+        "url": "https://www.googleapis.com/youtube/v3/commentThreads",
+        "query": {
+          "part": "snippet,replies",
+          "videoId": "{{videoId}}",
+          "order": "{{order}}",
+          "pageToken": "{{pageToken}}"
+        }
       },
-      "beforeRequest": "var query = {part: 'snippet,replies', videoId: inputs.videoId};\nif (inputs.maxResults !== '') { var max = Math.trunc(Number(inputs.maxResults)); if (!Number.isFinite(max) || max < 1 || max > 100) throw new Error('Max Results must be between 1 and 100.'); }\nquery.maxResults = String(Math.trunc(Number(inputs.maxResults === '' ? 20 : inputs.maxResults)));\nif (inputs.order) query.order = inputs.order;\nif (inputs.pageToken) query.pageToken = inputs.pageToken;\nrequest.query = query;\nreturn request;"
+      "beforeRequest": "var max = inputs.maxResults === '' ? 20 : Math.trunc(Number(inputs.maxResults));\nif (!(max >= 1 && max <= 100)) throw new Error('Max Results must be between 1 and 100.');\nrequest.query.maxResults = String(max);\nreturn request;"
+    }
+  },
+  "triggers": {
+    "new-video": {
+      "label": "New Video In Channel",
+      "description": "Runs when a new video is added to a YouTube channel.",
+      "inputs": {
+        "channel_identifier": {
+          "label": "Channel ID, URL, or handle",
+          "description": "The channel's ID, its URL, or its handle, such as @DutchPilotGirl.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://www.youtube.com/feeds/videos.xml"
+      },
+      "newBy": "unseen",
+      "key": "$.guid",
+      "beforeRequest": "if (memory.channelId === undefined || memory.channelId === null) {\n  var given = inputs.channel_identifier;\n  if (given.trim().startsWith('@')) given = 'https://www.youtube.com/' + given;\n  if (given.includes('https')) {\n    // Only the channel's page on YouTube itself, so the input never chooses the host.\n    var path = given.match(/^https:\\/\\/www\\.youtube\\.com(\\/.*)?$/);\n    if (!path) throw new Error('Invalid YouTube channel URL');\n    var page = String(call({method: 'GET', url: 'https://www.youtube.com' + (path[1] || '/')}));\n    var canonical = (page.match(/<link\\b[^>]*>/gi) || []).map((tag) => {\n      var attributes = {};\n      tag.replace(/([^\\s=<>\\/]+)\\s*=\\s*(\"([^\"]*)\"|'([^']*)')/g, (whole, name, quoted, double, single) => { attributes[name.toLowerCase()] = double !== undefined ? double : single; return whole; });\n      return attributes;\n    }).find((attributes) => attributes.rel === 'canonical');\n    var href = canonical && canonical.href && canonical.href.replace(/&amp;/g, '&');\n    if (!href || !href.includes('/channel/')) throw new Error('Invalid YouTube channel URL');\n    given = href.split('/channel/')[1];\n  }\n  memory.channelId = given;\n}\nrequest.query = {channel_id: memory.channelId};\nreturn request;",
+      "afterResponse": "// The feed read as the original's feed parser gives it: each element by its lowercase name, with its attributes at @ and its text at #,\n// and Atom's own elements named atom:... at the top of an item and of meta.\nvar decode = (text) => text.replace(/&(#x[0-9a-f]+|#[0-9]+|amp|lt|gt|quot|apos);/gi, (whole, name) => name[0] === '#'\n  ? String.fromCodePoint(name[1].toLowerCase() === 'x' ? parseInt(name.slice(2), 16) : Number(name.slice(1)))\n  : {amp: '&', lt: '<', gt: '>', quot: '\"', apos: \"'\"}[name.toLowerCase()]);\nvar attributesOf = (text) => {\n  var attributes = {};\n  text.replace(/([^\\s=]+)\\s*=\\s*(\"([^\"]*)\"|'([^']*)')/g, (whole, name, quoted, double, single) => { attributes[name] = decode(double !== undefined ? double : single); return whole; });\n  return attributes;\n};\nvar xml = String(response || '');\nvar declaration = attributesOf(((xml.match(/^\\s*<\\?xml([^?]*)\\?>/) || [])[1]) || '');\nvar root = {children: []};\nvar open = [root];\nxml.replace(/<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>|<!--[\\s\\S]*?-->|<[?!][^>]*>|<(\\/?)([^\\s>\\/]+)([^>]*?)(\\/?)>|([^<]+)/g, (whole, cdata, closing, name, attributes, empty, text) => {\n  var node = open[open.length - 1];\n  if (cdata !== undefined) node.text = (node.text || '') + cdata;\n  else if (text !== undefined) node.text = (node.text || '') + decode(text);\n  else if (closing) open.pop();\n  else if (name !== undefined) {\n    var child = {name: name.toLowerCase(), attributes: attributesOf(attributes), children: []};\n    node.children.push(child);\n    if (!empty) open.push(child);\n  }\n  return whole;\n});\nvar feed = root.children[0] || {attributes: {}, children: []};\nvar raw = (node) => {\n  var value = {'@': node.attributes};\n  var text = (node.text || '').trim();\n  if (text) value['#'] = text;\n  node.children.forEach((child) => {\n    var made = raw(child);\n    if (value[child.name] === undefined) value[child.name] = made;\n    else value[child.name] = [].concat(value[child.name], [made]);\n  });\n  return value;\n};\nvar top = (name) => name.includes(':') ? name : 'atom:' + name;\nvar find = (node, name) => node.children.find((child) => child.name === name);\nvar textOf = (node, name) => { var found = node && find(node, name); return found ? (found.text || '').trim() : null; };\nvar linkOf = (node, rel) => { var found = node.children.find((child) => child.name === 'link' && (child.attributes.rel || 'alternate') === rel); return found ? found.attributes.href : null; };\nvar dateOf = (text) => { var time = text ? new Date(text) : null; return time && !isNaN(time.getTime()) ? time.toISOString() : null; };\nvar authorOf = (node) => textOf(find(node, 'author'), 'name');\nvar attributesAsList = (names) => names.map((name) => ({[name]: feed.attributes[name]}));\nvar names = Object.keys(feed.attributes);\n// The original reads the feed's own fields when its first entry ends.\nvar first = feed.children.findIndex((child) => child.name === 'entry');\nvar head = {attributes: feed.attributes, children: first < 0 ? feed.children : feed.children.slice(0, first)};\nvar meta = {'#ns': attributesAsList(names.filter((name) => name.startsWith('xmlns'))), '@': attributesAsList(names.filter((name) => name !== 'version')), '#xml': declaration, '#type': 'atom', '#version': '1.0',\n  title: textOf(head, 'title'), description: null,\n  date: dateOf(textOf(head, 'updated') || textOf(head, 'published')), pubdate: dateOf(textOf(head, 'published') || textOf(head, 'updated')),\n  link: linkOf(head, 'alternate'), xmlurl: linkOf(head, 'self'), author: authorOf(head),\n  language: null, favicon: null, copyright: null, generator: null, cloud: {}, image: {}, categories: [], 'atom:@': feed.attributes};\nmeta.pubDate = meta.pubdate;\nmeta.xmlUrl = meta.xmlurl;\nvar whole = raw(head);\nObject.keys(whole).filter((name) => name !== '@').forEach((name) => { meta[top(name)] = whole[name]; });\nvar items = feed.children.filter((child) => child.name === 'entry').map((entry) => {\n  var thumbnail = find(find(entry, 'media:group') || {children: []}, 'media:thumbnail');\n  var item = {title: textOf(entry, 'title'), description: null, summary: null,\n    date: dateOf(textOf(entry, 'updated') || textOf(entry, 'published')), pubdate: dateOf(textOf(entry, 'published') || textOf(entry, 'updated')),\n    link: linkOf(entry, 'alternate'), guid: textOf(entry, 'id'), author: authorOf(entry) || meta.author, comments: null, origlink: null,\n    image: thumbnail ? {url: thumbnail.attributes.url} : {}, source: {}, categories: [], enclosures: []};\n  item.pubDate = item.pubdate;\n  var fields = raw(entry);\n  item['atom:@'] = fields['@'];\n  Object.keys(fields).filter((name) => name !== '@').forEach((name) => { item[top(name)] = fields[name]; });\n  item.meta = meta;\n  item._dedupe_key = typeof item.guid === 'string' ? item.guid : JSON.stringify(item);\n  return item;\n});\n// The original remembers the IDs of the whole feed, and keeps them when the feed comes back empty.\nif (items.length > 0) memory._seenVideoIds = items.map((item) => item.guid || JSON.stringify(item));\nreturn items.sort((one, other) => (Date.parse(one.pubdate) || 0) - (Date.parse(other.pubdate) || 0));"
     }
   }
 }
