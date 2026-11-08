@@ -11,7 +11,8 @@ object ConnectorSettings {
 
     private val TYPES = mapOf(
         "string" to PropertyInformationType.STRING, "multiline" to PropertyInformationType.MULTILINE, "json" to PropertyInformationType.MULTILINE,
-        "number" to PropertyInformationType.NUMBER, "boolean" to PropertyInformationType.BOOLEAN, "select" to PropertyInformationType.DROPDOWN
+        "number" to PropertyInformationType.NUMBER, "boolean" to PropertyInformationType.BOOLEAN, "select" to PropertyInformationType.DROPDOWN,
+        "file" to PropertyInformationType.FILE
     )
 
     // The connector's file names the service's sign-in addresses, so a person only gives the client.
@@ -19,8 +20,13 @@ object ConnectorSettings {
 
     /** An input as the editor and agents see it, shown only for the choices it belongs to. */
     fun propertyOf(name: String, input: ConnectorInput, shownFor: Map<String, Array<String>>, category: PropertyInformationCategory = PropertyInformationCategory.PROPERTY) =
-        PropertyInformation(name, input.label, if (input.optionsFrom != null) PropertyInformationType.CHOICES else TYPES[input.type] ?: PropertyInformationType.STRING,
+        PropertyInformation(name, input.label, when {
+            input.fieldsFrom != null -> PropertyInformationType.FIELDS
+            input.optionsFrom != null -> PropertyInformationType.CHOICES
+            else -> TYPES[input.type] ?: PropertyInformationType.STRING
+        },
             input.defaultValue, input.description, input.options.map { PropertyInformation(it.value, it.label) }, category, shownFor)
+            .also { it.required = input.required }
 
     /** What a credential for the connector holds, the same for its actions and its triggers. */
     fun credentialProperties(connector: Connector): List<PropertyInformation> =

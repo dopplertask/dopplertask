@@ -37,7 +37,12 @@ const piece = await loadPiece(fixture.package, fixture.version);
 // A trigger runs one check from the place its fixture gives, such as {"lastPoll": 1700000000000} or {"lastItem": "c2"}.
 const step = fixture.trigger ? piece.getTrigger(fixture.trigger) : piece.getAction(fixture.action);
 if (!step) throw new Error(`${fixture.package} has no ${fixture.trigger ? `trigger ${fixture.trigger}` : `action ${fixture.action}`}.`);
-const context = createMockActionContext({ propsValue: fixture.inputs || {} });
+// A file input gets what Activepieces passes: its name, extension and bytes, from the fixture's "files".
+const files = Object.fromEntries(Object.entries(fixture.files || {}).map(([input, file]) => {
+  const data = Buffer.from(file.base64, 'base64');
+  return [input, { filename: file.name, extension: file.name.split('.').pop(), data, base64: data.toString('base64') }];
+}));
+const context = createMockActionContext({ propsValue: { ...(fixture.inputs || {}), ...files } });
 context.auth = fixture.auth;
 const memory = new Map(Object.entries(fixture.store || {}));
 context.store = { put: async (key, value) => (memory.set(key, value), value), get: async (key) => memory.get(key) ?? null, delete: async (key) => { memory.delete(key); } };

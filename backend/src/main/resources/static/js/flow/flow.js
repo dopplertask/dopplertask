@@ -185,6 +185,7 @@ export default function boot() {
   function announceAddedStep(item) {
     const added = item && store.selectedNode;
     if (!added) return;
+    if (added.type === 'start') { DT.ui.toast(`The task now starts on ${ACTIONS[item.dataset.type].label}`, { actionLabel: 'Undo', onAction: () => store.undo() }); return; }
     const incoming = store.task.edges.find((edge) => edge.to === added.id);
     const previous = incoming && nodeById(store.task, incoming.from);
     DT.ui.toast(previous ? `Added after “${previous.name}”` : `Added “${added.name}”`, { actionLabel: 'Undo', onAction: () => store.undo() });

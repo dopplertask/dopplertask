@@ -358,16 +358,21 @@ Provides the following actions: click, move, press and release the mouse button.
 * button: (Default LEFT) LEFT, RIGHT
 
 ## ReadFileAction
-Reads a file from disk.
+Reads a file on this machine and keeps it in the run, so that a later step can send it, such as a connector that uploads it, or write it elsewhere. A text file also gives its text as the output.
 ### Variables
-* filename: name of a file. Using ~ in the beginning of the filename will point to the home directory eg. ~/Downloads/testfile.txt
-* parameterName: The name of the parameter to store the contents in.
+* filename: the path. A path that starts with ~/ is in the home folder, such as ~/reports/june.pdf.
+* keepAs: the name later steps choose the file by. Empty keeps it by its own name, such as june.pdf.
+
+It gives `file`, `size`, `mimeType` and `path`.
 
 ## WriteFileAction
+Writes text, or a file from earlier in the run, to a file on this machine.
 ### Variables
-* filename: name of a file. Using ~ in the beginning of the filename will point to the home directory eg. ~/Downloads/testfile.txt
-* outputType: The type of the output. Possible values: clearText, binaryVar
-* contents: the contents to write in the file.
+* filename: the path, such as ~/reports/summary.txt.
+* write: `TEXT`, or `FILE` for a file an earlier step read or a connector downloaded.
+* contents: the text, for `TEXT`.
+* file: the name of the run's file, for `FILE`.
+* ifExists: `REPLACE`, `APPEND` to add to its end, or `STOP` to fail.
 
 ## XMLAction
 ### Variables

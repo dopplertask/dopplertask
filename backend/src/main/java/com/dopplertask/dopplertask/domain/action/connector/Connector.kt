@@ -60,13 +60,19 @@ class ConnectorOperation {
     var label: String = ""
     var description: String = ""
 
-    /** Who the action is for: both, a person in the editor, or an agent. */
+    /** What the action works on, such as Contacts, so that a long list of actions reads by group. */
+    var group: String = ""
+
+    /** Who the original made the action for: both, a person, or an agent. Kept so that an importer can map it. */
     var audience: String = "both"
     var inputs: LinkedHashMap<String, ConnectorInput> = linkedMapOf()
     var request: ConnectorRequest = ConnectorRequest()
 
     /** What a later step reads, by name, as a path in the answer such as $.channel.id. */
     var outputs: LinkedHashMap<String, String> = linkedMapOf()
+
+    /** For an answer that is a file: the name the run keeps it by, such as {{fileName}} or invoice.pdf. */
+    var download: String? = null
 
     /** The part of the answer the step gives, such as $.data. Empty gives the whole answer. */
     var result: String = ""
@@ -127,7 +133,7 @@ class ConnectorInput {
     var label: String = ""
     var description: String = ""
 
-    /** string, multiline, number, boolean, select or json. */
+    /** string, multiline, number, boolean, select, json, or file: the name of a file the run keeps, sent as base64 or as a file part. */
     var type: String = "string"
     var required: Boolean = false
     var secret: Boolean = false
@@ -136,6 +142,32 @@ class ConnectorInput {
 
     /** Where a list of choices comes from, such as the audiences of the account. The step itself sends the value. */
     var optionsFrom: ConnectorOptionsSource? = null
+
+    /**
+     * Where the fields of a form come from, such as the columns of a table. The person fills in each one, and the input
+     * holds them as one JSON object.
+     */
+    var fieldsFrom: ConnectorFieldsSource? = null
+}
+
+class ConnectorFieldsSource {
+    var request: ConnectorRequest = ConnectorRequest()
+
+    /** Where the list of fields is in the answer, and each field's key, label and type in it. */
+    var list: String = "$"
+    var key: String = "$.id"
+    var label: String = "$.name"
+    var type: String = ""
+
+    /** The service's type names as ours: string, multiline, number, boolean or json. Others are text. */
+    var types: Map<String, String> = emptyMap()
+}
+
+/** A field of a form that follows the service. */
+class ConnectorField {
+    var key: String = ""
+    var label: String = ""
+    var type: String = "string"
 }
 
 class ConnectorOptionsSource {

@@ -451,6 +451,9 @@ abstract class Action {
         var category: PropertyInformationCategory = PropertyInformationCategory.PROPERTY
         var displayOptions: Map<String, Array<String>> = mutableMapOf()
 
+        /** Whether the step cannot run without it. */
+        var required: Boolean = false
+
 
         @JvmOverloads
         constructor(
@@ -499,7 +502,13 @@ abstract class Action {
             STRING, MULTILINE, BOOLEAN, NUMBER, DROPDOWN, MAP,
 
             /** Text, with choices that the server fetches from the step's service when a person asks for them. */
-            CHOICES
+            CHOICES,
+
+            /** A form whose fields the server fetches from the step's service, kept as one JSON object. */
+            FIELDS,
+
+            /** The name of a file the run keeps, such as one Read file read, with the run's files as suggestions. */
+            FILE
         }
 
         enum class PropertyInformationCategory {

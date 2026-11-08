@@ -9,6 +9,7 @@
 - Advanced
 
   - [Steps](actions.md)
+  - [Connectors](connectors.md)
   - [Start Tasks via CLI](start-tasks-via-cli.md)
   - [Build a task through the API](task.md)
   - [Running DopplerTask](operations.md)

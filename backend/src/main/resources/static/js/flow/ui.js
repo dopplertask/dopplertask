@@ -56,6 +56,12 @@ export default function boot() {
   };
 
 
+  // The fields each form loaded from its service, by step and field, for as long as the page is open.
+  const loadedForms = new Map();
+  const formValues = (text) => { try { return JSON.parse(text || '{}'); } catch { return {}; } };
+
+  // Above this many choices a list is searched by typing.
+  const LONG_LIST = 12;
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
   const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
   const modKey = isMac ? '⌘' : 'Ctrl+';
@@ -159,6 +165,11 @@ export default function boot() {
       case 'select': {
         const options = field.options.map((option) => (typeof option === 'string' ? { value: option, label: option } : option));
         const current = fieldValue ?? options[0].value;
+        /* A long list, such as the actions of a big connector, is searched by typing rather than scrolled. */
+        if (options.length > LONG_LIST) {
+          const shown = options.find((option) => option.value === current)?.label ?? current;
+          return wrap(`${label.replace('<span class="ui-optional">optional</span>', '')}<input class="ui-input" autocomplete="off" spellcheck="false" placeholder="Type to search" list="${inputId}-options" data-options ${common} value="${escapeHtml(shown)}"><datalist id="${inputId}-options">${options.map((option) => `<option value="${escapeHtml(option.label)}">`).join('')}</datalist>`);
+        }
         return wrap(`${label.replace('<span class="ui-optional">optional</span>', '')}<div class="ui-select"><select ${common}>${options.map((option) => `<option value="${escapeHtml(option.value)}" ${option.value === current ? 'selected' : ''}>${escapeHtml(option.label)}</option>`).join('')}</select>${icon('chevronDown')}</div>`);
       }
       case 'credential': {
@@ -177,13 +188,22 @@ export default function boot() {
         const savedTasks = node.type === 'linkedTask' && field.key === 'name'
           ? DT.canvas.store.tasks.filter((task) => task.name !== DT.canvas.store.task.name).map((task) => `<option value="${escapeHtml(task.name)}">`).join('')
           : null;
-        const suggestions = field.suggestions?.map((choice) => `<option value="${escapeHtml(choice.value)}" label="${escapeHtml(choice.label)}">`).join('');
+        const suggestions = (field.files ? DT.canvas.store.filesBefore(node.id).map((name) => ({ value: name, label: name })) : field.suggestions)
+          ?.map((choice) => `<option value="${escapeHtml(choice.value)}" label="${escapeHtml(choice.label)}">`).join('');
         const choices = savedTasks ?? suggestions ?? (field.choices ? '' : null);
         const list = choices === null ? '' : `<datalist id="${inputId}-choices">${choices}</datalist>`;
         const control = field.multiline
           ? `<textarea class="ui-input is-mono" rows="3" spellcheck="false" data-variables ${common} ${placeholder}>${escapeHtml(fieldValue ?? '')}</textarea>`
           : `<input class="ui-input is-mono" spellcheck="false" autocomplete="off" data-variables ${list ? `list="${inputId}-choices"` : ''} ${field.choices ? 'data-choices' : ''} ${common} ${placeholder} value="${escapeHtml(fieldValue ?? '')}">`;
         return wrap(`${label}${control}${list}<p class="ui-preview" data-preview="${field.key}"></p>`);
+      }
+      case 'form': {
+        /* Saved values show by their key until the fields are loaded, which gives their labels and any new ones. */
+        const values = formValues(fieldValue);
+        const fields = loadedForms.get(`${node.id}.${field.key}`) || Object.keys(values).map((key) => ({ key, label: key }));
+        return `<fieldset class="ui-field ui-list" data-form="${field.key}"><legend class="ui-label">${escapeHtml(field.label)}${field.required ? '' : '<span class="ui-optional">optional</span>'}</legend>
+          ${fields.map((one) => `<label class="ui-label" for="${inputId}-${escapeHtml(one.key)}">${escapeHtml(one.label)}</label><input class="ui-input is-mono" id="${inputId}-${escapeHtml(one.key)}" spellcheck="false" autocomplete="off" data-variables data-form-key="${escapeHtml(one.key)}" value="${escapeHtml(values[one.key] ?? '')}">`).join('')}
+          <button type="button" class="ui-button" data-form-load>${icon('download')}${fields.length ? 'Load the fields again' : 'Load the fields'}</button>${hint}</fieldset>`;
       }
       case 'map': {
         const rows = fieldValue || [];
@@ -245,17 +265,27 @@ export default function boot() {
       const target = event.target;
       const node = currentNode();
       if (target.dataset.field) {
-        const newValue = target.type === 'checkbox' ? target.checked : target.type === 'number' ? (target.value === '' ? '' : Number(target.value)) : target.value;
+        let newValue = target.type === 'checkbox' ? target.checked : target.type === 'number' ? (target.value === '' ? '' : Number(target.value)) : target.value;
+        if (target.dataset.options !== undefined) {
+          const chosen = ACTIONS[node.type].fields.find((field) => field.key === target.dataset.field)?.options.find((option) => option.label === target.value);
+          /* Only a whole choice counts. Leaving the field with a partial search shows the current choice again. */
+          if (!chosen) { if (event.type === 'change') render(); return; }
+          newValue = chosen.value;
+        }
         /* Leaving a field fires change with the value input already saved. Saving it again rebuilds the panel
            under the pointer, which would swallow the click that left the field. */
         if (node.config[target.dataset.field] !== newValue) store.updateConfig(nodeId, target.dataset.field, newValue);
-        if (event.type === 'change' && (target.tagName === 'SELECT' || target.type === 'checkbox') && (hasConditionalFields() || target.dataset.field === 'credential')) render();
+        if (event.type === 'change' && (target.tagName === 'SELECT' || target.type === 'checkbox' || target.dataset.options !== undefined) && (hasConditionalFields() || target.dataset.field === 'credential')) render();
         updatePreviews(root, store);
         const urlElement = root.querySelector('[data-webhook-url]');
         if (urlElement) {
           urlElement.textContent = webhookUrl(store.task, node);
           urlElement.nextElementSibling.dataset.copy = urlElement.textContent;
         }
+      } else if (target.dataset.formKey !== undefined) {
+        const key = target.closest('[data-form]').dataset.form;
+        const values = { ...formValues(node.config[key]), [target.dataset.formKey]: target.value };
+        store.updateConfig(nodeId, key, JSON.stringify(Object.fromEntries(Object.entries(values).filter(([, value]) => value !== ''))));
       } else if (target.dataset.mapIndex !== undefined) {
         const key = target.closest('[data-map]').dataset.map;
         const rows = node.config[key].map((row) => ({ ...row }));
@@ -272,6 +302,11 @@ export default function boot() {
         const field = ACTIONS[node.type].fields.find((candidate) => candidate.key === 'credential' && DT.fieldVisible(candidate, node.config));
         const editing = button.dataset.credentialEdit !== undefined ? store.credentials.find((credential) => credential.name === node.config.credential) : null;
         openCredentialDialog(store, field, editing, (name) => { store.updateConfig(nodeId, 'credential', name); render(); });
+        return;
+      }
+      if (button.dataset.formLoad !== undefined) {
+        const key = button.closest('[data-form]').dataset.form;
+        store.connectorFields(node, key).then((fields) => { loadedForms.set(`${nodeId}.${key}`, fields); render(); }, (error) => toast(error.message, { tone: 'danger' }));
         return;
       }
       if (button.dataset.mapAdd !== undefined) {

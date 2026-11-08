@@ -1,6 +1,7 @@
 package com.dopplertask.dopplertask;
 
 import com.dopplertask.dopplertask.domain.ActionResult;
+import com.dopplertask.dopplertask.domain.RunFiles;
 
 import com.dopplertask.dopplertask.domain.TaskExecution;
 import com.dopplertask.dopplertask.domain.action.connector.ConnectorAction;
@@ -24,6 +25,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -111,7 +113,14 @@ public class ConnectorCheck {
         step.setOperation(fixture.path("action").asText());
         settings.properties().forEach(setting -> step.setSetting(setting.getKey(), setting.getValue().isString() ? setting.getValue().asString() : setting.getValue()));
         step.useCredentialValues(credential);
-        ActionResult result = step.perform(new TaskExecution(), variables);
+        // The fixture's files are files of the run, chosen by name, as Read file would keep them.
+        TaskExecution run = new TaskExecution();
+        fixture.path("files").properties().forEach(file -> {
+            String name = file.getValue().path("name").asText();
+            RunFiles.INSTANCE.keep(run, name, Base64.getDecoder().decode(file.getValue().path("base64").asText()));
+            step.setSetting(file.getKey(), name);
+        });
+        ActionResult result = step.perform(run, variables);
         return new Outcome(parsed(result.getOutput()), result.getErrorMsg());
     }
 
@@ -163,8 +172,8 @@ public class ConnectorCheck {
             check(differences, where + "path", address.getRawPath(), ours.path("path").asText());
             check(differences, where + "query", sortedQuery(address.getRawQuery()), sortedQuery(ours.path("query").asText(null)));
             original.path("headers").properties().forEach(header ->
-                    check(differences, where + "header " + header.getKey(), header.getValue().asText(), ours.path("headers").path(header.getKey()).asText(null)));
-            check(differences, where + "body", original.path("body"), ours.path("body"));
+                    check(differences, where + "header " + header.getKey(), withoutBoundary(header.getValue().asText()), withoutBoundary(ours.path("headers").path(header.getKey()).asText(null))));
+            check(differences, where + "body", withoutBoundary(original.path("body")), withoutBoundary(ours.path("body")));
         }
         if (fixture.has("output") && !fixture.path("output").has("error")) {
             check(differences, name + ": output", fixture.has("trigger") ? sorted(fixture.path("output")) : fixture.path("output"), result.output());
@@ -176,6 +185,19 @@ public class ConnectorCheck {
         if (!java.util.Objects.equals(original, ours)) {
             differences.add(what + " differs. Original: " + original + ". Ours: " + ours + ".");
         }
+    }
+
+    /** A multipart body with its random boundary taken out, since each sender picks its own. */
+    private static Object withoutBoundary(Object value) {
+        String text = value instanceof JsonNode node ? (node.isTextual() ? node.asText() : null) : (String) value;
+        if (text == null) {
+            return value;
+        }
+        if (text.startsWith("multipart/form-data")) {
+            return "multipart/form-data";
+        }
+        String boundary = text.startsWith("--") ? text.substring(2, text.indexOf("\r\n") > 0 ? text.indexOf("\r\n") : text.length()) : null;
+        return boundary == null ? value : text.replace(boundary, "BOUNDARY");
     }
 
     private static String sortedQuery(String query) {
