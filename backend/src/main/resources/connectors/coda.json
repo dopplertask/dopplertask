@@ -595,14 +595,15 @@
           "description": "The doc ID, for example AbC123xyZ. Use List Docs to find it.",
           "required": true
         },
-        "tableIdOrName": {
+        "tableId": {
           "label": "Table ID or Name",
           "description": "The table ID (starts with \"grid-\" or \"table-\") or its exact name. IDs are safer: names can change or repeat. Use List Tables to find it.",
           "required": true
         },
         "filterColumn": {
           "label": "Filter Column",
-          "description": "Optional column ID or name. Only rows where this column equals Filter Value are returned."
+          "description": "Optional column ID or name. Only rows where this column equals Filter Value are returned.",
+          "list": "search_columns"
         },
         "filterValue": {
           "label": "Filter Value",
@@ -670,7 +671,7 @@
       },
       "request": {
         "method": "GET",
-        "url": "https://coda.io/apis/v1/docs/{{docId}}/tables/{{tableIdOrName}}/rows",
+        "url": "https://coda.io/apis/v1/docs/{{docId}}/tables/{{tableId}}/rows",
         "query": {
           "sortBy": "{{sortBy}}",
           "useColumnNames": "{{useColumnNames}}",
@@ -747,7 +748,7 @@
           "description": "The doc ID, for example AbC123xyZ. Use List Docs to find it.",
           "required": true
         },
-        "tableIdOrName": {
+        "tableId": {
           "label": "Table ID or Name",
           "description": "The table ID (starts with \"grid-\" or \"table-\") or its exact name. IDs are safer: names can change or repeat. Use List Tables to find it.",
           "required": true
@@ -755,7 +756,8 @@
         "keyColumns": {
           "label": "Key Columns",
           "description": "Column names or IDs that identify a row, for example Email. Several are separated by commas or given as a JSON list.",
-          "required": true
+          "required": true,
+          "list": "search_columns"
         },
         "rows": {
           "label": "Rows",
@@ -779,7 +781,7 @@
       },
       "request": {
         "method": "POST",
-        "url": "https://coda.io/apis/v1/docs/{{docId}}/tables/{{tableIdOrName}}/rows",
+        "url": "https://coda.io/apis/v1/docs/{{docId}}/tables/{{tableId}}/rows",
         "query": {
           "disableParsing": "{{disableParsing}}"
         }
@@ -802,7 +804,7 @@
           "description": "The doc ID, for example AbC123xyZ. Use List Docs to find it.",
           "required": true
         },
-        "tableIdOrName": {
+        "tableId": {
           "label": "Table ID or Name",
           "description": "The table ID (starts with \"grid-\" or \"table-\") or its exact name. IDs are safer: names can change or repeat. Use List Tables to find it.",
           "required": true
@@ -815,7 +817,8 @@
         "columnIdOrName": {
           "label": "Button Column ID or Name",
           "description": "The button column (List Columns shows it with type \"button\").",
-          "required": true
+          "required": true,
+          "list": "search_columns"
         },
         "waitForCompletion": {
           "label": "Wait for Coda to Apply",
@@ -826,7 +829,7 @@
       },
       "request": {
         "method": "POST",
-        "url": "https://coda.io/apis/v1/docs/{{docId}}/tables/{{tableIdOrName}}/rows/{{rowIdOrName}}/buttons/{{columnIdOrName}}"
+        "url": "https://coda.io/apis/v1/docs/{{docId}}/tables/{{tableId}}/rows/{{rowIdOrName}}/buttons/{{columnIdOrName}}"
       },
       "beforeRequest": "var docIdOf = (raw) => {\n  var text = String(raw).trim();\n  if (!/^https?:\\/\\//i.test(text)) {\n    if (!/^[A-Za-z0-9_-]+$/.test(text)) throw new Error('\"' + text + '\" is not a valid Coda doc ID. Pass the ID (for example AbC123xyZ) or the doc\\'s browser link.');\n    return text;\n  }\n  var link = /^https?:\\/\\/(?:[^@\\/?#]*@)?([^:\\/?#]*)(?::\\d*)?([^?#]*)/i.exec(text);\n  var host = link ? link[1].toLowerCase().replace(/^www\\./, '') : '';\n  if (host !== 'coda.io' && host !== 'docs.superhuman.com') throw new Error('\"' + text + '\" is not a Coda doc link (expected coda.io or docs.superhuman.com).');\n  var segments = link[2].split('/').filter((segment) => segment.length > 0);\n  var slug = segments[0] === 'd' ? segments[1] : undefined;\n  var cut = slug ? slug.lastIndexOf('_d') : -1;\n  var id = slug && cut >= 0 ? slug.slice(cut + 2) : undefined;\n  if (!id || !/^[A-Za-z0-9_-]+$/.test(id)) throw new Error('Could not find a doc ID in \"' + text + '\". Paste a link like https://coda.io/d/My-Doc_dAbC123 or the doc ID itself.');\n  return id;\n};\nvar start = request.url.indexOf('/apis/v1/') + '/apis/v1/'.length;\nvar parts = request.url.slice(start).split('/').map((part) => decodeURIComponent(part).trim());\nparts.forEach((part) => { if (part === '.' || part === '..') throw new Error('\"' + part + '\" is not a valid Coda ID or name.'); });\nif (parts[0] === 'docs' && parts.length > 1) parts[1] = docIdOf(parts[1]);\nrequest.url = request.url.slice(0, start) + parts.map(encodeURIComponent).join('/');\nreturn request;",
       "afterResponse": "var settle = (requestId) => {\n  if (!requestId) throw new Error('Coda accepted the request but returned no request ID, so its outcome cannot be checked.');\n  var id = String(requestId).trim();\n  if (id === '') throw new Error('Request ID is required.');\n  if (id === '.' || id === '..') throw new Error('Request ID \"' + id + '\" is not a valid Coda ID or name.');\n  if (inputs.waitForCompletion === 'false') return {requestId: requestId, completed: false, warning: null};\n  for (var attempt = 0; attempt < 10; attempt++) {\n    try {\n      var status = call({method: 'GET', url: '/mutationStatus/' + encodeURIComponent(id)});\n      if (status.completed) return {requestId: requestId, completed: true, warning: status.warning ?? null};\n    } catch (error) {\n      var failure = /answered with status (\\d+)(?:: ([\\s\\S]*))?$/.exec(String(error && error.message || error));\n      var code = failure ? Number(failure[1]) : undefined;\n      var transient = code === undefined || code === 404 || code === 408 || code === 409 || code === 429 || code >= 500;\n      if (!transient) {\n        var said = failure[2] ? failure[2].replace(/\\.$/, '').slice(0, 500) : 'no details returned';\n        var meaning = code === 401 ? 'the API token is invalid or was revoked. ' + said\n          : code === 403 ? 'Coda refused the request (no access to this doc, or not allowed on this workspace plan). ' + said\n          : code === 410 ? 'the object was deleted. ' + said\n          : said;\n        return {requestId: requestId, completed: false, warning: 'Coda accepted the change, but checking its status failed, so do not repeat it. Check it later with Get Mutation Status. Coda get mutation status failed (' + code + '): ' + meaning};\n      }\n    }\n  }\n  return {requestId: requestId, completed: false, warning: null};\n};\nreturn Object.assign({rowId: response.rowId ?? inputs.rowIdOrName, columnId: response.columnId ?? inputs.columnIdOrName}, settle(response.requestId));",
