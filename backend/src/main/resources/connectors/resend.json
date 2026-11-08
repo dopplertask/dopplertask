@@ -1,21 +1,732 @@
 {
   "name": "resend",
   "label": "Resend",
-  "description": "Send email and manage contacts with Resend",
-  "hosts": ["api.resend.com"],
-  "upstream": { "package": "@activepieces/piece-resend", "version": "0.6.2" },
+  "description": "The email API for developers",
+  "icon": "",
+  "hosts": [
+    "api.resend.com"
+  ],
+  "upstream": {
+    "package": "@activepieces/piece-resend",
+    "version": "0.6.2"
+  },
   "credential": {
-    "fields": { "apiKey": { "label": "API key", "secret": true, "required": true, "description": "From API Keys in the Resend dashboard." } },
-    "headers": { "Authorization": "Bearer {{credential.apiKey}}" }
+    "fields": {
+      "apiKey": {
+        "label": "API Key",
+        "secret": true,
+        "required": true,
+        "description": "Create one under API Keys in the Resend dashboard."
+      }
+    },
+    "headers": {
+      "Authorization": "Bearer {{credential.apiKey}}"
+    }
   },
   "actions": {
+    "get_email_status": {
+      "label": "Get Email Status",
+      "description": "Retrieve the delivery status of a sent email",
+      "inputs": {
+        "email_id": {
+          "label": "Email ID",
+          "description": "The ID returned by Send Email or List Sent Emails.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.resend.com/emails/{{email_id}}"
+      },
+      "outputs": {
+        "id": "$.id",
+        "last_event": "$.last_event",
+        "subject": "$.subject"
+      }
+    },
+    "cancel_scheduled_email": {
+      "label": "Cancel Scheduled Email",
+      "description": "Cancel a scheduled email before it is sent",
+      "inputs": {
+        "email_id": {
+          "label": "Email ID",
+          "description": "The ID returned by Send Email or List Sent Emails.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.resend.com/emails/{{email_id}}/cancel"
+      },
+      "outputs": {
+        "id": "$.id"
+      }
+    },
+    "reschedule_email": {
+      "label": "Reschedule Email",
+      "description": "Update the send time of a scheduled email",
+      "inputs": {
+        "email_id": {
+          "label": "Email ID",
+          "description": "The ID returned by Send Email or List Sent Emails.",
+          "required": true
+        },
+        "scheduled_at": {
+          "label": "New Send Time",
+          "description": "Date and time in ISO 8601 format.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://api.resend.com/emails/{{email_id}}",
+        "body": {
+          "scheduled_at": "{{scheduled_at}}"
+        }
+      },
+      "outputs": {
+        "id": "$.id"
+      }
+    },
+    "create_audience": {
+      "label": "Create Audience",
+      "description": "Create a new contact audience in Resend",
+      "inputs": {
+        "name": {
+          "label": "Audience Name",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.resend.com/audiences",
+        "body": {
+          "name": "{{name}}"
+        }
+      },
+      "outputs": {
+        "id": "$.id",
+        "name": "$.name"
+      }
+    },
     "get_contact": {
-      "label": "Get contact",
+      "label": "Get Contact",
       "description": "Retrieve a single contact by ID or email, across all audiences",
       "audience": "ai",
-      "inputs": { "contact_identifier": { "label": "Contact ID or email", "required": true } },
-      "request": { "method": "GET", "url": "https://api.resend.com/contacts/{{contact_identifier}}" },
-      "outputs": { "id": "$.id", "email": "$.email" }
+      "inputs": {
+        "contact_identifier": {
+          "label": "Contact ID or Email",
+          "description": "The contact's Resend ID, or their email address.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.resend.com/contacts/{{contact_identifier}}"
+      },
+      "outputs": {
+        "id": "$.id",
+        "email": "$.email"
+      }
+    },
+    "create_segment": {
+      "label": "Create Segment",
+      "description": "Create a new segment for grouping contacts",
+      "audience": "ai",
+      "inputs": {
+        "name": {
+          "label": "Name",
+          "description": "A label for this segment.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.resend.com/segments",
+        "body": {
+          "name": "{{name}}"
+        }
+      },
+      "outputs": {
+        "id": "$.id",
+        "name": "$.name"
+      }
+    },
+    "create_topic": {
+      "label": "Create Topic",
+      "description": "Create a new topic to segment audience preferences",
+      "audience": "ai",
+      "inputs": {
+        "name": {
+          "label": "Name",
+          "description": "Topic identifier, up to 50 characters.",
+          "required": true
+        },
+        "default_subscription": {
+          "label": "Default Subscription",
+          "description": "Initial preference for new contacts. Cannot be changed after creation.",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "opt_in",
+              "label": "Opted In"
+            },
+            {
+              "value": "opt_out",
+              "label": "Opted Out"
+            }
+          ]
+        },
+        "description": {
+          "label": "Description",
+          "description": "Explanation shown to contacts, up to 200 characters.",
+          "type": "multiline"
+        },
+        "visibility": {
+          "label": "Visibility",
+          "description": "Whether all contacts or only opted-in contacts see this topic on the unsubscribe page. Defaults to private.",
+          "type": "select",
+          "options": [
+            {
+              "value": "public",
+              "label": "Public"
+            },
+            {
+              "value": "private",
+              "label": "Private"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.resend.com/topics",
+        "body": {
+          "name": "{{name}}",
+          "default_subscription": "{{default_subscription}}",
+          "description": "{{description}}",
+          "visibility": "{{visibility}}"
+        }
+      },
+      "outputs": {
+        "id": "$.id"
+      }
+    },
+    "create_template": {
+      "label": "Create Template",
+      "description": "Create a new reusable email template",
+      "audience": "ai",
+      "inputs": {
+        "name": {
+          "label": "Name",
+          "required": true
+        },
+        "html": {
+          "label": "HTML Body",
+          "type": "multiline",
+          "required": true
+        },
+        "alias": {
+          "label": "Alias",
+          "description": "Optional short alias that can be used instead of the template ID in other calls."
+        },
+        "from": {
+          "label": "From",
+          "description": "Default sender address. Must be from a verified domain."
+        },
+        "subject": {
+          "label": "Default Subject"
+        },
+        "reply_to": {
+          "label": "Reply To"
+        },
+        "text": {
+          "label": "Text Body",
+          "description": "Plain text version. Auto-generated from the HTML body if left blank.",
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.resend.com/templates",
+        "body": {
+          "name": "{{name}}",
+          "html": "{{html}}",
+          "alias": "{{alias}}",
+          "from": "{{from}}",
+          "subject": "{{subject}}",
+          "reply_to": "{{reply_to}}",
+          "text": "{{text}}"
+        }
+      },
+      "outputs": {
+        "id": "$.id"
+      }
+    },
+    "create_webhook": {
+      "label": "Create Webhook",
+      "description": "Create a webhook subscription for Resend events",
+      "audience": "ai",
+      "inputs": {
+        "endpoint": {
+          "label": "Endpoint URL",
+          "description": "The URL Resend will send event payloads to.",
+          "required": true
+        },
+        "events": {
+          "label": "Events",
+          "description": "Event types to subscribe to, e.g. email.sent, email.bounced, contact.created.",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.resend.com/webhooks",
+        "body": {
+          "endpoint": "{{endpoint}}",
+          "events": "{{events}}"
+        }
+      },
+      "outputs": {
+        "id": "$.id",
+        "signing_secret": "$.signing_secret"
+      }
+    },
+    "get_email_attachment": {
+      "label": "Get Email Attachment",
+      "description": "Retrieve a single attachment from a sent email",
+      "audience": "ai",
+      "inputs": {
+        "email_id": {
+          "label": "Email ID",
+          "description": "The ID of the sent email. Obtain from Get Email Status or List Sent Emails.",
+          "required": true
+        },
+        "attachment_id": {
+          "label": "Attachment ID",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.resend.com/emails/{{email_id}}/attachments/{{attachment_id}}"
+      },
+      "outputs": {
+        "id": "$.id",
+        "filename": "$.filename",
+        "download_url": "$.download_url"
+      }
+    },
+    "delete_contact": {
+      "label": "Delete Contact",
+      "description": "Remove a contact from an audience",
+      "inputs": {
+        "audience_id": {
+          "label": "Audience",
+          "description": "The ID of the audience.",
+          "required": true
+        },
+        "contact_id": {
+          "label": "Contact",
+          "description": "The ID of the contact.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.resend.com/audiences/{{audience_id}}/contacts/{{contact_id}}"
+      },
+      "outputs": {
+        "id": "$.id",
+        "deleted": "$.deleted"
+      }
+    },
+    "delete_domain": {
+      "label": "Delete Domain",
+      "description": "Remove a domain from your Resend account",
+      "inputs": {
+        "domain_id": {
+          "label": "Domain",
+          "description": "The ID of the domain.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.resend.com/domains/{{domain_id}}"
+      },
+      "outputs": {
+        "id": "$.id",
+        "deleted": "$.deleted"
+      }
+    },
+    "verify_domain": {
+      "label": "Verify Domain",
+      "description": "Trigger a DNS verification check for a domain",
+      "inputs": {
+        "domain_id": {
+          "label": "Domain",
+          "description": "The ID of the domain.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.resend.com/domains/{{domain_id}}/verify"
+      },
+      "outputs": {
+        "id": "$.id"
+      }
+    },
+    "delete_audience": {
+      "label": "Delete Audience",
+      "description": "Permanently delete an audience and all its contacts",
+      "inputs": {
+        "audience_id": {
+          "label": "Audience",
+          "description": "The ID of the audience.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.resend.com/audiences/{{audience_id}}"
+      },
+      "outputs": {
+        "id": "$.id",
+        "deleted": "$.deleted"
+      }
+    },
+    "delete_broadcast": {
+      "label": "Delete Broadcast",
+      "description": "Permanently delete a broadcast from your Resend account",
+      "inputs": {
+        "broadcast_id": {
+          "label": "Broadcast",
+          "description": "The ID of the broadcast.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.resend.com/broadcasts/{{broadcast_id}}"
+      },
+      "outputs": {
+        "id": "$.id",
+        "deleted": "$.deleted"
+      }
+    },
+    "get_broadcast": {
+      "label": "Get Broadcast",
+      "description": "Retrieve a single broadcast by its ID",
+      "audience": "ai",
+      "inputs": {
+        "broadcast_id": {
+          "label": "Broadcast",
+          "description": "The ID of the broadcast.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.resend.com/broadcasts/{{broadcast_id}}"
+      },
+      "outputs": {
+        "id": "$.id",
+        "name": "$.name",
+        "status": "$.status"
+      }
+    },
+    "add_contact_to_segment": {
+      "label": "Add Contact To Segment",
+      "description": "Add a contact to a segment",
+      "audience": "ai",
+      "inputs": {
+        "contact_identifier": {
+          "label": "Contact ID or Email",
+          "description": "The contact's Resend ID, or their email address.",
+          "required": true
+        },
+        "segment_id": {
+          "label": "Segment",
+          "description": "The ID of the segment.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.resend.com/contacts/{{contact_identifier}}/segments/{{segment_id}}"
+      },
+      "outputs": {
+        "id": "$.id"
+      }
+    },
+    "remove_contact_from_segment": {
+      "label": "Remove Contact From Segment",
+      "description": "Remove a contact from a segment",
+      "audience": "ai",
+      "inputs": {
+        "contact_identifier": {
+          "label": "Contact ID or Email",
+          "description": "The contact's Resend ID, or their email address.",
+          "required": true
+        },
+        "segment_id": {
+          "label": "Segment",
+          "description": "The ID of the segment.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.resend.com/contacts/{{contact_identifier}}/segments/{{segment_id}}"
+      },
+      "outputs": {
+        "id": "$.id",
+        "deleted": "$.deleted"
+      }
+    },
+    "get_contact_property": {
+      "label": "Get Contact Property",
+      "description": "Retrieve a single custom contact field by ID",
+      "audience": "ai",
+      "inputs": {
+        "contact_property_id": {
+          "label": "Contact Property",
+          "description": "The ID of the contact property.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.resend.com/contact-properties/{{contact_property_id}}"
+      },
+      "outputs": {
+        "id": "$.id",
+        "key": "$.key",
+        "type": "$.type"
+      }
+    },
+    "delete_contact_property": {
+      "label": "Delete Contact Property",
+      "description": "Permanently remove a custom contact field",
+      "audience": "ai",
+      "inputs": {
+        "contact_property_id": {
+          "label": "Contact Property",
+          "description": "The ID of the contact property.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.resend.com/contact-properties/{{contact_property_id}}"
+      },
+      "outputs": {
+        "id": "$.id",
+        "deleted": "$.deleted"
+      }
+    },
+    "get_segment": {
+      "label": "Get Segment",
+      "description": "Retrieve a single segment by its ID",
+      "audience": "ai",
+      "inputs": {
+        "segment_id": {
+          "label": "Segment",
+          "description": "The ID of the segment.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.resend.com/segments/{{segment_id}}"
+      },
+      "outputs": {
+        "id": "$.id",
+        "name": "$.name"
+      }
+    },
+    "delete_segment": {
+      "label": "Delete Segment",
+      "description": "Permanently delete a segment",
+      "audience": "ai",
+      "inputs": {
+        "segment_id": {
+          "label": "Segment",
+          "description": "The ID of the segment.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.resend.com/segments/{{segment_id}}"
+      },
+      "outputs": {
+        "id": "$.id",
+        "deleted": "$.deleted"
+      }
+    },
+    "get_topic": {
+      "label": "Get Topic",
+      "description": "Retrieve a single topic by its ID",
+      "audience": "ai",
+      "inputs": {
+        "topic_id": {
+          "label": "Topic",
+          "description": "The ID of the topic.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.resend.com/topics/{{topic_id}}"
+      },
+      "outputs": {
+        "id": "$.id",
+        "name": "$.name"
+      }
+    },
+    "delete_topic": {
+      "label": "Delete Topic",
+      "description": "Permanently delete a topic",
+      "audience": "ai",
+      "inputs": {
+        "topic_id": {
+          "label": "Topic",
+          "description": "The ID of the topic.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.resend.com/topics/{{topic_id}}"
+      },
+      "outputs": {
+        "id": "$.id",
+        "deleted": "$.deleted"
+      }
+    },
+    "get_template": {
+      "label": "Get Template",
+      "description": "Retrieve a single template by ID or alias",
+      "audience": "ai",
+      "inputs": {
+        "template_id": {
+          "label": "Template",
+          "description": "The ID or alias of the template.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.resend.com/templates/{{template_id}}"
+      },
+      "outputs": {
+        "id": "$.id",
+        "name": "$.name"
+      }
+    },
+    "delete_template": {
+      "label": "Delete Template",
+      "description": "Permanently remove an email template",
+      "audience": "ai",
+      "inputs": {
+        "template_id": {
+          "label": "Template",
+          "description": "The ID or alias of the template.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.resend.com/templates/{{template_id}}"
+      },
+      "outputs": {
+        "id": "$.id",
+        "deleted": "$.deleted"
+      }
+    },
+    "publish_template": {
+      "label": "Publish Template",
+      "description": "Make a template's latest version live",
+      "audience": "ai",
+      "inputs": {
+        "template_id": {
+          "label": "Template",
+          "description": "The ID or alias of the template.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.resend.com/templates/{{template_id}}/publish"
+      },
+      "outputs": {
+        "id": "$.id"
+      }
+    },
+    "duplicate_template": {
+      "label": "Duplicate Template",
+      "description": "Create a copy of an existing template",
+      "audience": "ai",
+      "inputs": {
+        "template_id": {
+          "label": "Template",
+          "description": "The ID or alias of the template.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.resend.com/templates/{{template_id}}/duplicate"
+      },
+      "outputs": {
+        "id": "$.id"
+      }
+    },
+    "get_webhook": {
+      "label": "Get Webhook",
+      "description": "Retrieve a single webhook by its ID",
+      "audience": "ai",
+      "inputs": {
+        "webhook_id": {
+          "label": "Webhook",
+          "description": "The ID of the webhook.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.resend.com/webhooks/{{webhook_id}}"
+      },
+      "outputs": {
+        "id": "$.id",
+        "endpoint": "$.endpoint",
+        "status": "$.status"
+      }
+    },
+    "delete_webhook": {
+      "label": "Delete Webhook",
+      "description": "Permanently remove a webhook subscription",
+      "audience": "ai",
+      "inputs": {
+        "webhook_id": {
+          "label": "Webhook",
+          "description": "The ID of the webhook.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.resend.com/webhooks/{{webhook_id}}"
+      },
+      "outputs": {
+        "id": "$.id",
+        "deleted": "$.deleted"
+      }
     }
   }
 }
