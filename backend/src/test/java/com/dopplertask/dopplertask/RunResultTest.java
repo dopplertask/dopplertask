@@ -221,6 +221,36 @@ public class RunResultTest {
     }
 
     @Test
+    public void testAStopReachesARunWhoseStepSwallowsTheInterruptSuccess() throws Exception {
+        String createJson = "{\"name\":\"run_stop_swallowed\",\"active\":false,\"parameters\":[],\"actions\":["
+                + "{\"@type\":\"StartAction\",\"ports\":[{\"externalId\":\"sw_s\",\"portType\":\"OUTPUT\"}]},"
+                + "{\"@type\":\"TimedWait\",\"seconds\":\"30\",\"continueOnFailure\":true,\"ports\":[{\"externalId\":\"sw_w\",\"portType\":\"INPUT\"},{\"externalId\":\"sw_w_out\",\"portType\":\"OUTPUT\"}]},"
+                + "{\"@type\":\"PrintAction\",\"message\":\"after\",\"ports\":[{\"externalId\":\"sw_p\",\"portType\":\"INPUT\"}]}],"
+                + "\"connections\":[{\"source\":{\"externalId\":\"sw_s\"},\"target\":{\"externalId\":\"sw_w\"}},{\"source\":{\"externalId\":\"sw_w_out\"},\"target\":{\"externalId\":\"sw_p\"}}]}";
+        this.mockMvc.perform(post("/task").content(createJson)).andExpect(status().isOk());
+        String started = this.mockMvc.perform(post("/schedule/task").contentType(MediaType.APPLICATION_JSON).content("{\"taskName\":\"run_stop_swallowed\",\"parameters\":{}}"))
+                .andReturn().getResponse().getContentAsString();
+        long id = Long.parseLong(JsonPath.read(started, "$.id").toString());
+        String state = "";
+        for (int attempt = 0; attempt < 100 && !state.contains("\"STARTED\""); attempt++) {
+            Thread.sleep(100);
+            state = this.mockMvc.perform(get("/execution/" + id)).andReturn().getResponse().getContentAsString();
+        }
+        // The wait step is then going.
+        Thread.sleep(300);
+
+        this.mockMvc.perform(post("/execution/" + id + "/stop")).andExpect(status().isAccepted());
+
+        String ended = "";
+        for (int attempt = 0; attempt < 100 && !ended.contains("ABORTED"); attempt++) {
+            Thread.sleep(100);
+            ended = this.mockMvc.perform(get("/execution/" + id)).andReturn().getResponse().getContentAsString();
+        }
+        Assert.assertTrue(ended, ended.contains("\"status\":\"ABORTED\""));
+        Assert.assertFalse("No step may start after the stop", ended.contains("PrintAction"));
+    }
+
+    @Test
     public void testResumeExplainsARunThatDidNotFailSuccess() throws Exception {
         save("run_no_resume", "[]", false, "");
         String finished = run("run_no_resume", "{}").andReturn().getResponse().getContentAsString();

@@ -112,7 +112,30 @@ public class RunHousekeepingTest {
     }
 
     @Test
-    public void testARunStoppedWhileItWaitsIsAbortedWithWhoStoppedItSuccess() {
+    public void testARunThatStartedIsFailedEvenIfTheQueueStillListsItSuccess() {
+        Long started = saveRun(TaskExecutionStatus.STARTED, null);
+        StaticListableBeanFactory beans = new StaticListableBeanFactory();
+        beans.addBean("runQueue", new RunQueue() {
+            @Override
+            public void submit(TaskExecutionRequest request) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Set<Long> waiting() {
+                return Set.of(started);
+            }
+        });
+
+        housekeeping(0, beans).failInterruptedRuns();
+        entityManager.flush();
+        entityManager.clear();
+
+        Assert.assertEquals(TaskExecutionStatus.FAILED, taskExecutionDao.findById(started).orElseThrow().getStatus());
+    }
+
+    @Test
+    public void testARunStoppedWhileItWaitsIsAbortedWithWhoStoppedItSuccess() throws Exception {
         Long waiting = saveRun(TaskExecutionStatus.CREATED, null);
 
         housekeeping(0).stop(waiting, "This run was stopped by ann@example.com.");
@@ -126,7 +149,7 @@ public class RunHousekeepingTest {
     }
 
     @Test(expected = RunAlreadyEndedException.class)
-    public void testARunThatHasEndedCannotBeStoppedSuccess() {
+    public void testARunThatHasEndedCannotBeStoppedSuccess() throws Exception {
         housekeeping(0).stop(saveRun(TaskExecutionStatus.FINISHED, new Date()), "This run was stopped.");
     }
 

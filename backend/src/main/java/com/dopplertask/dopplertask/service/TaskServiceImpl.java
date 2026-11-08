@@ -77,7 +77,14 @@ public class TaskServiceImpl implements TaskService {
 
         RunQueue queue = runQueue.getIfAvailable();
         if (queue != null) {
-            queue.submit(taskExecutionRequest);
+            try {
+                queue.submit(taskExecutionRequest);
+            } catch (RuntimeException refused) {
+                // Otherwise the run would say it waits, until a restart says the server stopped during it.
+                execution.fail("This run was not started: " + refused.getMessage());
+                taskExecutionDao.save(execution);
+                throw refused;
+            }
         } else {
             jmsTemplate.convertAndSend("automation_destination", taskExecutionRequest);
         }
@@ -117,7 +124,6 @@ public class TaskServiceImpl implements TaskService {
         TaskExecution execution = executionService.startExecution(taskExecutionRequest, this, isTrigger);
 
         if (execution != null) {
-            taskExecutionRequest.setExecutionId(execution.getId());
             runHousekeeping.watch(execution.getId(), Thread.currentThread());
             if (execution.getStatus() != TaskExecutionStatus.STARTED) {
 

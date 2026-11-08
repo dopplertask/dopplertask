@@ -84,6 +84,11 @@ public class AccessFilter extends OncePerRequestFilter {
             refuse(response, HttpStatus.FORBIDDEN, AGENT_REFUSED);
             return;
         }
+        // A filter in front signed the caller in already, and nothing here may change who that is.
+        if (request.getAttribute(Caller.REQUEST_ATTRIBUTE) != null) {
+            chain.doFilter(request, response);
+            return;
+        }
         boolean protectedAccess = !personToken.isEmpty() || sso.isEnabled();
         if (!protectedAccess || OPEN_PATHS.matcher(request.getRequestURI()).matches()) {
             // Trying an agent should need no setup, and what it does is still only a proposal.

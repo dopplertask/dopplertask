@@ -7,6 +7,7 @@ import com.dopplertask.dopplertask.domain.ActionPortType;
 import com.dopplertask.dopplertask.domain.Connection;
 import com.dopplertask.dopplertask.domain.Task;
 import com.dopplertask.dopplertask.domain.TaskExecution;
+import com.dopplertask.dopplertask.domain.TaskExecutionStatus;
 import com.dopplertask.dopplertask.domain.action.StartAction;
 import com.dopplertask.dopplertask.domain.action.common.SetVariable;
 import com.dopplertask.dopplertask.domain.action.common.SetVariableAction;
@@ -64,6 +65,22 @@ public class ExecutionServiceTest {
     private JmsTemplate jmsTemplate;
 
     @Test
+    public void testOnlyARunThatWaitsStartsSuccess() {
+        Task exampleTask = new Task();
+        exampleTask.setName("ExampleTask");
+        TaskExecution execution = new TaskExecution();
+        execution.setId(10L);
+        execution.fail("This run failed, since the server stopped before it finished. Run it again.");
+        when(taskDao.findFirstByNameAndProposedFalseOrderByCreatedDesc(eq("ExampleTask"))).thenReturn(Optional.of(exampleTask));
+        when(taskExecutionDao.findForUpdate(eq(10L))).thenReturn(Optional.of(execution));
+
+        TaskExecution resultExecution = executionService.startExecution(createTaskRequest("ExampleTask", null, 10L), taskService, false);
+
+        Assert.assertEquals(TaskExecutionStatus.FAILED, resultExecution.getStatus());
+        Assert.assertNull("A run that does not wait is not started again", resultExecution.getStartdate());
+    }
+
+    @Test
     public void testStartExecutionShouldReturnExecution() {
         // Prepare Task
         Task exampleTask = new Task();
@@ -78,6 +95,7 @@ public class ExecutionServiceTest {
         // Assign values
         when(taskDao.findFirstByNameAndProposedFalseOrderByCreatedDesc(eq("ExampleTask"))).thenReturn(exampleTaskOptional);
         when(taskExecutionDao.findById(eq(10L))).thenReturn(executionOptional);
+        when(taskExecutionDao.findForUpdate(eq(10L))).thenReturn(executionOptional);
 
         // Run test with data
         TaskExecutionRequest request = createTaskRequest("ExampleTask", null, 10L);
@@ -106,6 +124,7 @@ public class ExecutionServiceTest {
         // Assign values
         when(taskDao.findById(eq(20L))).thenReturn(exampleTaskOptional);
         when(taskExecutionDao.findById(eq(10L))).thenReturn(executionOptional);
+        when(taskExecutionDao.findForUpdate(eq(10L))).thenReturn(executionOptional);
 
         TaskExecution resultExecution = executionService.processActions(exampleTask.getId(), execution.getId(), new TaskServiceImpl());
 
@@ -169,6 +188,7 @@ public class ExecutionServiceTest {
         // Assign values
         when(taskDao.findById(eq(20L))).thenReturn(exampleTaskOptional);
         when(taskExecutionDao.findById(eq(10L))).thenReturn(executionOptional);
+        when(taskExecutionDao.findForUpdate(eq(10L))).thenReturn(executionOptional);
         when(variableExtractorUtil.extract(eq("testValue One two three $executionId"), eq(execution), eq(setVariableAction.getScriptLanguage()))).thenReturn("testValue One two three 10");
         TaskExecution resultExecution = executionService.processActions(exampleTask.getId(), execution.getId(), new TaskServiceImpl());
 
@@ -197,6 +217,7 @@ public class ExecutionServiceTest {
         when(taskDao.findFirstByNameAndProposedFalseOrderByCreatedDesc(eq("ExampleTask"))).thenReturn(exampleTaskOptional);
         when(taskDao.findFirstByChecksumStartingWithAndProposedFalse(eq("123123"))).thenReturn(exampleTaskOptional);
         when(taskExecutionDao.findById(eq(10L))).thenReturn(executionOptional);
+        when(taskExecutionDao.findForUpdate(eq(10L))).thenReturn(executionOptional);
 
         // Run test with data
         TaskExecutionRequest request = createTaskRequest("ExampleTask", "123123", 10L);
@@ -225,6 +246,7 @@ public class ExecutionServiceTest {
         when(taskDao.findFirstByNameAndProposedFalseOrderByCreatedDesc(eq("ExampleTask"))).thenReturn(exampleTaskOptional);
         when(taskDao.findFirstByChecksumStartingWithAndProposedFalse(eq("123123"))).thenReturn(exampleTaskOptional);
         when(taskExecutionDao.findById(eq(10L))).thenReturn(executionOptional);
+        when(taskExecutionDao.findForUpdate(eq(10L))).thenReturn(executionOptional);
 
         // Run test with data
         TaskExecutionRequest request = createTaskRequest("ExampleTask", "123123", 10L);
@@ -256,6 +278,7 @@ public class ExecutionServiceTest {
         when(taskDao.findFirstByNameAndProposedFalseOrderByCreatedDesc(eq("ExampleTask"))).thenReturn(exampleTaskOptional);
         when(taskDao.findFirstByChecksumStartingWithAndProposedFalse(eq("123123"))).thenReturn(exampleTaskOptional);
         when(taskExecutionDao.findById(eq(10L))).thenReturn(executionOptional);
+        when(taskExecutionDao.findForUpdate(eq(10L))).thenReturn(executionOptional);
 
         // Run test with data
         TaskExecutionRequest request = createTaskRequest("123123", "123123", 10L);
@@ -284,6 +307,7 @@ public class ExecutionServiceTest {
         when(taskDao.findFirstByNameAndProposedFalseOrderByCreatedDesc(eq("ExampleTask"))).thenReturn(exampleTaskOptional);
         when(taskDao.findFirstByChecksumStartingWithAndProposedFalse(eq("123123"))).thenReturn(exampleTaskOptional);
         when(taskExecutionDao.findById(eq(10L))).thenReturn(executionOptional);
+        when(taskExecutionDao.findForUpdate(eq(10L))).thenReturn(executionOptional);
 
         // Run test with data
         TaskExecutionRequest request = createTaskRequest("ExampleTask", "ExampleTask", 10L);

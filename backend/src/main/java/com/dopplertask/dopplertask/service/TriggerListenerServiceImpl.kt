@@ -2,6 +2,7 @@ package com.dopplertask.dopplertask.service
 
 import com.dopplertask.dopplertask.dao.TaskDao
 import com.dopplertask.dopplertask.domain.Task
+import com.dopplertask.dopplertask.domain.TaskExecutionStatus
 import com.dopplertask.dopplertask.domain.action.trigger.Trigger
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.ObjectProvider
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.support.TransactionTemplate
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import jakarta.annotation.PostConstruct
@@ -38,6 +40,14 @@ open class TriggerListenerServiceImpl {
 
     @Autowired
     protected lateinit var customerScope: ObjectProvider<CustomerScope>
+
+    @Autowired
+    protected lateinit var runQueue: ObjectProvider<RunQueue>
+
+    @Autowired
+    protected lateinit var executionService: ExecutionService
+
+    private val lastQueuedRun: MutableMap<String, Long> = ConcurrentHashMap()
 
     @Autowired
     @Lazy
@@ -68,7 +78,8 @@ open class TriggerListenerServiceImpl {
         triggerTasks.addAll(tasks)
 
         triggerTasks.forEach { task ->
-            threadPoolMap[poolName(task.name)] = Executors.newVirtualThreadPerTaskExecutor()
+            // One left from before, such as when stopping it failed, ends rather than running on unseen.
+            threadPoolMap.put(poolName(task.name), Executors.newVirtualThreadPerTaskExecutor())?.shutdownNow()
 
             startTriggers(task)
         }
@@ -98,6 +109,17 @@ open class TriggerListenerServiceImpl {
         threadPoolMap.remove(poolName(taskName))?.shutdownNow()
     }
 
+    /** Every trigger of the current scope, such as when the scope goes away. */
+    open fun stopAllTriggers() {
+        val prefix = customers().current() + "/"
+        threadPoolMap.keys.filter { it.startsWith(prefix) }.forEach { threadPoolMap.remove(it)?.shutdownNow() }
+    }
+
+    /** Every active trigger of the current scope, such as when the scope comes back. */
+    open fun startAllTriggers() {
+        TransactionTemplate(txManager).executeWithoutResult { startActiveTriggers() }
+    }
+
     private fun customers(): CustomerScope = if (::customerScope.isInitialized) customerScope.getIfAvailable { LOCAL_CUSTOMER } else LOCAL_CUSTOMER
 
     private fun poolName(taskName: String?) = customers().current() + "/" + taskName
@@ -111,7 +133,22 @@ open class TriggerListenerServiceImpl {
         taskRequest.taskName = trigger.task?.name
         taskRequest.parameters = mutableMapOf()
 
-        taskService.runRequest(taskRequest)
+        // Without a queue the run goes here, so the next one waits for it. A queue that an add-on supplies decides when
+        // runs go and how many each customer has, so a schedule goes there too, and skips its turn while its last run
+        // still waits or goes, as it would here.
+        if (!::runQueue.isInitialized || runQueue.getIfAvailable() == null) {
+            taskService.runRequest(taskRequest)
+            return
+        }
+        val queue = runQueue.getObject()
+        val key = poolName(trigger.task?.name) + "/" + trigger.javaClass.simpleName + "/" + trigger.triggerSuffix
+        val last = lastQueuedRun[key]
+        // Only what the queue still holds counts as waiting, so that a run left behind cannot hold the schedule for good.
+        if (last != null && executionService.getExecution(last).map { it.status == TaskExecutionStatus.STARTED || it.status == TaskExecutionStatus.CREATED && queue.waiting().contains(last) }.orElse(false)) {
+            logger.info("Trigger of task ${trigger.task?.name} skipped its turn, since its last run has not ended.")
+            return
+        }
+        lastQueuedRun[key] = taskService.delegate(taskRequest).id
     }
 
     private fun startTriggers(currentTask: Task) {
