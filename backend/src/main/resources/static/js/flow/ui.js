@@ -165,10 +165,10 @@ export default function boot() {
       case 'select': {
         const options = field.options.map((option) => (typeof option === 'string' ? { value: option, label: option } : option));
         const current = fieldValue ?? options[0].value;
-        /* A long list, such as the actions of a big connector, is searched by typing rather than scrolled. */
+        /* A long list, such as the actions of a big connector, opens a picker that is searched by typing. */
         if (options.length > LONG_LIST) {
           const shown = options.find((option) => option.value === current)?.label ?? current;
-          return wrap(`${label.replace('<span class="ui-optional">optional</span>', '')}<input class="ui-input" autocomplete="off" spellcheck="false" placeholder="Type to search" list="${inputId}-options" data-options ${common} value="${escapeHtml(shown)}"><datalist id="${inputId}-options">${options.map((option) => `<option value="${escapeHtml(option.label)}">`).join('')}</datalist>`);
+          return wrap(`${label.replace('<span class="ui-optional">optional</span>', '')}<button type="button" class="ui-input ui-picker" aria-haspopup="listbox" data-picker ${common}><span>${escapeHtml(shown)}</span>${icon('chevronDown')}</button>`);
         }
         return wrap(`${label.replace('<span class="ui-optional">optional</span>', '')}<div class="ui-select"><select ${common}>${options.map((option) => `<option value="${escapeHtml(option.value)}" ${option.value === current ? 'selected' : ''}>${escapeHtml(option.label)}</option>`).join('')}</select>${icon('chevronDown')}</div>`);
       }
@@ -265,17 +265,11 @@ export default function boot() {
       const target = event.target;
       const node = currentNode();
       if (target.dataset.field) {
-        let newValue = target.type === 'checkbox' ? target.checked : target.type === 'number' ? (target.value === '' ? '' : Number(target.value)) : target.value;
-        if (target.dataset.options !== undefined) {
-          const chosen = ACTIONS[node.type].fields.find((field) => field.key === target.dataset.field)?.options.find((option) => option.label === target.value);
-          /* Only a whole choice counts. Leaving the field with a partial search shows the current choice again. */
-          if (!chosen) { if (event.type === 'change') render(); return; }
-          newValue = chosen.value;
-        }
+        const newValue = target.type === 'checkbox' ? target.checked : target.type === 'number' ? (target.value === '' ? '' : Number(target.value)) : target.value;
         /* Leaving a field fires change with the value input already saved. Saving it again rebuilds the panel
            under the pointer, which would swallow the click that left the field. */
         if (node.config[target.dataset.field] !== newValue) store.updateConfig(nodeId, target.dataset.field, newValue);
-        if (event.type === 'change' && (target.tagName === 'SELECT' || target.type === 'checkbox' || target.dataset.options !== undefined) && (hasConditionalFields() || target.dataset.field === 'credential')) render();
+        if (event.type === 'change' && (target.tagName === 'SELECT' || target.type === 'checkbox') && (hasConditionalFields() || target.dataset.field === 'credential')) render();
         updatePreviews(root, store);
         const urlElement = root.querySelector('[data-webhook-url]');
         if (urlElement) {
@@ -298,6 +292,12 @@ export default function boot() {
       if (!button) return;
       const node = currentNode();
       const mapKey = button.closest('[data-map]')?.dataset.map;
+      if (button.dataset.picker !== undefined) {
+        const key = button.dataset.field;
+        const { options } = ACTIONS[node.type].fields.find((field) => field.key === key);
+        openPicker(button, options, node.config[key] ?? options[0].value, (value) => { store.updateConfig(nodeId, key, value); render(); root.querySelector(`[data-field="${key}"]`)?.focus(); });
+        return;
+      }
       if (button.dataset.credentialNew !== undefined || button.dataset.credentialEdit !== undefined) {
         const field = ACTIONS[node.type].fields.find((candidate) => candidate.key === 'credential' && DT.fieldVisible(candidate, node.config));
         const editing = button.dataset.credentialEdit !== undefined ? store.credentials.find((credential) => credential.name === node.config.credential) : null;
@@ -338,6 +338,45 @@ export default function boot() {
     root.addEventListener('click', onClick);
     render();
     return { render, dispose() { root.removeEventListener('focusin', onFocus); root.removeEventListener('input', onInput); root.removeEventListener('change', onInput); root.removeEventListener('click', onClick); onVariableKey(); } };
+  }
+
+  /* Shows every choice of a long list at once, narrowed by the words typed and headed by the group in a
+     "Group: Choice" label. Keeps the order of the list inside each group. */
+  function openPicker(anchor, options, current, onPick) {
+    const groupOf = (option) => (option.label.includes(': ') ? option.label.slice(0, option.label.indexOf(': ')) : '');
+    const sorted = [...options].sort((first, second) => groupOf(first).localeCompare(groupOf(second)));
+    let shown = sorted;
+    let activeIndex = Math.max(0, sorted.findIndex((option) => option.value === current));
+    const listHtml = (query) => {
+      const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+      shown = sorted.filter((option) => words.every((word) => option.label.toLowerCase().includes(word)));
+      activeIndex = Math.min(activeIndex, Math.max(0, shown.length - 1));
+      if (!shown.length) return `<p class="ui-empty">Nothing matches “${escapeHtml(query)}”.</p>`;
+      return shown.map((option, index) => {
+        const group = groupOf(option);
+        const heading = group && group !== groupOf(shown[index - 1] ?? { label: '' }) ? `<h3>${escapeHtml(group)}</h3>` : '';
+        const name = group ? option.label.slice(group.length + 2) : option.label;
+        const isCurrent = option.value === current;
+        return `${heading}<button type="button" role="option" aria-selected="${isCurrent}" class="ui-palette-item ${index === activeIndex ? 'is-active' : ''}" data-index="${index}"><span class="ui-palette-label">${escapeHtml(name)}</span>${isCurrent ? icon('check') : ''}</button>`;
+      }).join('');
+    };
+    const { element, close } = openPopover(anchor, `<div class="ui-palette-search">${icon('search')}<input placeholder="Search" aria-label="Search the choices" autocomplete="off" spellcheck="false"></div><div class="ui-palette-list" role="listbox">${listHtml('')}</div>`, { className: 'ui-picker-menu' });
+    element.style.width = `${anchor.offsetWidth}px`;
+    const input = element.querySelector('input');
+    const list = element.querySelector('.ui-palette-list');
+    const draw = () => { list.innerHTML = listHtml(input.value); list.querySelector('.is-active')?.scrollIntoView({ block: 'nearest' }); };
+    const pick = (option) => { if (!option) return; close(); onPick(option.value); };
+    input.addEventListener('input', () => { activeIndex = 0; draw(); });
+    input.addEventListener('keydown', (event) => {
+      if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && shown.length) {
+        event.preventDefault();
+        activeIndex = (activeIndex + (event.key === 'ArrowDown' ? 1 : -1) + shown.length) % shown.length;
+        draw();
+      } else if (event.key === 'Enter') { event.preventDefault(); pick(shown[activeIndex]); }
+    });
+    list.addEventListener('click', (event) => { const button = event.target.closest('[data-index]'); if (button) pick(shown[Number(button.dataset.index)]); });
+    list.querySelector('.is-active')?.scrollIntoView({ block: 'center' });
+    input.focus();
   }
 
   /* `$` in any expression-capable input opens a menu of what is available at this point. */
