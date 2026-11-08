@@ -29,8 +29,10 @@ interceptor.on('request', async ({ request, controller }) => {
   const body = await request.clone().text();
   exchanges.push({ request: { method: request.method, url: request.url, headers: headersOf(request.headers), body: parsed(body) } });
   if (!answer) return controller.respondWith(Response.json({ error: 'The fixture has no answer for this request.' }, { status: 599 }));
-  const text = typeof answer.body === 'string' ? answer.body : JSON.stringify(answer.body ?? {});
-  controller.respondWith(new Response(text, { status: answer.status || 200, headers: { 'content-type': 'application/json', ...(answer.headers || {}) } }));
+  const status = answer.status || 200;
+  // A 204, 205 or 304 answer has no body at all.
+  const text = [204, 205, 304].includes(status) ? null : typeof answer.body === 'string' ? answer.body : JSON.stringify(answer.body ?? {});
+  controller.respondWith(new Response(text, { status, headers: { 'content-type': 'application/json', ...(answer.headers || {}) } }));
 });
 
 const piece = await loadPiece(fixture.package, fixture.version);
