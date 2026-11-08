@@ -19,6 +19,7 @@ import jakarta.persistence.Entity
 import jakarta.persistence.Lob
 import jakarta.persistence.Table
 import jakarta.persistence.Transient
+import tools.jackson.databind.JsonNode
 
 /**
  * A step of a connector file. Its kind is the connector's name, so a task says Slack rather than ConnectorAction, and
@@ -103,7 +104,7 @@ class ConnectorAction : Action() {
             val connector = spec ?: return info
             val choices = operations.filterValues { it.audience != "ai" }
             info.add(PropertyInformation("operation", "Action", PropertyInformationType.DROPDOWN, choices.keys.firstOrNull().orEmpty(), "",
-                choices.map { (key, operation) -> PropertyInformation(key, operation.label) }))
+                choices.map { (key, operation) -> PropertyInformation(key, if (operation.group.isEmpty()) operation.label else "${operation.group}: ${operation.label}") }))
             choices.forEach { (key, operation) ->
                 operation.inputs.forEach { (name, input) -> info.add(ConnectorSettings.propertyOf(name, input, mapOf("operation" to arrayOf(key)))) }
             }
@@ -154,19 +155,36 @@ class ConnectorAction : Action() {
 
     /** The choices of an input, such as the audiences of the account, read from the service with the step's credential. */
     fun choices(input: String): List<ConnectorOption> {
-        val connector = spec ?: return emptyList()
-        val chosen = operations[operation] ?: return emptyList()
-        val source = chosen.inputs[input]?.optionsFrom ?: return emptyList()
-        val lookup = ConnectorOperation().also { it.inputs = chosen.inputs; it.request = source.request }
-        val answer = ConnectorSender(this, connector, credentialValues).send(ConnectorRequests.build(connector, lookup, settingValues(), credentialValues))
-        require(answer.statusCode == StatusCode.SUCCESS) { answer.errorMsg }
-        val list = JsonPaths.read(JsonApi.parsed(answer), source.list) ?: return emptyList()
-        return list.toList().map { item ->
+        val source = inputOf(input)?.optionsFrom ?: return emptyList()
+        return listAt(source.request, source.list).map { item ->
             ConnectorOption().also { option ->
                 option.value = JsonPaths.read(item, source.value)?.asText().orEmpty()
                 option.label = JsonPaths.read(item, source.label)?.asText() ?: option.value
             }
         }
+    }
+
+    /** The fields of a form that follows the service, such as the columns of a table. */
+    fun fields(input: String): List<ConnectorField> {
+        val source = inputOf(input)?.fieldsFrom ?: return emptyList()
+        return listAt(source.request, source.list).map { item ->
+            ConnectorField().also { field ->
+                field.key = JsonPaths.read(item, source.key)?.asText().orEmpty()
+                field.label = JsonPaths.read(item, source.label)?.asText() ?: field.key
+                field.type = source.types[JsonPaths.read(item, source.type)?.asText()] ?: "string"
+            }
+        }
+    }
+
+    private fun inputOf(input: String): ConnectorInput? = operations[operation]?.inputs?.get(input)
+
+    /** A list read from the service, with the request filled in from the step's other settings. */
+    private fun listAt(request: ConnectorRequest, list: String): List<JsonNode> {
+        val connector = spec ?: return emptyList()
+        val lookup = ConnectorOperation().also { it.inputs = operations[operation]!!.inputs; it.request = request }
+        val answer = ConnectorSender(this, connector, credentialValues).send(ConnectorRequests.build(connector, lookup, settingValues(), credentialValues))
+        require(answer.statusCode == StatusCode.SUCCESS) { answer.errorMsg }
+        return JsonPaths.read(JsonApi.parsed(answer), list)?.toList().orEmpty()
     }
 
     companion object {

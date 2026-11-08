@@ -60,6 +60,9 @@ class ConnectorOperation {
     var label: String = ""
     var description: String = ""
 
+    /** What the action works on, such as Contacts, so that a long list of actions reads by group. */
+    var group: String = ""
+
     /** Who the action is for: both, a person in the editor, or an agent. */
     var audience: String = "both"
     var inputs: LinkedHashMap<String, ConnectorInput> = linkedMapOf()
@@ -136,6 +139,32 @@ class ConnectorInput {
 
     /** Where a list of choices comes from, such as the audiences of the account. The step itself sends the value. */
     var optionsFrom: ConnectorOptionsSource? = null
+
+    /**
+     * Where the fields of a form come from, such as the columns of a table. The person fills in each one, and the input
+     * holds them as one JSON object.
+     */
+    var fieldsFrom: ConnectorFieldsSource? = null
+}
+
+class ConnectorFieldsSource {
+    var request: ConnectorRequest = ConnectorRequest()
+
+    /** Where the list of fields is in the answer, and each field's key, label and type in it. */
+    var list: String = "$"
+    var key: String = "$.id"
+    var label: String = "$.name"
+    var type: String = ""
+
+    /** The service's type names as ours: string, multiline, number, boolean or json. Others are text. */
+    var types: Map<String, String> = emptyMap()
+}
+
+/** A field of a form that follows the service. */
+class ConnectorField {
+    var key: String = ""
+    var label: String = ""
+    var type: String = "string"
 }
 
 class ConnectorOptionsSource {

@@ -1,6 +1,7 @@
 /* The task model behind the Flow UI. The step catalogue comes from /task/actions, so a new action
    appears here without UI code; this file only adds labels, icons and the task graph on top. */
 const CATEGORIES = [
+  { id: 'starts', label: 'Starts the task' },
   { id: 'logic', label: 'Logic' },
   { id: 'connection', label: 'Connections' },
   { id: 'system', label: 'This machine' },
@@ -136,7 +137,7 @@ function toField(information) {
   /* A hint that only repeats the label takes room and says nothing. */
   const label = information.displayName || information.name;
   const hint = information.description && information.description.replace(/\.$/, '').toLowerCase() !== label.toLowerCase() ? information.description : undefined;
-  const common = { key: information.name, label, hint, defaultValue: information.defaultValue || undefined, credential: CREDENTIAL_CATEGORIES.includes(information.category) };
+  const common = { key: information.name, label, hint, defaultValue: information.defaultValue || undefined, credential: CREDENTIAL_CATEGORIES.includes(information.category), required: !!information.required };
   const showWhen = information.displayOptions && Object.keys(information.displayOptions).length ? information.displayOptions : undefined;
   if (showWhen) common.showWhen = showWhen;
   switch (information.type) {
@@ -144,6 +145,7 @@ function toField(information) {
     case 'NUMBER': return [{ ...common, type: 'number' }];
     case 'MULTILINE': return [{ ...common, type: 'code' }];
     case 'CHOICES': return [{ ...common, type: 'expression', choices: true }];
+    case 'FIELDS': return [{ ...common, type: 'form' }];
     case 'MAP': return [{ ...common, type: 'map', columns: information.options.map((option) => ({ key: option.name, label: option.displayName || option.name, options: option.type === 'DROPDOWN' ? option.options.map((choice) => choice.name) : null })) }];
     case 'DROPDOWN': {
       const select = { ...common, type: 'select', options: information.options.map((option) => ({ value: option.name, label: option.displayName || option.name })) };
@@ -183,15 +185,15 @@ function loadCatalogue(actions) {
   actions.forEach((action) => {
     const backend = action.name;
     /* A connector names its own label and icon, since it is described in a file and not here. */
-    const [type, label, category, iconName, required] = PRESENTATION[backend] || [backend, action.label || backend.replace(/Action$/, ''), 'integration', action.icon || 'workflow'];
+    const [type, label, category, iconName, required] = PRESENTATION[backend] || [backend, action.label || backend.replace(/Action$/, ''), isAppTrigger(backend) ? 'starts' : 'integration', action.icon || 'workflow'];
     const fields = fieldsOf(action.propertyInformationList.filter((information) => information.name !== STEP_ACTION_NAME));
     if (!FAILURE_FIELDS.length) FAILURE_FIELDS.push(...fields.filter((field) => FAILURE_FIELD_NAMES.includes(field.key)));
-    const own = withCredentialField(fields.filter((field) => !FAILURE_FIELD_NAMES.includes(field.key)).map((field) => ({ ...field, required: !!required?.includes(field.key) })), action.credentialType);
+    const own = withCredentialField(fields.filter((field) => !FAILURE_FIELD_NAMES.includes(field.key)).map((field) => ({ ...field, required: field.required || !!required?.includes(field.key) })), action.credentialType);
     /* The language control stays last, so what the step does comes first. */
     own.sort((first, second) => (first.key === 'scriptLanguage') - (second.key === 'scriptLanguage'));
     if (action.trigger) triggers[backend] = own.filter((field) => !['scriptLanguage', 'triggerSuffix'].includes(field.key));
     TYPE_BY_BACKEND[backend] = type;
-    ACTIONS[type] = { backend, label, category, icon: iconName, description: action.description, outputs: action.outputs || {}, fields: own, hidden: type === 'start' || !!action.trigger, trigger: !!action.trigger };
+    ACTIONS[type] = { backend, label, category, icon: iconName, description: action.description, outputs: action.outputs || {}, fields: own, hidden: type === 'start' || (!!action.trigger && !isAppTrigger(backend)), trigger: !!action.trigger };
   });
 
   ACTIONS.switch.ports = (node) => [...(node.config.switchCases || []).map((switchCase, index) => ({ id: `case:${index}`, label: switchCase.currentCase || `Case ${index + 1}` })), { id: 'default', label: 'Default' }];
@@ -528,6 +530,13 @@ function compareVersions(current, proposed) {
 
 const ACCESS_TOKEN_KEY = 'accessToken';
 
+/* What a connector reads from its service for a field, on the server with the step's credential. */
+function lookUp(node, input, what) {
+  const settings = Object.fromEntries(Object.entries(node.config).filter(([, value]) => typeof value === 'string'));
+  return request(`/connectors/${encodeURIComponent(ACTIONS[node.type].backend)}/${what}`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ operation: node.config.operation, input, credential: node.config.credential, settings }) });
+}
+
 async function request(url, options = {}) {
   const accessToken = sessionStorage.getItem(ACCESS_TOKEN_KEY);
   const response = await fetch(url, { ...options, headers: { Accept: 'application/json', ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) } })
@@ -795,11 +804,9 @@ function createStore() {
     },
     /* The address of the service's sign-in page, where a person connects the credential's account. */
     /* The choices of a connector's input, read on the server with the step's credential. */
-    async connectorChoices(node, input) {
-      const settings = Object.fromEntries(Object.entries(node.config).filter(([, value]) => typeof value === 'string'));
-      return request(`/connectors/${encodeURIComponent(ACTIONS[node.type].backend)}/choices`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ operation: node.config.operation, input, credential: node.config.credential, settings }) });
-    },
+    async connectorChoices(node, input) { return lookUp(node, input, 'choices'); },
+    /* The fields of a form that follows the service, such as the columns of a table. */
+    async connectorFields(node, input) { return lookUp(node, input, 'fields'); },
     async connectCredential(name) {
       return (await request(`/credentials/${encodeURIComponent(name)}/connect`, { method: 'POST' })).url;
     },
@@ -834,6 +841,14 @@ function createStore() {
       }
       changed(key === 'switchCases' ? 'structure' : 'config');
     },
+    startWith(type) {
+      const start = rootNode(task);
+      this.updateConfig(start.id, 'trigger', APP_TRIGGER);
+      this.updateConfig(start.id, 'app', ACTIONS[type].backend);
+      selectedId = null;
+      this.select(start.id);
+      return start;
+    },
     rename(nodeId, name) { remember(`${nodeId}.name`); nodeById(task, nodeId).name = name; changed('config'); },
     updateTask(fields) { remember(`task.${Object.keys(fields)[0]}`); Object.assign(task, fields); changed('meta'); },
     setParameters(parameters) { remember(); task.parameters = parameters; changed('meta'); },
@@ -849,6 +864,8 @@ function createStore() {
     endMove() { markChanged(); },
 
     addStep(type, { fromId, port, position } = {}) {
+      /* An app's trigger is how the task starts, so choosing one sets the Start step rather than adding a step. */
+      if (isAppTrigger(ACTIONS[type].backend)) return this.startWith(type);
       remember();
       const node = createNode(`n${uniqueId()}`, type, nameWithNumber(task, ACTIONS[type].label));
       const anchor = fromId || selectedId || lastOnMainPath(task);
