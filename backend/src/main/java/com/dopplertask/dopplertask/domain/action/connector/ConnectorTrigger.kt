@@ -136,7 +136,7 @@ class ConnectorTrigger : Trigger() {
             info.add(PropertyInformation("operation", "When", PropertyInformationType.DROPDOWN, connector.triggers.keys.firstOrNull().orEmpty(), "",
                 connector.triggers.map { (key, poll) -> PropertyInformation(key, poll.label) }))
             connector.triggers.forEach { (key, poll) ->
-                poll.inputs.forEach { (name, input) -> info.add(ConnectorSettings.propertyOf(name, input, mapOf("operation" to arrayOf(key)))) }
+                poll.inputs.forEach { (name, input) -> info.add(ConnectorSettings.propertyOf(name, input, mapOf("operation" to arrayOf(key)), connector)) }
             }
             // Only a trigger that asks the service checks every few minutes; a webhook gets each event as it happens.
             val polling = connector.triggers.filterValues { it.webhook == null }.keys.toTypedArray()

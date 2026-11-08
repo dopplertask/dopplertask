@@ -123,6 +123,24 @@ public class ConnectorFormatTest {
     }
 
     @Test
+    public void testAListMustExistAndBeReadableFromTheActionFail() {
+        String lists = """
+                {"name": "lists", "label": "Lists", "hosts": ["api.lists.com"],
+                 "lists": {"tables": {"request": {"url": "https://api.lists.com/bases/{{base}}/tables"}},
+                           "elsewhere": {"request": {"url": "https://other.com/x"}}},
+                 "actions": {
+                   "fine": {"label": "Fine", "inputs": {"base": {"label": "Base"}, "table": {"label": "Table", "list": "tables"}}, "request": {"url": "https://api.lists.com/x"}},
+                   "orphan": {"label": "Orphan", "inputs": {"table": {"label": "Table", "list": "tables"}}, "request": {"url": "https://api.lists.com/x"}},
+                   "missing": {"label": "Missing", "inputs": {"table": {"label": "Table", "list": "views"}}, "request": {"url": "https://api.lists.com/x"}}}}
+                """;
+        String problems = String.join(" ", Connectors.INSTANCE.problemsOf(connector(lists)));
+        Assert.assertFalse(problems, problems.contains("action fine"));
+        Assert.assertTrue(problems, problems.contains("orphan chooses table from the list tables, which needs {{base}}"));
+        Assert.assertTrue(problems, problems.contains("missing chooses table from the list views, which the connector does not have"));
+        Assert.assertTrue(problems, problems.contains("The list elsewhere"));
+    }
+
+    @Test
     public void testEveryConnectorFileIsValidAndItsLogoExistsSuccess() throws java.io.IOException {
         String logos = java.nio.file.Files.readString(java.nio.file.Path.of("src/main/resources/static/js/flow/brand-icons.js"));
         Connectors.INSTANCE.all().forEach(connector -> {

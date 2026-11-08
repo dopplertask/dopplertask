@@ -104,12 +104,11 @@ class ConnectorAction : Action() {
         get() {
             val info = super.actionInfo
             val connector = spec ?: return info
-            // Every action is offered, also those the original made for its agents, since many have no other form.
             val choices = operations
             info.add(PropertyInformation("operation", "Action", PropertyInformationType.DROPDOWN, choices.keys.firstOrNull().orEmpty(), "",
                 choices.map { (key, operation) -> PropertyInformation(key, if (operation.group.isEmpty()) operation.label else "${operation.group}: ${operation.label}") }))
             choices.forEach { (key, operation) ->
-                operation.inputs.forEach { (name, input) -> info.add(ConnectorSettings.propertyOf(name, input, mapOf("operation" to arrayOf(key)))) }
+                operation.inputs.forEach { (name, input) -> info.add(ConnectorSettings.propertyOf(name, input, mapOf("operation" to arrayOf(key)), connector)) }
             }
             info.addAll(ConnectorSettings.credentialProperties(connector))
             return info
@@ -173,8 +172,8 @@ class ConnectorAction : Action() {
 
     /** The choices of an input, such as the audiences of the account, read from the service with the step's credential. */
     fun choices(input: String): List<ConnectorOption> {
-        val source = inputOf(input)?.optionsFrom ?: return emptyList()
-        return listAt(source.request, source.list).map { item ->
+        val source = spec?.lists?.get(inputOf(input)?.list) ?: return emptyList()
+        return listAt(source.request, source.items).map { item ->
             ConnectorOption().also { option ->
                 option.value = JsonPaths.read(item, source.value)?.asText().orEmpty()
                 option.label = JsonPaths.read(item, source.label)?.asText() ?: option.value
@@ -194,12 +193,15 @@ class ConnectorAction : Action() {
         }
     }
 
-    private fun inputOf(input: String): ConnectorInput? = operations[operation]?.inputs?.get(input)
+    private fun inputOf(input: String): ConnectorInput? = inputsOfOperation()[input]
+
+    /** The inputs of the chosen action, or of the chosen trigger, whose form asks the same lookups. */
+    private fun inputsOfOperation(): Map<String, ConnectorInput> = operations[operation]?.inputs ?: spec?.triggers?.get(operation)?.inputs.orEmpty()
 
     /** A list read from the service, with the request filled in from the step's other settings. */
     private fun listAt(request: ConnectorRequest, list: String): List<JsonNode> {
         val connector = spec ?: return emptyList()
-        val lookup = ConnectorOperation().also { it.inputs = operations[operation]!!.inputs; it.request = request }
+        val lookup = ConnectorOperation().also { it.inputs = LinkedHashMap(inputsOfOperation()); it.request = request }
         val answer = ConnectorSender(this, connector, credentialValues).send(ConnectorRequests.build(connector, lookup, settingValues(), credentialValues))
         require(answer.statusCode == StatusCode.SUCCESS) { answer.errorMsg }
         return JsonPaths.read(JsonApi.parsed(answer), list)?.toList().orEmpty()

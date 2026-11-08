@@ -1,5 +1,6 @@
 package com.dopplertask.dopplertask;
 
+import com.dopplertask.dopplertask.domain.action.connector.ConnectorAction;
 import com.dopplertask.dopplertask.domain.action.connector.Connectors;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.After;
@@ -19,6 +20,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
@@ -58,6 +60,13 @@ public class ConnectorChoicesTest {
                 out.write(body);
             }
         });
+        service.createContext("/lists/l2/rows", exchange -> {
+            byte[] body = "{\"data\": [{\"id\": \"r7\", \"title\": \"Ada\"}]}".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, body.length);
+            try (OutputStream out = exchange.getResponseBody()) {
+                out.write(body);
+            }
+        });
         service.start();
         Connectors.INSTANCE.setLocalServerForTests("http://127.0.0.1:" + service.getAddress().getPort());
     }
@@ -76,6 +85,28 @@ public class ConnectorChoicesTest {
                 .andExpect(jsonPath("$[1].label").value("Partners"))
                 .andExpect(content().string(org.hamcrest.Matchers.not(containsString("secret-key"))));
         Assert.assertEquals("Bearer secret-key", signedInWith.get());
+    }
+
+    @Test
+    public void testAListIsReadWithTheValuesItNeedsSuccess() throws Exception {
+        credential("rows-key", "choices-test", "{\"key\": \"secret-key\"}");
+        mockMvc.perform(post("/connectors/choices-test/choices").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"operation\": \"send\", \"input\": \"row_id\", \"credential\": \"rows-key\", \"settings\": {\"list_id\": \"l2\"}}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$[0].value").value("r7")).andExpect(jsonPath("$[0].label").value("Ada"));
+    }
+
+    @Test
+    public void testAListSaysWhatItIsReadWithSuccess() {
+        Assert.assertEquals(List.of("list_id"), ConnectorAction.of("choices-test").getActionInfo().stream()
+                .filter(property -> property.getName().equals("row_id")).findFirst().orElseThrow().getDependsOn());
+    }
+
+    @Test
+    public void testATriggerOffersTheChoicesOfItsServiceSuccess() throws Exception {
+        credential("trigger-key", "choices-test", "{\"key\": \"secret-key\"}");
+        mockMvc.perform(post("/connectors/choices-test/choices").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"operation\": \"new_row\", \"input\": \"list_id\", \"credential\": \"trigger-key\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$[0].label").value("Customers"));
     }
 
     @Test

@@ -418,6 +418,9 @@ abstract class Action {
         /** Whether the step cannot run without it. */
         var required: Boolean = false
 
+        /** The other settings that its choices are read with, so that they are read again when one of them changes. */
+        var dependsOn: List<String> = emptyList()
+
 
         @JvmOverloads
         constructor(

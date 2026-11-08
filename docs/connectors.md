@@ -13,7 +13,7 @@ A connector is a service that steps can work with, described in one file in `bac
 
 ## Inputs
 
-`string`, `multiline`, `number`, `boolean`, `select`, `json` and `file`. A `file` input names a file the run keeps, such as one Read file read, and is sent as base64 or, with `Content-Type: multipart/form-data`, as a file part. `optionsFrom` gives an input choices from the service, and `fieldsFrom` gives it a form whose fields come from the service, such as the columns of a table.
+`string`, `multiline`, `number`, `boolean`, `select`, `json` and `file`. A `file` input names a file the run keeps, such as one Read file read, and is sent as base64 or, with `Content-Type: multipart/form-data`, as a file part. `list` names one of the connector's `lists`, so that a person chooses the value from the service, such as a table of a base. A list is written once and shared by every input that names it, and its request can use the inputs of the action it is chosen in: the editor reads it again when one of them changes, and asks for them first when they are empty. A typed value or one from an earlier step still works, so agents send the ID itself. `fieldsFrom` gives an input a form whose fields come from the service, such as the columns of a table.
 
 ## Logic
 

@@ -204,7 +204,7 @@ export default function boot() {
         const control = field.multiline
           ? `<textarea class="ui-input is-mono" rows="3" spellcheck="false" data-variables ${common} ${placeholder}>${escapeHtml(fieldValue ?? '')}</textarea>`
           : `<input class="ui-input is-mono" spellcheck="false" autocomplete="off" data-variables ${list ? `list="${inputId}-choices"` : ''} ${field.choices ? 'data-choices' : ''} ${common} ${placeholder} value="${escapeHtml(fieldValue ?? '')}">`;
-        return wrap(`${label}${control}${list}<p class="ui-preview" data-preview="${field.key}"></p>`);
+        return wrap(`${label}${control}${list}${field.choices ? `<p class="ui-hint" data-choices-note="${field.key}" hidden></p>` : ''}<p class="ui-preview" data-preview="${field.key}"></p>`);
       }
       case 'form': {
         /* Saved values show by their key until the fields are loaded, which gives their labels and any new ones. */
@@ -332,13 +332,30 @@ export default function boot() {
         button.setAttribute('aria-label', revealing ? 'Hide value' : 'Show value');
       } else if (button.dataset.copy) { navigator.clipboard?.writeText(button.dataset.copy); toast('Webhook URL copied'); }
     };
+    /* A list is read when its field is entered, and again once a setting it is read with has changed. What is
+       still missing is said under the field, rather than asked of the service. */
+    const readLists = new Map();
     const onFocus = async (event) => {
       const input = event.target;
-      if (input.dataset.choices === undefined || input.list?.options.length) return;
+      if (input.dataset.choices === undefined) return;
+      const node = currentNode();
+      const visible = (key) => ACTIONS[node.type].fields.find((field) => field.key === key && DT.fieldVisible(field, node.config));
+      const { dependsOn } = visible(input.dataset.field);
+      const note = root.querySelector(`[data-choices-note="${input.dataset.field}"]`);
+      const missing = node.config.credential ? dependsOn.find((key) => !node.config[key]) : 'credential';
+      note.hidden = !missing;
+      note.textContent = missing ? `Choose ${visible(missing)?.label ?? missing} first, to pick from a list.` : '';
+      if (missing) return;
+      const readWith = JSON.stringify([input.dataset.field, node.config.credential, ...dependsOn.map((key) => node.config[key])]);
       try {
-        const choices = await store.connectorChoices(currentNode(), input.dataset.field);
+        if (!readLists.has(readWith)) readLists.set(readWith, store.connectorChoices(node, input.dataset.field));
+        const choices = await readLists.get(readWith);
         input.list.innerHTML = choices.map((choice) => `<option value="${escapeHtml(choice.value)}" label="${escapeHtml(choice.label)}">`).join('');
-      } catch (error) { toast(error.message, { tone: 'danger' }); }
+      } catch (error) {
+        readLists.delete(readWith);
+        note.hidden = false;
+        note.textContent = error.message;
+      }
     };
     const onVariableKey = attachVariableMenu(root, store);
     root.addEventListener('focusin', onFocus);

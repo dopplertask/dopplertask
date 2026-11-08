@@ -41,6 +41,11 @@ object Connectors {
     /** The placeholders in a template, such as channel in {{channel}}. */
     fun placeholdersIn(template: String): List<String> = PLACEHOLDER.findAll(template).map { it.groupValues[1] }.toList()
 
+    /** The inputs a list is read with, such as base for the tables of a base. */
+    fun inputsOf(list: ConnectorList): List<String> = templatesOf(list.request).flatMap(::placeholdersIn).filter { !it.startsWith(CREDENTIAL) }.distinct()
+
+    private fun templatesOf(request: ConnectorRequest) = listOf(request.url) + request.headers.values + request.query.values + listOfNotNull(request.body?.toString())
+
     fun fill(template: String, value: (String) -> String): String = PLACEHOLDER.replace(template) { value(it.groupValues[1]) }
 
     /**
@@ -68,6 +73,16 @@ object Connectors {
             .forEach { problems += "The credential part refers to {{$it}}, which is not one of the credential's fields." }
         if (connector.baseUrl.isNotEmpty()) problems += addressProblems("The base address", connector, connector.baseUrl, sample)
         if (connector.actions.isEmpty()) problems += "It needs at least one action."
+        connector.lists.forEach { (name, list) -> problems += addressProblems("The list $name", connector, list.request.url, sample) }
+        val inputsWithLists = connector.actions.map { (key, operation) -> "The action $key" to operation.inputs } +
+            connector.triggers.map { (key, poll) -> "The trigger $key" to poll.inputs }
+        inputsWithLists.forEach { (where, inputs) ->
+            inputs.filter { it.value.list.isNotEmpty() }.forEach { (name, input) ->
+                val list = connector.lists[input.list]
+                if (list == null) problems += "$where chooses $name from the list ${input.list}, which the connector does not have."
+                else inputsOf(list).filter { it !in inputs.keys }.forEach { problems += "$where chooses $name from the list ${input.list}, which needs {{$it}}, not one of its inputs." }
+            }
+        }
         connector.actions.forEach { (key, operation) ->
             val where = "The action $key"
             if (!ACTION_NAME.matches(key)) problems += "$where should be named with letters, numbers, dashes and underscores, as the original names it."
@@ -75,12 +90,11 @@ object Connectors {
             val request = operation.request
             problems += addressProblems(where, connector, request.url, sample)
             val known = operation.inputs.keys + fields.map { CREDENTIAL + it }
-            val templates = listOf(request.url) + request.headers.values + request.query.values + listOfNotNull(request.body?.toString())
+            val templates = templatesOf(request)
             templates.flatMap(::placeholdersIn).filter { it !in known }
                 .forEach { problems += "$where refers to {{$it}}, which is not one of its inputs." }
             templates.drop(1).flatMap(::placeholdersIn).filter { it.startsWith(CREDENTIAL) }
                 .forEach { problems += "$where puts {{$it}} in the request. Credential values belong in the credential's headers or query." }
-            operation.inputs.values.mapNotNull { it.optionsFrom?.request?.url }.forEach { problems += addressProblems("$where's choices", connector, it, sample) }
             if (operation.result.isNotEmpty() && !operation.result.startsWith("$")) problems += "$where's result ${operation.result} should start with $."
             operation.outputs.filter { !it.value.startsWith("$") }.forEach { problems += "$where gives ${it.key} from ${it.value}, which should start with $." }
         }
@@ -91,7 +105,7 @@ object Connectors {
             val requests = if (webhook == null) listOf(poll.request) else listOfNotNull(webhook.subscribe, webhook.unsubscribe)
             requests.forEach { problems += addressProblems(where, connector, it.url, sample) }
             val known = poll.inputs.keys + fields.map { CREDENTIAL + it } + setOf("webhookUrl", "webhookId")
-            requests.flatMap { listOf(it.url) + it.headers.values + it.query.values + listOfNotNull(it.body?.toString()) }.flatMap(::placeholdersIn)
+            requests.flatMap(::templatesOf).flatMap(::placeholdersIn)
                 .filter { it !in known }.forEach { problems += "$where refers to {{$it}}, which is not one of its inputs." }
             if (webhook == null && poll.newBy !in setOf("time", "lastItem")) problems += "$where should find new items by time or lastItem, not ${poll.newBy}."
             listOf(poll.items, poll.key).filter { !it.startsWith("$") }.forEach { problems += "$where reads $it, which should start with $." }

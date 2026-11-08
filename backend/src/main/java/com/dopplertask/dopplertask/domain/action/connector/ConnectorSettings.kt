@@ -19,19 +19,23 @@ object ConnectorSettings {
     private val FIXED_BY_FILE = setOf("oauthProvider", "oauthAuthUrl", "oauthTokenUrl", "oauthAuthParameters")
 
     /** An input as the editor and agents see it, shown only for the choices it belongs to. */
-    fun propertyOf(name: String, input: ConnectorInput, shownFor: Map<String, Array<String>>, category: PropertyInformationCategory = PropertyInformationCategory.PROPERTY) =
+    fun propertyOf(name: String, input: ConnectorInput, shownFor: Map<String, Array<String>>, connector: Connector,
+                   category: PropertyInformationCategory = PropertyInformationCategory.PROPERTY) =
         PropertyInformation(name, input.label, when {
             input.fieldsFrom != null -> PropertyInformationType.FIELDS
-            input.optionsFrom != null -> PropertyInformationType.CHOICES
+            input.list.isNotEmpty() -> PropertyInformationType.CHOICES
             else -> TYPES[input.type] ?: PropertyInformationType.STRING
         },
             input.defaultValue, input.description, input.options.map { PropertyInformation(it.value, it.label) }, category, shownFor)
-            .also { it.required = input.required }
+            .also { property ->
+                property.required = input.required
+                property.dependsOn = connector.lists[input.list]?.let(Connectors::inputsOf).orEmpty()
+            }
 
     /** What a credential for the connector holds, the same for its actions and its triggers. */
     fun credentialProperties(connector: Connector): List<PropertyInformation> =
         connector.credential?.fields.orEmpty().map { (name, field) ->
-            propertyOf(name, field, mapOf(), if (field.secret) PropertyInformationCategory.SECRET else PropertyInformationCategory.CREDENTIAL)
+            propertyOf(name, field, mapOf(), connector, if (field.secret) PropertyInformationCategory.SECRET else PropertyInformationCategory.CREDENTIAL)
         } + connector.credential?.oauth2?.let { oauth -> OAuthSignIn.fields(connector.name, oauth.scope).filter { it.name !in FIXED_BY_FILE } }.orEmpty()
 
     fun read(settings: String): Map<String, String> =

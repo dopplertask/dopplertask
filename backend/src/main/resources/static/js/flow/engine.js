@@ -99,7 +99,10 @@ const TRIGGER_ICONS = { webhook: 'webhook', schedule: 'clock', interval: 'clock'
 /* A start shows what starts it, such as the logo of its app. */
 const iconOf = (node) => (node.type !== 'start' ? ACTIONS[node.type].icon
   : node.config.trigger === APP_TRIGGER ? ACTIONS[TYPE_BY_BACKEND[node.config.app]]?.icon ?? 'workflow' : TRIGGER_ICONS[node.config.trigger] ?? 'play');
-const isAppTrigger = (backend) => backend?.endsWith('.trigger');
+const APP_TRIGGER_SUFFIX = '.trigger';
+const isAppTrigger = (backend) => backend?.endsWith(APP_TRIGGER_SUFFIX);
+/* The connector a step reads its lists from: its own, or on a start tile that of its app's trigger. */
+const connectorOf = (node) => (node.type === 'start' ? node.config.app.slice(0, -APP_TRIGGER_SUFFIX.length) : ACTIONS[node.type].backend);
 const triggerBackend = (config) => (config.trigger === APP_TRIGGER ? config.app : TRIGGER_ACTIONS[config.trigger]);
 const TRIGGER_DEFAULTS = { webhook: { method: 'POST', authentication: 'none' }, schedule: { rule: 'DAYS', every: '1', atHour: '9', atMinute: '0' }, interval: { time: '1', timeUnit: 'MINUTES' }, activemq: {} };
 const STEP_ACTION_NAME = 'actionName';
@@ -132,7 +135,7 @@ function toField(information) {
     case 'BOOLEAN': return [{ ...common, type: 'toggle' }];
     case 'NUMBER': return [{ ...common, type: 'number' }];
     case 'MULTILINE': return [{ ...common, type: 'code' }];
-    case 'CHOICES': return [{ ...common, type: 'expression', choices: true }];
+    case 'CHOICES': return [{ ...common, type: 'expression', choices: true, dependsOn: information.dependsOn || [] }];
     case 'FIELDS': return [{ ...common, type: 'form' }];
     case 'FILE': return [{ ...common, type: 'expression', files: true }];
     case 'MAP': return [{ ...common, type: 'map', columns: information.options.map((option) => ({ key: option.name, label: option.displayName || option.name, options: option.type === 'DROPDOWN' ? option.options.map((choice) => choice.name) : null })) }];
@@ -174,7 +177,7 @@ function loadCatalogue(actions) {
   actions.forEach((action) => {
     const backend = action.name;
     /* A connector names its own label and icon, since it is described in a file and not here. */
-    const [type, label, category, iconName, required] = PRESENTATION[backend] || [backend, action.label || backend.replace(/Action$/, ''), isAppTrigger(backend) ? 'starts' : 'integration', action.icon || `${INITIALS}${backend.replace(/\.trigger$/, '')}`];
+    const [type, label, category, iconName, required] = PRESENTATION[backend] || [backend, action.label || backend.replace(/Action$/, ''), isAppTrigger(backend) ? 'starts' : 'integration', action.icon || `${INITIALS}${isAppTrigger(backend) ? backend.slice(0, -APP_TRIGGER_SUFFIX.length) : backend}`];
     const fields = fieldsOf(action.propertyInformationList.filter((information) => information.name !== STEP_ACTION_NAME));
     if (!FAILURE_FIELDS.length) FAILURE_FIELDS.push(...fields.filter((field) => FAILURE_FIELD_NAMES.includes(field.key)));
     const own = withCredentialField(fields.filter((field) => !FAILURE_FIELD_NAMES.includes(field.key)).map((field) => ({ ...field, required: field.required || !!required?.includes(field.key) })), action.credentialType);
@@ -532,7 +535,7 @@ const ACCESS_TOKEN_KEY = 'accessToken';
 /* What a connector reads from its service for a field, on the server with the step's credential. */
 function lookUp(node, input, what) {
   const settings = Object.fromEntries(Object.entries(node.config).filter(([, value]) => typeof value === 'string'));
-  return request(`/connectors/${encodeURIComponent(ACTIONS[node.type].backend)}/${what}`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+  return request(`/connectors/${encodeURIComponent(connectorOf(node))}/${what}`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ operation: node.config.operation, input, credential: node.config.credential, settings }) });
 }
 

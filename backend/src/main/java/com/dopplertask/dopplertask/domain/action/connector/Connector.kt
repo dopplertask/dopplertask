@@ -21,6 +21,12 @@ class Connector {
     /** Where the service's API starts, such as https://api.resend.com. With it, every connector can also make any call of that API. */
     var baseUrl: String = ""
     var credential: ConnectorCredential? = null
+
+    /**
+     * Lists of choices that inputs share by name, such as the bases of the account and the tables of a base. A list's
+     * request can use the inputs of the action it is chosen in, and is read again when one of them changes.
+     */
+    var lists: LinkedHashMap<String, ConnectorList> = linkedMapOf()
     var actions: LinkedHashMap<String, ConnectorOperation> = linkedMapOf()
 
     /** What starts a task: the service is asked every few minutes for what is new. */
@@ -63,8 +69,6 @@ class ConnectorOperation {
     /** What the action works on, such as Contacts, so that a long list of actions reads by group. */
     var group: String = ""
 
-    /** Who the original made the action for: both, a person, or an agent. Kept so that an importer can map it. */
-    var audience: String = "both"
     var inputs: LinkedHashMap<String, ConnectorInput> = linkedMapOf()
     var request: ConnectorRequest = ConnectorRequest()
 
@@ -140,8 +144,8 @@ class ConnectorInput {
     var defaultValue: String = ""
     var options: List<ConnectorOption> = emptyList()
 
-    /** Where a list of choices comes from, such as the audiences of the account. The step itself sends the value. */
-    var optionsFrom: ConnectorOptionsSource? = null
+    /** The name of one of the connector's lists to choose the value from. The step itself sends the value. */
+    var list: String = ""
 
     /**
      * Where the fields of a form come from, such as the columns of a table. The person fills in each one, and the input
@@ -170,11 +174,11 @@ class ConnectorField {
     var type: String = "string"
 }
 
-class ConnectorOptionsSource {
+class ConnectorList {
     var request: ConnectorRequest = ConnectorRequest()
 
-    /** Where the list is in the answer, and the label and value of each item in it. */
-    var list: String = "$"
+    /** Where the items are in the answer, and the label and value of each item. */
+    var items: String = "$"
     var label: String = "$.name"
     var value: String = "$.id"
 }
