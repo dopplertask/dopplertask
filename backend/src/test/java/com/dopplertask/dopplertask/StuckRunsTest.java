@@ -6,6 +6,7 @@ import com.dopplertask.dopplertask.domain.TaskExecution;
 import com.dopplertask.dopplertask.domain.TaskExecutionStatus;
 import com.dopplertask.dopplertask.service.CustomerScope;
 import com.dopplertask.dopplertask.service.ExecutionService;
+import com.dopplertask.dopplertask.service.RunAlreadyEndedException;
 import com.dopplertask.dopplertask.service.RunHousekeeping;
 import com.dopplertask.dopplertask.service.RunQueue;
 import com.dopplertask.dopplertask.service.TaskExecutionRequest;
@@ -119,6 +120,19 @@ public class StuckRunsTest {
         ReflectionTestUtils.invokeMethod(housekeeping, "stopRunsOverTheLimit", Instant.now().plus(Duration.ofMinutes(2)));
 
         Mockito.verify(service, Mockito.timeout(5_000)).abortRun(9L, "This run was stopped.");
+    }
+
+    @Test
+    public void testAStopThatComesAsTheRunEndsLeavesTheThreadCleanSuccess() {
+        RunHousekeeping housekeeping = housekeeping(60);
+        housekeeping.watch(10, Thread.currentThread());
+        housekeeping.stop(10, "This run was stopped.");
+        housekeeping.finished(10);
+
+        Assert.assertFalse("The next run on this thread must not inherit the stop", Thread.currentThread().isInterrupted());
+        Mockito.verify(service).abortRun(10L, "This run was stopped.");
+        Assert.assertThrows(RunAlreadyEndedException.class, () -> housekeeping.stop(10, "Too late."));
+        Assert.assertFalse(Thread.currentThread().isInterrupted());
     }
 
     @Test

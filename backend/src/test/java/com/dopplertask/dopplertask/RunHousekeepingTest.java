@@ -112,6 +112,29 @@ public class RunHousekeepingTest {
     }
 
     @Test
+    public void testARunThatStartedIsFailedEvenIfTheQueueStillListsItSuccess() {
+        Long started = saveRun(TaskExecutionStatus.STARTED, null);
+        StaticListableBeanFactory beans = new StaticListableBeanFactory();
+        beans.addBean("runQueue", new RunQueue() {
+            @Override
+            public void submit(TaskExecutionRequest request) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Set<Long> waiting() {
+                return Set.of(started);
+            }
+        });
+
+        housekeeping(0, beans).failInterruptedRuns();
+        entityManager.flush();
+        entityManager.clear();
+
+        Assert.assertEquals(TaskExecutionStatus.FAILED, taskExecutionDao.findById(started).orElseThrow().getStatus());
+    }
+
+    @Test
     public void testARunStoppedWhileItWaitsIsAbortedWithWhoStoppedItSuccess() {
         Long waiting = saveRun(TaskExecutionStatus.CREATED, null);
 

@@ -40,6 +40,9 @@ open class TriggerListenerServiceImpl {
     protected lateinit var customerScope: ObjectProvider<CustomerScope>
 
     @Autowired
+    protected lateinit var runQueue: ObjectProvider<RunQueue>
+
+    @Autowired
     @Lazy
     constructor(taskDao: TaskDao, taskService: TaskService) {
         this.taskDao = taskDao
@@ -98,6 +101,12 @@ open class TriggerListenerServiceImpl {
         threadPoolMap.remove(poolName(taskName))?.shutdownNow()
     }
 
+    /** Every trigger of the current scope, such as when the scope goes away. */
+    open fun stopAllTriggers() {
+        val prefix = customers().current() + "/"
+        threadPoolMap.keys.filter { it.startsWith(prefix) }.forEach { threadPoolMap.remove(it)?.shutdownNow() }
+    }
+
     private fun customers(): CustomerScope = if (::customerScope.isInitialized) customerScope.getIfAvailable { LOCAL_CUSTOMER } else LOCAL_CUSTOMER
 
     private fun poolName(taskName: String?) = customers().current() + "/" + taskName
@@ -111,7 +120,9 @@ open class TriggerListenerServiceImpl {
         taskRequest.taskName = trigger.task?.name
         taskRequest.parameters = mutableMapOf()
 
-        taskService.runRequest(taskRequest)
+        // A queue that an add-on supplies decides when runs go and how many each customer has, so a schedule waits there
+        // too. Without one, the run goes here, and the next one waits for it.
+        if (::runQueue.isInitialized && runQueue.getIfAvailable() != null) taskService.delegate(taskRequest) else taskService.runRequest(taskRequest)
     }
 
     private fun startTriggers(currentTask: Task) {

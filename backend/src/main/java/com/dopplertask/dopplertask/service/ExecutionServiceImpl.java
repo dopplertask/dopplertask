@@ -6,6 +6,7 @@ import com.dopplertask.dopplertask.domain.*;
 import com.dopplertask.dopplertask.domain.action.Action;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jms.core.JmsTemplate;
 import org.springframework.stereotype.Service;
@@ -31,6 +32,7 @@ public class ExecutionServiceImpl implements ExecutionService {
     private VariableExtractorUtil variableExtractorUtil;
     private TaskExecutionDao taskExecutionDao;
     private CustomerScope customerScope = CustomerScope.ONE_CUSTOMER;
+    private ObjectProvider<RunHousekeeping> runHousekeeping;
 
     @Autowired
     public ExecutionServiceImpl(JmsTemplate jmsTemplate, TaskDao taskDao, VariableExtractorUtil variableExtractorUtil, CredentialService credentialService, TaskExecutionDao taskExecutionDao) {
@@ -46,19 +48,31 @@ public class ExecutionServiceImpl implements ExecutionService {
         this.customerScope = customerScope;
     }
 
+    /** Through a provider, since housekeeping in turn ends runs through this service. */
+    @Autowired
+    public void setRunHousekeeping(ObjectProvider<RunHousekeeping> runHousekeeping) {
+        this.runHousekeeping = runHousekeeping;
+    }
+
+    /** A step can swallow the interrupt that a stop sends, so the run asks whoever was told. */
+    private boolean askedToStop(TaskExecution execution) {
+        RunHousekeeping housekeeping = runHousekeeping == null ? null : runHousekeeping.getIfAvailable();
+        return housekeeping != null && execution.getId() != null && housekeeping.askedToStop(execution.getId());
+    }
+
     @Transactional
     public TaskExecution startExecution(TaskExecutionRequest taskExecutionRequest, TaskService taskService, boolean startedByTrigger) {
         // Look up by checksum first
         Optional<Task> taskRequest = lookupTask(taskExecutionRequest, taskService);
 
-        Optional<TaskExecution> executionReq = taskExecutionDao.findById(taskExecutionRequest.getExecutionId());
+        Optional<TaskExecution> executionReq = taskExecutionDao.findForUpdate(taskExecutionRequest.getExecutionId());
+        // Stopped while it waited, even if its task is gone since.
+        if (executionReq.isPresent() && executionReq.get().getStatus() == TaskExecutionStatus.ABORTED) {
+            return executionReq.get();
+        }
         if (taskRequest.isPresent() && executionReq.isPresent()) {
             Task task = taskRequest.get();
             TaskExecution execution = executionReq.get();
-            // Stopped while it waited.
-            if (execution.getStatus() == TaskExecutionStatus.ABORTED) {
-                return execution;
-            }
 
             // Assign task to execution
             execution.setTask(task);
@@ -245,7 +259,7 @@ public class ExecutionServiceImpl implements ExecutionService {
         }
 
         execution.restoreRunningLoops();
-        while (execution.getCurrentAction() != null && !Thread.currentThread().isInterrupted()) {
+        while (execution.getCurrentAction() != null && !askedToStop(execution)) {
             Action currentAction = execution.getCurrentAction();
 
             execution.addActionAccessCountByOne(currentAction.getId());
@@ -276,8 +290,10 @@ public class ExecutionServiceImpl implements ExecutionService {
 
         execution.keepRunningLoops();
 
-        // The time limit asks a run to stop, and a step may have ignored that.
-        if (Thread.interrupted()) {
+        // A person or the time limit asked the run to stop. The interrupt that woke its step goes, so that it disturbs
+        // nothing else on this thread.
+        Thread.interrupted();
+        if (askedToStop(execution)) {
             execution.setSuccess(false);
         }
 
@@ -395,7 +411,7 @@ public class ExecutionServiceImpl implements ExecutionService {
             }
 
             tries++;
-        } while (actionResult.getStatusCode() == StatusCode.FAILURE && currentAction.getRetries() >= tries && !currentAction.isContinueOnFailure());
+        } while (actionResult.getStatusCode() == StatusCode.FAILURE && currentAction.getRetries() >= tries && !currentAction.isContinueOnFailure() && !askedToStop(execution));
         return actionResult;
     }
 

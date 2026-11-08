@@ -48,6 +48,9 @@ public class RunHousekeeping {
         final Runnable endAsAsked;
         final Instant started = Instant.now();
         volatile Stop stop;
+        /** Set by the check that ended a run that did not listen, so that it is ended once from there. */
+        volatile boolean endedEarly;
+        private boolean finished;
 
         GoingRun(long executionId, Thread thread) {
             this.executionId = executionId;
@@ -55,11 +58,16 @@ public class RunHousekeeping {
             this.endAsAsked = customerScope.bound(this::end);
         }
 
-        void askToStop(Stop why) {
-            if (stop == null) {
+        /** The thread is interrupted only while it still runs this run, so that the interrupt never reaches the next. */
+        synchronized void askToStop(Stop why) {
+            if (stop == null && !finished) {
                 stop = why;
                 thread.interrupt();
             }
+        }
+
+        synchronized void finish() {
+            finished = true;
         }
 
         private void end() {
@@ -89,12 +97,26 @@ public class RunHousekeeping {
         going.putIfAbsent(new RunOfCustomer(customerScope.current(), executionId), new GoingRun(executionId, thread));
     }
 
-    /** A run that had to be interrupted says why, since its last step can only say that it was disturbed. */
+    /** Whether a person or the time limit asked this run to stop, which the run checks before each step and retry. */
+    public boolean askedToStop(long executionId) {
+        GoingRun run = going.get(new RunOfCustomer(customerScope.current(), executionId));
+        return run != null && run.stop != null;
+    }
+
+    /**
+     * Called on the run's own thread when it ends. A run that had to be interrupted says why, since its last step can
+     * only say that it was disturbed, also when a check ended it before and the run then wrote its own end over that.
+     * The thread goes on to other work, possibly another customer's, so no interrupt for this run stays on it.
+     */
     public void finished(long executionId) {
         GoingRun run = going.remove(new RunOfCustomer(customerScope.current(), executionId));
-        if (run != null && run.stop != null) {
-            run.endAsAsked.run();
+        if (run != null) {
+            run.finish();
+            if (run.stop != null) {
+                run.endAsAsked.run();
+            }
         }
+        Thread.interrupted();
     }
 
     /**
@@ -107,7 +129,8 @@ public class RunHousekeeping {
             run.askToStop(new Stop(reason, true, Instant.now()));
             return;
         }
-        boolean waiting = Boolean.TRUE.equals(transactions.execute(status -> taskExecutionDao.findById(executionId)
+        // Locked, so that a run starting at the same moment either sees the stop or is seen as started.
+        boolean waiting = Boolean.TRUE.equals(transactions.execute(status -> taskExecutionDao.findForUpdate(executionId)
                 .filter(execution -> execution.getStatus() == TaskExecutionStatus.CREATED)
                 .map(execution -> {
                     execution.abort(reason);
@@ -144,11 +167,11 @@ public class RunHousekeeping {
                 }
                 return;
             }
-            if (stop.askedAt().isAfter(askedBefore)) {
+            if (stop.askedAt().isAfter(askedBefore) || run.endedEarly) {
                 return;
             }
             LOG.error("Run {} did not stop when asked, so it is ended while its thread stays busy.", key.executionId());
-            going.remove(key);
+            run.endedEarly = true;
             // On a thread of its own, since the run that hangs can hold the row and the other runs must still get checked.
             Thread.startVirtualThread(run.endAsAsked);
         });
@@ -157,14 +180,15 @@ public class RunHousekeeping {
     /**
      * Runs live in this one process, so at startup nothing can still be going. A run that says so was stopped by a crash
      * or a restart, and whoever waits for it would otherwise wait forever. The built-in queue is in memory and loses its
-     * runs, but a queue that keeps them starts them later, so those are not interrupted.
+     * runs, but a queue that keeps them starts them later, so those are not interrupted. Only a run that has not started
+     * yet can be waiting, since a run that started may have done something that must not happen twice.
      */
     public void failInterruptedRuns() {
         forEachCustomer(() -> {
             RunQueue queue = runQueue.getIfAvailable();
             Set<Long> waiting = queue == null ? Set.of() : queue.waiting();
             List<TaskExecution> interrupted = taskExecutionDao.findByStatusIn(List.of(TaskExecutionStatus.CREATED, TaskExecutionStatus.STARTED)).stream()
-                    .filter(execution -> !waiting.contains(execution.getId()))
+                    .filter(execution -> execution.getStatus() != TaskExecutionStatus.CREATED || !waiting.contains(execution.getId()))
                     .toList();
             interrupted.forEach(execution -> execution.fail(INTERRUPTED));
             if (!interrupted.isEmpty()) {

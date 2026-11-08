@@ -35,6 +35,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import com.dopplertask.dopplertask.domain.action.common.WebhookReplyAction;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,6 +46,7 @@ import com.dopplertask.dopplertask.filter.Caller;
 import com.dopplertask.dopplertask.service.ApprovalRequiredException;
 import com.dopplertask.dopplertask.service.CredentialService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -111,9 +113,11 @@ public class TaskController {
     private ObjectProvider<CustomerScope> customerScope;
 
     // Webhook runs on a thread beside the request, for every Reply but the run log. Kept below the 60 database
-    // connections, so that the editor and other runs keep some.
-    private static final int MAX_REPLYING_RUNS = 40;
-    private final Semaphore replyingRuns = new Semaphore(MAX_REPLYING_RUNS);
+    // connections, so that the editor and other runs keep some. Each customer scope has places of its own, so that one
+    // cannot take all of them.
+    @Value("${dopplertask.maxReplyingRuns:40}")
+    private int maxReplyingRuns;
+    private final Map<String, Semaphore> replyingRuns = new ConcurrentHashMap<>();
 
     @PostMapping(path = "/schedule/task")
     public ResponseEntity<SimpleIdResponseDto> scheduleTask(@RequestBody TaskRequestDTO taskRequestDTO, HttpServletRequest servletRequest) {
@@ -220,14 +224,15 @@ public class TaskController {
      */
     private ResponseEntity<?> runAndReply(TaskRequest request, WebhookTriggerInfo triggerInfo, String mode, String taskName) {
         // A full server answers at once rather than holding a request thread, so that the editor stays reachable.
-        if (!replyingRuns.tryAcquire()) {
+        CustomerScope scope = customerScope.getIfAvailable(() -> CustomerScope.ONE_CUSTOMER);
+        Semaphore places = replyingRuns.computeIfAbsent(scope.current(), name -> new Semaphore(maxReplyingRuns));
+        if (!places.tryAcquire()) {
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).header(HttpHeaders.RETRY_AFTER, "10").body("The server is busy with other webhook calls. Try again in a moment.");
         }
         WebhookReply reply = new WebhookReply(mode);
         triggerInfo.setReply(reply);
         CompletableFuture<TaskExecution> ended = new CompletableFuture<>();
         try {
-            CustomerScope scope = customerScope.getIfAvailable(() -> CustomerScope.ONE_CUSTOMER);
             Thread.ofVirtual().name("webhook-" + taskName).start(scope.bound(() -> {
                 try {
                     ended.complete(taskService.runRequest(request));
@@ -235,11 +240,11 @@ public class TaskController {
                     LOG.error("A webhook run of {} stopped on an unexpected problem", taskName, e);
                     ended.completeExceptionally(e);
                 } finally {
-                    replyingRuns.release();
+                    places.release();
                 }
             }));
         } catch (RuntimeException | Error e) {
-            replyingRuns.release();
+            places.release();
             throw e;
         }
         try {

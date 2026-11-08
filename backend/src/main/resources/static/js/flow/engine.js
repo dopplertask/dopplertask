@@ -793,7 +793,14 @@ function createStore() {
           if (runner.run === run) runner.cursorMs = run.durationMs;
           emit('run');
         }
-      } catch (error) { /* The next poll tries again. */ }
+      } catch (error) {
+        /* A run the server no longer has is not followed for ever. Anything else, such as a lost connection, is tried again. */
+        if (error.status >= 400 && error.status < 500) {
+          Object.assign(run, { live: false, following: false, status: 'failed', failure: 'This run is no longer on the server.' });
+          emit('run');
+          return;
+        }
+      }
       setTimeout(poll, LIVE_POLL_MS);
     };
     poll();

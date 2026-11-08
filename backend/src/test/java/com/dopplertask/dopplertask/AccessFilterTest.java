@@ -3,11 +3,16 @@ package com.dopplertask.dopplertask;
 import com.dopplertask.dopplertask.filter.AccessFilter;
 import com.dopplertask.dopplertask.filter.Caller;
 import com.dopplertask.dopplertask.service.SsoService;
+import jakarta.servlet.http.Cookie;
 import org.junit.Assert;
 import org.junit.Test;
+import org.mockito.ArgumentMatchers;
+import org.mockito.Mockito;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+
+import java.util.Optional;
 
 public class AccessFilterTest {
 
@@ -117,6 +122,20 @@ public class AccessFilterTest {
     public void testWithoutTokensTheAgentEndpointCountsAsAnAgentSuccess() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/mcp");
         new AccessFilter("", "", NO_SSO).doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
+        Assert.assertEquals(Caller.AGENT, AccessFilter.callerOf(request));
+    }
+
+    @Test
+    public void testACallerSignedInByAFilterInFrontKeepsItsRoleSuccess() throws Exception {
+        SsoService sso = Mockito.mock(SsoService.class);
+        Mockito.when(sso.isEnabled()).thenReturn(true);
+        Mockito.when(sso.personOf(ArgumentMatchers.any())).thenReturn(Optional.of(new SsoService.Person("ann@example.com", "Ann")));
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/task");
+        AccessFilter.signIn(request, Caller.AGENT, null);
+        request.setCookies(new Cookie(AccessFilter.SESSION_COOKIE, "a-person's-session"));
+
+        new AccessFilter("", "", sso).doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
+
         Assert.assertEquals(Caller.AGENT, AccessFilter.callerOf(request));
     }
 }
