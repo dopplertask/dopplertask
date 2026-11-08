@@ -32,6 +32,12 @@ class Connector {
     /** What starts a task: the service is asked every few minutes for what is new. */
     var triggers: LinkedHashMap<String, ConnectorPoll> = linkedMapOf()
 
+    /**
+     * Events that a service sends for a whole app to one address, /hooks/app/<connector>, which the person sets once in
+     * their app, such as a Slack app's Request URL. Each trigger with an app webhook takes the events it listens for.
+     */
+    var events: ConnectorAppEvents? = null
+
     /** Where the file was copied from, so that a later copy can be compared with it. */
     var upstream: Map<String, String> = emptyMap()
 }
@@ -173,6 +179,45 @@ class ConnectorWebhook {
      * subscribes again; also once after a restart, since the time left is not known. 0 for one that lasts.
      */
     var renewEvery: Int = 0
+
+    /**
+     * The service sends the events of its whole app to the connector's app address instead, and this trigger takes
+     * those of the kinds in events. A subscribe request, when given, finds which account they are for, such as the
+     * workspace, by its id; only that account's events start the task.
+     */
+    var app: Boolean = false
+    var events: List<String> = emptyList()
+
+    /** How the service signs each event, so that one from anyone else is refused. */
+    var signature: ConnectorSignature? = null
+}
+
+class ConnectorAppEvents {
+    /** What the app address answers, such as the challenge a service sends when the address is set; as on a webhook. */
+    var reply: String? = null
+
+    /** Where an event gives its kind, such as $.event.type, and its account, such as $.team_id. */
+    var event: String = "$.type"
+    var identifier: String = "$.account"
+
+    /** How the service signs each event, which every app address needs, since anyone can find it. */
+    var signature: ConnectorSignature = ConnectorSignature()
+}
+
+/**
+ * A signature of an event: a header holding a keyed hash of a text, such as Slack's x-slack-signature, which is
+ * v0= and the hex of an HmacSHA256 of v0:{{headers.x-slack-request-timestamp}}:{{text}} with the app's signing secret.
+ * The templates read {{text}}, the body as it was sent, {{headers.name}}, {{query.name}} and {{credential.field}}.
+ */
+class ConnectorSignature {
+    var header: String = ""
+    var algorithm: String = "HmacSHA256"
+    var key: String = ""
+    var text: String = "{{text}}"
+
+    /** hex or base64. */
+    var encoding: String = "hex"
+    var prefix: String = ""
 }
 
 class ConnectorInput {

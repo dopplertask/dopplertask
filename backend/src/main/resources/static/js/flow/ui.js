@@ -223,8 +223,8 @@ export default function boot() {
       }
       case 'address': {
         /* The server gives where services reach it, which a proxy can make differ from this page's address. */
-        const base = field.defaultValue?.startsWith('http') ? field.defaultValue : window.location.origin + (field.defaultValue || '/hooks/');
-        return addressRow(field.label, base + node.config.triggerSuffix, `${field.hint} Works once the task is saved with its trigger on.`);
+        const address = field.defaultValue.replace('{suffix}', node.config.triggerSuffix);
+        return addressRow(field.label, address.startsWith('http') ? address : window.location.origin + address, `${field.hint} Works once the task is saved with its trigger on.`);
       }
       default: return wrap(`${label}<input class="ui-input ${field.mono ? 'is-mono' : ''}" autocomplete="off" spellcheck="false" ${common} ${placeholder} value="${escapeHtml(fieldValue ?? '')}">`);
     }

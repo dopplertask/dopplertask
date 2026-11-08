@@ -142,8 +142,12 @@ public class ConnectorCheck {
             if (webhook.getSubscribe() != null) {
                 trigger.subscribe(webhook);
             }
-            trigger.takeItemsOf(ConnectorWebhooks.INSTANCE.eventOf("application/json", fixture.path("event").toString(),
-                    fixture.has("eventHeaders") ? MAPPER.convertValue(fixture.path("eventHeaders"), Map.class) : Map.of(), null));
+            var event = ConnectorWebhooks.INSTANCE.eventOf("application/json", fixture.path("event").toString(),
+                    fixture.has("eventHeaders") ? MAPPER.convertValue(fixture.path("eventHeaders"), Map.class) : Map.of(), null);
+            // The event must be one the trigger takes: signed, and for an app, of its kind and its account.
+            if (trigger.accepts(event)) {
+                trigger.takeItemsOf(event);
+            }
         } else {
             JsonNode place = fixture.path("store");
             trigger.setPollState(place.has("lastPoll") ? place.path("lastPoll").asText()

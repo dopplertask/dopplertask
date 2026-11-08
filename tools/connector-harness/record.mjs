@@ -46,6 +46,8 @@ const files = Object.fromEntries(Object.entries(fixture.files || {}).map(([input
 }));
 const context = createMockActionContext({ propsValue: { ...(fixture.inputs || {}), ...files } });
 context.auth = fixture.auth;
+// A trigger of an app's events only says which events it listens for; the app's address routes them to it.
+context.app = { createListeners: () => {} };
 // A stored file is named by its own name, as DopplerTask names the files of a run.
 context.files = { write: async ({ fileName }) => fileName };
 const memory = new Map(Object.entries(fixture.store || {}));

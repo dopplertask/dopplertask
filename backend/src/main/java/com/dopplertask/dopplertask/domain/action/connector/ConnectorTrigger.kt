@@ -162,11 +162,14 @@ class ConnectorTrigger : Trigger() {
                 poll.inputs.forEach { (name, input) -> info.add(ConnectorSettings.propertyOf(name, input, mapOf("operation" to arrayOf(key)), connector)) }
             }
             // A webhook the person sets up shows the address to copy into the service.
-            val copied = connector.triggers.filterValues { it.webhook != null && it.webhook!!.subscribe == null }.keys.toTypedArray()
-            if (copied.isNotEmpty()) {
-                info.add(PropertyInformation("hookAddress", "Address", PropertyInformationType.ADDRESS, ConnectorWebhooks.addressOf(""), "Copy it into ${connector.label}, which sends its events there.",
-                    mutableListOf(), PropertyInformation.PropertyInformationCategory.PROPERTY, mapOf("operation" to copied)))
-            }
+            // The address of a webhook the person sets up, or of the app, which the editor shows with {suffix} filled in.
+            val copied = connector.triggers.filterValues { it.webhook?.let { webhook -> !webhook.app && webhook.subscribe == null } == true }.keys.toTypedArray()
+            val app = connector.triggers.filterValues { it.webhook?.app == true }.keys.toTypedArray()
+            listOf(copied to ConnectorWebhooks.addressOf("{suffix}"), app to ConnectorWebhooks.addressOf(ConnectorWebhooks.appKey(connector.name))).filter { it.first.isNotEmpty() }
+                .forEach { (operations, address) ->
+                    info.add(PropertyInformation("hookAddress", "Address", PropertyInformationType.ADDRESS, address, "Copy it into ${connector.label}, which sends its events there.",
+                        mutableListOf(), PropertyInformation.PropertyInformationCategory.PROPERTY, mapOf("operation" to operations)))
+                }
             // Only a trigger that asks the service checks every few minutes; a webhook gets each event as it happens.
             val polling = connector.triggers.filterValues { it.webhook == null }.keys.toTypedArray()
             if (polling.isNotEmpty()) {
@@ -193,7 +196,7 @@ class ConnectorTrigger : Trigger() {
             takeWaiting()?.let { return TriggerResult(mutableMapOf("item" to it.item.toString()), it.files) }
             if (webhook != null) {
                 // Listening comes first, since a service may check the address while it subscribes it.
-                val events = ConnectorWebhooks.listen(addressKey(webhook), ::replyTo)
+                val events = (listener ?: ConnectorWebhooks.listen(addressKey(webhook), ::replyTo, ::accepts).also { listener = it }).events
                 if (webhook.subscribe != null && (pollState == null || renewalIsDue(webhook))) {
                     unsubscribe(webhook)
                     subscribe(webhook)
@@ -211,8 +214,16 @@ class ConnectorTrigger : Trigger() {
      * The key in this trigger's address. One the person copies into the service is chosen with the task, so that it
      * stays the same from version to version; one the trigger subscribes itself is made when it first does.
      */
-    private fun addressKey(webhook: ConnectorWebhook): String =
-        if (webhook.subscribe == null) triggerSuffix else hookKey ?: UUID.randomUUID().toString().also { hookKey = it }
+    private fun addressKey(webhook: ConnectorWebhook): String = when {
+        webhook.app -> ConnectorWebhooks.appKey(connector!!)
+        webhook.subscribe == null -> triggerSuffix
+        else -> hookKey ?: UUID.randomUUID().toString().also { hookKey = it }
+    }
+
+    // How this trigger listens, from its first wait for an event until it stops.
+    @Transient
+    @JsonIgnore
+    private var listener: ConnectorWebhooks.Listener? = null
 
     // When the subscription was made, while the trigger runs; unknown after a restart, so it is then renewed.
     @Transient
@@ -244,7 +255,8 @@ class ConnectorTrigger : Trigger() {
     /** Ends the subscription when the task stops, so that the service no longer sends events. */
     override fun stop() {
         val webhook = spec?.triggers?.get(operation)?.webhook ?: return
-        (if (webhook.subscribe == null) triggerSuffix else hookKey)?.let(ConnectorWebhooks::stopListening)
+        listener?.let { ConnectorWebhooks.stopListening(addressKey(webhook), it) }
+        listener = null
         unsubscribe(webhook)
         keepPlace()
     }
@@ -281,9 +293,28 @@ class ConnectorTrigger : Trigger() {
     }
 
     /** What the address answers to an event, such as the challenge back. It may not send requests, since the service waits. */
-    private fun replyTo(event: ConnectorWebhooks.Event): JsonNode? = spec?.triggers?.get(operation)?.webhook?.reply?.let { script ->
-        ConnectorScripts.run(script, settingValues(), null, event.body, { throw IllegalArgumentException("A reply cannot send requests.") }, event.received, remembered())
-    }?.takeUnless { it.isNull }
+    private fun replyTo(event: ConnectorWebhooks.Event): JsonNode? {
+        val webhook = spec?.triggers?.get(operation)?.webhook ?: return null
+        val script = (if (webhook.app) spec?.events?.reply else webhook.reply) ?: return null
+        return ConnectorScripts.run(script, settingValues(), null, event.body, { throw IllegalArgumentException("A reply cannot send requests.") }, event.received, remembered())
+            .takeUnless { it.isNull }
+    }
+
+    /**
+     * Whether an event is for this trigger: signed by the service, when the connector says how, and for an app, of a
+     * kind it listens for and for the account its subscribe request found.
+     */
+    fun accepts(event: ConnectorWebhooks.Event): Boolean {
+        val connector = spec ?: return false
+        val webhook = connector.triggers[operation]?.webhook ?: return false
+        val signature = if (webhook.app) connector.events?.signature else webhook.signature
+        if (signature != null && !ConnectorWebhooks.isSigned(signature, event, credentialValues)) return false
+        if (!webhook.app) return true
+        val events = connector.events ?: return false
+        val kind = JsonPaths.read(event.body, events.event)?.asText()
+        val account = JsonPaths.read(event.body, events.identifier)?.asText()
+        return (webhook.events.isEmpty() || kind in webhook.events) && (pollState.isNullOrEmpty() || account == pollState)
+    }
 
     /** The memory of the trigger's scripts, as an object they may change. */
     private fun remembered(): ObjectNode = JsonApi.mapper.readTree(memory ?: "{}") as ObjectNode

@@ -28,6 +28,12 @@ public class ConnectorHookController {
         ConnectorWebhooks.INSTANCE.setPublicUrl(publicUrl);
     }
 
+    /** The one address of a connector's app, such as a Slack app's Request URL, for the events of all its triggers. */
+    @RequestMapping(ConnectorWebhooks.PATH + "app/{connector}")
+    public ResponseEntity<String> appEvent(@PathVariable String connector, HttpServletRequest request) throws IOException {
+        return event(ConnectorWebhooks.INSTANCE.appKey(connector), request);
+    }
+
     @RequestMapping(ConnectorWebhooks.PATH + "{key}")
     public ResponseEntity<String> event(@PathVariable String key, HttpServletRequest request) throws IOException {
         String body = new String(request.getInputStream().readAllBytes(), StandardCharsets.UTF_8);

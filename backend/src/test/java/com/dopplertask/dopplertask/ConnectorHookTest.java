@@ -33,21 +33,28 @@ public class ConnectorHookTest {
     @Autowired
     private MockMvc mockMvc;
 
+    private ConnectorWebhooks.Listener listener;
+
     @After
     public void stopListening() {
-        ConnectorWebhooks.INSTANCE.stopListening("hook-key");
+        ConnectorWebhooks.INSTANCE.stopListening("hook-key", listener);
+    }
+
+    private BlockingQueue<ConnectorWebhooks.Event> listen(kotlin.jvm.functions.Function1<ConnectorWebhooks.Event, JsonNode> reply) {
+        listener = ConnectorWebhooks.INSTANCE.listen("hook-key", reply, event -> true);
+        return listener.getEvents();
     }
 
     @Test
     public void testAnAddressCheckIsAnsweredOnlyWhileATriggerListensSuccess() throws Exception {
         mockMvc.perform(head("/hooks/hook-key")).andExpect(status().isNotFound());
-        ConnectorWebhooks.INSTANCE.listen("hook-key", event -> null);
+        listen(event -> null);
         mockMvc.perform(head("/hooks/hook-key")).andExpect(status().isOk());
     }
 
     @Test
     public void testAFormEventIsReadAsNestedFieldsSuccess() throws Exception {
-        BlockingQueue<ConnectorWebhooks.Event> events = ConnectorWebhooks.INSTANCE.listen("hook-key", event -> null);
+        BlockingQueue<ConnectorWebhooks.Event> events = listen(event -> null);
         mockMvc.perform(post("/hooks/hook-key?source=crm").contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .content("contact%5Bemail%5D=ada%40example.com&tags%5B%5D=new&tags%5B%5D=vip&items%5B0%5D%5Bname%5D=pen&items%5B0%5D%5Bqty%5D=2")).andExpect(status().isOk());
         ConnectorWebhooks.Event event = events.take();
@@ -57,14 +64,14 @@ public class ConnectorHookTest {
 
     @Test
     public void testATextEventStaysTextSuccess() throws Exception {
-        BlockingQueue<ConnectorWebhooks.Event> events = ConnectorWebhooks.INSTANCE.listen("hook-key", event -> null);
+        BlockingQueue<ConnectorWebhooks.Event> events = listen(event -> null);
         mockMvc.perform(post("/hooks/hook-key").contentType(MediaType.TEXT_XML).content("<notification/>")).andExpect(status().isOk());
         Assert.assertEquals("<notification/>", events.take().getBody().asText());
     }
 
     @Test
     public void testAChallengeIsAnsweredByTheReplyAndIsNoEventSuccess() throws Exception {
-        BlockingQueue<ConnectorWebhooks.Event> events = ConnectorWebhooks.INSTANCE.listen("hook-key", event -> {
+        BlockingQueue<ConnectorWebhooks.Event> events = listen(event -> {
             JsonNode challenge = event.getBody().has("challenge") ? event.getBody().get("challenge") : event.getReceived().path("query").get("hub.challenge");
             return challenge == null ? null : challenge;
         });

@@ -6,7 +6,13 @@ import tools.jackson.databind.node.ArrayNode
 import tools.jackson.databind.node.ObjectNode
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
+import java.util.Base64
+import java.util.HexFormat
 import java.util.concurrent.BlockingQueue
+import java.util.concurrent.CopyOnWriteArrayList
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.LinkedBlockingQueue
 
@@ -22,22 +28,56 @@ object ConnectorWebhooks {
     @Volatile
     var publicUrl: String = ""
 
-    private val listening = ConcurrentHashMap<String, Listener>()
+    private val listening = ConcurrentHashMap<String, CopyOnWriteArrayList<Listener>>()
 
     /** An event as it arrived: its body read as JSON, a form or text, and what came with it, its headers, query and text. */
     class Event(val body: JsonNode, val received: JsonNode)
 
-    /** What a trigger listens with: where its events wait, and what its address answers to each. */
-    private class Listener(val events: BlockingQueue<Event>, val reply: (Event) -> JsonNode?)
+    /**
+     * What a trigger listens with: where its events wait, what its address answers to each, and which it takes. Several
+     * triggers listen on an app's address, each for its own account and kinds of event.
+     */
+    class Listener(val events: BlockingQueue<Event>, val reply: (Event) -> JsonNode?, val accepts: (Event) -> Boolean)
+
+    /** The key of a connector's app address, /hooks/app/<connector>. */
+    fun appKey(connector: String) = "app/$connector"
 
     fun addressOf(key: String) = publicUrl.trimEnd('/') + PATH + key
 
-    fun listen(key: String, reply: (Event) -> JsonNode? = { null }): BlockingQueue<Event> =
-        listening.compute(key) { _, listener -> Listener(listener?.events ?: LinkedBlockingQueue(), reply) }!!.events
+    fun listen(key: String, reply: (Event) -> JsonNode? = { null }, accepts: (Event) -> Boolean = { true }): Listener =
+        Listener(LinkedBlockingQueue(), reply, accepts).also { listening.computeIfAbsent(key) { CopyOnWriteArrayList() }.add(it) }
 
-    fun stopListening(key: String) {
-        listening.remove(key)
+    fun stopListening(key: String, listener: Listener) {
+        listening[key]?.remove(listener)
     }
+
+    /**
+     * Whether an event carries the signature the service makes with the credential's secret. The comparison takes the
+     * same time whatever it finds, so that it gives nothing away.
+     */
+    fun isSigned(signature: ConnectorSignature, event: Event, credential: Map<String, String>): Boolean {
+        val received = event.received
+        val fill = { template: String ->
+            SIGNED.replace(template) { match ->
+                val name = match.groupValues[1]
+                when {
+                    name == "text" -> received.path("text").asText()
+                    name.startsWith("headers.") -> received.path("headers").path(name.removePrefix("headers.").lowercase()).asText()
+                    name.startsWith("query.") -> received.path("query").path(name.removePrefix("query.")).asText()
+                    name.startsWith(Connectors.CREDENTIAL) -> credential[name.removePrefix(Connectors.CREDENTIAL)].orEmpty()
+                    else -> ""
+                }
+            }
+        }
+        val key = fill(signature.key).takeIf { it.isNotEmpty() } ?: return false
+        val hash = Mac.getInstance(signature.algorithm).apply { init(SecretKeySpec(key.toByteArray(), signature.algorithm)) }.doFinal(fill(signature.text).toByteArray())
+        val expected = signature.prefix + if (signature.encoding == "base64") Base64.getEncoder().encodeToString(hash) else HexFormat.of().formatHex(hash)
+        val given = received.path("headers").path(signature.header.lowercase()).asText()
+        return MessageDigest.isEqual(expected.toByteArray(), given.toByteArray())
+    }
+
+    // A signature's templates name headers with dashes, such as {{headers.x-slack-signature}}.
+    private val SIGNED = Regex("\\{\\{\\s*([\\w.-]+)\\s*}}")
 
     /**
      * An event as a service sent it: a JSON body as JSON, a form as the fields it holds, nested where a name has
@@ -83,11 +123,14 @@ object ConnectorWebhooks {
 
     /** Hands over an event, and gives the answer for the service, or null when no trigger listens. */
     fun deliver(key: String, event: Event): JsonNode? {
-        val listener = listening[key] ?: return null
-        // What the reply answers, such as a challenge, is a check of the address, not an event.
-        return listener.reply(event) ?: JsonApi.mapper.nullNode().also { listener.events.offer(event) }
+        val listeners = listening[key]?.takeIf { it.isNotEmpty() } ?: return null
+        // What a reply answers, such as a challenge, is a check of the address, not an event.
+        listeners.firstNotNullOfOrNull { it.reply(event) }?.let { return it }
+        listeners.filter { it.accepts(event) }.forEach { it.events.offer(event) }
+        return JsonApi.mapper.nullNode()
     }
 
-    /** Answers a check of the address, which a service sends without a body: by the trigger's reply, or with an empty answer. */
-    fun check(key: String, event: Event): JsonNode? = listening[key]?.let { it.reply(event) ?: JsonApi.mapper.nullNode() }
+    /** Answers a check of the address, which a service sends without a body: by a trigger's reply, or with an empty answer. */
+    fun check(key: String, event: Event): JsonNode? =
+        listening[key]?.takeIf { it.isNotEmpty() }?.let { listeners -> listeners.firstNotNullOfOrNull { it.reply(event) } ?: JsonApi.mapper.nullNode() }
 }

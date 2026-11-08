@@ -91,6 +91,12 @@ object Connectors {
         }
         if (connector.actions.isEmpty()) problems += "It needs at least one action."
         connector.lists.forEach { (name, list) -> problems += addressProblems("The list $name", connector, list.request.url, sample) }
+        val signatures = listOfNotNull(connector.events?.signature?.let { "The app's events" to it }) +
+            connector.triggers.mapNotNull { (key, poll) -> poll.webhook?.signature?.let { "The trigger $key" to it } }
+        signatures.forEach { (where, signature) ->
+            if (signature.header.isBlank() || !signature.key.contains("{{$CREDENTIAL")) problems += "$where should be signed with a header and a key from the credential."
+            if (runCatching { javax.crypto.Mac.getInstance(signature.algorithm) }.isFailure) problems += "$where is signed with ${signature.algorithm}, which is not a known keyed hash."
+        }
         val inputsWithLists = connector.actions.map { (key, operation) -> "The action $key" to operation.inputs } +
             connector.triggers.map { (key, poll) -> "The trigger $key" to poll.inputs }
         inputsWithLists.forEach { (where, inputs) ->
@@ -122,6 +128,8 @@ object Connectors {
             val requests = if (webhook == null) listOf(poll.request) else listOfNotNull(webhook.subscribe, webhook.unsubscribe)
             if (webhook != null && webhook.subscribe == null && webhook.unsubscribe != null) problems += "$where unsubscribes, but has no subscribe request: the person sets it up in the service."
             if (webhook != null && webhook.subscribe == null && webhook.renewEvery > 0) problems += "$where renews, but has no subscribe request to renew."
+            if (webhook?.app == true && connector.events == null) problems += "$where takes the app's events, but the connector has no events."
+            if (webhook?.app == true && (webhook.reply != null || webhook.signature != null)) problems += "$where takes the app's events, whose reply and signature are the connector's."
             requests.forEach { problems += addressProblems(where, connector, it.url, sample) }
             val known = poll.inputs.keys + fields.map { CREDENTIAL + it } + setOf("webhookUrl", "webhookId", ConnectorTrigger.LAST_POLL_TIME, ConnectorTrigger.LAST_ITEM)
             requests.flatMap(::templatesOf).flatMap(::placeholdersIn)
