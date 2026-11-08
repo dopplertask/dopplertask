@@ -138,7 +138,12 @@ class ConnectorTrigger : Trigger() {
             connector.triggers.forEach { (key, poll) ->
                 poll.inputs.forEach { (name, input) -> info.add(ConnectorSettings.propertyOf(name, input, mapOf("operation" to arrayOf(key)))) }
             }
-            info.add(PropertyInformation("every", "Check every", PropertyInformationType.NUMBER, "5", "Minutes between two checks."))
+            // Only a trigger that asks the service checks every few minutes; a webhook gets each event as it happens.
+            val polling = connector.triggers.filterValues { it.webhook == null }.keys.toTypedArray()
+            if (polling.isNotEmpty()) {
+                info.add(PropertyInformation("every", "Check every", PropertyInformationType.NUMBER, "5", "Minutes between two checks.", mutableListOf(),
+                    PropertyInformation.PropertyInformationCategory.PROPERTY, mapOf("operation" to polling)))
+            }
             info.addAll(ConnectorSettings.credentialProperties(connector))
             return info
         }
