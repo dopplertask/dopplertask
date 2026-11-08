@@ -33,6 +33,9 @@ open class TriggerListenerServiceImpl {
 
     private val tasks: MutableSet<Task> = mutableSetOf()
 
+    // The triggers each pool runs, so that they can let go of what they hold when their task stops.
+    private val running: MutableMap<String, List<Trigger>> = java.util.concurrent.ConcurrentHashMap()
+
 
     @Autowired
     @Qualifier("transactionManager")
@@ -88,10 +91,7 @@ open class TriggerListenerServiceImpl {
         if (task.isPresent) {
             val currentTask = task.get();
 
-            // Initiate map if not existant
-            if (threadPoolMap[poolName(currentTask.name)] != null) {
-                    threadPoolMap[poolName(currentTask.name)]!!.shutdownNow()
-            }
+            stopTriggers(currentTask.name)
 
             if (currentTask.isActive) {
                 threadPoolMap[poolName(currentTask.name)] = Executors.newVirtualThreadPerTaskExecutor()
@@ -104,6 +104,18 @@ open class TriggerListenerServiceImpl {
 
     open fun stopTriggers(taskName: String) {
         threadPoolMap.remove(poolName(taskName))?.shutdownNow()
+        running.remove(poolName(taskName))?.forEach { trigger ->
+            try {
+                signIn(trigger)
+                trigger.stop()
+            } catch (e: Exception) {
+                logger.warn("A trigger of task $taskName could not let go of what it held. ${e.message}")
+            }
+        }
+    }
+
+    private fun signIn(trigger: Trigger) {
+        trigger.credential?.takeIf { it.isNotBlank() }?.let { trigger.useCredentialValues(credentials.valuesFor(it, trigger.credentialType)) }
     }
 
     private fun customers(): CustomerScope = if (::customerScope.isInitialized) customerScope.getIfAvailable { LOCAL_CUSTOMER } else LOCAL_CUSTOMER
@@ -113,12 +125,11 @@ open class TriggerListenerServiceImpl {
     private fun fire(trigger: Trigger) {
         logger.info("Running trigger")
         // A trigger that asks a service signs in as its credential, and remembers where it left off across restarts.
-        trigger.credential?.takeIf { it.isNotBlank() }?.let { trigger.useCredentialValues(credentials.valuesFor(it, trigger.credentialType)) }
-        val triggerResult = try {
-            trigger.trigger()
-        } finally {
-            if (trigger is ConnectorTrigger) database.update("UPDATE connector_trigger SET poll_state = ? WHERE id = ?", trigger.pollState, trigger.id)
+        signIn(trigger)
+        if (trigger is ConnectorTrigger) {
+            trigger.keepPlace = { database.update("UPDATE connector_trigger SET poll_state = ?, hook_key = ? WHERE id = ?", trigger.pollState, trigger.hookKey, trigger.id) }
         }
+        val triggerResult = trigger.trigger()
 
         val taskRequest = TaskRequest()
         taskRequest.triggerInfo = TriggerInfo(trigger.stepTypeName, trigger.triggerSuffix, triggerResult.resultMap)
@@ -130,6 +141,7 @@ open class TriggerListenerServiceImpl {
 
     private fun startTriggers(currentTask: Task) {
         val threadPool = threadPoolMap[poolName(currentTask.name)]!!
+        running[poolName(currentTask.name)] = currentTask.triggerActions
         currentTask.triggerActions.forEach { trigger ->
             val refusal = StepRules.active().refusalOf(trigger) ?: trigger.problem()
             if (refusal != null) {

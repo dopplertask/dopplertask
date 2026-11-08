@@ -24,6 +24,7 @@ import tools.jackson.databind.JsonNode
 import java.time.Duration
 import java.time.Instant
 import java.time.OffsetDateTime
+import java.util.UUID
 
 /**
  * Starts the task when something new appears in a connector's service. It asks the service every few minutes for its
@@ -52,7 +53,15 @@ class ConnectorTrigger : Trigger() {
     @JsonIgnore
     var settings: String = "{}"
 
-    /** Where the last check left off: a time in milliseconds, or the id of the newest item. Kept with the trigger. */
+    /** The random part of the address a service sends this trigger's events to. */
+    @Column
+    @JsonIgnore
+    var hookKey: String? = null
+
+    /**
+     * Where the last check left off: a time in milliseconds, or the id of the newest item. For a webhook, the id of the
+     * subscription. Kept with the trigger.
+     */
     @Lob
     @Column(columnDefinition = "TEXT")
     @JsonIgnore
@@ -61,6 +70,11 @@ class ConnectorTrigger : Trigger() {
     @Transient
     @JsonIgnore
     private var credentialValues: Map<String, String> = emptyMap()
+
+    /** Saves where the trigger left off, so that a restart neither repeats items nor subscribes twice. Set by the listener. */
+    @Transient
+    @JsonIgnore
+    var keepPlace: () -> Unit = {}
 
     // New items wait here when one check finds several, since each starts the task on its own.
     @Transient
@@ -133,15 +147,57 @@ class ConnectorTrigger : Trigger() {
         val connector = spec ?: return "There is no connector called ${this.connector}."
         if (connector.triggers[operation] == null) return "Choose what ${connector.label} should watch: ${connector.triggers.keys.joinToString(", ")}."
         if ((every?.trim()?.toLongOrNull() ?: 0) < 1) return "Check every should be a whole number of minutes, from 1."
+        if (connector.triggers[operation]?.webhook != null && ConnectorWebhooks.publicUrl.isBlank()) {
+            return "${connector.label} sends its events to this server, so set DOPPLERTASK_PUBLIC_URL to the address it can reach, such as https://tasks.example.com."
+        }
         return null
     }
 
     override fun trigger(): TriggerResult {
+        val webhook = spec?.triggers?.get(operation)?.webhook
         while (true) {
             nextWaiting()?.let { return TriggerResult(mutableMapOf("item" to it)) }
-            if (pollState != null) Thread.sleep(Duration.ofMinutes(every!!.trim().toLong()).toMillis())
-            lookForNewItems()
+            if (webhook != null) {
+                if (pollState == null) subscribe(webhook)
+                takeItemsOf(ConnectorWebhooks.listen(hookKey!!).take())
+            } else {
+                if (pollState != null) Thread.sleep(Duration.ofMinutes(every!!.trim().toLong()).toMillis())
+                lookForNewItems()
+            }
         }
+    }
+
+    /** Asks the service to send this trigger's events here, and keeps the subscription's id. */
+    fun subscribe(webhook: ConnectorWebhook) {
+        val connector = spec!!
+        hookKey = hookKey ?: UUID.randomUUID().toString()
+        val answer = send(connector, webhook.subscribe, settingValues() + ("webhookUrl" to ConnectorWebhooks.addressOf(hookKey!!)))
+        pollState = JsonPaths.read(JsonApi.parsed(answer), webhook.id)?.asText() ?: ""
+        keepPlace()
+    }
+
+    /** Ends the subscription when the task stops, so that the service no longer sends events. */
+    override fun stop() {
+        val webhook = spec?.triggers?.get(operation)?.webhook ?: return
+        hookKey?.let(ConnectorWebhooks::stopListening)
+        webhook.unsubscribe?.takeIf { pollState != null }?.let { send(spec!!, it, settingValues() + ("webhookId" to pollState!!)) }
+        pollState = null
+        keepPlace()
+    }
+
+    /** The new items in an event a service sent, read as on a check. */
+    fun takeItemsOf(event: JsonNode) {
+        val poll = spec!!.triggers[operation]!!
+        val reply = poll.afterResponse?.let { ConnectorScripts.run(it, settingValues(), null, event) { throw IllegalArgumentException("A webhook event cannot send requests.") } } ?: event
+        waiting.addAll(JsonPaths.read(reply, poll.items)?.let { if (it.isArray) it.toList() else listOf(it) }.orEmpty().filterNot { it.isNull }.take(MOST_ITEMS_PER_CHECK))
+    }
+
+    private fun send(connector: Connector, request: ConnectorRequest, values: Map<String, String>): ActionResult {
+        val operation = ConnectorOperation().also { it.request = request; it.inputs = linkedMapOf() }
+        val sender = ConnectorSender(this, connector, credentialValues)
+        val answer = sender.send(ConnectorRequests.build(connector, operation, values, credentialValues, sender::answerFor))
+        check(answer.statusCode == StatusCode.SUCCESS) { answer.errorMsg }
+        return answer
     }
 
     /** The next new item that has not started the task yet, as JSON. */
@@ -172,6 +228,7 @@ class ConnectorTrigger : Trigger() {
             }
         }
         waiting.addAll(fresh.take(MOST_ITEMS_PER_CHECK))
+        keepPlace()
     }
 
     override fun run(taskService: TaskService, execution: TaskExecution, variableExtractorUtil: VariableExtractorUtil, broadcastListener: BroadcastListener?): ActionResult {

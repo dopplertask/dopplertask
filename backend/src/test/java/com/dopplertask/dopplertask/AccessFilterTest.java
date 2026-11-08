@@ -40,6 +40,7 @@ public class AccessFilterTest {
     public void testThePageAndWebhooksNeedNoTokenSuccess() throws Exception {
         Assert.assertEquals(200, statusOf(WITH_TOKENS, "GET", "/public/index.html", null));
         Assert.assertEquals(200, statusOf(WITH_TOKENS, "POST", "/webhook/task/Webhook/suffix/path", null));
+        Assert.assertEquals(200, statusOf(WITH_TOKENS, "POST", "/hooks/3f2a", null));
     }
 
     @Test

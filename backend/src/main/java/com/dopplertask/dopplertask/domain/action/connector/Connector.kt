@@ -81,7 +81,10 @@ class ConnectorOperation {
     var afterResponse: String? = null
 }
 
-/** A trigger that asks the service for its newest items and starts the task once for each new one. */
+/**
+ * A trigger that starts the task once for each new item. It asks the service for its newest items every few minutes,
+ * or, with webhook, has the service send each event to this server.
+ */
 class ConnectorPoll {
     var label: String = ""
     var description: String = ""
@@ -101,6 +104,19 @@ class ConnectorPoll {
     /** Scripts as on an action, such as afterResponse asking for every page with call(...) and returning the items. */
     var beforeRequest: String? = null
     var afterResponse: String? = null
+
+    /** Instead of asking: the service sends events to {{webhookUrl}}, and items and afterResponse read each event. */
+    var webhook: ConnectorWebhook? = null
+}
+
+/** How a trigger subscribes to a service's events when its task is turned on, and unsubscribes when it is turned off. */
+class ConnectorWebhook {
+    /** The request that subscribes, with {{webhookUrl}} where the service should send events. */
+    var subscribe: ConnectorRequest = ConnectorRequest()
+
+    /** Where the subscription's id is in the answer, which unsubscribe can name as {{webhookId}}. */
+    var id: String = "$.id"
+    var unsubscribe: ConnectorRequest? = null
 }
 
 class ConnectorInput {

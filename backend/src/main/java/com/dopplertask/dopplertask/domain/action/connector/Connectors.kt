@@ -81,8 +81,13 @@ object Connectors {
         connector.triggers.forEach { (key, poll) ->
             val where = "The trigger $key"
             if (poll.label.isBlank()) problems += "$where needs a label."
-            problems += addressProblems(where, connector, poll.request.url, sample)
-            if (poll.newBy !in setOf("time", "lastItem")) problems += "$where should find new items by time or lastItem, not ${poll.newBy}."
+            val webhook = poll.webhook
+            val requests = if (webhook == null) listOf(poll.request) else listOfNotNull(webhook.subscribe, webhook.unsubscribe)
+            requests.forEach { problems += addressProblems(where, connector, it.url, sample) }
+            val known = poll.inputs.keys + fields.map { CREDENTIAL + it } + setOf("webhookUrl", "webhookId")
+            requests.flatMap { listOf(it.url) + it.headers.values + it.query.values + listOfNotNull(it.body?.toString()) }.flatMap(::placeholdersIn)
+                .filter { it !in known }.forEach { problems += "$where refers to {{$it}}, which is not one of its inputs." }
+            if (webhook == null && poll.newBy !in setOf("time", "lastItem")) problems += "$where should find new items by time or lastItem, not ${poll.newBy}."
             listOf(poll.items, poll.key).filter { !it.startsWith("$") }.forEach { problems += "$where reads $it, which should start with $." }
         }
         return problems

@@ -2,6 +2,7 @@ package com.dopplertask.dopplertask;
 
 import com.dopplertask.dopplertask.domain.action.Action;
 import com.dopplertask.dopplertask.domain.action.connector.ConnectorTrigger;
+import com.dopplertask.dopplertask.domain.action.connector.ConnectorWebhooks;
 import com.dopplertask.dopplertask.domain.action.connector.Connectors;
 import com.dopplertask.dopplertask.domain.action.integration.JsonApi;
 import com.sun.net.httpserver.HttpServer;
@@ -26,12 +27,14 @@ public class ConnectorTriggerTest {
     private HttpServer service;
     private final AtomicReference<String> answer = new AtomicReference<>("{}");
     private final AtomicReference<String> signedInWith = new AtomicReference<>();
+    private final List<String> asked = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     @Before
     public void startService() throws IOException {
         service = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         service.createContext("/", exchange -> {
             signedInWith.set(exchange.getRequestHeaders().getFirst("Authorization"));
+            asked.add(exchange.getRequestMethod() + " " + exchange.getRequestURI().getPath() + " " + new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
             byte[] body = answer.get().getBytes(StandardCharsets.UTF_8);
             exchange.sendResponseHeaders(200, body.length);
             try (OutputStream out = exchange.getResponseBody()) {
@@ -89,6 +92,37 @@ public class ConnectorTriggerTest {
         Assert.assertEquals(Map.of("key", "typed-secret"), trigger.inlineCredentialValues(java.util.Set.of("key")));
         trigger.forgetCredentialValues(java.util.Set.of("key"));
         Assert.assertEquals(Map.of(), trigger.settingValues());
+    }
+
+    @Test
+    public void testAWebhookTriggerSubscribesTakesEventsAndUnsubscribesSuccess() throws Exception {
+        ConnectorWebhooks.INSTANCE.setPublicUrl("https://tasks.example.com");
+        try {
+            ConnectorTrigger trigger = trigger("new_event");
+            trigger.setSetting("list_id", "l1");
+            Assert.assertNull(trigger.problem());
+            answer.set("{\"hook\": {\"id\": \"h1\"}}");
+            var started = java.util.concurrent.CompletableFuture.supplyAsync(trigger::trigger);
+            while (trigger.getPollState() == null) {
+                Thread.sleep(20);
+            }
+            Assert.assertEquals("h1", trigger.getPollState());
+            Assert.assertTrue(asked.get(0), asked.get(0).startsWith("POST /hooks {\"url\":\"https://tasks.example.com/hooks/" + trigger.getHookKey() + "\",\"list\":\"l1\"}"));
+            ConnectorWebhooks.INSTANCE.deliver(trigger.getHookKey(), JsonApi.INSTANCE.getMapper().readTree("{\"type\": \"deleted\", \"data\": {\"id\": \"x\"}}"));
+            ConnectorWebhooks.INSTANCE.deliver(trigger.getHookKey(), JsonApi.INSTANCE.getMapper().readTree("{\"type\": \"created\", \"data\": {\"id\": \"e1\"}}"));
+            Assert.assertEquals("{\"id\":\"e1\"}", started.get(5, java.util.concurrent.TimeUnit.SECONDS).getResultMap().get("item"));
+            trigger.stop();
+            Assert.assertTrue(asked.toString(), asked.contains("DELETE /hooks/h1 "));
+            Assert.assertNull(trigger.getPollState());
+            Assert.assertFalse(ConnectorWebhooks.INSTANCE.deliver(trigger.getHookKey(), JsonApi.INSTANCE.getMapper().readTree("{}")));
+        } finally {
+            ConnectorWebhooks.INSTANCE.setPublicUrl("");
+        }
+    }
+
+    @Test
+    public void testAWebhookTriggerNeedsThePublicAddressFail() {
+        Assert.assertTrue(trigger("new_event").problem().contains("DOPPLERTASK_PUBLIC_URL"));
     }
 
     private static ConnectorTrigger trigger(String operation) {
