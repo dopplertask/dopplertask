@@ -47,7 +47,7 @@
   },
   "actions": {
     "add-note-to-user": {
-      "label": "Add Note",
+      "label": "Add Note to Contact (by Email)",
       "description": "Add a note to a user",
       "audience": "human",
       "inputs": {
@@ -81,211 +81,8 @@
       },
       "beforeRequest": "const found = call({method: 'POST', url: '/contacts/search', headers: request.headers, body: {query: {field: 'email', operator: '=', value: inputs.email}}}).data;\nif (found.length === 0) throw new Error('Could not find user with this email address.');\nrequest.url = '/contacts/' + encodeURIComponent(found[0].id) + '/notes';\nreturn request;"
     },
-    "addNoteToConversation": {
-      "label": "Add note to conversation",
-      "description": "Add a note (for other admins) to an existing conversation",
-      "audience": "human",
-      "inputs": {
-        "from": {
-          "label": "From (Admin)",
-          "type": "string",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "GET",
-              "url": "https://api.{{credential.region}}.io/admins"
-            },
-            "list": "$.admins",
-            "label": "$.name",
-            "value": "$.id"
-          }
-        },
-        "conversationId": {
-          "label": "Conversation ID",
-          "type": "string",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "GET",
-              "url": "https://api.{{credential.region}}.io/conversations"
-            },
-            "list": "$.conversations",
-            "label": "$.title",
-            "value": "$.id"
-          }
-        },
-        "body": {
-          "label": "Message Body",
-          "type": "multiline",
-          "required": true
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://api.{{credential.region}}.io/conversations/{{conversationId}}/reply",
-        "headers": {
-          "X-Fern-Language": "JavaScript",
-          "X-Fern-Runtime": "node",
-          "X-Fern-Runtime-Version": "26.4.0",
-          "X-Fern-SDK-Name": "intercom-client",
-          "X-Fern-SDK-Version": "6.2.0"
-        },
-        "body": {
-          "type": "admin",
-          "message_type": "note",
-          "body": "{{body}}",
-          "admin_id": "{{from}}"
-        }
-      },
-      "outputs": {
-        "id": "$.id"
-      }
-    },
-    "add-or-remove-tag-on-contact": {
-      "label": "Add/Remove Tag on Contact",
-      "description": "Attach or remove a tag from a specific contact.",
-      "audience": "human",
-      "inputs": {
-        "contactId": {
-          "label": "Contact ID",
-          "type": "string",
-          "required": true
-        },
-        "tagId": {
-          "label": "Tag Name",
-          "type": "string",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "GET",
-              "url": "https://api.{{credential.region}}.io/tags"
-            },
-            "list": "$.data",
-            "label": "$.name",
-            "value": "$.id"
-          }
-        },
-        "untag": {
-          "label": "Untag ?",
-          "type": "boolean",
-          "defaultValue": "false"
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://api.{{credential.region}}.io/contacts/{{contactId}}/tags",
-        "headers": {
-          "X-Fern-Language": "JavaScript",
-          "X-Fern-Runtime": "node",
-          "X-Fern-Runtime-Version": "26.4.0",
-          "X-Fern-SDK-Name": "intercom-client",
-          "X-Fern-SDK-Version": "6.2.0"
-        },
-        "body": {
-          "id": "{{tagId}}"
-        }
-      },
-      "beforeRequest": "if (inputs.untag === 'true') {\n  request.method = 'DELETE';\n  request.url += '/' + encodeURIComponent(inputs.tagId);\n  request.body = null;\n}\nreturn request;"
-    },
-    "add-or-remove-tag-on-company": {
-      "label": "Add/Remove Tag on Company",
-      "description": "Attach or remove a tag from a specific company.",
-      "audience": "human",
-      "inputs": {
-        "companyId": {
-          "label": "Company ID",
-          "type": "string",
-          "required": true
-        },
-        "tagName": {
-          "label": "Tag Name",
-          "type": "string",
-          "required": true
-        },
-        "untag": {
-          "label": "Untag ?",
-          "type": "boolean",
-          "defaultValue": "false"
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://api.{{credential.region}}.io/tags",
-        "headers": {
-          "X-Fern-Language": "JavaScript",
-          "X-Fern-Runtime": "node",
-          "X-Fern-Runtime-Version": "26.4.0",
-          "X-Fern-SDK-Name": "intercom-client",
-          "X-Fern-SDK-Version": "6.2.0"
-        },
-        "body": {
-          "name": "{{tagName}}",
-          "companies": [
-            {
-              "id": "{{companyId}}"
-            }
-          ]
-        }
-      },
-      "beforeRequest": "const wanted = inputs.tagName.trim().toLowerCase();\nconst tag = (call({method: 'GET', url: '/tags'}).data ?? []).find((each) => String(each.name ?? '').toLowerCase() === wanted);\nrequest.body.name = typeof tag?.name === 'string' ? tag.name : inputs.tagName;\nif (inputs.untag === 'true') {\n  const company = call({method: 'GET', url: '/companies/' + encodeURIComponent(inputs.companyId), headers: request.headers});\n  request.body.companies = [{id: inputs.companyId, untag: true, company_id: company.company_id}];\n}\nreturn request;"
-    },
-    "add-or-remove-tag-on-conversation": {
-      "label": "Add/Remove Tag on Conversation",
-      "description": "Attach or remove a tag from a specific conversation.",
-      "audience": "human",
-      "inputs": {
-        "conversationId": {
-          "label": "Conversation ID",
-          "type": "string",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "GET",
-              "url": "https://api.{{credential.region}}.io/conversations"
-            },
-            "list": "$.conversations",
-            "label": "$.title",
-            "value": "$.id"
-          }
-        },
-        "tagId": {
-          "label": "Tag",
-          "type": "string",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "GET",
-              "url": "https://api.{{credential.region}}.io/tags"
-            },
-            "list": "$.data",
-            "label": "$.name",
-            "value": "$.id"
-          }
-        },
-        "untag": {
-          "label": "Untag ?",
-          "type": "boolean",
-          "defaultValue": "false"
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://api.{{credential.region}}.io/conversations/{{conversationId}}/tags",
-        "headers": {
-          "X-Fern-Language": "JavaScript",
-          "X-Fern-Runtime": "node",
-          "X-Fern-Runtime-Version": "26.4.0",
-          "X-Fern-SDK-Name": "intercom-client",
-          "X-Fern-SDK-Version": "6.2.0"
-        },
-        "body": {
-          "id": "{{tagId}}"
-        }
-      },
-      "beforeRequest": "const admin = call({method: 'GET', url: '/me', headers: request.headers}).id;\nif (inputs.untag === 'true') {\n  request.method = 'DELETE';\n  request.url += '/' + encodeURIComponent(inputs.tagId);\n  request.body = {admin_id: admin};\n} else request.body.admin_id = admin;\nreturn request;"
-    },
     "assignConversationAction": {
-      "label": "Assign conversation to an admin or a team",
+      "label": "Assign Conversation with Message",
       "description": "(Re)assign conversation to a specific admin or team.",
       "audience": "human",
       "inputs": {
@@ -350,136 +147,6 @@
         "id": "$.id"
       }
     },
-    "create-article": {
-      "label": "Create Article",
-      "description": "Creates a new article in your Help Center.",
-      "audience": "human",
-      "inputs": {
-        "title": {
-          "label": "Title",
-          "type": "multiline",
-          "required": true
-        },
-        "description": {
-          "label": "Description",
-          "type": "string"
-        },
-        "body": {
-          "label": "Body",
-          "type": "multiline"
-        },
-        "authorId": {
-          "label": "Author",
-          "type": "string",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "GET",
-              "url": "https://api.{{credential.region}}.io/admins"
-            },
-            "list": "$.admins",
-            "label": "$.name",
-            "value": "$.id"
-          }
-        },
-        "state": {
-          "label": "State",
-          "type": "select",
-          "required": true,
-          "defaultValue": "draft",
-          "options": [
-            {
-              "value": "draft",
-              "label": "Draft"
-            },
-            {
-              "value": "published",
-              "label": "Published"
-            }
-          ]
-        },
-        "collectionId": {
-          "label": "Parent Collection",
-          "type": "string"
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://api.{{credential.region}}.io/articles",
-        "headers": {
-          "X-Fern-Language": "JavaScript",
-          "X-Fern-Runtime": "node",
-          "X-Fern-Runtime-Version": "26.4.0",
-          "X-Fern-SDK-Name": "intercom-client",
-          "X-Fern-SDK-Version": "6.2.0"
-        },
-        "body": {
-          "title": "{{title}}",
-          "description": "{{description}}",
-          "body": "{{body}}",
-          "state": "{{state}}"
-        }
-      },
-      "outputs": {
-        "id": "$.id"
-      },
-      "beforeRequest": "request.body.author_id = Number(inputs.authorId);\nif (inputs.collectionId) request.body.parent_id = Number(inputs.collectionId);\nreturn request;"
-    },
-    "create-conversation": {
-      "label": "Create Conversation",
-      "description": "Creates a new conversation from a contact.",
-      "audience": "human",
-      "inputs": {
-        "contactType": {
-          "label": "Contact Type",
-          "type": "select",
-          "required": true,
-          "defaultValue": "user",
-          "options": [
-            {
-              "value": "user",
-              "label": "User"
-            },
-            {
-              "value": "lead",
-              "label": "Lead"
-            }
-          ]
-        },
-        "contactId": {
-          "label": "Contact ID",
-          "type": "string",
-          "required": true
-        },
-        "body": {
-          "label": "Message Body",
-          "type": "multiline",
-          "required": true
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://api.{{credential.region}}.io/conversations",
-        "headers": {
-          "X-Fern-Language": "JavaScript",
-          "X-Fern-Runtime": "node",
-          "X-Fern-Runtime-Version": "26.4.0",
-          "X-Fern-SDK-Name": "intercom-client",
-          "X-Fern-SDK-Version": "6.2.0"
-        },
-        "body": {
-          "body": "{{body}}",
-          "from": {
-            "type": "{{contactType}}",
-            "id": "{{contactId}}"
-          }
-        }
-      },
-      "outputs": {
-        "id": "$.id",
-        "conversationId": "$.conversation_id"
-      }
-    },
     "create-data-event": {
       "label": "Create Data Event",
       "description": "Submits a data event for a contact.",
@@ -540,50 +207,6 @@
       },
       "beforeRequest": "const key = inputs.identifierType === 'id' ? 'id' : inputs.identifierType === 'user_id' ? 'user_id' : 'email';\nconst metadata = inputs.metadata ? JSON.parse(inputs.metadata) : undefined;\nrequest.body = {\n  [key]: inputs.identifierValue,\n  event_name: inputs.eventName,\n  created_at: Math.floor((inputs.createdAt ? Date.parse(inputs.createdAt) : Date.now()) / 1000),\n  metadata: metadata && Object.fromEntries(Object.entries(metadata).map(([name, value]) => [name, String(value)]))\n};\nreturn request;",
       "afterResponse": "return {success: true};"
-    },
-    "create-ticket": {
-      "label": "Create Ticket",
-      "description": "Creates a new ticket.",
-      "audience": "human",
-      "inputs": {
-        "ticketTypeId": {
-          "label": "Ticket Type",
-          "type": "string",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "GET",
-              "url": "https://api.{{credential.region}}.io/ticket_types"
-            },
-            "list": "$.data",
-            "label": "$.name",
-            "value": "$.id"
-          }
-        },
-        "contactId": {
-          "label": "Contact ID",
-          "type": "string",
-          "required": true
-        },
-        "companyId": {
-          "label": "Company ID",
-          "type": "string"
-        },
-        "ticketProperties": {
-          "label": "Ticket Properties",
-          "description": "The values by name, as JSON.",
-          "type": "json",
-          "required": true
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://api.{{credential.region}}.io/tickets"
-      },
-      "outputs": {
-        "id": "$.id"
-      },
-      "beforeRequest": "const attributesOf = (typeId) => call({method: 'GET', url: '/ticket_types/' + encodeURIComponent(typeId)}).ticket_type_attributes?.data ?? [];\nconst convert = (attributes, values) => {\n  const types = {};\n  attributes.forEach((attribute) => { types[attribute.name] = attribute.data_type; });\n  const out = {};\n  Object.entries(values).forEach(([name, value]) => { if (value !== undefined) out[name] = value === null ? null : valueOf(name, value, types[name]); });\n  return out;\n};\nconst valueOf = (name, value, type) => {\n  const fail = (what) => { throw new Error('Ticket attribute \"' + name + '\" expects ' + what + '; got ' + JSON.stringify(value) + '.'); };\n  if (type === 'datetime') {\n    if (typeof value === 'number' && isFinite(value)) return value > 1e11 ? Math.floor(value / 1000) : Math.floor(value);\n    if (typeof value === 'string') {\n      const text = value.trim();\n      if (/^\\d+$/.test(text)) { const number = Number(text); return number > 1e11 ? Math.floor(number / 1000) : number; }\n      const time = Date.parse(text);\n      if (text.length > 0 && !isNaN(time)) return Math.floor(time / 1000);\n    }\n    fail('a date and time (ISO 8601 or Unix seconds)');\n  }\n  if (type === 'integer' || type === 'decimal') {\n    const number = typeof value === 'number' ? value : typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN;\n    if (!isFinite(number) || (type === 'integer' && !Number.isInteger(number))) fail(type === 'integer' ? 'a whole number' : 'a number');\n    return number;\n  }\n  if (type === 'boolean') {\n    if (typeof value === 'boolean') return value;\n    if (value === 'true' || value === 'false') return value === 'true';\n    fail('true or false');\n  }\n  return value;\n};\nrequest.body = {\n  ticket_type_id: inputs.ticketTypeId,\n  contacts: [{id: inputs.contactId}],\n  company_id: inputs.companyId || undefined,\n  ticket_attributes: convert(attributesOf(inputs.ticketTypeId), inputs.ticketProperties ? JSON.parse(inputs.ticketProperties) : {})\n};\nreturn request;"
     },
     "create-user": {
       "label": "Create User",
@@ -822,231 +445,6 @@
         "id": "$.id"
       },
       "beforeRequest": "if (inputs.createdAt) request.body.signed_up_at = Math.floor(Date.parse(inputs.createdAt) / 1000);\nconst found = call({method: 'POST', url: '/contacts/search', headers: request.headers, body: {query: {operator: 'AND', value: [{field: 'email', operator: '=', value: inputs.email}, {field: 'role', operator: '=', value: 'user'}]}, pagination: {per_page: 1}}}).data;\nif (found.length > 0) {\n  request.method = 'PUT';\n  request.url = '/contacts/' + encodeURIComponent(found[0].id);\n  delete request.body.role;\n  delete request.body.email;\n}\nreturn request;"
-    },
-    "replyToConversation": {
-      "label": "Reply to conversation",
-      "description": "Reply (as an admin) to a conversation with a contact",
-      "audience": "human",
-      "inputs": {
-        "from": {
-          "label": "From (Admin)",
-          "type": "string",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "GET",
-              "url": "https://api.{{credential.region}}.io/admins"
-            },
-            "list": "$.admins",
-            "label": "$.name",
-            "value": "$.id"
-          }
-        },
-        "conversationId": {
-          "label": "Conversation ID",
-          "type": "string",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "GET",
-              "url": "https://api.{{credential.region}}.io/conversations"
-            },
-            "list": "$.conversations",
-            "label": "$.title",
-            "value": "$.id"
-          }
-        },
-        "body": {
-          "label": "Message Body",
-          "type": "multiline",
-          "required": true
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://api.{{credential.region}}.io/conversations/{{conversationId}}/reply",
-        "headers": {
-          "X-Fern-Language": "JavaScript",
-          "X-Fern-Runtime": "node",
-          "X-Fern-Runtime-Version": "26.4.0",
-          "X-Fern-SDK-Name": "intercom-client",
-          "X-Fern-SDK-Version": "6.2.0"
-        },
-        "body": {
-          "type": "admin",
-          "message_type": "comment",
-          "body": "{{body}}",
-          "admin_id": "{{from}}"
-        }
-      },
-      "outputs": {
-        "id": "$.id"
-      }
-    },
-    "send_message": {
-      "label": "Send Message",
-      "description": "Send a message to a contact (only allowed by admins)",
-      "audience": "human",
-      "inputs": {
-        "message_type": {
-          "label": "Message Type",
-          "type": "select",
-          "required": true,
-          "defaultValue": "email",
-          "options": [
-            {
-              "value": "email",
-              "label": "Email"
-            },
-            {
-              "value": "inapp",
-              "label": "In App Chat"
-            }
-          ]
-        },
-        "email_required_fields": {
-          "label": "Email Required Fields",
-          "description": "The values by name, as JSON.",
-          "type": "json",
-          "required": true
-        },
-        "from": {
-          "label": "From (Admin)",
-          "type": "string",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "GET",
-              "url": "https://api.{{credential.region}}.io/admins"
-            },
-            "list": "$.admins",
-            "label": "$.name",
-            "value": "$.id"
-          }
-        },
-        "to": {
-          "label": "To",
-          "type": "string",
-          "required": true
-        },
-        "body": {
-          "label": "Message Body",
-          "type": "string",
-          "required": true
-        },
-        "create_conversation_without_contact_reply": {
-          "label": "Create Conversation Without Contact Reply",
-          "description": "Whether a conversation should be opened in the inbox for the message without the contact replying. Defaults to false if not provided.",
-          "type": "boolean",
-          "defaultValue": "false"
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://api.{{credential.region}}.io/messages",
-        "headers": {
-          "X-Fern-Language": "JavaScript",
-          "X-Fern-Runtime": "node",
-          "X-Fern-Runtime-Version": "26.4.0",
-          "X-Fern-SDK-Name": "intercom-client",
-          "X-Fern-SDK-Version": "6.2.0"
-        },
-        "body": {
-          "message_type": "{{message_type}}",
-          "from": {
-            "type": "admin"
-          },
-          "to": {
-            "id": "{{to}}"
-          },
-          "body": "{{body}}",
-          "create_conversation_without_contact_reply": "{{create_conversation_without_contact_reply}}"
-        }
-      },
-      "outputs": {
-        "id": "$.id"
-      },
-      "beforeRequest": "const contact = call({method: 'GET', url: '/contacts/' + encodeURIComponent(inputs.to), headers: request.headers});\nconst fields = inputs.email_required_fields ? JSON.parse(inputs.email_required_fields) : {};\nrequest.body.from.id = Number(inputs.from);\nrequest.body.to.type = contact.role === 'user' ? 'user' : 'lead';\nrequest.body.template = fields.template;\nrequest.body.subject = fields.subject;\nreturn request;"
-    },
-    "update-ticket": {
-      "label": "Update Ticket",
-      "description": "Updates an existing ticket.",
-      "audience": "human",
-      "inputs": {
-        "ticketTypeId": {
-          "label": "Ticket Type",
-          "type": "string",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "GET",
-              "url": "https://api.{{credential.region}}.io/ticket_types"
-            },
-            "list": "$.data",
-            "label": "$.name",
-            "value": "$.id"
-          }
-        },
-        "ticketId": {
-          "label": "Ticket",
-          "type": "string",
-          "required": true
-        },
-        "ticketProperties": {
-          "label": "Ticket Properties",
-          "description": "The values by name, as JSON.",
-          "type": "json",
-          "required": true
-        },
-        "isOpen": {
-          "label": "Is Open",
-          "type": "boolean"
-        },
-        "state": {
-          "label": "State",
-          "type": "select",
-          "options": [
-            {
-              "value": "in_progress",
-              "label": "In Progress"
-            },
-            {
-              "value": "waiting_on_customer",
-              "label": "Waiting on Customer"
-            },
-            {
-              "value": "resolved",
-              "label": "Resolved"
-            }
-          ]
-        },
-        "snoozedTill": {
-          "label": "Snoozed Until",
-          "description": "An ISO 8601 date and time, such as 2026-01-02T10:00:00Z.",
-          "type": "string"
-        },
-        "assignedAdminId": {
-          "label": "Assigned Admin",
-          "type": "string",
-          "optionsFrom": {
-            "request": {
-              "method": "GET",
-              "url": "https://api.{{credential.region}}.io/admins"
-            },
-            "list": "$.admins",
-            "label": "$.name",
-            "value": "$.id"
-          }
-        }
-      },
-      "request": {
-        "method": "PUT",
-        "url": "https://api.{{credential.region}}.io/tickets/{{ticketId}}"
-      },
-      "outputs": {
-        "id": "$.id"
-      },
-      "beforeRequest": "const attributesOf = (typeId) => call({method: 'GET', url: '/ticket_types/' + encodeURIComponent(typeId)}).ticket_type_attributes?.data ?? [];\nconst convert = (attributes, values) => {\n  const types = {};\n  attributes.forEach((attribute) => { types[attribute.name] = attribute.data_type; });\n  const out = {};\n  Object.entries(values).forEach(([name, value]) => { if (value !== undefined) out[name] = value === null ? null : valueOf(name, value, types[name]); });\n  return out;\n};\nconst valueOf = (name, value, type) => {\n  const fail = (what) => { throw new Error('Ticket attribute \"' + name + '\" expects ' + what + '; got ' + JSON.stringify(value) + '.'); };\n  if (type === 'datetime') {\n    if (typeof value === 'number' && isFinite(value)) return value > 1e11 ? Math.floor(value / 1000) : Math.floor(value);\n    if (typeof value === 'string') {\n      const text = value.trim();\n      if (/^\\d+$/.test(text)) { const number = Number(text); return number > 1e11 ? Math.floor(number / 1000) : number; }\n      const time = Date.parse(text);\n      if (text.length > 0 && !isNaN(time)) return Math.floor(time / 1000);\n    }\n    fail('a date and time (ISO 8601 or Unix seconds)');\n  }\n  if (type === 'integer' || type === 'decimal') {\n    const number = typeof value === 'number' ? value : typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN;\n    if (!isFinite(number) || (type === 'integer' && !Number.isInteger(number))) fail(type === 'integer' ? 'a whole number' : 'a number');\n    return number;\n  }\n  if (type === 'boolean') {\n    if (typeof value === 'boolean') return value;\n    if (value === 'true' || value === 'false') return value === 'true';\n    fail('true or false');\n  }\n  return value;\n};\nconst values = inputs.ticketProperties ? JSON.parse(inputs.ticketProperties) : {};\nconst assignment = inputs.assignedAdminId ? {assignee_id: inputs.assignedAdminId, admin_id: String(call({method: 'GET', url: '/me'}).id)} : undefined;\nrequest.body = {\n  open: inputs.isOpen === '' ? undefined : inputs.isOpen === 'true',\n  state: inputs.state || undefined,\n  snoozed_until: inputs.snoozedTill ? Math.floor(Date.parse(inputs.snoozedTill) / 1000) : undefined,\n  assignment,\n  ticket_attributes: Object.keys(values).length > 0 ? convert(attributesOf(inputs.ticketTypeId), values) : undefined\n};\nreturn request;"
     },
     "find-company": {
       "label": "Find Company",
@@ -1475,7 +873,7 @@
       }
     },
     "get-conversation": {
-      "label": "Retrieve a Conversation",
+      "label": "Get Conversation (Full Record)",
       "description": "Retrieves a specific conversation by ID.",
       "audience": "human",
       "inputs": {
@@ -1511,7 +909,7 @@
       }
     },
     "get_conversation_by_id": {
-      "label": "Get Conversation (by ID)",
+      "label": "Get Conversation with Simplified Messages",
       "description": "Gets a conversation and its messages by conversation ID.",
       "audience": "ai",
       "inputs": {
@@ -1548,7 +946,16 @@
           "label": "Conversation ID",
           "description": "The Intercom conversation ID.",
           "type": "string",
-          "required": true
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "method": "GET",
+              "url": "https://api.{{credential.region}}.io/conversations"
+            },
+            "list": "$.conversations",
+            "label": "$.title",
+            "value": "$.id"
+          }
         },
         "body": {
           "label": "Reply",
@@ -1589,7 +996,16 @@
           "label": "Conversation ID",
           "description": "The Intercom conversation ID.",
           "type": "string",
-          "required": true
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "method": "GET",
+              "url": "https://api.{{credential.region}}.io/conversations"
+            },
+            "list": "$.conversations",
+            "label": "$.title",
+            "value": "$.id"
+          }
         },
         "body": {
           "label": "Note",
@@ -1617,7 +1033,7 @@
       "beforeRequest": "const text = (value, label) => { const trimmed = (value || '').trim(); if (trimmed === '') throw new Error(label + ' is required.'); return trimmed; };\nconst me = (id) => (id || '').trim() || String(call({method: 'GET', url: '/me'}).id);\nrequest.body.body = text(inputs.body, 'Note');\nrequest.body.admin_id = me(inputs.adminId);\nreturn request;"
     },
     "assign_conversation_by_id": {
-      "label": "Assign Conversation (by ID)",
+      "label": "Assign Conversation to Admin or Team",
       "description": "Assigns a conversation to an admin or a team, or unassigns it.",
       "audience": "ai",
       "inputs": {
@@ -1704,7 +1120,16 @@
         "tagId": {
           "label": "Tag ID",
           "description": "The tag ID from List Tags. Give either Tag ID or Tag Name.",
-          "type": "string"
+          "type": "string",
+          "optionsFrom": {
+            "request": {
+              "method": "GET",
+              "url": "https://api.{{credential.region}}.io/tags"
+            },
+            "list": "$.data",
+            "label": "$.name",
+            "value": "$.id"
+          }
         },
         "tagName": {
           "label": "Tag Name",
@@ -1812,7 +1237,16 @@
           "label": "Ticket Type ID",
           "description": "From List Ticket Types.",
           "type": "string",
-          "required": true
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "method": "GET",
+              "url": "https://api.{{credential.region}}.io/ticket_types"
+            },
+            "list": "$.data",
+            "label": "$.name",
+            "value": "$.id"
+          }
         },
         "contactLookupBy": {
           "label": "Identify Contact By",
@@ -2876,7 +2310,16 @@
         "authorId": {
           "label": "Author Admin ID",
           "description": "Leave empty to use the admin who owns this connection.",
-          "type": "string"
+          "type": "string",
+          "optionsFrom": {
+            "request": {
+              "method": "GET",
+              "url": "https://api.{{credential.region}}.io/admins"
+            },
+            "list": "$.admins",
+            "label": "$.name",
+            "value": "$.id"
+          }
         },
         "state": {
           "label": "State",

@@ -424,7 +424,25 @@
         "documentId": {
           "label": "Document ID",
           "description": "The ID of the document to insert text into.",
-          "required": true
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "method": "GET",
+              "url": "https://www.googleapis.com/drive/v3/files",
+              "query": {
+                "q": "mimeType='application/vnd.google-apps.document' and trashed = false",
+                "pageSize": "1000",
+                "orderBy": "createdTime desc",
+                "fields": "nextPageToken, files(id, name)",
+                "supportsAllDrives": "true",
+                "includeItemsFromAllDrives": "true",
+                "corpora": "allDrives"
+              }
+            },
+            "list": "$.files",
+            "label": "$.name",
+            "value": "$.id"
+          }
         },
         "text": {
           "label": "Text",
@@ -509,55 +527,6 @@
       "outputs": {
         "documentId": "$.documentId",
         "url": "$.url"
-      }
-    },
-    "get_document": {
-      "label": "Get Document",
-      "description": "Get the full content and structure of a Google Docs document",
-      "audience": "ai",
-      "inputs": {
-        "documentId": {
-          "label": "Document ID",
-          "description": "The ID of the document to read (from the document URL or Search Documents).",
-          "required": true
-        }
-      },
-      "request": {
-        "method": "GET",
-        "url": "https://docs.googleapis.com/v1/documents/{{documentId}}"
-      },
-      "outputs": {
-        "documentId": "$.documentId",
-        "title": "$.title"
-      }
-    },
-    "create_text_document": {
-      "label": "Create Text Document",
-      "description": "Create a new Google Docs document with a title and plain text",
-      "audience": "ai",
-      "inputs": {
-        "title": {
-          "label": "Title",
-          "description": "The title (and file name) of the new document.",
-          "required": true
-        },
-        "body": {
-          "label": "Content",
-          "description": "The plain text to write into the new document.",
-          "type": "multiline",
-          "required": true
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://docs.googleapis.com/v1/documents",
-        "body": {
-          "title": "{{title}}"
-        }
-      },
-      "afterResponse": "return call({ method: 'POST', url: '/documents/' + response.documentId + ':batchUpdate', body: { requests: [{ insertText: { text: inputs.body, endOfSegmentLocation: {} } }] } });",
-      "outputs": {
-        "documentId": "$.documentId"
       }
     },
     "create_footer": {
@@ -1562,58 +1531,6 @@
       },
       "beforeRequest": "const requests = JSON.parse(inputs.requests);\nif (!Array.isArray(requests)) throw new Error('Requests must be an array of Google Docs batchUpdate request objects.');\nrequest.body = { requests: [...requests] };\nreturn request;",
       "afterResponse": "const requests = JSON.parse(inputs.requests);\nif (!Array.isArray(requests)) throw new Error('Requests must be an array of Google Docs batchUpdate request objects.');\nreturn { success: true, documentId: inputs.documentId, appliedRequests: requests.length, replies: response.replies ?? [] };",
-      "outputs": {
-        "documentId": "$.documentId"
-      }
-    },
-    "append_text": {
-      "label": "Append Text",
-      "description": "Add text to the end of a document.",
-      "audience": "human",
-      "inputs": {
-        "documentId": {
-          "label": "Document",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "GET",
-              "url": "https://www.googleapis.com/drive/v3/files",
-              "query": {
-                "q": "mimeType='application/vnd.google-apps.document' and trashed = false",
-                "pageSize": "1000",
-                "orderBy": "createdTime desc",
-                "fields": "nextPageToken, files(id, name)",
-                "supportsAllDrives": "true",
-                "includeItemsFromAllDrives": "true",
-                "corpora": "allDrives"
-              }
-            },
-            "list": "$.files",
-            "label": "$.name",
-            "value": "$.id"
-          }
-        },
-        "text": {
-          "label": "Text",
-          "description": "Added to the end of the document.",
-          "type": "multiline",
-          "required": true
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://docs.googleapis.com/v1/documents/{{documentId}}:batchUpdate",
-        "body": {
-          "requests": [
-            {
-              "insertText": {
-                "text": "{{text}}",
-                "endOfSegmentLocation": {}
-              }
-            }
-          ]
-        }
-      },
       "outputs": {
         "documentId": "$.documentId"
       }

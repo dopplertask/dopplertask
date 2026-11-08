@@ -19,101 +19,6 @@
     }
   },
   "actions": {
-    "create_task": {
-      "label": "Create Task",
-      "description": "Create a new task",
-      "audience": "human",
-      "inputs": {
-        "workspace": {
-          "label": "Workspace",
-          "description": "Workspace the task is created in.",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "url": "https://app.asana.com/api/1.0/workspaces",
-              "query": {
-                "limit": "100"
-              }
-            },
-            "list": "$.data",
-            "label": "$.name",
-            "value": "$.gid"
-          }
-        },
-        "project": {
-          "label": "Project",
-          "description": "Project the task is added to. Archived projects are not listed.",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "url": "https://app.asana.com/api/1.0/projects",
-              "query": {
-                "workspace": "{{workspace}}",
-                "archived": "false",
-                "opt_fields": "name",
-                "limit": "100"
-              }
-            },
-            "list": "$.data",
-            "label": "$.name",
-            "value": "$.gid"
-          }
-        },
-        "name": {
-          "label": "Name",
-          "required": true
-        },
-        "notes": {
-          "label": "Description",
-          "description": "Plain text shown in the task's description.",
-          "type": "multiline"
-        },
-        "due_on": {
-          "label": "Due Date",
-          "description": "Day the task is due. For a due time too, use 2026-12-31T14:00:00Z."
-        },
-        "tags": {
-          "label": "Tags",
-          "description": "Pick tags, or type the names of existing tags. Several as a comma-separated list or a JSON array.",
-          "optionsFrom": {
-            "request": {
-              "url": "https://app.asana.com/api/1.0/tags",
-              "query": {
-                "workspace": "{{workspace}}",
-                "opt_fields": "name",
-                "limit": "100"
-              }
-            },
-            "list": "$.data",
-            "label": "$.name",
-            "value": "$.gid"
-          }
-        },
-        "assignee": {
-          "label": "Assignee",
-          "description": "Leave empty to keep the task unassigned.",
-          "optionsFrom": {
-            "request": {
-              "url": "https://app.asana.com/api/1.0/users",
-              "query": {
-                "workspace": "{{workspace}}",
-                "opt_fields": "name,email",
-                "limit": "100"
-              }
-            },
-            "list": "$.data",
-            "label": "$.name",
-            "value": "$.gid"
-          }
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://app.asana.com/api/1.0/tasks"
-      },
-      "beforeRequest": "const i=inputs;const text=v=>String(v).trim();const has=v=>v!=null&&v!=='';const opt=v=>has(v)?v:undefined;const seg=v=>encodeURIComponent(text(v));const query=o=>{const r={};for(const k in o){const v=o[k];if(v!=null&&v!=='')r[k]=String(v)}return r};const form=v=>encodeURIComponent(v).replace(/[!'()~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g,'+');const req=(method,url,q,data)=>{const s=Object.entries(query(q||{})).map(([k,v])=>form(k)+'='+form(v)).join('&');return{method,url:s?url+'?'+s:url,body:data===undefined?null:{data}}};const list=v=>{if(!has(v))return[];let s=String(v).trim(),a;if(s.startsWith('[')){try{a=JSON.parse(s)}catch(e){}}if(!Array.isArray(a))a=s.split(',');return a.filter(x=>typeof x==='string'||typeof x==='number').map(x=>String(x).trim()).filter(x=>x!=='')};const calendar=s=>{const d=new Date(s+'T00:00:00Z');return /^\\d{4}-\\d{2}-\\d{2}$/.test(s)&&!isNaN(d.getTime())&&d.toISOString().slice(0,10)===s};const date=(v,f)=>{const s=text(v);if(!calendar(s))throw new Error(f+' must be a calendar date in YYYY-MM-DD format, got \"'+v+'\".');return s};const tagGids=(ws,tags)=>{const known=new Set(),names=[];for(const m of tags){if(/^\\d+$/.test(m)){try{call({method:'GET',url:'/tags/'+seg(m),query:{opt_fields:'name'}});known.add(m);continue}catch(e){if(!/status (404|400)\\b/.test(String(e&&e.message||e)))throw e}}names.push(m)}const byName=new Map();let off=null;if(names.length>0){for(let r=0;r<20;r++){const p=call({method:'GET',url:'/tags?'+Object.entries(query({workspace:ws,opt_fields:'name',limit:100,offset:off})).map(([k,v])=>form(k)+'='+form(v)).join('&')});for(const t of Array.isArray(p.data)?p.data:[])if(typeof t.name==='string'&&!byName.has(t.name.toLowerCase()))byName.set(t.name.toLowerCase(),t.gid);off=p.next_page&&typeof p.next_page.offset==='string'&&p.next_page.offset!==''?p.next_page.offset:null;if(off===null)break}}const missing=[],gids=[];for(const m of tags){if(known.has(m)){gids.push(m);continue}const g=byName.get(m.toLowerCase());if(g===undefined)missing.push(m);else gids.push(g)}if(missing.length>0){const n=missing.map(x=>'\"'+x+'\"').join(', ');throw new Error(off!==null?'Tag '+n+' was not found in the first 2,000 tags of workspace '+ws+'; pass the tag gid instead (find it with List Tags or Search Workspace Objects).':'No tag named '+n+' exists in workspace '+ws+'. Create it first with Create Tag, or pass existing tag gids from List Tags.')}return gids};\nconst t=(i.due_on||'').trim();let due={};if(t!==''){if(/^\\d{4}-\\d{2}-\\d{2}$/.test(t))due={due_on:date(t,'Due Date')};else if(!isNaN(new Date(t).getTime()))due={due_at:new Date(t).toISOString()};else throw new Error('Due Date \"'+t+'\" is not a date. Use a date like 2026-12-31.')}const tags=list(i.tags);return req('POST','/tasks',{},{name:i.name,projects:[i.project],notes:opt(i.notes),assignee:opt(i.assignee),...due,tags:tags.length>0?tagGids(i.workspace,tags):[]});",
-      "result": "$.data"
-    },
     "get_current_user": {
       "label": "Get Current User",
       "description": "Get the Asana user behind this connection.",
@@ -253,12 +158,37 @@
         "workspace": {
           "label": "Workspace GID",
           "description": "Gid of the workspace that owns the project, for example 1201234567890123. Obtain it from List Workspaces or Get Current User.",
-          "required": true
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://app.asana.com/api/1.0/workspaces",
+              "query": {
+                "limit": "100"
+              }
+            },
+            "list": "$.data",
+            "label": "$.name",
+            "value": "$.gid"
+          }
         },
         "project": {
           "label": "Project GID",
           "description": "Gid of the project to create the task in. Obtain it from List Projects or Search Workspace Objects (object type project).",
-          "required": true
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://app.asana.com/api/1.0/projects",
+              "query": {
+                "workspace": "{{workspace}}",
+                "archived": "false",
+                "opt_fields": "name",
+                "limit": "100"
+              }
+            },
+            "list": "$.data",
+            "label": "$.name",
+            "value": "$.gid"
+          }
         },
         "name": {
           "label": "Task Name",
@@ -277,7 +207,20 @@
         },
         "assignee": {
           "label": "Assignee",
-          "description": "User to assign: \"me\", an email address or a user gid."
+          "description": "User to assign: \"me\", an email address or a user gid.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://app.asana.com/api/1.0/users",
+              "query": {
+                "workspace": "{{workspace}}",
+                "opt_fields": "name,email",
+                "limit": "100"
+              }
+            },
+            "list": "$.data",
+            "label": "$.name",
+            "value": "$.gid"
+          }
         },
         "due_on": {
           "label": "Due Date",
@@ -297,7 +240,20 @@
         },
         "tags": {
           "label": "Tags",
-          "description": "Tags to apply, one per item: a tag gid or the exact tag name in this workspace. Names are matched case-insensitively; an all-digit value is used as a gid when such a tag exists and is otherwise matched as a name; an unknown name fails the call. Create new tags first with Create Tag."
+          "description": "Tags to apply, one per item: a tag gid or the exact tag name in this workspace. Names are matched case-insensitively; an all-digit value is used as a gid when such a tag exists and is otherwise matched as a name; an unknown name fails the call. Create new tags first with Create Tag.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://app.asana.com/api/1.0/tags",
+              "query": {
+                "workspace": "{{workspace}}",
+                "opt_fields": "name",
+                "limit": "100"
+              }
+            },
+            "list": "$.data",
+            "label": "$.name",
+            "value": "$.gid"
+          }
         }
       },
       "request": {

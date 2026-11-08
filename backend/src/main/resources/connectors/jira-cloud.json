@@ -36,147 +36,8 @@
     }
   },
   "actions": {
-    "create_issue": {
-      "label": "Create Issue",
-      "description": "Creates a new issue in a project.",
-      "audience": "human",
-      "inputs": {
-        "projectId": {
-          "label": "Project",
-          "type": "string",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "GET",
-              "url": "https://{{credential.instanceUrl}}/rest/api/3/project/search",
-              "query": {
-                "startAt": "0",
-                "maxResults": "100"
-              }
-            },
-            "list": "$.values",
-            "label": "$.name",
-            "value": "$.id"
-          }
-        },
-        "issueTypeId": {
-          "label": "Issue Type",
-          "type": "string",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "GET",
-              "url": "https://{{credential.instanceUrl}}/rest/api/3/issue/createmeta/{{projectId}}/issuetypes"
-            },
-            "list": "$.issueTypes",
-            "label": "$.name",
-            "value": "$.id"
-          }
-        },
-        "issueFields": {
-          "label": "Fields",
-          "type": "json",
-          "required": true,
-          "description": "The issue's fields by their key, such as {\"summary\": \"Fix login\", \"customfield_10016\": 5}. Get Issue Type Create Fields lists them."
-        },
-        "adfFields": {
-          "label": "Fields Given as ADF JSON",
-          "description": "Fields whose value is Atlassian Document Format JSON, not plain text. A JSON list, such as [\"a\", \"b\"].",
-          "type": "json"
-        }
-      },
-      "request": {
-        "method": "GET",
-        "url": "https://{{credential.instanceUrl}}/rest/api/3/issue/createmeta/{{projectId}}/issuetypes/{{issueTypeId}}",
-        "query": {
-          "startAt": "0",
-          "maxResults": "100"
-        }
-      },
-      "afterResponse": "const local = (v) => new Date(/^\\d{4}-\\d{2}-\\d{2}$/.test(String(v)) ? v + 'T00:00:00' : v);\nconst two = (v) => String(v).padStart(2, '0');\nconst parseArray = (v) => { try { if (Array.isArray(v)) return v; const p = JSON.parse(v); return Array.isArray(p) ? p : []; } catch (e) { return []; } };\nconst format = (meta, input, adf) => {\n  const out = {};\n  for (const field of meta) {\n    const key = field.key;\n    const value = input[key];\n    if (value === undefined || value === null || value === '') continue;\n    switch (field.schema.type) {\n      case 'array': { const a = parseArray(value); if (a.length === 0) continue; out[key] = field.schema.items === 'string' ? a : a.map((i) => (field.schema.items === 'group' ? { groupId: i } : { id: i })); break; }\n      case 'user': out[key] = { accountId: value }; break;\n      case 'version': case 'option': case 'priority': case 'issuetype': case 'component': out[key] = { id: value }; break;\n      case 'issuelink': out[key] = { key: value }; break;\n      case 'group': out[key] = { groupId: value }; break;\n      case 'date': { const d = local(value); out[key] = d.getFullYear() + '-' + two(d.getMonth() + 1) + '-' + two(d.getDate()); break; }\n      case 'datetime': out[key] = local(value).toISOString(); break;\n      case 'number': out[key] = Number(value); break;\n      case 'project': out[key] = { key: value }; break;\n      case 'string':\n        if ((field.schema.custom && field.schema.custom.includes('textarea')) || ['description', 'environment'].includes(key)) {\n          out[key] = adf.includes(key) ? JSON.parse(value) : { type: 'doc', version: 1, content: [{ type: 'paragraph', content: [{ text: value, type: 'text' }] }] };\n        } else out[key] = value;\n        break;\n    }\n  }\n  return out;\n};\nconst named = (meta, fields) => { const names = {}; meta.forEach((f) => { names[f.key] = f.name; }); const out = {}; Object.entries(fields).forEach(([k, v]) => { out[k.startsWith('customfield_') ? names[k] ?? k : k] = v; }); return out; };\nconst json = (v, empty) => (String(v ?? '').trim() === '' ? empty : JSON.parse(v));\nconst path = '/issue/createmeta/' + encodeURIComponent(inputs.projectId) + '/issuetypes/' + encodeURIComponent(inputs.issueTypeId);\nconst meta = [];\nlet r = response;\nlet startAt = 0;\nwhile (r.fields !== undefined && r.fields !== null) {\n  if (Array.isArray(r.fields)) meta.push(...r.fields);\n  startAt += 100;\n  if (!(r.isLast === undefined ? r.startAt + r.maxResults < r.total : !r.isLast)) break;\n  r = call({ method: 'GET', url: path, query: { startAt: String(startAt), maxResults: '100' } });\n}\nconst fields = format(meta, json(inputs.issueFields, {}), json(inputs.adfFields, []) || []);\nconst created = call({ method: 'POST', url: '/issue', body: { fields: { issuetype: { id: inputs.issueTypeId }, project: { id: inputs.projectId }, ...fields } } });\nconst issue = call({ method: 'GET', url: '/issue/' + created.id });\nreturn { ...issue, fields: named(meta, issue.fields) };"
-    },
-    "update_issue": {
-      "label": "Update Issue",
-      "description": "Changes an issue's fields and, optionally, moves it to a new status.",
-      "audience": "human",
-      "inputs": {
-        "issueId": {
-          "label": "Issue",
-          "type": "string",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "POST",
-              "url": "https://{{credential.instanceUrl}}/rest/api/3/search/jql",
-              "body": {
-                "fields": [
-                  "summary"
-                ],
-                "jql": "created <= now() ORDER BY updated DESC",
-                "maxResults": 100
-              }
-            },
-            "list": "$.issues",
-            "label": "$.key",
-            "value": "$.id"
-          }
-        },
-        "statusId": {
-          "label": "Transition",
-          "description": "Moves the issue to the chosen status. Empty: no change.",
-          "type": "string",
-          "optionsFrom": {
-            "request": {
-              "method": "GET",
-              "url": "https://{{credential.instanceUrl}}/rest/api/3/issue/{{issueId}}/transitions"
-            },
-            "list": "$.transitions",
-            "label": "$.name",
-            "value": "$.id"
-          }
-        },
-        "issueFields": {
-          "label": "Fields",
-          "type": "json",
-          "required": true,
-          "description": "The fields to change by their key, such as {\"summary\": \"Fix login\"}. Get Issue Edit Metadata lists them."
-        },
-        "adfFields": {
-          "label": "Fields Given as ADF JSON",
-          "description": "Fields whose value is Atlassian Document Format JSON, not plain text. A JSON list, such as [\"a\", \"b\"].",
-          "type": "json"
-        }
-      },
-      "request": {
-        "method": "GET",
-        "url": "https://{{credential.instanceUrl}}/rest/api/3/issue/{{issueId}}/editmeta"
-      },
-      "beforeRequest": "if (String(inputs.statusId ?? '') !== '') call({ method: 'POST', url: '/issue/' + encodeURIComponent(inputs.issueId) + '/transitions', body: { transition: { id: inputs.statusId } } });\nreturn request;",
-      "afterResponse": "const local = (v) => new Date(/^\\d{4}-\\d{2}-\\d{2}$/.test(String(v)) ? v + 'T00:00:00' : v);\nconst two = (v) => String(v).padStart(2, '0');\nconst parseArray = (v) => { try { if (Array.isArray(v)) return v; const p = JSON.parse(v); return Array.isArray(p) ? p : []; } catch (e) { return []; } };\nconst format = (meta, input, adf) => {\n  const out = {};\n  for (const field of meta) {\n    const key = field.key;\n    const value = input[key];\n    if (value === undefined || value === null || value === '') continue;\n    switch (field.schema.type) {\n      case 'array': { const a = parseArray(value); if (a.length === 0) continue; out[key] = field.schema.items === 'string' ? a : a.map((i) => (field.schema.items === 'group' ? { groupId: i } : { id: i })); break; }\n      case 'user': out[key] = { accountId: value }; break;\n      case 'version': case 'option': case 'priority': case 'issuetype': case 'component': out[key] = { id: value }; break;\n      case 'issuelink': out[key] = { key: value }; break;\n      case 'group': out[key] = { groupId: value }; break;\n      case 'date': { const d = local(value); out[key] = d.getFullYear() + '-' + two(d.getMonth() + 1) + '-' + two(d.getDate()); break; }\n      case 'datetime': out[key] = local(value).toISOString(); break;\n      case 'number': out[key] = Number(value); break;\n      case 'project': out[key] = { key: value }; break;\n      case 'string':\n        if ((field.schema.custom && field.schema.custom.includes('textarea')) || ['description', 'environment'].includes(key)) {\n          out[key] = adf.includes(key) ? JSON.parse(value) : { type: 'doc', version: 1, content: [{ type: 'paragraph', content: [{ text: value, type: 'text' }] }] };\n        } else out[key] = value;\n        break;\n    }\n  }\n  return out;\n};\nconst named = (meta, fields) => { const names = {}; meta.forEach((f) => { names[f.key] = f.name; }); const out = {}; Object.entries(fields).forEach(([k, v]) => { out[k.startsWith('customfield_') ? names[k] ?? k : k] = v; }); return out; };\nconst json = (v, empty) => (String(v ?? '').trim() === '' ? empty : JSON.parse(v));\nconst meta = Object.values(response.fields);\nconst id = encodeURIComponent(inputs.issueId);\ncall({ method: 'PUT', url: '/issue/' + id, query: { returnIssue: 'true' }, body: { fields: format(meta, json(inputs.issueFields, {}), json(inputs.adfFields, []) || []) } });\nconst issue = call({ method: 'GET', url: '/issue/' + id });\nreturn { ...issue, fields: named(meta, issue.fields) };"
-    },
-    "find-user": {
-      "label": "Find User",
-      "description": "Finds an existing user.",
-      "audience": "human",
-      "inputs": {
-        "keyword": {
-          "label": "Keyword",
-          "description": "Matches part of a name or email address.",
-          "type": "string",
-          "required": true
-        }
-      },
-      "request": {
-        "method": "GET",
-        "url": "https://{{credential.instanceUrl}}/rest/api/3/user/search",
-        "query": {
-          "query": "{{keyword}}"
-        }
-      },
-      "afterResponse": "return { found: response.length > 0, data: response };"
-    },
     "search_issues": {
-      "label": "Search Issues",
+      "label": "Search Issues (All Pages)",
       "description": "Finds issues that match a JQL query.",
       "audience": "human",
       "inputs": {
@@ -219,131 +80,8 @@
       "beforeRequest": "const max = Number(inputs.maxResults);\nif (!(max >= 1 && max <= 5000)) throw new Error('Max Results must be between 1 and 5000.');\nconst fields = (JSON.parse(String(inputs.fields ?? '').trim() || 'null') || []).filter((f) => f && f.trim().length > 0);\nconst searchBody = (limit, token, jql) => ({ maxResults: limit, ...(token ? { nextPageToken: token } : {}), fields: fields.length > 0 ? fields : ['*navigable'], ...(inputs.mapNames === 'true' ? { expand: 'names' } : {}), jql });\nconst sanitizing = { method: 'POST', url: '/jql/sanitize', body: { queries: [{ query: inputs.jql }] } };\nreturn inputs.sanitizeJql === 'true' ? { ...request, ...sanitizing } : { ...request, body: searchBody(Math.min(100, max), undefined, inputs.jql) };",
       "afterResponse": "const max = Number(inputs.maxResults);\nif (!(max >= 1 && max <= 5000)) throw new Error('Max Results must be between 1 and 5000.');\nconst fields = (JSON.parse(String(inputs.fields ?? '').trim() || 'null') || []).filter((f) => f && f.trim().length > 0);\nconst searchBody = (limit, token, jql) => ({ maxResults: limit, ...(token ? { nextPageToken: token } : {}), fields: fields.length > 0 ? fields : ['*navigable'], ...(inputs.mapNames === 'true' ? { expand: 'names' } : {}), jql });\nconst sanitizing = { method: 'POST', url: '/jql/sanitize', body: { queries: [{ query: inputs.jql }] } };\nconst mapNames = (fields, names) => { const out = {}; Object.entries(fields).forEach(([id, value]) => { out[names?.[id] || id] = value; }); return out; };\nlet first = response;\nconst send = (spec) => { if (first !== undefined) { const r = first; first = undefined; return r; } return call(spec); };\nconst all = [];\nlet token;\nwhile (all.length < max) {\n  const limit = Math.min(100, max - all.length);\n  const jql = inputs.sanitizeJql === 'true' ? send(sanitizing).queries[0].sanitizedQuery : inputs.jql;\n  const r = send({ method: 'POST', url: '/search/jql', body: searchBody(limit, token, jql) });\n  const issues = r.issues;\n  const names = r.names || {};\n  if (inputs.mapNames === 'true' && Object.keys(names).length > 0) issues.forEach((issue) => { if (issue.fields) issue.fields = mapNames(issue.fields, names); });\n  all.push(...issues);\n  token = r.nextPageToken;\n  if (!token || issues.length === 0) break;\n}\nreturn all;"
     },
-    "assign_issue": {
-      "label": "Assign Issue",
-      "description": "Assigns an issue to a user.",
-      "audience": "human",
-      "inputs": {
-        "projectId": {
-          "label": "Project",
-          "type": "string",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "GET",
-              "url": "https://{{credential.instanceUrl}}/rest/api/3/project/search",
-              "query": {
-                "startAt": "0",
-                "maxResults": "100"
-              }
-            },
-            "list": "$.values",
-            "label": "$.name",
-            "value": "$.id"
-          }
-        },
-        "issueId": {
-          "label": "Issue",
-          "type": "string",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "POST",
-              "url": "https://{{credential.instanceUrl}}/rest/api/3/search/jql",
-              "body": {
-                "fields": [
-                  "summary"
-                ],
-                "jql": "project={{projectId}}",
-                "maxResults": 100
-              }
-            },
-            "list": "$.issues",
-            "label": "$.key",
-            "value": "$.id"
-          }
-        },
-        "assignee": {
-          "label": "Assignee",
-          "description": "The person who will own the issue.",
-          "type": "string",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "GET",
-              "url": "https://{{credential.instanceUrl}}/rest/api/3/users/search",
-              "query": {
-                "maxResults": "1000"
-              }
-            },
-            "list": "$",
-            "label": "$.displayName",
-            "value": "$.accountId"
-          }
-        }
-      },
-      "request": {
-        "method": "PUT",
-        "url": "https://{{credential.instanceUrl}}/rest/api/3/issue/{{issueId}}/assignee",
-        "body": {
-          "accountId": "{{assignee}}"
-        }
-      }
-    },
-    "add-watcher-to-issue": {
-      "label": "Add Watcher to Issue",
-      "description": "Adds a new watcher to an issue.",
-      "audience": "human",
-      "inputs": {
-        "issueId": {
-          "label": "Issue",
-          "type": "string",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "POST",
-              "url": "https://{{credential.instanceUrl}}/rest/api/3/search/jql",
-              "body": {
-                "fields": [
-                  "summary"
-                ],
-                "jql": "created <= now() ORDER BY updated DESC",
-                "maxResults": 100
-              }
-            },
-            "list": "$.issues",
-            "label": "$.key",
-            "value": "$.id"
-          }
-        },
-        "userId": {
-          "label": "User",
-          "description": "Gets notified about changes to the issue.",
-          "type": "string",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "GET",
-              "url": "https://{{credential.instanceUrl}}/rest/api/3/users/search",
-              "query": {
-                "maxResults": "1000"
-              }
-            },
-            "list": "$",
-            "label": "$.displayName",
-            "value": "$.accountId"
-          }
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://{{credential.instanceUrl}}/rest/api/3/issue/{{issueId}}/watchers",
-        "body": "{{userId}}"
-      },
-      "afterResponse": "return { success: true };"
-    },
     "add_issue_comment": {
-      "label": "Add Issue Comment",
+      "label": "Add Comment (Plain Text or ADF)",
       "description": "Adds a comment to an issue.",
       "audience": "human",
       "inputs": {
@@ -405,7 +143,7 @@
       "beforeRequest": "const doc = (text) => ({ version: 1, type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text }] }] });\nrequest.body = { body: inputs.isADF === 'true' ? JSON.parse(inputs.comment) : doc(inputs.comment) };\nreturn request;"
     },
     "update_issue_comment": {
-      "label": "Update Issue Comment",
+      "label": "Update Comment (Plain Text or ADF)",
       "description": "Updates a comment on an issue.",
       "audience": "human",
       "inputs": {
@@ -484,233 +222,8 @@
       },
       "beforeRequest": "const doc = (text) => ({ version: 1, type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text }] }] });\nrequest.body = { body: inputs.isADF === 'true' ? JSON.parse(inputs.comment) : doc(inputs.comment) };\nreturn request;"
     },
-    "link-issues": {
-      "label": "Link Issues",
-      "description": "Creates a link between two issues.",
-      "audience": "human",
-      "inputs": {
-        "firstIssueId": {
-          "label": "First Issue",
-          "type": "string",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "POST",
-              "url": "https://{{credential.instanceUrl}}/rest/api/3/search/jql",
-              "body": {
-                "fields": [
-                  "summary"
-                ],
-                "jql": "created <= now() ORDER BY updated DESC",
-                "maxResults": 100
-              }
-            },
-            "list": "$.issues",
-            "label": "$.key",
-            "value": "$.id"
-          }
-        },
-        "issueLinkTypeId": {
-          "label": "Link Type",
-          "type": "string",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "GET",
-              "url": "https://{{credential.instanceUrl}}/rest/api/3/issueLinkType"
-            },
-            "list": "$.issueLinkTypes",
-            "label": "$.inward",
-            "value": "$.id"
-          }
-        },
-        "secondIssueId": {
-          "label": "Second Issue",
-          "type": "string",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "POST",
-              "url": "https://{{credential.instanceUrl}}/rest/api/3/search/jql",
-              "body": {
-                "fields": [
-                  "summary"
-                ],
-                "jql": "created <= now() ORDER BY updated DESC",
-                "maxResults": 100
-              }
-            },
-            "list": "$.issues",
-            "label": "$.key",
-            "value": "$.id"
-          }
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://{{credential.instanceUrl}}/rest/api/3/issueLink",
-        "body": {
-          "type": {
-            "id": "{{issueLinkTypeId}}"
-          },
-          "inwardIssue": {
-            "id": "{{secondIssueId}}"
-          },
-          "outwardIssue": {
-            "id": "{{firstIssueId}}"
-          }
-        }
-      },
-      "afterResponse": "return { success: true, message: 'Issues linked successfully', data: response && Object.keys(response).length > 0 ? response : null };"
-    },
-    "list_issue_comments": {
-      "label": "List Issue Comments",
-      "description": "Lists an issue's comments, newest or oldest first.",
-      "audience": "human",
-      "inputs": {
-        "projectId": {
-          "label": "Project",
-          "type": "string",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "GET",
-              "url": "https://{{credential.instanceUrl}}/rest/api/3/project/search",
-              "query": {
-                "startAt": "0",
-                "maxResults": "100"
-              }
-            },
-            "list": "$.values",
-            "label": "$.name",
-            "value": "$.id"
-          }
-        },
-        "issueId": {
-          "label": "Issue",
-          "type": "string",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "POST",
-              "url": "https://{{credential.instanceUrl}}/rest/api/3/search/jql",
-              "body": {
-                "fields": [
-                  "summary"
-                ],
-                "jql": "project={{projectId}}",
-                "maxResults": 100
-              }
-            },
-            "list": "$.issues",
-            "label": "$.key",
-            "value": "$.id"
-          }
-        },
-        "orderBy": {
-          "label": "Order By",
-          "type": "select",
-          "required": true,
-          "defaultValue": "-created",
-          "options": [
-            {
-              "value": "-created",
-              "label": "Newest First"
-            },
-            {
-              "value": "+created",
-              "label": "Oldest First"
-            }
-          ]
-        },
-        "limit": {
-          "label": "Max Results",
-          "description": "Most comments to return.",
-          "type": "number",
-          "required": true,
-          "defaultValue": "10"
-        }
-      },
-      "request": {
-        "method": "GET",
-        "url": "https://{{credential.instanceUrl}}/rest/api/3/issue/{{issueId}}/comment",
-        "query": {
-          "orderBy": "{{orderBy}}",
-          "maxResults": "{{limit}}",
-          "expand": "renderedBody"
-        }
-      }
-    },
-    "delete_issue_comment": {
-      "label": "Delete Issue Comment",
-      "description": "Deletes a comment on a specific issue.",
-      "audience": "human",
-      "inputs": {
-        "projectId": {
-          "label": "Project",
-          "type": "string",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "GET",
-              "url": "https://{{credential.instanceUrl}}/rest/api/3/project/search",
-              "query": {
-                "startAt": "0",
-                "maxResults": "100"
-              }
-            },
-            "list": "$.values",
-            "label": "$.name",
-            "value": "$.id"
-          }
-        },
-        "issueId": {
-          "label": "Issue",
-          "type": "string",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "POST",
-              "url": "https://{{credential.instanceUrl}}/rest/api/3/search/jql",
-              "body": {
-                "fields": [
-                  "summary"
-                ],
-                "jql": "project={{projectId}}",
-                "maxResults": 100
-              }
-            },
-            "list": "$.issues",
-            "label": "$.key",
-            "value": "$.id"
-          }
-        },
-        "commentId": {
-          "label": "Comment",
-          "type": "string",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "GET",
-              "url": "https://{{credential.instanceUrl}}/rest/api/3/issue/{{issueId}}/comment",
-              "query": {
-                "orderBy": "-created",
-                "expand": "renderedBody"
-              }
-            },
-            "list": "$.comments",
-            "label": "$.renderedBody",
-            "value": "$.id"
-          }
-        }
-      },
-      "request": {
-        "method": "DELETE",
-        "url": "https://{{credential.instanceUrl}}/rest/api/3/issue/{{issueId}}/comment/{{commentId}}"
-      }
-    },
     "get_issue": {
-      "label": "Get Issue",
+      "label": "Get Issue (Fields by Name)",
       "description": "Gets an issue's fields and details.",
       "audience": "human",
       "inputs": {
@@ -778,85 +291,14 @@
       "beforeRequest": "const expand = String(inputs.expand ?? '').trim() === '' ? undefined : JSON.parse(inputs.expand);\nconst list = inputs.mapNames === 'true' ? [...new Set(expand).add('names')] : expand;\nif (list) request.query = { ...request.query, expand: list.join(',') };\nreturn request;",
       "afterResponse": "const mapNames = (fields, names) => { const out = {}; Object.entries(fields).forEach(([id, value]) => { out[names?.[id] || id] = value; }); return out; };\nconst data = response;\nif (inputs.mapNames === 'true') {\n  const names = data.names || {};\n  data.fields = mapNames(data.fields, names);\n  if (data.renderedFields) data.renderedFields = mapNames(data.renderedFields, names);\n  if (data.schema) data.schema = mapNames(data.schema, names);\n  if (data.editmeta?.fields) data.editmeta.fields = mapNames(data.editmeta.fields, names);\n}\nif (inputs.mapTransitions === 'true' && data.transitions) data.transitions = data.transitions.reduce((all, transition) => { all[transition.name] = transition; return all; }, {});\nreturn data;"
     },
-    "transition_issue": {
-      "label": "Transition Issue",
-      "description": "Moves an issue to a new status by executing a workflow transition.",
-      "audience": "human",
-      "inputs": {
-        "projectId": {
-          "label": "Project",
-          "type": "string",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "GET",
-              "url": "https://{{credential.instanceUrl}}/rest/api/3/project/search",
-              "query": {
-                "startAt": "0",
-                "maxResults": "100"
-              }
-            },
-            "list": "$.values",
-            "label": "$.name",
-            "value": "$.id"
-          }
-        },
-        "issueId": {
-          "label": "Issue",
-          "type": "string",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "POST",
-              "url": "https://{{credential.instanceUrl}}/rest/api/3/search/jql",
-              "body": {
-                "fields": [
-                  "summary"
-                ],
-                "jql": "project={{projectId}}",
-                "maxResults": 100
-              }
-            },
-            "list": "$.issues",
-            "label": "$.key",
-            "value": "$.id"
-          }
-        },
-        "transitionId": {
-          "label": "Transition",
-          "description": "Moves the issue to the chosen status.",
-          "type": "string",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "GET",
-              "url": "https://{{credential.instanceUrl}}/rest/api/3/issue/{{issueId}}/transitions"
-            },
-            "list": "$.transitions",
-            "label": "$.name",
-            "value": "$.id"
-          }
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://{{credential.instanceUrl}}/rest/api/3/issue/{{issueId}}/transitions",
-        "body": {
-          "transition": {
-            "id": "{{transitionId}}"
-          }
-        }
-      },
-      "afterResponse": "return { success: true, issue: call({ method: 'GET', url: '/issue/' + encodeURIComponent(inputs.issueId) }) };"
-    },
     "add_comment": {
-      "label": "Add Comment",
+      "label": "Add Comment (Markdown)",
       "description": "Adds a comment to an issue.",
       "audience": "ai",
       "inputs": {
         "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues by JQL.",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
           "type": "string",
           "required": true
         },
@@ -880,7 +322,7 @@
       "inputs": {
         "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues by JQL.",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
           "type": "string",
           "required": true
         },
@@ -905,7 +347,7 @@
       "inputs": {
         "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues by JQL.",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
           "type": "string",
           "required": true
         },
@@ -972,7 +414,7 @@
       "inputs": {
         "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues by JQL.",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
           "type": "string",
           "required": true
         },
@@ -1256,7 +698,7 @@
       "inputs": {
         "attachmentId": {
           "label": "Attachment ID",
-          "description": "The numeric attachment ID, from the attachment field of Fetch Issue.",
+          "description": "The numeric attachment ID, from the attachment field of Get Issue (Chosen Fields).",
           "type": "string",
           "required": true
         }
@@ -1275,7 +717,7 @@
       "inputs": {
         "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues by JQL.",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
           "type": "string",
           "required": true
         },
@@ -1300,7 +742,7 @@
       "inputs": {
         "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues by JQL.",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
           "type": "string",
           "required": true
         },
@@ -1325,7 +767,7 @@
       "inputs": {
         "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues by JQL.",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
           "type": "string",
           "required": true
         },
@@ -1383,7 +825,7 @@
       "inputs": {
         "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues by JQL.",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
           "type": "string",
           "required": true
         },
@@ -1448,13 +890,13 @@
       "beforeRequest": "const markdownToAdf = (source) => {\n  const RANK = ['link', 'em', 'strong', 'strike', 'code'];\n  const inline = (text, marks) => {\n    const out = [];\n    const push = (value, with_) => {\n      if (!value) return;\n      const sorted = with_.slice().sort((a, b) => RANK.indexOf(a.type) - RANK.indexOf(b.type));\n      const last = out[out.length - 1];\n      if (last && JSON.stringify(last.marks || []) === JSON.stringify(sorted)) { last.text += value; return; }\n      out.push(sorted.length ? { type: 'text', text: value, marks: sorted } : { type: 'text', text: value });\n    };\n    const nest = (inner, mark) => inline(inner, marks.concat([mark])).forEach((node) => push(node.text, node.marks || []));\n    const wordChar = (char) => !!char && /[A-Za-z0-9]/.test(char);\n    let plain = '';\n    let index = 0;\n    const flush = () => { push(plain, marks); plain = ''; };\n    while (index < text.length) {\n      const rest = text.slice(index);\n      const before = text[index - 1];\n      let found;\n      if ((found = /^\\\\([!-\\/:-@\\[-`{-~])/.exec(rest))) { plain += found[1]; index += 2; continue; }\n      if ((found = /^(`+)([\\s\\S]*?[^`])\\1(?!`)/.exec(rest))) {\n        flush();\n        let code = found[2].replace(/\\n/g, ' ');\n        if (/^ .* $/.test(code) && code.trim()) code = code.slice(1, -1);\n        push(code, [{ type: 'code' }]);\n        index += found[0].length; continue;\n      }\n      if ((found = /^\\[([^\\]]*)\\]\\(\\s*<?([^)\\s>]*)>?\\s*\\)/.exec(rest))) {\n        flush(); nest(found[1], { type: 'link', attrs: { href: found[2] } }); index += found[0].length; continue;\n      }\n      if ((found = /^(\\*\\*\\*|___)(?=\\S)([\\s\\S]*?\\S)\\1/.exec(rest)) && (found[1] === '***' || (!wordChar(before) && !wordChar(text[index + found[0].length])))) {\n        flush(); inline(found[2], marks.concat([{ type: 'em' }, { type: 'strong' }])).forEach((node) => push(node.text, node.marks || [])); index += found[0].length; continue;\n      }\n      if ((found = /^(\\*\\*|__)(?=\\S)([\\s\\S]*?\\S)\\1/.exec(rest)) && (found[1] === '**' || (!wordChar(before) && !wordChar(text[index + found[0].length])))) {\n        flush(); nest(found[2], { type: 'strong' }); index += found[0].length; continue;\n      }\n      if ((found = /^~~(?=\\S)([\\s\\S]*?\\S)~~/.exec(rest))) { flush(); nest(found[1], { type: 'strike' }); index += found[0].length; continue; }\n      if ((found = /^\\*(?=[^\\s*])([\\s\\S]*?[^\\s\\\\])\\*(?!\\*)/.exec(rest))) { flush(); nest(found[1], { type: 'em' }); index += found[0].length; continue; }\n      if (rest[0] === '_' && !wordChar(before) && /^_\\S/.test(rest)) {\n        let close = rest.indexOf('_', 2);\n        while (close > 0 && (/\\s/.test(rest[close - 1]) || wordChar(rest[close + 1]))) close = rest.indexOf('_', close + 1);\n        if (close > 0) { flush(); nest(rest.slice(1, close), { type: 'em' }); index += close + 1; continue; }\n      }\n      plain += text[index]; index += 1;\n    }\n    flush();\n    return out;\n  };\n  const LIST = /^( {0,3})([-*+]|\\d{1,9}[.)])( +|$)(.*)$/;\n  const FENCE = /^ {0,3}(```+|~~~+)\\s*([^`\\s]*)[^`]*$/;\n  const HEADING = /^ {0,3}(#{1,6})(?:[ \\t]+(.*?))?(?:[ \\t]+#+)?[ \\t]*$/;\n  const RULE = /^ {0,3}([-*_])(?:[ \\t]*\\1){2,}[ \\t]*$/;\n  const QUOTE = /^ {0,3}> ?(.*)$/;\n  const SEPARATOR = /^\\s*\\|?\\s*:?-+:?\\s*(\\|\\s*:?-+:?\\s*)*\\|?\\s*$/;\n  const cells = (line) => line.trim().replace(/^\\|/, '').replace(/\\|$/, '').split('|').map((cell) => cell.trim());\n  const paragraph = (text, type, attrs) => {\n    const content = inline(text, []);\n    const node = attrs ? { type, attrs } : { type };\n    if (content.length) node.content = content;\n    return node;\n  };\n  const blocks = (lines) => {\n    const out = [];\n    let index = 0;\n    while (index < lines.length) {\n      const line = lines[index];\n      let found;\n      if (!line.trim()) { index += 1; continue; }\n      if ((found = FENCE.exec(line))) {\n        const fence = found[1];\n        const body = [];\n        index += 1;\n        while (index < lines.length && !new RegExp('^ {0,3}' + fence[0] + '{' + fence.length + ',}\\\\s*$').test(lines[index])) body.push(lines[index++]);\n        index += 1;\n        const node = { type: 'codeBlock', attrs: found[2] ? { language: found[2] } : {} };\n        if (body.join('\\n')) node.content = [{ type: 'text', text: body.join('\\n') }];\n        out.push(node);\n        continue;\n      }\n      if ((found = HEADING.exec(line))) { out.push(paragraph((found[2] || '').trim(), 'heading', { level: found[1].length })); index += 1; continue; }\n      if (RULE.test(line)) { out.push({ type: 'rule' }); index += 1; continue; }\n      if (QUOTE.test(line)) {\n        const inner = [];\n        while (index < lines.length && lines[index].trim() && (found = QUOTE.exec(lines[index]) || [null, lines[index]])) { inner.push(found[1]); index += 1; }\n        out.push({ type: 'blockquote', content: blocks(inner) });\n        continue;\n      }\n      if ((found = LIST.exec(line))) {\n        const ordered = /\\d/.test(found[2]);\n        const marker = found[2].slice(-1);\n        const node = ordered ? { type: 'orderedList', attrs: { order: Number(found[2].slice(0, -1)) }, content: [] } : { type: 'bulletList', content: [] };\n        while (index < lines.length && (found = LIST.exec(lines[index])) && /\\d/.test(found[2]) === ordered && found[2].slice(-1) === marker) {\n          const indent = found[1].length + found[2].length + Math.max(1, Math.min(found[3].length, 4));\n          const body = [found[4]];\n          index += 1;\n          while (index < lines.length) {\n            const next = lines[index];\n            if (!next.trim()) {\n              const following = lines.slice(index).find((rest) => rest.trim());\n              if (following !== undefined && following.search(/\\S/) >= indent) { body.push(''); index += 1; continue; }\n              break;\n            }\n            if (next.search(/\\S/) >= indent) { body.push(next.slice(indent)); index += 1; continue; }\n            if (LIST.test(next) || FENCE.test(next) || HEADING.test(next) || RULE.test(next) || QUOTE.test(next)) break;\n            body.push(next); index += 1;\n          }\n          node.content.push({ type: 'listItem', content: blocks(body) });\n          while (index < lines.length && !lines[index].trim() && lines.slice(index).find((rest) => rest.trim()) && LIST.test(lines.slice(index).find((rest) => rest.trim()))) index += 1;\n        }\n        out.push(node);\n        continue;\n      }\n      if (line.includes('|') && index + 1 < lines.length && SEPARATOR.test(lines[index + 1]) && lines[index + 1].includes('-')) {\n        const header = cells(line);\n        const rows = [{ type: 'tableRow', content: header.map((cell) => ({ type: 'tableHeader', attrs: {}, content: [paragraph(cell, 'paragraph')] })) }];\n        index += 2;\n        while (index < lines.length && lines[index].trim() && lines[index].includes('|')) {\n          const values = cells(lines[index]);\n          rows.push({ type: 'tableRow', content: header.map((_, column) => ({ type: 'tableCell', attrs: {}, content: [paragraph(values[column] || '', 'paragraph')] })) });\n          index += 1;\n        }\n        out.push({ type: 'table', attrs: { isNumberColumnEnabled: false, layout: 'default' }, content: rows });\n        continue;\n      }\n      const text = [];\n      while (index < lines.length && lines[index].trim()) {\n        const next = lines[index];\n        if (text.length && (FENCE.test(next) || HEADING.test(next) || RULE.test(next) || QUOTE.test(next) || (/^ {0,3}([-*+]|1[.)]) +\\S/.test(next)))) break;\n        text.push(next.replace(/^\\s+/, ''));\n        index += 1;\n      }\n      out.push(paragraph(text.join('\\n').replace(/\\s+$/, ''), 'paragraph'));\n    }\n    return out;\n  };\n  return { version: 1, type: 'doc', content: blocks(String(source).replace(/\\r\\n?/g, '\\n').split('\\n')) };\n};\nconst has = (v) => v !== undefined && v !== null && String(v).trim().length > 0;\nconst j = (v) => (v === undefined || v === null || String(v).trim() === '' ? undefined : JSON.parse(v));\nconst list = (v) => { const a = j(v); return Array.isArray(a) ? a.map((i) => (typeof i === 'string' || typeof i === 'number' ? String(i).trim() : '')).filter((i) => i.length > 0) : []; };\nconst projectRef = (v) => (/^\\d+$/.test(v.trim()) ? { id: v.trim() } : { key: v.trim() });\nconst record = (v, label) => { if (v === undefined || v === null || v === '') return undefined; const o = typeof v === 'string' ? JSON.parse(v) : v; if (typeof o !== 'object' || o === null || Array.isArray(o)) throw new Error(label + ' must be a JSON object.'); return o; };\nconst issueFields = (f) => ({\n  ...(f.extraFields ?? {}),\n  ...(has(f.projectIdOrKey) ? { project: projectRef(f.projectIdOrKey) } : {}),\n  ...(has(f.issueTypeId) ? { issuetype: { id: f.issueTypeId.trim() } } : {}),\n  ...(has(f.summary) ? { summary: f.summary } : {}),\n  ...(has(f.description) ? { description: markdownToAdf(f.description) } : {}),\n  ...(has(f.assigneeAccountId) ? { assignee: { accountId: f.assigneeAccountId.trim() } } : {}),\n  ...(has(f.priorityId) ? { priority: { id: f.priorityId.trim() } } : {}),\n  ...(f.labels !== undefined && f.labels.length > 0 ? { labels: f.labels } : {}),\n  ...(has(f.parentKey) ? { parent: { key: f.parentKey.trim() } } : {}),\n  ...(has(f.dueDate) ? { duedate: f.dueDate.trim() } : {}),\n});\nconst fields = { ...issueFields({ issueTypeId: inputs.issueTypeId, summary: inputs.summary, description: inputs.description, assigneeAccountId: inputs.assigneeAccountId,\n  priorityId: inputs.priorityId, parentKey: inputs.parentKey, dueDate: inputs.dueDate, extraFields: record(inputs.fields, 'Additional Fields') }),\n  ...(Array.isArray(j(inputs.labels)) ? { labels: list(inputs.labels) } : {}) };\nif (Object.keys(fields).length === 0) throw new Error('Provide at least one field to update.');\nrequest.query = { returnIssue: 'true', notifyUsers: String(inputs.notifyUsers !== 'false') };\nrequest.body = { fields };\nrequest.url = request.url.replace(/\\/([^\\/?]*)/g, (m, part) => '/' + encodeURIComponent(decodeURIComponent(part).trim()));\nreturn request;"
     },
     "fetch_issue": {
-      "label": "Fetch Issue",
+      "label": "Get Issue (Chosen Fields)",
       "description": "Gets an issue by key or ID.",
       "audience": "ai",
       "inputs": {
         "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues by JQL.",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
           "type": "string",
           "required": true
         },
@@ -1522,7 +964,7 @@
       "inputs": {
         "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues by JQL.",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
           "type": "string",
           "required": true
         },
@@ -1612,7 +1054,7 @@
       "inputs": {
         "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues by JQL.",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
           "type": "string",
           "required": true
         }
@@ -1668,7 +1110,7 @@
       "inputs": {
         "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues by JQL.",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
           "type": "string",
           "required": true
         },
@@ -1753,7 +1195,7 @@
       "inputs": {
         "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues by JQL.",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
           "type": "string",
           "required": true
         }
@@ -1771,7 +1213,7 @@
       "inputs": {
         "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues by JQL.",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
           "type": "string",
           "required": true
         }
@@ -2041,7 +1483,7 @@
       "inputs": {
         "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues by JQL.",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
           "type": "string",
           "required": true
         }
@@ -2113,7 +1555,7 @@
       "inputs": {
         "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues by JQL.",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
           "type": "string",
           "required": true
         },
@@ -2207,7 +1649,7 @@
       "inputs": {
         "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues by JQL.",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
           "type": "string",
           "required": true
         },
@@ -2417,7 +1859,7 @@
       "inputs": {
         "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues by JQL.",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
           "type": "string",
           "required": true
         },
@@ -2518,7 +1960,7 @@
       "afterResponse": "const page = (items, r, isLast) => { const s = r.startAt ?? 0; return { items, count: items.length, start_at: s, max_results: r.maxResults ?? null, total: r.total ?? null, is_last: isLast ?? (r.total === undefined ? null : s + items.length >= r.total) }; };\nreturn page(response.values ?? [], response, response.isLast);"
     },
     "search_issues_by_jql": {
-      "label": "Search Issues by JQL",
+      "label": "Search Issues (One Page)",
       "description": "Searches issues with a JQL query, one page at a time.",
       "audience": "ai",
       "inputs": {
@@ -2559,7 +2001,7 @@
       "inputs": {
         "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues by JQL.",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
           "type": "string",
           "required": true
         },
@@ -2624,7 +2066,7 @@
       "inputs": {
         "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues by JQL.",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
           "type": "string",
           "required": true
         },
@@ -2658,13 +2100,13 @@
       "afterResponse": "const issue = call({ method: 'GET', url: '/issue/' + encodeURIComponent(inputs.issueIdOrKey.trim()), query: { fields: 'status' } });\nreturn { success: true, issue: issue.key ?? inputs.issueIdOrKey.trim(), transition_id: inputs.transitionId.trim(), status: issue.fields?.status ?? null };"
     },
     "update_comment": {
-      "label": "Update Comment",
+      "label": "Update Comment (Markdown)",
       "description": "Replaces the text of a comment.",
       "audience": "ai",
       "inputs": {
         "issueIdOrKey": {
           "label": "Issue ID or Key",
-          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues by JQL.",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues (One Page).",
           "type": "string",
           "required": true
         },

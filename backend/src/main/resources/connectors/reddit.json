@@ -21,7 +21,7 @@
   },
   "actions": {
     "retrieveRedditPost": {
-      "label": "Retrieve Post",
+      "label": "List Subreddit Posts with All Fields",
       "description": "Fetch top posts in a subreddit with optional size limit.",
       "audience": "human",
       "inputs": {
@@ -77,7 +77,7 @@
       "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nreturn response;"
     },
     "getRedditPostDetails": {
-      "label": "Get Post Details",
+      "label": "Get Post Details with Media",
       "description": "Fetch detailed information about a specific Reddit post using its ID.",
       "audience": "human",
       "inputs": {
@@ -97,87 +97,8 @@
       "beforeRequest": "var full = (value, prefix, accept = [prefix]) => { var text = String(value).trim(); if (!/^t[1-6]_/.test(text)) return prefix + text; if (!accept.some((start) => text.startsWith(start))) throw new Error('Expected a ' + accept.join(' or ') + ' fullname, got \"' + text + '\".'); return text; };\nrequest.query.id = full(inputs.post_id, 't3_');\nreturn request;",
       "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nvar found = response.data.children[0];\nif (!found) return { error: 'No post found with the given ID' };\nvar data = found.data;\nvar KEYS_POST = ['id', 'title', 'author', 'author_fullname', 'subreddit', 'subreddit_id', 'selftext', 'selftext_html', 'score', 'upvote_ratio', 'created_utc', 'permalink', 'url', 'domain', 'num_comments', 'is_self', 'is_video', 'is_original_content', 'over_18', 'spoiler', 'locked', 'stickied', 'post_hint'];\nreturn { ...Object.fromEntries(KEYS_POST.map((key) => [key, data[key]])), ...(data.media ? { media: data.media } : {}), ...(data.gallery_data ? { gallery_data: data.gallery_data } : {}) };"
     },
-    "createRedditPost": {
-      "label": "Create Post",
-      "description": "Submit a new self (text) post to a subreddit.",
-      "audience": "human",
-      "inputs": {
-        "subreddit": {
-          "label": "Subreddit",
-          "description": "The subreddit to post in (without r/).",
-          "required": true
-        },
-        "title": {
-          "label": "Title",
-          "description": "Title of the Reddit post.",
-          "required": true
-        },
-        "content": {
-          "label": "Content",
-          "description": "Text content of the post.",
-          "required": true,
-          "type": "multiline"
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://oauth.reddit.com/api/submit",
-        "headers": {
-          "Content-Type": "application/x-www-form-urlencoded"
-        },
-        "query": {
-          "raw_json": "1"
-        },
-        "body": {
-          "api_type": "json",
-          "sr": "{{subreddit}}",
-          "title": "{{title}}",
-          "text": "{{content}}",
-          "kind": "self"
-        }
-      },
-      "outputs": {
-        "id": "$.json.data.id",
-        "name": "$.json.data.name",
-        "url": "$.json.data.url"
-      }
-    },
-    "createRedditComment": {
-      "label": "Create Comment",
-      "description": "Comment on a Reddit post or reply to a comment.",
-      "audience": "human",
-      "inputs": {
-        "parent_id": {
-          "label": "Parent ID",
-          "description": "ID of the post (t3_*) or comment (t1_*) to reply to.",
-          "required": true
-        },
-        "content": {
-          "label": "Comment Text",
-          "description": "Text of the comment.",
-          "required": true,
-          "type": "multiline"
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://oauth.reddit.com/api/comment",
-        "headers": {
-          "Content-Type": "application/x-www-form-urlencoded"
-        },
-        "query": {
-          "raw_json": "1"
-        },
-        "body": {
-          "api_type": "json",
-          "thing_id": "{{parent_id}}",
-          "text": "{{content}}"
-        }
-      },
-      "beforeRequest": "var full = (value, prefix, accept = [prefix]) => { var text = String(value).trim(); if (!/^t[1-6]_/.test(text)) return prefix + text; if (!accept.some((start) => text.startsWith(start))) throw new Error('Expected a ' + accept.join(' or ') + ' fullname, got \"' + text + '\".'); return text; };\nrequest.body.thing_id = full(inputs.parent_id, 't3_', ['t1_', 't3_']);\nreturn request;"
-    },
     "fetchPostComments": {
-      "label": "Fetch Post Comments",
+      "label": "List Post Comments as Tree, Up to 500",
       "description": "Fetch comments from a specific Reddit post.",
       "audience": "human",
       "inputs": {
@@ -236,130 +157,6 @@
       },
       "beforeRequest": "var address = (raw) => { var form = (value) => encodeURIComponent(value).replace(/%20/g, '+').replace(/[!'()~]/g, (character) => '%' + character.charCodeAt(0).toString(16).toUpperCase()); var decode = (value) => value.replace(/\\+/g, ' ').replace(/(%[0-9A-Fa-f]{2})+/g, (run) => { try { return decodeURIComponent(run); } catch (error) { return run.match(/%../g).map((byte) => parseInt(byte.slice(1), 16) < 128 ? String.fromCharCode(parseInt(byte.slice(1), 16)) : '\\uFFFD').join(''); } }); var text = raw.replace(/[\\u0000- ]+$/, '').replace(/[\\t\\n\\r]/g, ''); if (text.indexOf('#') >= 0) text = text.slice(0, text.indexOf('#')); var mark = text.indexOf('?'); var search = mark >= 0 ? text.slice(mark + 1) : ''; var parts = (mark >= 0 ? text.slice(0, mark) : text).replace(/\\\\/g, '/').split('/').slice(1); var segments = []; parts.forEach((part, index) => { var last = index === parts.length - 1; var lower = part.toLowerCase(); if (['..', '.%2e', '%2e.', '%2e%2e'].includes(lower)) { segments.pop(); if (last) segments.push(''); } else if (['.', '%2e'].includes(lower)) { if (last) segments.push(''); } else segments.push(part.replace(/[\\u0000- \"<>`{}|^[\\]\\u007f]|[^\\u0000-\\u007f]+|%(?![0-9A-Fa-f]{2})/gu, (character) => encodeURIComponent(character))); }); var pairs = search.split('&').filter((pair) => pair !== '').map((pair) => { var equals = pair.indexOf('='); return equals >= 0 ? form(decode(pair.slice(0, equals))) + '=' + form(decode(pair.slice(equals + 1))) : form(decode(pair)) + '='; }); return '/' + segments.join('/') + (pairs.length ? '?' + pairs.join('&') : ''); };\nvar base = (value) => String(value).trim().replace(/^t[1-6]_/, '');\nrequest.url = address('/comments/' + base(inputs.post_id));\nrequest.query.sort = inputs.sort === '' ? 'new' : inputs.sort;\nrequest.query.limit = inputs.limit === '' ? '10' : String(Number(inputs.limit));\nreturn request;",
       "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nvar isReplies = (value) => typeof value === 'object' && value !== null && 'data' in value && typeof value.data === 'object' && value.data !== null && 'children' in value.data && Array.isArray(value.data.children);\nvar comments = (children) => children.filter((child) => child.kind === 't1').map((child) => { var data = child.data; return { id: data.id, author: data.author, body: data.body, score: data.score, created_utc: data.created_utc, permalink: data.permalink, edited: data.edited, is_submitter: data.is_submitter, stickied: data.stickied, replies: isReplies(data.replies) ? comments(data.replies.data.children) : [] }; });\nreturn comments(response[1]?.data?.children ?? []);"
-    },
-    "editRedditPost": {
-      "label": "Edit Post",
-      "description": "Edits the content of an existing Reddit post.",
-      "audience": "human",
-      "inputs": {
-        "post_id": {
-          "label": "Post ID",
-          "description": "ID of the Reddit post to edit (e.g., \"abc123\" or \"t3_abc123\").",
-          "required": true
-        },
-        "content": {
-          "label": "New Post Content",
-          "description": "Updated text content for the post.",
-          "required": true,
-          "type": "multiline"
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://oauth.reddit.com/api/editusertext",
-        "headers": {
-          "Content-Type": "application/x-www-form-urlencoded"
-        },
-        "query": {
-          "raw_json": "1"
-        },
-        "body": {
-          "api_type": "json",
-          "thing_id": "{{post_id}}",
-          "text": "{{content}}"
-        }
-      },
-      "beforeRequest": "var full = (value, prefix, accept = [prefix]) => { var text = String(value).trim(); if (!/^t[1-6]_/.test(text)) return prefix + text; if (!accept.some((start) => text.startsWith(start))) throw new Error('Expected a ' + accept.join(' or ') + ' fullname, got \"' + text + '\".'); return text; };\nrequest.body.thing_id = full(inputs.post_id, 't3_');\nreturn request;"
-    },
-    "editRedditComment": {
-      "label": "Edit Comment",
-      "description": "Edits the content of an existing Reddit comment.",
-      "audience": "human",
-      "inputs": {
-        "comment_id": {
-          "label": "Comment ID",
-          "description": "ID of the Reddit comment to edit (e.g., \"def456\" or \"t1_def456\").",
-          "required": true
-        },
-        "content": {
-          "label": "New Comment Content",
-          "description": "Updated text content for the comment.",
-          "required": true,
-          "type": "multiline"
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://oauth.reddit.com/api/editusertext",
-        "headers": {
-          "Content-Type": "application/x-www-form-urlencoded"
-        },
-        "query": {
-          "raw_json": "1"
-        },
-        "body": {
-          "api_type": "json",
-          "thing_id": "{{comment_id}}",
-          "text": "{{content}}"
-        }
-      },
-      "beforeRequest": "var full = (value, prefix, accept = [prefix]) => { var text = String(value).trim(); if (!/^t[1-6]_/.test(text)) return prefix + text; if (!accept.some((start) => text.startsWith(start))) throw new Error('Expected a ' + accept.join(' or ') + ' fullname, got \"' + text + '\".'); return text; };\nrequest.body.thing_id = full(inputs.comment_id, 't1_');\nreturn request;"
-    },
-    "deleteRedditPost": {
-      "label": "Delete Post",
-      "description": "Delete a specific Reddit post by ID.",
-      "audience": "human",
-      "inputs": {
-        "post_id": {
-          "label": "Post ID",
-          "description": "ID of the Reddit post to delete (e.g., \"abc123\" or \"t3_abc123\").",
-          "required": true
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://oauth.reddit.com/api/del",
-        "headers": {
-          "Content-Type": "application/x-www-form-urlencoded"
-        },
-        "query": {
-          "raw_json": "1"
-        },
-        "body": {
-          "api_type": "json",
-          "id": "{{post_id}}"
-        }
-      },
-      "beforeRequest": "var full = (value, prefix, accept = [prefix]) => { var text = String(value).trim(); if (!/^t[1-6]_/.test(text)) return prefix + text; if (!accept.some((start) => text.startsWith(start))) throw new Error('Expected a ' + accept.join(' or ') + ' fullname, got \"' + text + '\".'); return text; };\nrequest.body.id = full(inputs.post_id, 't3_');\nreturn request;",
-      "afterResponse": "return { success: true, response };"
-    },
-    "deleteRedditComment": {
-      "label": "Delete Comment",
-      "description": "Delete a specific Reddit comment by ID.",
-      "audience": "human",
-      "inputs": {
-        "comment_id": {
-          "label": "Comment ID",
-          "description": "ID of the Reddit comment to delete (e.g., \"def456\" or \"t1_def456\").",
-          "required": true
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://oauth.reddit.com/api/del",
-        "headers": {
-          "Content-Type": "application/x-www-form-urlencoded"
-        },
-        "query": {
-          "raw_json": "1"
-        },
-        "body": {
-          "api_type": "json",
-          "id": "{{comment_id}}"
-        }
-      },
-      "beforeRequest": "var full = (value, prefix, accept = [prefix]) => { var text = String(value).trim(); if (!/^t[1-6]_/.test(text)) return prefix + text; if (!accept.some((start) => text.startsWith(start))) throw new Error('Expected a ' + accept.join(' or ') + ' fullname, got \"' + text + '\".'); return text; };\nrequest.body.id = full(inputs.comment_id, 't1_');\nreturn request;",
-      "afterResponse": "return { success: true, response };"
     },
     "reddit_create_comment": {
       "label": "Create Comment",
@@ -1167,7 +964,7 @@
       "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nvar KEYS = { t1: ['id', 'name', 'author', 'body', 'score', 'created_utc', 'edited', 'permalink', 'parent_id', 'link_id', 'link_title', 'subreddit', 'depth', 'is_submitter', 'stickied', 'distinguished'], t2: ['id', 'name', 'link_karma', 'comment_karma', 'total_karma', 'created_utc', 'is_gold', 'is_mod', 'verified', 'has_verified_email', 'is_employee', 'icon_img'], t3: ['id', 'name', 'title', 'author', 'subreddit', 'subreddit_name_prefixed', 'selftext', 'url', 'permalink', 'domain', 'score', 'upvote_ratio', 'num_comments', 'num_crossposts', 'created_utc', 'edited', 'is_self', 'over_18', 'spoiler', 'stickied', 'locked', 'archived', 'link_flair_text', 'link_flair_template_id', 'crosspost_parent'], t4: ['id', 'name', 'author', 'dest', 'subject', 'body', 'created_utc', 'new', 'was_comment', 'parent_id', 'first_message_name', 'context', 'subreddit', 'distinguished'], t5: ['id', 'name', 'display_name', 'display_name_prefixed', 'title', 'public_description', 'subscribers', 'active_user_count', 'subreddit_type', 'submission_type', 'over18', 'lang', 'created_utc', 'url', 'user_is_subscriber', 'user_is_moderator'] };\nvar pick = (data, keys) => Object.fromEntries(keys.map((key) => [key, data[key] ?? null]));\nvar thing = (item) => KEYS[item.kind] === undefined ? { kind: item.kind, ...item.data } : { kind: item.kind, ...pick(item.data, KEYS[item.kind]) };\nvar list = (listing) => { var items = listing.data.children.map(thing); return { items, count: items.length, after: listing.data.after ?? null, before: listing.data.before ?? null }; };\nvar { items, ...page } = list(response);\nreturn { subreddits: items, ...page };"
     },
     "reddit_list_post_comments": {
-      "label": "List Post Comments",
+      "label": "List Post Comments, Flat, Up to 100",
       "description": "Gets a post and its comment thread, flattened with depth and parent ids.",
       "audience": "ai",
       "inputs": {

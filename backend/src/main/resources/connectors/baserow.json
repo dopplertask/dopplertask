@@ -31,44 +31,6 @@
     }
   },
   "actions": {
-    "baserow_delete_row": {
-      "label": "Delete Row",
-      "description": "Deletes an existing row.",
-      "audience": "human",
-      "inputs": {
-        "table_id": {
-          "label": "Table",
-          "description": "Only tables this connection can access are listed.",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "url": "https://{{credential.apiUrl}}/api/database/tables/all-tables/"
-            }
-          }
-        },
-        "row_id": {
-          "label": "Row",
-          "description": "Type to search the rows by any cell value.",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "url": "https://{{credential.apiUrl}}/api/database/rows/table/{{table_id}}/",
-              "query": {
-                "size": "200",
-                "user_field_names": "true"
-              }
-            },
-            "list": "$.results",
-            "label": "$.id"
-          }
-        }
-      },
-      "request": {
-        "method": "DELETE",
-        "url": "https://{{credential.apiUrl}}/api/database/rows/table/{{table_id}}/{{row_id}}/"
-      },
-      "afterResponse": "return {success: true};"
-    },
     "baserow_get_row": {
       "label": "Get Row",
       "description": "Gets a single row by its ID from a table.",
@@ -107,78 +69,6 @@
           "user_field_names": "true"
         }
       }
-    },
-    "baserow_list_rows": {
-      "label": "List Rows",
-      "description": "Lists rows from a table with optional search, sorting, and filtering.",
-      "audience": "human",
-      "inputs": {
-        "table_id": {
-          "label": "Table",
-          "description": "Only tables this connection can access are listed.",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "url": "https://{{credential.apiUrl}}/api/database/tables/all-tables/"
-            }
-          }
-        },
-        "page": {
-          "label": "Page",
-          "description": "Which page of results to return, starting at 1.",
-          "type": "number",
-          "required": false,
-          "defaultValue": "1"
-        },
-        "limit": {
-          "label": "Page Size",
-          "description": "Rows per page, up to 200.",
-          "type": "number",
-          "required": false,
-          "defaultValue": "100"
-        },
-        "search": {
-          "label": "Search",
-          "description": "Returns rows with this text in any cell."
-        },
-        "order_by": {
-          "label": "Sort By",
-          "description": "Column name to sort by. Start it with - to sort in reverse."
-        },
-        "filter_type": {
-          "label": "Match",
-          "description": "Whether rows must match every filter or just one.",
-          "type": "select",
-          "defaultValue": "AND",
-          "options": [
-            {
-              "value": "AND",
-              "label": "All filters"
-            },
-            {
-              "value": "OR",
-              "label": "Any filter"
-            }
-          ]
-        },
-        "filters": {
-          "label": "Filters",
-          "type": "json",
-          "description": "One JSON filter per entry, with a field ID, an operator and a value, for example {\"field\": 123, \"type\": \"equal\", \"value\": \"Active\"}. Operators: equal, not_equal, contains, contains_not, higher_than, lower_than, is_empty, is_not_empty. Empty returns all rows."
-        }
-      },
-      "request": {
-        "url": "https://{{credential.apiUrl}}/api/database/rows/table/{{table_id}}/",
-        "query": {
-          "user_field_names": "true",
-          "page": "{{page}}",
-          "size": "{{limit}}",
-          "search": "{{search}}",
-          "order_by": "{{order_by}}"
-        }
-      },
-      "beforeRequest": "const filters = JSON.parse(inputs.filters || '[]'); if (filters.length > 0) request.query.filters = JSON.stringify({filter_type: inputs.filter_type || 'AND', filters: filters.map((entry, index) => { let filter = entry; if (typeof entry === 'string') { try { filter = JSON.parse(entry); } catch (e) { throw new Error(`Filter ${index + 1} is not valid JSON.`); } } if (typeof filter !== 'object' || filter === null || Array.isArray(filter)) filter = {}; return {field: Number(filter.field), type: String(filter.type ?? 'equal'), value: String(filter.value ?? '')}; })}); return request;",
-      "afterResponse": "return {count: response.count, rows: response.results};"
     },
     "baserow_find_row": {
       "label": "Find Row",
@@ -388,38 +278,6 @@
       "beforeRequest": "const rows = request.body.items; if (!Array.isArray(rows)) throw new Error('Rows must be a JSON array.'); if (rows.length > 200) throw new Error('At most 200 rows per request.'); return request;",
       "afterResponse": "return {count: response.items.length, rows: response.items};"
     },
-    "baserow_batch_delete_rows": {
-      "label": "Batch Delete Rows",
-      "description": "Deletes up to 200 rows in one request.",
-      "audience": "human",
-      "inputs": {
-        "table_id": {
-          "label": "Table",
-          "description": "Only tables this connection can access are listed.",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "url": "https://{{credential.apiUrl}}/api/database/tables/all-tables/"
-            }
-          }
-        },
-        "row_ids": {
-          "label": "Row IDs",
-          "description": "Up to 200 row IDs, for example from List Rows or Find Row.",
-          "type": "json",
-          "required": true
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://{{credential.apiUrl}}/api/database/rows/table/{{table_id}}/batch-delete/",
-        "body": {
-          "items": "{{row_ids}}"
-        }
-      },
-      "beforeRequest": "const ids = (Array.isArray(request.body.items) ? request.body.items : []).map((id) => parseInt(String(id), 10)).filter((id) => !isNaN(id)); if (ids.length === 0) throw new Error('Row IDs must contain at least one number.'); if (ids.length > 200) throw new Error('At most 200 rows per request.'); request.body.items = ids; return request;",
-      "afterResponse": "return {deleted_count: JSON.parse(inputs.row_ids).map((id) => parseInt(String(id), 10)).filter((id) => !isNaN(id)).length};"
-    },
     "baserow_upload_file": {
       "label": "Upload File",
       "description": "Uploads a file from a link, ready to put in a file column.",
@@ -440,7 +298,7 @@
       }
     },
     "baserow_create_row_ai": {
-      "label": "Create Row",
+      "label": "Create Row, Linking Rows by Name",
       "description": "Creates a new row in a table from a JSON map of field values.",
       "audience": "ai",
       "inputs": {
@@ -472,31 +330,6 @@
       },
       "beforeRequest": "if (inputs.create_missing_select_options === 'true') throw new Error('Creating missing select options edits the field and requires a Baserow connection that uses Email & Password. Turn the option off, or reconnect Baserow with Email & Password.'); const fields = request.body; if (typeof fields !== 'object' || fields === null || Array.isArray(fields)) throw new Error('Fields must be a JSON object.'); return request;"
     },
-    "baserow_get_row_ai": {
-      "label": "Get Row",
-      "description": "Gets a single row by its ID.",
-      "audience": "ai",
-      "inputs": {
-        "table_id": {
-          "label": "Table ID",
-          "description": "The numeric Baserow table ID. Resolve it with List Tables.",
-          "type": "number",
-          "required": true
-        },
-        "row_id": {
-          "label": "Row ID",
-          "description": "The numeric row ID. Resolve it with Find Row or List Rows.",
-          "type": "number",
-          "required": true
-        }
-      },
-      "request": {
-        "url": "https://{{credential.apiUrl}}/api/database/rows/table/{{table_id}}/{{row_id}}/",
-        "query": {
-          "user_field_names": "true"
-        }
-      }
-    },
     "baserow_list_rows_ai": {
       "label": "List Rows",
       "description": "Lists rows from a table with optional search, sorting, filters and view.",
@@ -506,7 +339,12 @@
           "label": "Table ID",
           "description": "The numeric Baserow table ID. Resolve it with List Tables.",
           "type": "number",
-          "required": true
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://{{credential.apiUrl}}/api/database/tables/all-tables/"
+            }
+          }
         },
         "search": {
           "label": "Search",
@@ -565,7 +403,7 @@
       "afterResponse": "return {count: response.count, has_more: response.next !== null, rows: response.results};"
     },
     "baserow_update_row_ai": {
-      "label": "Update Row",
+      "label": "Update Row, Linking Rows by Name",
       "description": "Updates only the given fields of a row.",
       "audience": "ai",
       "inputs": {
@@ -612,13 +450,29 @@
           "label": "Table ID",
           "description": "The numeric Baserow table ID. Resolve it with List Tables.",
           "type": "number",
-          "required": true
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://{{credential.apiUrl}}/api/database/tables/all-tables/"
+            }
+          }
         },
         "row_id": {
           "label": "Row ID",
           "description": "The numeric row ID. Resolve it with Find Row or List Rows.",
           "type": "number",
-          "required": true
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://{{credential.apiUrl}}/api/database/rows/table/{{table_id}}/",
+              "query": {
+                "size": "200",
+                "user_field_names": "true"
+              }
+            },
+            "list": "$.results",
+            "label": "$.id"
+          }
         }
       },
       "request": {
@@ -626,68 +480,6 @@
         "url": "https://{{credential.apiUrl}}/api/database/rows/table/{{table_id}}/{{row_id}}/"
       },
       "afterResponse": "return {deleted: true, table_id: Number(inputs.table_id), row_id: Number(inputs.row_id)};"
-    },
-    "baserow_batch_create_rows_ai": {
-      "label": "Batch Create Rows",
-      "description": "Creates up to 200 rows in one request.",
-      "audience": "ai",
-      "inputs": {
-        "table_id": {
-          "label": "Table ID",
-          "description": "The numeric Baserow table ID. Resolve it with List Tables.",
-          "type": "number",
-          "required": true
-        },
-        "rows": {
-          "label": "Rows",
-          "type": "json",
-          "required": true,
-          "description": "JSON array of row objects keyed by field name, e.g. [{\"Name\": \"A\"}, {\"Name\": \"B\"}]. Maximum 200. Value formats match Create Row."
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://{{credential.apiUrl}}/api/database/rows/table/{{table_id}}/batch/",
-        "query": {
-          "user_field_names": "true"
-        },
-        "body": {
-          "items": "{{rows}}"
-        }
-      },
-      "beforeRequest": "const rows = request.body.items; if (!Array.isArray(rows) || rows.length === 0) throw new Error('Rows must be a non-empty JSON array of objects.'); if (rows.length > 200) throw new Error(`Rows accepts at most 200 items per call; received ${rows.length}.`); rows.forEach((row, index) => { if (typeof row !== 'object' || row === null || Array.isArray(row)) throw new Error(`Rows[${index}] must be a JSON object.`); }); return request;",
-      "afterResponse": "return {count: response.items.length, rows: response.items};"
-    },
-    "baserow_batch_update_rows_ai": {
-      "label": "Batch Update Rows",
-      "description": "Updates up to 200 rows in one request.",
-      "audience": "ai",
-      "inputs": {
-        "table_id": {
-          "label": "Table ID",
-          "description": "The numeric Baserow table ID. Resolve it with List Tables.",
-          "type": "number",
-          "required": true
-        },
-        "rows": {
-          "label": "Rows",
-          "type": "json",
-          "required": true,
-          "description": "JSON array of objects, each with the numeric row \"id\" and the field names to change, e.g. [{\"id\": 1, \"Status\": \"Done\"}]. Maximum 200."
-        }
-      },
-      "request": {
-        "method": "PATCH",
-        "url": "https://{{credential.apiUrl}}/api/database/rows/table/{{table_id}}/batch/",
-        "query": {
-          "user_field_names": "true"
-        },
-        "body": {
-          "items": "{{rows}}"
-        }
-      },
-      "beforeRequest": "const rows = request.body.items; if (!Array.isArray(rows) || rows.length === 0) throw new Error('Rows must be a non-empty JSON array of objects.'); if (rows.length > 200) throw new Error(`Rows accepts at most 200 items per call; received ${rows.length}.`); rows.forEach((row, index) => { if (typeof row !== 'object' || row === null || Array.isArray(row)) throw new Error(`Rows[${index}] must be a JSON object.`); }); const missing = rows.findIndex((row) => !Number.isInteger(Number(row.id))); if (missing !== -1) throw new Error(`Rows[${missing}] is missing a numeric \"id\".`); return request;",
-      "afterResponse": "return {count: response.items.length, rows: response.items};"
     },
     "baserow_batch_delete_rows_ai": {
       "label": "Batch Delete Rows",
@@ -698,7 +490,12 @@
           "label": "Table ID",
           "description": "The numeric Baserow table ID. Resolve it with List Tables.",
           "type": "number",
-          "required": true
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://{{credential.apiUrl}}/api/database/tables/all-tables/"
+            }
+          }
         },
         "row_ids": {
           "label": "Row IDs",
@@ -769,7 +566,7 @@
       "afterResponse": "const names = response[String(inputs.table_id)] ?? {}; return {rows: Object.entries(names).map(([id, name]) => ({id: Number(id), name}))};"
     },
     "baserow_create_row": {
-      "label": "Create Row",
+      "label": "Create Row, Adding Select Options",
       "description": "Creates a new row in a table.",
       "audience": "human",
       "inputs": {
@@ -801,7 +598,7 @@
       "afterResponse": "const format = (values, types, skipEmpty) => { const out = {}; for (const name of Object.keys(values)) { const value = values[name]; const blank = value == null || value === ''; if (skipEmpty && (blank || (Array.isArray(value) && value.length === 0))) continue; switch (types[name]) { case 'link_row': out[name] = Array.isArray(value) && value.length > 0 ? value.map(id => parseInt(id, 10)) : []; break; case 'multiple_collaborators': out[name] = Array.isArray(value) && value.length > 0 ? value.map(id => ({id: parseInt(id, 10)})) : []; break; case 'single_select': out[name] = blank || (Array.isArray(value) && value.length === 0) ? null : value; break; case 'multiple_select': out[name] = blank ? [] : value; break; default: out[name] = blank ? null : value; } } return out; };\nconst colors = ['blue', 'green', 'orange', 'red', 'purple', 'pink', 'cyan', 'yellow', 'gray'];\nconst ensureOptions = (fields, payload) => { for (const field of fields) { if (field.type !== 'single_select' && field.type !== 'multiple_select') continue; const value = payload[field.name]; if (value == null || value === '') continue; const existing = new Set(field.select_options.map(option => option.value)); const missing = [...new Set((Array.isArray(value) ? value : [value]).filter(item => typeof item === 'string' && item.length > 0 && !existing.has(item)))]; if (missing.length === 0) continue; try { call({method: 'PATCH', url: '/database/fields/' + field.id + '/', body: {select_options: [...field.select_options, ...missing.map((item, index) => ({value: item, color: colors[index % colors.length]}))]}}); } catch (e) {} } };\nconst fields = response; const types = {}; for (const field of fields) types[field.name] = field.type;\nconst values = format(JSON.parse(inputs.table_fields || '{}'), types, true);\nif (inputs.create_missing_select_options === 'true') ensureOptions(fields, values);\nreturn call({method: 'POST', url: '/database/rows/table/' + inputs.table_id + '/', query: {user_field_names: 'true'}, body: values});"
     },
     "baserow_update_row": {
-      "label": "Update Row",
+      "label": "Update Row, Adding Select Options",
       "description": "Changes fields in an existing row.",
       "audience": "human",
       "inputs": {
@@ -892,7 +689,7 @@
       "afterResponse": "const format = (values, types, skipEmpty) => { const out = {}; for (const name of Object.keys(values)) { const value = values[name]; const blank = value == null || value === ''; if (skipEmpty && (blank || (Array.isArray(value) && value.length === 0))) continue; switch (types[name]) { case 'link_row': out[name] = Array.isArray(value) && value.length > 0 ? value.map(id => parseInt(id, 10)) : []; break; case 'multiple_collaborators': out[name] = Array.isArray(value) && value.length > 0 ? value.map(id => ({id: parseInt(id, 10)})) : []; break; case 'single_select': out[name] = blank || (Array.isArray(value) && value.length === 0) ? null : value; break; case 'multiple_select': out[name] = blank ? [] : value; break; default: out[name] = blank ? null : value; } } return out; };\nconst fields = response; const types = {}; for (const field of fields) types[field.name] = field.type;\nconst values = format(JSON.parse(inputs.table_fields || '{}'), types, false);\nreturn call({method: 'PATCH', url: '/database/rows/table/' + inputs.table_id + '/' + inputs.row_id + '/', query: {user_field_names: 'true'}, body: values});"
     },
     "baserow_upsert_row": {
-      "label": "Upsert Row",
+      "label": "Upsert Row, Adding Select Options",
       "description": "Creates a new row or updates an existing one by matching a field value.",
       "audience": "human",
       "inputs": {
@@ -938,35 +735,8 @@
       },
       "afterResponse": "const format = (values, types, skipEmpty) => { const out = {}; for (const name of Object.keys(values)) { const value = values[name]; const blank = value == null || value === ''; if (skipEmpty && (blank || (Array.isArray(value) && value.length === 0))) continue; switch (types[name]) { case 'link_row': out[name] = Array.isArray(value) && value.length > 0 ? value.map(id => parseInt(id, 10)) : []; break; case 'multiple_collaborators': out[name] = Array.isArray(value) && value.length > 0 ? value.map(id => ({id: parseInt(id, 10)})) : []; break; case 'single_select': out[name] = blank || (Array.isArray(value) && value.length === 0) ? null : value; break; case 'multiple_select': out[name] = blank ? [] : value; break; default: out[name] = blank ? null : value; } } return out; };\nconst colors = ['blue', 'green', 'orange', 'red', 'purple', 'pink', 'cyan', 'yellow', 'gray'];\nconst ensureOptions = (fields, payload) => { for (const field of fields) { if (field.type !== 'single_select' && field.type !== 'multiple_select') continue; const value = payload[field.name]; if (value == null || value === '') continue; const existing = new Set(field.select_options.map(option => option.value)); const missing = [...new Set((Array.isArray(value) ? value : [value]).filter(item => typeof item === 'string' && item.length > 0 && !existing.has(item)))]; if (missing.length === 0) continue; try { call({method: 'PATCH', url: '/database/fields/' + field.id + '/', body: {select_options: [...field.select_options, ...missing.map((item, index) => ({value: item, color: colors[index % colors.length]}))]}}); } catch (e) {} } };\nconst fields = response; const types = {}; for (const field of fields) types[field.name] = field.type;\nconst rows = '/database/rows/table/' + inputs.table_id + '/';\nconst values = format(JSON.parse(inputs.table_fields || '{}'), types, true);\nconst key = /^\\d+$/.test(inputs.match_field) ? 'field_' + inputs.match_field : inputs.match_field;\nconst matchField = fields.find(field => field.id === parseInt(key.replace('field_', ''), 10));\nconst query = {user_field_names: 'true', size: '1'}; query['filter__' + key + '__equal'] = inputs.match_value;\nconst found = call({url: rows, query}).results;\nif (found.length > 0) { if (matchField) delete values[matchField.name]; if (inputs.create_missing_select_options === 'true') ensureOptions(fields, values); return {action: 'updated', row: call({method: 'PATCH', url: rows + found[0].id + '/', query: {user_field_names: 'true'}, body: values})}; }\nif (matchField) { const raw = inputs.match_value; let typed = raw; if (matchField.type === 'boolean') typed = ['true', '1', 'yes'].includes(raw.trim().toLowerCase()); else if (matchField.type === 'number' || matchField.type === 'rating') { typed = Number(raw); if (Number.isNaN(typed)) throw new Error('Match Value \"' + raw + '\" is not a valid number for the selected ' + matchField.type + ' field.'); } values[matchField.name] = typed; }\nif (inputs.create_missing_select_options === 'true') ensureOptions(fields, values);\nreturn {action: 'created', row: call({method: 'POST', url: rows, query: {user_field_names: 'true'}, body: values})};"
     },
-    "baserow_find_row_ai": {
-      "label": "Find Row",
-      "description": "Finds the first row whose field equals a value.",
-      "audience": "ai",
-      "inputs": {
-        "table_id": {
-          "label": "Table ID",
-          "description": "The numeric Baserow table ID. Resolve it with List Tables.",
-          "type": "number",
-          "required": true
-        },
-        "field_name": {
-          "label": "Field Name",
-          "description": "Exact name of the field to match on. Resolve with Get Table Fields.",
-          "required": true
-        },
-        "value": {
-          "label": "Value",
-          "description": "The value the field must equal.",
-          "required": true
-        }
-      },
-      "request": {
-        "url": "https://{{credential.apiUrl}}/api/database/fields/table/{{table_id}}/"
-      },
-      "afterResponse": "const field = response.find(item => item.name === inputs.field_name);\nif (!field) throw new Error('Field \"' + inputs.field_name + '\" was not found in table ' + inputs.table_id + '. Available fields: ' + response.map(item => item.name).join(', ') + '.');\nconst query = {size: '1'}; query['filter__field_' + field.id + '__equal'] = inputs.value; query.user_field_names = 'true';\nconst found = call({url: '/database/rows/table/' + inputs.table_id + '/', query});\nconst row = found.results[0] ?? null; return {found: row !== null, count: found.count, row};"
-    },
     "baserow_upsert_row_ai": {
-      "label": "Upsert Row",
+      "label": "Upsert Row, Matching Single Select Fields",
       "description": "Updates the row matching a key field value, or creates it.",
       "audience": "ai",
       "inputs": {

@@ -26,96 +26,8 @@
     }
   },
   "actions": {
-    "airtable_create_record": {
-      "label": "Create Airtable Record",
-      "description": "Adds a new record to a table.",
-      "audience": "human",
-      "inputs": {
-        "base": {
-          "label": "Base",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "url": "https://api.airtable.com/v0/meta/bases"
-            },
-            "list": "$.bases"
-          }
-        },
-        "tableId": {
-          "label": "Table",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "url": "https://api.airtable.com/v0/meta/bases/{{base}}/tables"
-            },
-            "list": "$.tables"
-          }
-        },
-        "fields": {
-          "label": "Fields",
-          "description": "Field values by field ID, such as {\"fldXXXXXXXXXXXXXX\": \"Acme\"}. An attachment field takes a file URL; select and linked-record fields take arrays.",
-          "type": "json",
-          "required": true
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://api.airtable.com/v0/{{base}}/{{tableId}}",
-        "body": {
-          "fields": "{{fields}}",
-          "typecast": true
-        }
-      },
-      "beforeRequest": "const given = request.body.fields || {};\nObject.keys(given).forEach((key) => { const value = given[key]; if (value === null || value === undefined || value === '' || (Array.isArray(value) && value.length === 0)) delete given[key]; });\nconst table = call({method: 'GET', url: '/meta/bases/' + inputs.base + '/tables'}).tables.find((t) => t.id === inputs.tableId);\nconst empty = (value) => !value || (Array.isArray(value) && value.length === 0);\nconst fields = {};\ntable.fields.forEach((field) => {\n  if (['singleCollaborator', 'multipleCollaborators', 'aiText'].includes(field.type) || !(field.id in given)) return;\n  const value = given[field.id];\n  if (field.type === 'multipleAttachments') { if (false && empty(value)) fields[field.id] = []; else if (!empty(value)) fields[field.id] = [{url: value}]; }\n  else if (['multipleRecordLinks', 'multipleSelects'].includes(field.type)) { if (false) fields[field.id] = Array.isArray(value) ? value : []; else if (Array.isArray(value) && value.length > 0) fields[field.id] = value; }\n  else if (false) fields[field.id] = value === '' || value === undefined ? null : value;\n  else if (value !== undefined && value !== '' && value !== null) fields[field.id] = value;\n});\nrequest.body = {fields, typecast: true};\nreturn request;"
-    },
-    "airtable_find_record": {
-      "label": "Find Airtable Record",
-      "description": "Returns up to 1000 records whose field contains a value.",
-      "audience": "human",
-      "inputs": {
-        "base": {
-          "label": "Base",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "url": "https://api.airtable.com/v0/meta/bases"
-            },
-            "list": "$.bases"
-          }
-        },
-        "tableId": {
-          "label": "Table",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "url": "https://api.airtable.com/v0/meta/bases/{{base}}/tables"
-            },
-            "list": "$.tables"
-          }
-        },
-        "searchField": {
-          "label": "Search Field",
-          "description": "The name of the field to search.",
-          "required": true
-        },
-        "searchValue": {
-          "label": "Search Value",
-          "description": "Case-sensitive. Records whose field contains this text are returned.",
-          "required": true
-        },
-        "limitToView": {
-          "label": "View",
-          "description": "Only records in this view are used. Empty: the whole table."
-        }
-      },
-      "request": {
-        "url": "https://api.airtable.com/v0/{{base}}/{{tableId}}"
-      },
-      "beforeRequest": "const enc = (text) => encodeURIComponent(text).replace(/%20/g, '+').replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase());\nconst qs = (params) => Object.entries(params).map(([key, value]) => enc(key) + '=' + enc(String(value))).join('&');\nif (/[{}]/.test(inputs.searchField)) throw new Error('Search Field must not contain \"{\" or \"}\" because Airtable cannot escape braces inside a field reference.');\nconst value = inputs.searchValue.replace(/\\\\/g, '\\\\\\\\').replace(/\"/g, '\\\\\"');\nconst params = {filterByFormula: 'FIND(\"' + value + '\",{' + inputs.searchField + '})', pageSize: '100'};\nif (inputs.limitToView) params.view = inputs.limitToView;\nrequest.url += '?' + qs(params);\nreturn request;",
-      "afterResponse": "const enc = (text) => encodeURIComponent(text).replace(/%20/g, '+').replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase());\nconst qs = (params) => Object.entries(params).map(([key, value]) => enc(key) + '=' + enc(String(value))).join('&');\nconst value = inputs.searchValue.replace(/\\\\/g, '\\\\\\\\').replace(/\"/g, '\\\\\"');\nconst params = {filterByFormula: 'FIND(\"' + value + '\",{' + inputs.searchField + '})', pageSize: '100'};\nif (inputs.limitToView) params.view = inputs.limitToView;\nlet records = response.records;\nlet offset = response.offset;\nwhile (offset && records.length < 1000) {\n  const page = call({method: 'GET', url: '/' + inputs.base + '/' + inputs.tableId + '?' + qs({...params, offset})});\n  records = records.concat(page.records);\n  offset = page.offset;\n}\nreturn records.slice(0, 1000);"
-    },
     "airtable_update_record": {
-      "label": "Update Airtable Record",
+      "label": "Update Record (Convert Values)",
       "description": "Changes the fields you fill in on an existing record.",
       "audience": "human",
       "inputs": {
@@ -505,23 +417,23 @@
       "result": "$.tables"
     },
     "create_record_ai": {
-      "label": "Create Record (Agent)",
+      "label": "Create Record",
       "description": "Adds a record to an Airtable table.",
       "audience": "ai",
       "inputs": {
         "base_id": {
           "label": "Base ID",
-          "description": "The Airtable base ID (e.g. \"appXXXXXXXXXXXXXX\"). Resolve it with List Bases (Agent).",
+          "description": "The Airtable base ID (e.g. \"appXXXXXXXXXXXXXX\"). Resolve it with List Bases.",
           "required": true
         },
         "table_id_or_name": {
           "label": "Table ID or Name",
-          "description": "The table ID (e.g. \"tblXXXXXXXXXXXXXX\") or its exact name. Resolve it with Get Base Schema (Agent).",
+          "description": "The table ID (e.g. \"tblXXXXXXXXXXXXXX\") or its exact name. Resolve it with Get Base Schema.",
           "required": true
         },
         "fields": {
           "label": "Fields",
-          "description": "A JSON object mapping field names to values, e.g. {\"Name\": \"Acme\", \"Status\": \"Active\"}. Use Get Base Schema (Agent) to learn field names and types. Linked-record and multi-select fields take arrays of ids/strings; attachment fields take an array of objects like [{\"url\": \"https://...\"}]. Values are sent with typecast enabled so plain strings are coerced where possible.",
+          "description": "A JSON object mapping field names to values, e.g. {\"Name\": \"Acme\", \"Status\": \"Active\"}. Use Get Base Schema to learn field names and types. Linked-record and multi-select fields take arrays of ids/strings; attachment fields take an array of objects like [{\"url\": \"https://...\"}]. Values are sent with typecast enabled so plain strings are coerced where possible.",
           "type": "json",
           "required": true
         }
@@ -535,54 +447,29 @@
         }
       }
     },
-    "get_record": {
-      "label": "Get Record (Agent)",
-      "description": "Retrieve a single Airtable record by its ID.",
-      "audience": "ai",
-      "inputs": {
-        "base_id": {
-          "label": "Base ID",
-          "description": "The Airtable base ID (e.g. \"appXXXXXXXXXXXXXX\"). Resolve it with List Bases (Agent).",
-          "required": true
-        },
-        "table_id_or_name": {
-          "label": "Table ID or Name",
-          "description": "The table ID (e.g. \"tblXXXXXXXXXXXXXX\") or its exact name. Resolve it with Get Base Schema (Agent).",
-          "required": true
-        },
-        "record_id": {
-          "label": "Record ID",
-          "description": "The record ID (e.g. \"recXXXXXXXXXXXXXX\"). Resolve it with Search Records (Agent) or List Records (Agent).",
-          "required": true
-        }
-      },
-      "request": {
-        "url": "https://api.airtable.com/v0/{{base_id}}/{{table_id_or_name}}/{{record_id}}"
-      }
-    },
     "update_record_ai": {
-      "label": "Update Record (Agent)",
+      "label": "Update Record (Exact Values)",
       "description": "Update fields on an existing Airtable record by its ID.",
       "audience": "ai",
       "inputs": {
         "base_id": {
           "label": "Base ID",
-          "description": "The Airtable base ID (e.g. \"appXXXXXXXXXXXXXX\"). Resolve it with List Bases (Agent).",
+          "description": "The Airtable base ID (e.g. \"appXXXXXXXXXXXXXX\"). Resolve it with List Bases.",
           "required": true
         },
         "table_id_or_name": {
           "label": "Table ID or Name",
-          "description": "The table ID (e.g. \"tblXXXXXXXXXXXXXX\") or its exact name. Resolve it with Get Base Schema (Agent).",
+          "description": "The table ID (e.g. \"tblXXXXXXXXXXXXXX\") or its exact name. Resolve it with Get Base Schema.",
           "required": true
         },
         "record_id": {
           "label": "Record ID",
-          "description": "The record ID (e.g. \"recXXXXXXXXXXXXXX\"). Resolve it with Search Records (Agent) or List Records (Agent).",
+          "description": "The record ID (e.g. \"recXXXXXXXXXXXXXX\"). Resolve it with Search Records or List Records.",
           "required": true
         },
         "fields": {
           "label": "Fields",
-          "description": "A JSON object mapping field names to new values, e.g. {\"Status\": \"Done\"}. Only the keys you supply are changed; pass null to clear a field. Linked-record and multi-select fields take arrays of ids/strings; attachment fields take an array of objects like [{\"url\": \"https://...\"}]. Use Get Base Schema (Agent) to learn field names and types.",
+          "description": "A JSON object mapping field names to new values, e.g. {\"Status\": \"Done\"}. Only the keys you supply are changed; pass null to clear a field. Linked-record and multi-select fields take arrays of ids/strings; attachment fields take an array of objects like [{\"url\": \"https://...\"}]. Use Get Base Schema to learn field names and types.",
           "type": "json",
           "required": true
         }
@@ -595,45 +482,19 @@
         }
       }
     },
-    "delete_record_ai": {
-      "label": "Delete Record (Agent)",
-      "description": "Delete a single Airtable record by its ID.",
-      "audience": "ai",
-      "inputs": {
-        "base_id": {
-          "label": "Base ID",
-          "description": "The Airtable base ID (e.g. \"appXXXXXXXXXXXXXX\"). Resolve it with List Bases (Agent).",
-          "required": true
-        },
-        "table_id_or_name": {
-          "label": "Table ID or Name",
-          "description": "The table ID (e.g. \"tblXXXXXXXXXXXXXX\") or its exact name. Resolve it with Get Base Schema (Agent).",
-          "required": true
-        },
-        "record_id": {
-          "label": "Record ID",
-          "description": "The record ID (e.g. \"recXXXXXXXXXXXXXX\") to delete. Resolve it with Search Records (Agent) or List Records (Agent).",
-          "required": true
-        }
-      },
-      "request": {
-        "method": "DELETE",
-        "url": "https://api.airtable.com/v0/{{base_id}}/{{table_id_or_name}}/{{record_id}}"
-      }
-    },
     "list_records": {
-      "label": "List Records (Agent)",
+      "label": "List Records",
       "description": "List or query records in an Airtable table.",
       "audience": "ai",
       "inputs": {
         "base_id": {
           "label": "Base ID",
-          "description": "The Airtable base ID (e.g. \"appXXXXXXXXXXXXXX\"). Resolve it with List Bases (Agent).",
+          "description": "The Airtable base ID (e.g. \"appXXXXXXXXXXXXXX\"). Resolve it with List Bases.",
           "required": true
         },
         "table_id_or_name": {
           "label": "Table ID or Name",
-          "description": "The table ID (e.g. \"tblXXXXXXXXXXXXXX\") or its exact name. Resolve it with Get Base Schema (Agent).",
+          "description": "The table ID (e.g. \"tblXXXXXXXXXXXXXX\") or its exact name. Resolve it with Get Base Schema.",
           "required": true
         },
         "filter_by_formula": {
@@ -672,7 +533,7 @@
       "afterResponse": "const enc = (text) => encodeURIComponent(text).replace(/%20/g, '+').replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase());\nconst qs = (params) => Object.entries(params).map(([key, value]) => enc(key) + '=' + enc(String(value))).join('&');\nconst params = {};\nif (inputs.filter_by_formula) params.filterByFormula = inputs.filter_by_formula;\nif (inputs.view) params.view = inputs.view;\nif (inputs.max_records !== undefined && inputs.max_records !== null && inputs.max_records !== '') params.maxRecords = inputs.max_records;\nif (inputs.page_size !== undefined && inputs.page_size !== null && inputs.page_size !== '') params.pageSize = inputs.page_size;\nif (inputs.sort) { const sort = JSON.parse(inputs.sort); (Array.isArray(sort) ? sort : [sort]).forEach((entry, index) => { params['sort[' + index + '][field]'] = entry.field; if (entry.direction) params['sort[' + index + '][direction]'] = entry.direction; }); }\nif (inputs.fields) JSON.parse(inputs.fields).forEach((field, index) => { params['fields[' + index + ']'] = field; });\nconst hasCap = inputs.max_records !== undefined && inputs.max_records !== null && inputs.max_records !== '';\nlet records = response.records;\nlet offset = response.offset;\nwhile (hasCap && offset && records.length < Number(inputs.max_records)) {\n  const page = call({method: 'GET', url: '/' + encodeURIComponent(inputs.base_id) + '/' + encodeURIComponent(inputs.table_id_or_name) + '?' + qs({...params, offset})});\n  records = records.concat(page.records);\n  offset = page.offset;\n}\nif (hasCap) records = records.slice(0, Number(inputs.max_records));\nreturn {records, count: records.length, offset: offset ?? null};"
     },
     "list_bases": {
-      "label": "List Bases (Agent)",
+      "label": "List Bases",
       "description": "List all Airtable bases the token can access.",
       "audience": "ai",
       "request": {
@@ -680,30 +541,14 @@
       },
       "afterResponse": "let bases = response.bases;\nlet offset = response.offset;\nwhile (offset) {\n  const page = call({method: 'GET', url: '/meta/bases', query: {offset}});\n  bases = bases.concat(page.bases);\n  offset = page.offset;\n}\nreturn {bases: bases.map((base) => ({id: base.id, name: base.name, permissionLevel: base.permissionLevel})), count: bases.length};"
     },
-    "get_base_schema_ai": {
-      "label": "Get Base Schema (Agent)",
-      "description": "Get every table and field in a base.",
-      "audience": "ai",
-      "inputs": {
-        "base_id": {
-          "label": "Base ID",
-          "description": "The Airtable base ID (e.g. \"appXXXXXXXXXXXXXX\"). Resolve it with List Bases (Agent).",
-          "required": true
-        }
-      },
-      "request": {
-        "url": "https://api.airtable.com/v0/meta/bases/{{base_id}}/tables"
-      },
-      "afterResponse": "const tables = response.tables.map((table) => ({id: table.id, name: table.name, description: table.description, primaryFieldId: table.primaryFieldId, fields: table.fields.map((field) => ({id: field.id, name: field.name, type: field.type, description: field.description}))})); return {tables, count: tables.length};"
-    },
     "upload_attachment_ai": {
-      "label": "Upload Attachment (Agent)",
+      "label": "Upload Attachment",
       "description": "Upload a file into an attachment field on a record.",
       "audience": "ai",
       "inputs": {
         "base_id": {
           "label": "Base ID",
-          "description": "The Airtable base ID (e.g. \"appXXXXXXXXXXXXXX\"). Resolve it with List Bases (Agent).",
+          "description": "The Airtable base ID (e.g. \"appXXXXXXXXXXXXXX\"). Resolve it with List Bases.",
           "required": true
         },
         "record_id": {
@@ -713,7 +558,7 @@
         },
         "attachment_field_id": {
           "label": "Attachment Field ID",
-          "description": "The field ID (e.g. \"fldXXXXXXXXXXXXXX\") of a multiple-attachments column. Resolve it with Get Base Schema (Agent) (pick a field whose type is multipleAttachments).",
+          "description": "The field ID (e.g. \"fldXXXXXXXXXXXXXX\") of a multiple-attachments column. Resolve it with Get Base Schema (pick a field whose type is multipleAttachments).",
           "required": true
         },
         "file": {
@@ -742,23 +587,23 @@
       }
     },
     "upsert_records": {
-      "label": "Upsert Records (Agent)",
+      "label": "Upsert Records",
       "description": "Create or update up to 10 records in one batch call.",
       "audience": "ai",
       "inputs": {
         "base_id": {
           "label": "Base ID",
-          "description": "The Airtable base ID (e.g. \"appXXXXXXXXXXXXXX\"). Resolve it with List Bases (Agent).",
+          "description": "The Airtable base ID (e.g. \"appXXXXXXXXXXXXXX\"). Resolve it with List Bases.",
           "required": true
         },
         "table_id_or_name": {
           "label": "Table ID or Name",
-          "description": "The table ID (e.g. \"tblXXXXXXXXXXXXXX\") or its exact name. Resolve it with Get Base Schema (Agent).",
+          "description": "The table ID (e.g. \"tblXXXXXXXXXXXXXX\") or its exact name. Resolve it with Get Base Schema.",
           "required": true
         },
         "records": {
           "label": "Records",
-          "description": "A JSON array of up to 10 records, each shaped {\"fields\": {\"Name\": \"Acme\", \"Status\": \"Active\"}}. To update an existing record without merge keys, include its id: {\"id\": \"recXXXX\", \"fields\": {...}}. Use Get Base Schema (Agent) for field names.",
+          "description": "A JSON array of up to 10 records, each shaped {\"fields\": {\"Name\": \"Acme\", \"Status\": \"Active\"}}. To update an existing record without merge keys, include its id: {\"id\": \"recXXXX\", \"fields\": {...}}. Use Get Base Schema for field names.",
           "type": "json",
           "required": true
         },
@@ -789,23 +634,23 @@
       "afterResponse": "return {records: response.records, count: response.records.length, createdRecords: response.createdRecords ?? [], updatedRecords: response.updatedRecords ?? []};"
     },
     "delete_records_batch": {
-      "label": "Delete Records Batch (Agent)",
+      "label": "Delete Records Batch",
       "description": "Delete up to 10 records by ID in one call.",
       "audience": "ai",
       "inputs": {
         "base_id": {
           "label": "Base ID",
-          "description": "The Airtable base ID (e.g. \"appXXXXXXXXXXXXXX\"). Resolve it with List Bases (Agent).",
+          "description": "The Airtable base ID (e.g. \"appXXXXXXXXXXXXXX\"). Resolve it with List Bases.",
           "required": true
         },
         "table_id_or_name": {
           "label": "Table ID or Name",
-          "description": "The table ID (e.g. \"tblXXXXXXXXXXXXXX\") or its exact name. Resolve it with Get Base Schema (Agent).",
+          "description": "The table ID (e.g. \"tblXXXXXXXXXXXXXX\") or its exact name. Resolve it with Get Base Schema.",
           "required": true
         },
         "record_ids": {
           "label": "Record IDs",
-          "description": "A list of up to 10 record IDs to delete, e.g. [\"recAAA\", \"recBBB\"]. Resolve IDs with Search Records (Agent) or List Records (Agent).",
+          "description": "A list of up to 10 record IDs to delete, e.g. [\"recAAA\", \"recBBB\"]. Resolve IDs with Search Records or List Records.",
           "type": "json",
           "required": true
         }
@@ -818,7 +663,7 @@
       "afterResponse": "return {records: response.records, count: response.records.length};"
     },
     "get_current_user": {
-      "label": "Get Current User (Agent)",
+      "label": "Get Current User",
       "description": "Get the connected token identity and its scopes.",
       "audience": "ai",
       "request": {
@@ -826,23 +671,23 @@
       }
     },
     "search_records": {
-      "label": "Search Records (Agent)",
+      "label": "Search Records",
       "description": "Find records where a field matches a value.",
       "audience": "ai",
       "inputs": {
         "base_id": {
           "label": "Base ID",
-          "description": "The Airtable base ID (e.g. \"appXXXXXXXXXXXXXX\"). Resolve it with List Bases (Agent).",
+          "description": "The Airtable base ID (e.g. \"appXXXXXXXXXXXXXX\"). Resolve it with List Bases.",
           "required": true
         },
         "table_id_or_name": {
           "label": "Table ID or Name",
-          "description": "The table ID (e.g. \"tblXXXXXXXXXXXXXX\") or its exact name. Resolve it with Get Base Schema (Agent).",
+          "description": "The table ID (e.g. \"tblXXXXXXXXXXXXXX\") or its exact name. Resolve it with Get Base Schema.",
           "required": true
         },
         "search_field": {
           "label": "Search Field",
-          "description": "The exact name of the field to match against. Resolve names with Get Base Schema (Agent).",
+          "description": "The exact name of the field to match against. Resolve names with Get Base Schema.",
           "required": true
         },
         "search_value": {
@@ -882,130 +727,19 @@
       "beforeRequest": "const enc = (text) => encodeURIComponent(text).replace(/%20/g, '+').replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase());\nconst qs = (params) => Object.entries(params).map(([key, value]) => enc(key) + '=' + enc(String(value))).join('&');\nif (/[{}]/.test(inputs.search_field)) throw new Error('search_field must not contain \"{\" or \"}\" — Airtable cannot escape braces inside a field reference.');\nconst value = String(inputs.search_value).replace(/\\\\/g, '\\\\\\\\').replace(/\"/g, '\\\\\"');\nconst params = {filterByFormula: inputs.match_mode === 'exact' ? '{' + inputs.search_field + '}&\"\"=\"' + value + '\"' : 'FIND(\"' + value + '\",{' + inputs.search_field + '})'};\nif (inputs.view) params.view = inputs.view;\nif (inputs.max_records !== undefined && inputs.max_records !== null && inputs.max_records !== '') params.maxRecords = inputs.max_records;\nrequest.url += '?' + qs(params);\nreturn request;",
       "afterResponse": "const enc = (text) => encodeURIComponent(text).replace(/%20/g, '+').replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase());\nconst qs = (params) => Object.entries(params).map(([key, value]) => enc(key) + '=' + enc(String(value))).join('&');\nif (/[{}]/.test(inputs.search_field)) throw new Error('search_field must not contain \"{\" or \"}\" — Airtable cannot escape braces inside a field reference.');\nconst value = String(inputs.search_value).replace(/\\\\/g, '\\\\\\\\').replace(/\"/g, '\\\\\"');\nconst params = {filterByFormula: inputs.match_mode === 'exact' ? '{' + inputs.search_field + '}&\"\"=\"' + value + '\"' : 'FIND(\"' + value + '\",{' + inputs.search_field + '})'};\nif (inputs.view) params.view = inputs.view;\nif (inputs.max_records !== undefined && inputs.max_records !== null && inputs.max_records !== '') params.maxRecords = inputs.max_records;\nconst hasCap = inputs.max_records !== undefined && inputs.max_records !== null && inputs.max_records !== '';\nlet records = response.records;\nlet offset = response.offset;\nwhile (hasCap && offset && records.length < Number(inputs.max_records)) {\n  const page = call({method: 'GET', url: '/' + encodeURIComponent(inputs.base_id) + '/' + encodeURIComponent(inputs.table_id_or_name) + '?' + qs({...params, offset})});\n  records = records.concat(page.records);\n  offset = page.offset;\n}\nif (hasCap) records = records.slice(0, Number(inputs.max_records));\nreturn {records, count: records.length};"
     },
-    "add_comment_to_record_ai": {
-      "label": "Add Comment to Record (Agent)",
-      "description": "Post a comment on an Airtable record.",
-      "audience": "ai",
-      "inputs": {
-        "base_id": {
-          "label": "Base ID",
-          "description": "The Airtable base ID (e.g. \"appXXXXXXXXXXXXXX\"). Resolve it with List Bases (Agent).",
-          "required": true
-        },
-        "table_id_or_name": {
-          "label": "Table ID or Name",
-          "description": "The table ID (e.g. \"tblXXXXXXXXXXXXXX\") or its exact name. Resolve it with Get Base Schema (Agent).",
-          "required": true
-        },
-        "record_id": {
-          "label": "Record ID",
-          "description": "The record ID (e.g. \"recXXXXXXXXXXXXXX\") to comment on.",
-          "required": true
-        },
-        "text": {
-          "label": "Comment Text",
-          "description": "The comment content. Mention a user with @[userId] or @[userEmail].",
-          "type": "multiline",
-          "required": true
-        },
-        "parent_comment_id": {
-          "label": "Parent Comment ID",
-          "description": "Optional ID of a parent comment to reply to (creates a threaded reply). Find IDs with List Record Comments (Agent)."
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://api.airtable.com/v0/{{base_id}}/{{table_id_or_name}}/{{record_id}}/comments",
-        "body": {
-          "text": "{{text}}",
-          "parentCommentId": "{{parent_comment_id}}"
-        }
-      }
-    },
-    "create_table_ai": {
-      "label": "Create Table (Agent)",
-      "description": "Create a new table in an existing base.",
-      "audience": "ai",
-      "inputs": {
-        "base_id": {
-          "label": "Base ID",
-          "description": "The Airtable base ID (e.g. \"appXXXXXXXXXXXXXX\"). Resolve it with List Bases (Agent).",
-          "required": true
-        },
-        "name": {
-          "label": "Table Name",
-          "description": "The name for the new table.",
-          "required": true
-        },
-        "description": {
-          "label": "Description",
-          "description": "Optional description for the new table.",
-          "type": "multiline"
-        },
-        "fields": {
-          "label": "Fields",
-          "description": "A JSON array of field definitions; the first entry becomes the primary field. Each entry is {\"name\": \"...\", \"type\": \"singleLineText\", \"description\"?: \"...\"}. Select fields need {\"type\": \"singleSelect\", \"options\": {\"choices\": [{\"name\": \"Todo\"}]}}.",
-          "type": "json",
-          "required": true,
-          "defaultValue": "[{\"name\":\"Name\",\"type\":\"singleLineText\",\"description\":\"This will be the primary field\"},{\"name\":\"Notes\",\"type\":\"multilineText\"}]"
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://api.airtable.com/v0/meta/bases/{{base_id}}/tables",
-        "body": {
-          "name": "{{name}}",
-          "fields": "{{fields}}",
-          "description": "{{description}}"
-        }
-      }
-    },
-    "create_base_ai": {
-      "label": "Create Base (Agent)",
-      "description": "Create a new base in a workspace.",
-      "audience": "ai",
-      "inputs": {
-        "workspace_id": {
-          "label": "Workspace ID",
-          "description": "The workspace ID (e.g. \"wspXXXXXXXXXXXXXX\") to create the base in. Airtable has no list-workspaces API; get it from a base's metadata or the Airtable UI URL.",
-          "required": true
-        },
-        "name": {
-          "label": "Base Name",
-          "description": "The name for the new base.",
-          "required": true
-        },
-        "tables": {
-          "label": "Tables",
-          "description": "A JSON array of tables for the new base. Each table is {\"name\": \"...\", \"fields\": [{\"name\": \"Name\", \"type\": \"singleLineText\"}, ...]}. The first field of each table becomes its primary field.",
-          "type": "json",
-          "required": true,
-          "defaultValue": "[{\"name\":\"My First Table\",\"fields\":[{\"name\":\"Name\",\"type\":\"singleLineText\"},{\"name\":\"Status\",\"type\":\"singleSelect\",\"options\":{\"choices\":[{\"name\":\"Todo\"},{\"name\":\"In Progress\"},{\"name\":\"Done\"}]}}]}]"
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://api.airtable.com/v0/meta/bases",
-        "body": {
-          "name": "{{name}}",
-          "workspaceId": "{{workspace_id}}",
-          "tables": "{{tables}}"
-        }
-      }
-    },
     "update_table": {
-      "label": "Update Table (Agent)",
+      "label": "Update Table",
       "description": "Rename or re-describe a table.",
       "audience": "ai",
       "inputs": {
         "base_id": {
           "label": "Base ID",
-          "description": "The Airtable base ID (e.g. \"appXXXXXXXXXXXXXX\"). Resolve it with List Bases (Agent).",
+          "description": "The Airtable base ID (e.g. \"appXXXXXXXXXXXXXX\"). Resolve it with List Bases.",
           "required": true
         },
         "table_id_or_name": {
           "label": "Table ID or Name",
-          "description": "The table ID (e.g. \"tblXXXXXXXXXXXXXX\") or its exact name. Resolve it with Get Base Schema (Agent).",
+          "description": "The table ID (e.g. \"tblXXXXXXXXXXXXXX\") or its exact name. Resolve it with Get Base Schema.",
           "required": true
         },
         "name": {
@@ -1029,18 +763,18 @@
       "beforeRequest": "if (!inputs.name && !inputs.description) throw new Error('Supply at least one of New Name or New Description.'); return request;"
     },
     "create_field": {
-      "label": "Create Field (Agent)",
+      "label": "Create Field",
       "description": "Add a new field (column) to a table.",
       "audience": "ai",
       "inputs": {
         "base_id": {
           "label": "Base ID",
-          "description": "The Airtable base ID (e.g. \"appXXXXXXXXXXXXXX\"). Resolve it with List Bases (Agent).",
+          "description": "The Airtable base ID (e.g. \"appXXXXXXXXXXXXXX\"). Resolve it with List Bases.",
           "required": true
         },
         "table_id_or_name": {
           "label": "Table ID or Name",
-          "description": "The table ID (e.g. \"tblXXXXXXXXXXXXXX\") or its exact name. Resolve it with Get Base Schema (Agent).",
+          "description": "The table ID (e.g. \"tblXXXXXXXXXXXXXX\") or its exact name. Resolve it with Get Base Schema.",
           "required": true
         },
         "name": {
@@ -1076,23 +810,23 @@
       }
     },
     "update_field": {
-      "label": "Update Field (Agent)",
+      "label": "Update Field",
       "description": "Rename or re-describe a field (column).",
       "audience": "ai",
       "inputs": {
         "base_id": {
           "label": "Base ID",
-          "description": "The Airtable base ID (e.g. \"appXXXXXXXXXXXXXX\"). Resolve it with List Bases (Agent).",
+          "description": "The Airtable base ID (e.g. \"appXXXXXXXXXXXXXX\"). Resolve it with List Bases.",
           "required": true
         },
         "table_id": {
           "label": "Table ID",
-          "description": "The table ID (e.g. \"tblXXXXXXXXXXXXXX\") — this endpoint requires the ID, not the name. Resolve it with Get Base Schema (Agent).",
+          "description": "The table ID (e.g. \"tblXXXXXXXXXXXXXX\") — this endpoint requires the ID, not the name. Resolve it with Get Base Schema.",
           "required": true
         },
         "field_id": {
           "label": "Field ID",
-          "description": "The field ID (e.g. \"fldXXXXXXXXXXXXXX\") to update. Resolve it with Get Base Schema (Agent).",
+          "description": "The field ID (e.g. \"fldXXXXXXXXXXXXXX\") to update. Resolve it with Get Base Schema.",
           "required": true
         },
         "name": {
@@ -1116,18 +850,18 @@
       "beforeRequest": "if (!inputs.name && !inputs.description) throw new Error('Supply at least one of New Name or New Description.'); return request;"
     },
     "list_record_comments": {
-      "label": "List Record Comments (Agent)",
+      "label": "List Record Comments",
       "description": "Read a record's comment thread.",
       "audience": "ai",
       "inputs": {
         "base_id": {
           "label": "Base ID",
-          "description": "The Airtable base ID (e.g. \"appXXXXXXXXXXXXXX\"). Resolve it with List Bases (Agent).",
+          "description": "The Airtable base ID (e.g. \"appXXXXXXXXXXXXXX\"). Resolve it with List Bases.",
           "required": true
         },
         "table_id_or_name": {
           "label": "Table ID or Name",
-          "description": "The table ID (e.g. \"tblXXXXXXXXXXXXXX\") or its exact name. Resolve it with Get Base Schema (Agent).",
+          "description": "The table ID (e.g. \"tblXXXXXXXXXXXXXX\") or its exact name. Resolve it with Get Base Schema.",
           "required": true
         },
         "record_id": {

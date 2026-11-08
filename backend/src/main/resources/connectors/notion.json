@@ -47,7 +47,7 @@
       "afterResponse": "var limit = Math.min(Math.max(inputs.limit === '' ? 10 : Number(inputs.limit), 1), 100);\nvar urlOf = (image, kinds) => image && kinds.includes(image.type) ? (image.type === 'emoji' ? image.emoji : image[image.type] && image[image.type].url) : undefined;\nvar data = response.results.map((database) => ({ id: database.id, title: (database.title ? database.title.map((part) => part.plain_text).join('').trim() : '') || 'Untitled',\n  url: database.url, createdTime: database.created_time, lastEditedTime: database.last_edited_time, archived: database.archived != null ? database.archived : false,\n  icon: urlOf(database.icon, ['emoji', 'external', 'file']), cover: urlOf(database.cover, ['external', 'file']), properties: Object.keys(database.properties || {}) }));\nreturn { success: true, data: data, pagination: { hasMore: response.has_more, nextCursor: response.next_cursor, count: data.length, limit: limit } };"
     },
     "create_database_item": {
-      "label": "Create Database Item",
+      "label": "Create Database Item from Field Values",
       "description": "Add an item to a database and set its fields.",
       "audience": "human",
       "inputs": {
@@ -90,7 +90,7 @@
       "beforeRequest": "var FIELD = {\n  checkbox: (value) => ({ checkbox: value }), date: (value) => ({ date: { start: value } }), email: (value) => ({ email: value }),\n  select: (value) => ({ select: { name: value } }), multi_select: (value) => ({ multi_select: value.map((name) => ({ name: name })) }),\n  status: (value) => ({ status: { name: value } }), number: (value) => ({ number: Number(value) }), phone_number: (value) => ({ phone_number: value }),\n  rich_text: (value) => ({ rich_text: [{ type: 'text', text: { content: value } }] }), title: (value) => ({ title: [{ type: 'text', text: { content: value } }] }),\n  url: (value) => ({ url: value }), people: (value) => ({ people: value.map((id) => ({ id: id })) })\n};\nvar filled = (value) => value !== '' && value !== undefined && value !== null && !(Array.isArray(value) && value.length === 0);\nvar paragraph = (content) => ({ object: 'block', type: 'paragraph', paragraph: { rich_text: [{ type: 'text', text: { content: content } }] } });\nvar fields = inputs.databaseFields ? JSON.parse(inputs.databaseFields) : {};\nvar schema = call({ method: 'GET', url: '/databases/' + encodeURIComponent(inputs.database_id) }).properties;\nvar properties = {};\nObject.keys(fields).forEach((name) => { if (filled(fields[name])) { var type = schema[name] && schema[name].type; if (type) properties[name] = FIELD[type](fields[name]); } });\nrequest.body = { parent: { type: 'database_id', database_id: inputs.database_id }, properties: properties, children: inputs.content ? [paragraph(inputs.content)] : [] };\nreturn request;"
     },
     "update_database_item": {
-      "label": "Update Database Item",
+      "label": "Update Database Item from Field Values",
       "description": "Change field values on an existing database item.",
       "audience": "human",
       "inputs": {
@@ -145,7 +145,7 @@
       "beforeRequest": "var FIELD = {\n  checkbox: (value) => ({ checkbox: value }), date: (value) => ({ date: { start: value } }), email: (value) => ({ email: value }),\n  select: (value) => ({ select: { name: value } }), multi_select: (value) => ({ multi_select: value.map((name) => ({ name: name })) }),\n  status: (value) => ({ status: { name: value } }), number: (value) => ({ number: Number(value) }), phone_number: (value) => ({ phone_number: value }),\n  rich_text: (value) => ({ rich_text: [{ type: 'text', text: { content: value } }] }), title: (value) => ({ title: [{ type: 'text', text: { content: value } }] }),\n  url: (value) => ({ url: value }), people: (value) => ({ people: value.map((id) => ({ id: id })) })\n};\nvar filled = (value) => value !== '' && value !== undefined && value !== null && !(Array.isArray(value) && value.length === 0);\nvar fields = inputs.databaseFields ? JSON.parse(inputs.databaseFields) : {};\nvar schema = call({ method: 'GET', url: '/databases/' + encodeURIComponent(inputs.database_id) }).properties;\nvar properties = {};\nObject.keys(fields).forEach((name) => { if (filled(fields[name])) properties[name] = FIELD[schema[name].type](fields[name]); });\nrequest.body = { properties: properties };\nreturn request;"
     },
     "notion-find-database-item": {
-      "label": "Find Database Item",
+      "label": "Find Database Item by Field Values",
       "description": "Find items in a database whose fields match exact values.",
       "audience": "human",
       "inputs": {
@@ -232,230 +232,6 @@
       "beforeRequest": "var fields = inputs.filterDatabaseFields ? JSON.parse(inputs.filterDatabaseFields) : {};\nvar limit = Math.min(Math.max(inputs.limit === '' ? 10 : Number(inputs.limit), 1), 100);\nvar schema = call({ method: 'GET', url: '/databases/' + encodeURIComponent(inputs.database_id) }).properties;\nvar filters = [];\nfor (var name in fields) {\n  var value = fields[name], property = schema[name];\n  if (value == null || value === '' || (Array.isArray(value) && value.length === 0) || !property) continue;\n  switch (property.type) {\n    case 'title': case 'rich_text': { var text = { property: name }; text[property.type] = { contains: value }; filters.push(text); break; }\n    case 'number': filters.push({ property: name, number: { equals: Number(value) } }); break;\n    case 'checkbox': filters.push({ property: name, checkbox: { equals: !!value } }); break;\n    case 'multi_select': for (var choice of Array.isArray(value) ? value : [value]) filters.push({ property: name, multi_select: { contains: choice } }); break;\n    case 'people': filters.push({ property: name, people: { contains: value } }); break;\n    case 'select': case 'status': case 'email': case 'phone_number': case 'url': case 'date': { var condition = { property: name }; condition[property.type] = { equals: value }; filters.push(condition); break; }\n  }\n}\nrequest.body = Object.assign({ page_size: limit, start_cursor: inputs.cursor || undefined }, filters.length > 0 ? { filter: { and: filters } } : {});\nreturn request;",
       "afterResponse": "var limit = Math.min(Math.max(inputs.limit === '' ? 10 : Number(inputs.limit), 1), 100);\nreturn { success: true, data: response.results.map((page) => ({ id: page.id, url: page.url, createdTime: page.created_time, lastEditedTime: page.last_edited_time, archived: page.archived, properties: page.properties })),\n  pagination: { count: response.results.length, hasMore: response.has_more, nextCursor: response.next_cursor, limit: limit } };"
     },
-    "createPage": {
-      "label": "Create Page",
-      "description": "Create a page inside another page, with a title and plain text.",
-      "audience": "human",
-      "inputs": {
-        "pageId": {
-          "label": "Parent Page",
-          "description": "The new page is created inside this page.",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "POST",
-              "url": "https://api.notion.com/v1/search",
-              "body": {
-                "filter": {
-                  "property": "object",
-                  "value": "page"
-                },
-                "sort": {
-                  "direction": "descending",
-                  "timestamp": "last_edited_time"
-                }
-              }
-            },
-            "list": "$.results",
-            "label": "$.properties.title.title[0].text.content",
-            "value": "$.id"
-          }
-        },
-        "title": {
-          "label": "Title",
-          "description": "For example: Meeting notes"
-        },
-        "content": {
-          "label": "Content",
-          "description": "Plain text body. Markdown is not rendered.",
-          "type": "multiline"
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://api.notion.com/v1/pages"
-      },
-      "beforeRequest": "var paragraph = (content) => ({ object: 'block', type: 'paragraph', paragraph: { rich_text: [{ type: 'text', text: { content: content } }] } });\nrequest.body = { parent: { page_id: inputs.pageId }, properties: { title: { title: [{ text: { content: inputs.title } }] } }, children: inputs.content ? [paragraph(inputs.content)] : [] };\nreturn request;"
-    },
-    "append_to_page": {
-      "label": "Append to Page",
-      "description": "Appends content to the end of a page.",
-      "audience": "human",
-      "inputs": {
-        "pageId": {
-          "label": "Page",
-          "description": "Your 100 most recently edited pages shared with the integration.",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "POST",
-              "url": "https://api.notion.com/v1/search",
-              "body": {
-                "filter": {
-                  "property": "object",
-                  "value": "page"
-                },
-                "sort": {
-                  "direction": "descending",
-                  "timestamp": "last_edited_time"
-                }
-              }
-            },
-            "list": "$.results",
-            "label": "$.properties.title.title[0].text.content",
-            "value": "$.id"
-          }
-        },
-        "content": {
-          "label": "Content",
-          "description": "Markdown is rendered into Notion blocks.",
-          "type": "multiline",
-          "required": true
-        }
-      },
-      "request": {
-        "method": "PATCH",
-        "url": "https://api.notion.com/v1/blocks/{{pageId}}/children"
-      },
-      "beforeRequest": "var markdownToBlocks = (() => {\n  var LANGUAGES = {\"abap\":\"abap\",\"sh\":\"shell\",\"shell-script\":\"shell\",\"bash\":\"shell\",\"zsh\":\"shell\",\"text\":\"vb.net\",\"c_cpp\":\"c++\",\"clojure\":\"clojure\",\"coffee\":\"coffeescript\",\"coffee-script\":\"coffeescript\",\"cpp\":\"c++\",\"csharp\":\"c#\",\"cake\":\"c#\",\"cakescript\":\"c#\",\"css\":\"css\",\"dart\":\"dart\",\"diff\":\"diff\",\"udiff\":\"diff\",\"dockerfile\":\"docker\",\"elixir\":\"elixir\",\"elm\":\"elm\",\"erlang\":\"erlang\",\"fsharp\":\"f#\",\"cucumber\":\"gherkin\",\"glsl\":\"glsl\",\"golang\":\"go\",\"groovy\":\"groovy\",\"haskell\":\"haskell\",\"html\":\"html\",\"xhtml\":\"html\",\"java\":\"java/c/c++/c#\",\"javascript\":\"javascript\",\"js\":\"javascript\",\"node\":\"javascript\",\"json\":\"json\",\"julia\":\"julia\",\"tex\":\"latex\",\"latex\":\"latex\",\"less\":\"less\",\"lisp\":\"webassembly\",\"livescript\":\"livescript\",\"live-script\":\"livescript\",\"ls\":\"livescript\",\"lua\":\"lua\",\"makefile\":\"makefile\",\"bsdmake\":\"makefile\",\"make\":\"makefile\",\"mf\":\"makefile\",\"markdown\":\"markdown\",\"pandoc\":\"markdown\",\"matlab\":\"matlab\",\"octave\":\"matlab\",\"nix\":\"nix\",\"nixos\":\"nix\",\"objectivec\":\"objective-c\",\"obj-c\":\"objective-c\",\"objc\":\"objective-c\",\"ocaml\":\"ocaml\",\"pascal\":\"pascal\",\"delphi\":\"pascal\",\"objectpascal\":\"pascal\",\"perl\":\"perl\",\"cperl\":\"perl\",\"php\":\"php\",\"inc\":\"php\",\"powershell\":\"powershell\",\"posh\":\"powershell\",\"pwsh\":\"powershell\",\"prolog\":\"prolog\",\"protobuf\":\"protobuf\",\"Protocol Buffers\":\"protobuf\",\"python\":\"python\",\"python3\":\"python\",\"rusthon\":\"python\",\"r\":\"r\",\"R\":\"r\",\"Rscript\":\"r\",\"splus\":\"r\",\"rust\":\"rust\",\"ruby\":\"ruby\",\"jruby\":\"ruby\",\"macruby\":\"ruby\",\"rake\":\"ruby\",\"rb\":\"ruby\",\"rbx\":\"ruby\",\"rs\":\"rust\",\"sass\":\"sass\",\"scala\":\"scala\",\"scheme\":\"scheme\",\"scss\":\"scss\",\"sql\":\"sql\",\"typescript\":\"typescript\",\"ts\":\"typescript\",\"visual basic\":\"vb.net\",\"vbnet\":\"vb.net\",\"vb .net\":\"vb.net\",\"vb.net\":\"vb.net\",\"verilog\":\"verilog\",\"vhdl\":\"vhdl\",\"wast\":\"webassembly\",\"wasm\":\"webassembly\",\"xml\":\"xml\",\"rss\":\"xml\",\"xsd\":\"xml\",\"wsdl\":\"xml\",\"yaml\":\"yaml\",\"yml\":\"yaml\"};\n  var SUPPORTED = ['abap','arduino','bash','basic','c','clojure','coffeescript','c++','c#','css','dart','diff','docker','elixir','elm','erlang','flow','fortran','f#','gherkin','glsl','go','graphql','groovy','haskell','html','java','javascript','json','julia','kotlin','latex','less','lisp','livescript','lua','makefile','markdown','markup','matlab','mermaid','nix','objective-c','ocaml','pascal','perl','php','plain text','powershell','prolog','protobuf','python','r','reason','ruby','rust','sass','scala','scheme','scss','shell','sql','swift','typescript','vb.net','verilog','vhdl','visual basic','webassembly','xml','yaml','java/c/c++/c#'];\n  var PUNCTUATION = /[!-\\/:-@\\[-`{-~\\p{P}\\p{S}]/u;\n  var SPACE = /\\s/;\n  var ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '\"', apos: \"'\", nbsp: ' ', copy: '©', reg: '®', hellip: '…', mdash: '—', ndash: '–' };\n  var decodeEntities = (text) => text.replace(/&(#x[0-9a-f]+|#[0-9]+|[a-z]+);/gi, (all, name) =>\n    name[0] === '#' ? String.fromCodePoint(name[1] === 'x' || name[1] === 'X' ? parseInt(name.slice(2), 16) : parseInt(name.slice(1), 10)) : ENTITIES[name] !== undefined ? ENTITIES[name] : all);\n  var decode = (text) => decodeEntities(text.replace(/\\\\([!-\\/:-@\\[-`{-~])/g, '$1'));\n\n  // Inline Markdown into mdast nodes, as remark with GFM and math reads it.\n  var inline = (source) => {\n    var tokens = [];\n    var text = '';\n    var flush = () => { if (text) { tokens.push({ kind: 'text', value: text }); text = ''; } };\n    var at = 0;\n    while (at < source.length) {\n      var rest = source.slice(at);\n      var character = source[at];\n      var match;\n      if (character === '\\\\' && at + 1 < source.length && /[!-\\/:-@\\[-`{-~]/.test(source[at + 1])) { text += source[at + 1]; at += 2; continue; }\n      if (character === '\\\\' && source[at + 1] === '\\n') { flush(); tokens.push({ kind: 'node', node: { type: 'break' } }); at += 2; continue; }\n      if (character === '\\n') {\n        var before = text.match(/ *$/)[0].length;\n        if (before >= 2) { text = text.slice(0, -before); flush(); tokens.push({ kind: 'node', node: { type: 'break' } }); }\n        else { text = text.replace(/ +$/, '') + '\\n'; }\n        at += 1;\n        while (source[at] === ' ' || source[at] === '\\t') at += 1;\n        continue;\n      }\n      if (character === '`' || character === '$') {\n        var run = 0;\n        while (source[at + run] === character) run++;\n        var closeAt = -1, search = at + run;\n        while (search < source.length) {\n          var index = source.indexOf(character, search);\n          if (index < 0) break;\n          var length = 0;\n          while (source[index + length] === character) length++;\n          if (length === run) { closeAt = index; break; }\n          search = index + length;\n        }\n        if (closeAt < 0) { text += character.repeat(run); at += run; continue; }\n        var value = source.slice(at + run, closeAt);\n        if (/^ /.test(value) && / $/.test(value) && /[^ ]/.test(value)) value = value.slice(1, -1);\n        flush();\n        tokens.push({ kind: 'node', node: character === '`' ? { type: 'inlineCode', value: value } : { type: 'inlineMath', value: value } });\n        at = closeAt + run;\n        continue;\n      }\n      if (character === '<' && (match = rest.match(/^<([a-zA-Z][a-zA-Z0-9+.-]{1,31}:[^\\s<>]*)>/))) {\n        flush(); tokens.push({ kind: 'node', node: { type: 'link', url: match[1], children: [{ type: 'text', value: match[1] }] } }); at += match[0].length; continue;\n      }\n      if (character === '<' && (match = rest.match(/^<([a-zA-Z0-9.!#$%&'*+\\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*)>/))) {\n        flush(); tokens.push({ kind: 'node', node: { type: 'link', url: 'mailto:' + match[1], children: [{ type: 'text', value: match[1] }] } }); at += match[0].length; continue;\n      }\n      if (character === '<' && (match = rest.match(/^<\\/?[a-zA-Z][a-zA-Z0-9-]*(?:\\s[^<>]*)?\\/?>/))) { flush(); tokens.push({ kind: 'node', node: { type: 'html' } }); at += match[0].length; continue; }\n      if ((character === '[' || (character === '!' && source[at + 1] === '[')) && (match = linkAt(source, at + (character === '!' ? 1 : 0)))) {\n        flush();\n        if (character === '!') tokens.push({ kind: 'node', node: { type: 'image', url: match.url, alt: match.label } });\n        else tokens.push({ kind: 'node', node: { type: 'link', url: match.url, children: inline(match.label) } });\n        at = match.end; continue;\n      }\n      if (character === '[' || (character === '!' && source[at + 1] === '[')) {\n        var reference = source.slice(at + (character === '!' ? 1 : 0)).match(/^\\[((?:[^\\[\\]\\\\]|\\\\.)*)\\](?:\\[((?:[^\\[\\]\\\\]|\\\\.)*)\\])?/);\n        if (reference && definitions.has(label(reference[2] ? reference[2] : reference[1]))) {\n          flush(); tokens.push({ kind: 'node', node: { type: 'html' } }); at += (character === '!' ? 1 : 0) + reference[0].length; continue;\n        }\n      }\n      var previous = at === 0 ? '' : source[at - 1];\n      if ((match = rest.match(/^(?:https?:\\/\\/|www\\.)[^\\s<]*/i)) && (!previous || !/[a-zA-Z]/.test(previous))) {\n        var url = trimLink(match[0]);\n        if (url.length > (url[0] === 'w' || url[0] === 'W' ? 4 : url.indexOf('//') + 2) && /^(?:https?:\\/\\/|www\\.)[a-zA-Z0-9_-]+(?:\\.[a-zA-Z0-9_-]+)*/i.test(url)) {\n          flush(); tokens.push({ kind: 'node', node: { type: 'link', url: /^www\\./i.test(url) ? 'http://' + url : url, children: [{ type: 'text', value: url }] } }); at += url.length; continue;\n        }\n      }\n      if ((match = rest.match(/^[a-zA-Z0-9.+_-]+@[a-zA-Z0-9_-]+(?:\\.[a-zA-Z0-9_-]+)+/)) && (!previous || !/[a-zA-Z0-9.+_\\/-]/.test(previous))) {\n        var email = match[0].replace(/\\.+$/, '');\n        if (/\\.[a-zA-Z0-9]+$/.test(email) && !/[_-]$/.test(email)) { flush(); tokens.push({ kind: 'node', node: { type: 'link', url: 'mailto:' + email, children: [{ type: 'text', value: email }] } }); at += email.length; continue; }\n      }\n      if (character === '*' || character === '_' || character === '~') {\n        var delimiter = rest.match(character === '*' ? /^\\*+/ : character === '_' ? /^_+/ : /^~+/)[0];\n        var next = source[at + delimiter.length] || '';\n        var leftFlanking = next !== '' && !SPACE.test(next) && (!PUNCTUATION.test(next) || previous === '' || SPACE.test(previous) || PUNCTUATION.test(previous));\n        var rightFlanking = previous !== '' && !SPACE.test(previous) && (!PUNCTUATION.test(previous) || next === '' || SPACE.test(next) || PUNCTUATION.test(next));\n        var opens = character === '_' ? leftFlanking && (!rightFlanking || PUNCTUATION.test(previous)) : leftFlanking;\n        var closes = character === '_' ? rightFlanking && (!leftFlanking || PUNCTUATION.test(next)) : rightFlanking;\n        if (character === '~' && delimiter.length > 2) { text += delimiter; at += delimiter.length; continue; }\n        flush();\n        tokens.push({ kind: 'delimiter', character: character, count: delimiter.length, original: delimiter.length, opens: opens, closes: closes, before: [], after: [] });\n        at += delimiter.length; continue;\n      }\n      text += character; at += 1;\n    }\n    flush();\n    return emphasis(tokens);\n  };\n\n  var trimLink = (url) => {\n    var trimmed = url;\n    for (;;) {\n      var last = trimmed[trimmed.length - 1];\n      if (/[?!.,:*_~'\"]/.test(last)) { trimmed = trimmed.slice(0, -1); continue; }\n      if (last === ')' && (trimmed.match(/\\(/g) || []).length < (trimmed.match(/\\)/g) || []).length) { trimmed = trimmed.slice(0, -1); continue; }\n      if (last === ';' && /&[a-zA-Z0-9]+;$/.test(trimmed)) { trimmed = trimmed.replace(/&[a-zA-Z0-9]+;$/, ''); continue; }\n      return trimmed;\n    }\n  };\n\n  var linkAt = (source, start) => {\n    var depth = 0;\n    for (var at = start; at < source.length; at++) {\n      var character = source[at];\n      if (character === '\\\\') { at++; continue; }\n      if (character === '`') { var run = source.slice(at).match(/^`+/)[0]; var close = source.indexOf(run, at + run.length); if (close > 0) { at = close + run.length - 1; continue; } }\n      if (character === '[') depth++;\n      if (character === ']' && --depth === 0) {\n        var target = source.slice(at + 1).match(/^\\(\\s*(<[^<>\\n]*>|[^\\s()]*(?:\\([^\\s()]*\\)[^\\s()]*)*)(?:\\s+(\"[^\"]*\"|'[^']*'|\\([^)]*\\)))?\\s*\\)/);\n        if (!target) return null;\n        var url = target[1][0] === '<' ? target[1].slice(1, -1) : target[1];\n        return { label: source.slice(start + 1, at), url: decode(url), end: at + 1 + target[0].length };\n      }\n    }\n    return null;\n  };\n\n  // The CommonMark rules for which * _ and ~ open and close emphasis, strong and strikethrough.\n  var emphasis = (tokens) => {\n    var items = tokens.map((token) => token.kind === 'delimiter' ? token : { kind: 'node', node: token.kind === 'text' ? { type: 'text', value: decodeEntities(token.value) } : token.node });\n    for (var closer = 0; closer < items.length; closer++) {\n      var close = items[closer];\n      if (close.kind !== 'delimiter' || !close.closes || close.count === 0) continue;\n      for (var opener = closer - 1; opener >= 0; opener--) {\n        var open = items[opener];\n        if (open.kind !== 'delimiter' || !open.opens || open.count === 0 || open.character !== close.character) continue;\n        if (close.character === '~') { if (open.count !== close.count) continue; }\n        else if ((open.closes || close.opens) && (open.original + close.original) % 3 === 0 && !(open.original % 3 === 0 && close.original % 3 === 0)) continue;\n        var used = close.character === '~' ? open.count : open.count >= 2 && close.count >= 2 ? 2 : 1;\n        var type = close.character === '~' ? 'delete' : used === 2 ? 'strong' : 'emphasis';\n        var inner = items.slice(opener + 1, closer).filter((item) => item.kind === 'node' || item.count > 0).map((item) => item.kind === 'node' ? item.node : { type: 'text', value: item.character.repeat(item.count) });\n        open.count -= used; close.count -= used;\n        items.splice(opener + 1, closer - opener - 1, { kind: 'node', node: { type: type, children: merge(inner) } });\n        closer = close.count > 0 ? opener + 1 : opener + 2;\n        break;\n      }\n    }\n    return merge(items.filter((item) => item.kind === 'node' || item.count > 0).map((item) => item.kind === 'node' ? item.node : { type: 'text', value: item.character.repeat(item.count) }));\n  };\n\n  var merge = (nodes) => nodes.reduce((merged, node) => {\n    var last = merged[merged.length - 1];\n    if (node.type === 'text' && last && last.type === 'text') last.value += node.value;\n    else if (node.type === 'html') merged.push({ type: 'html' });\n    else if (node.type !== 'text' || node.value !== '') merged.push(node);\n    return merged;\n  }, []);\n\n  // Block Markdown into mdast nodes.\n  var FENCE = /^( {0,3})(`{3,}|~{3,})[ \\t]*([^\\s`]*)[^`]*$/;\n  var HEADING = /^ {0,3}(#{1,6})(?:[ \\t]+(.*?))?(?:[ \\t]+#+)?[ \\t]*$/;\n  var RULE = /^ {0,3}((?:\\*[ \\t]*){3,}|(?:-[ \\t]*){3,}|(?:_[ \\t]*){3,})$/;\n  var QUOTE = /^ {0,3}> ?/;\n  var ITEM = /^( {0,3})([-*+]|\\d{1,9}[.)])([ \\t]+|$)/;\n  var MATH = /^ {0,3}\\$\\$[^$]*$/;\n  var DEFINITION = /^ {0,3}\\[((?:[^\\]\\\\]|\\\\.)+)\\]:[ \\t]*(<[^>]*>|\\S+)(?:[ \\t]+(\"[^\"]*\"|'[^']*'|\\([^)]*\\)))?[ \\t]*$/;\n  var label = (text) => text.trim().replace(/\\s+/g, ' ').toLowerCase();\n  var definitions = new Set();\n  var HTML = /^ {0,3}(?:<(?:script|pre|style|textarea)(?:\\s|>|$)|<!--|<\\?|<![a-zA-Z]|<!\\[CDATA\\[|<\\/?(?:address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|search|section|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)(?:\\s|\\/?>|$))/i;\n  var HTML_TAG_LINE = /^ {0,3}(?:<[a-zA-Z][a-zA-Z0-9-]*(?:\\s+[a-zA-Z_:][\\w.:-]*(?:\\s*=\\s*(?:[^\\s\"'=<>`]+|'[^']*'|\"[^\"]*\"))?)*\\s*\\/?>|<\\/[a-zA-Z][a-zA-Z0-9-]*\\s*>)[ \\t]*$/;\n  var blank = (line) => /^[ \\t]*$/.test(line);\n  var cells = (line) => line.trim().replace(/^\\|/, '').replace(/(^|[^\\\\])\\|$/, '$1').split(/(?<!\\\\)\\|/).map((cell) => cell.trim());\n  var isDelimiterRow = (line) => /^ {0,3}\\|?[ \\t]*:?-+:?[ \\t]*(\\|[ \\t]*:?-+:?[ \\t]*)*\\|?[ \\t]*$/.test(line);\n  var interrupts = (line) => HEADING.test(line) || FENCE.test(line) || QUOTE.test(line) || RULE.test(line) || MATH.test(line) || HTML.test(line) ||\n    ((match) => match && match[3] !== '' && (/^[-*+]$/.test(match[2]) || /^1[.)]$/.test(match[2])))(line.match(ITEM));\n\n  var blocks = (lines) => {\n    var nodes = [];\n    var at = 0;\n    while (at < lines.length) {\n      var line = lines[at];\n      var match;\n      if (blank(line)) { at++; continue; }\n      if ((match = line.match(FENCE))) {\n        var indent = match[1].length, fence = match[2], body = [];\n        at++;\n        while (at < lines.length && !new RegExp('^ {0,3}' + fence[0] + '{' + fence.length + ',}[ \\\\t]*$').test(lines[at])) { body.push(lines[at].replace(new RegExp('^ {0,' + indent + '}'), '')); at++; }\n        at++;\n        nodes.push({ type: 'code', lang: match[3] ? decode(match[3]) : null, value: body.join('\\n') });\n        continue;\n      }\n      if (MATH.test(line)) {\n        var formula = [];\n        at++;\n        while (at < lines.length && !/^ {0,3}\\$\\$[ \\t]*$/.test(lines[at])) { formula.push(lines[at]); at++; }\n        at++;\n        nodes.push({ type: 'math', value: formula.join('\\n') });\n        continue;\n      }\n      if ((match = line.match(HEADING))) { nodes.push({ type: 'heading', depth: match[1].length, children: inline((match[2] || '').trim()) }); at++; continue; }\n      if (RULE.test(line)) { nodes.push({ type: 'thematicBreak' }); at++; continue; }\n      if (QUOTE.test(line)) {\n        var quoted = [];\n        while (at < lines.length && QUOTE.test(lines[at])) { quoted.push(lines[at].replace(QUOTE, '')); at++; }\n        nodes.push({ type: 'blockquote', children: blocks(quoted) });\n        continue;\n      }\n      if ((match = line.match(ITEM))) {\n        var ordered = /\\d/.test(match[2]);\n        var marker = ordered ? match[2].slice(-1) : match[2];\n        var list = { type: 'list', ordered: ordered, start: ordered ? parseInt(match[2], 10) : null, children: [] };\n        while (at < lines.length && (match = lines[at].match(ITEM)) && (ordered ? /\\d/.test(match[2]) && match[2].slice(-1) === marker : match[2] === marker) && !RULE.test(lines[at])) {\n          var spaces = match[3].replace(/\\t/g, '    ').length;\n          var offset = match[1].length + match[2].length + (match[3] === '' ? 1 : spaces > 4 ? 1 : spaces);\n          var content = [match[3] === '' ? '' : (spaces > 4 ? ' '.repeat(spaces - 1) : '') + lines[at].slice(match[0].length)];\n          at++;\n          while (at < lines.length) {\n            var next = lines[at];\n            if (blank(next)) { content.push(''); at++; continue; }\n            if (next.replace(/\\t/g, '    ').match(/^ */)[0].length >= offset) { content.push(next.replace(/\\t/g, '    ').slice(offset)); at++; continue; }\n            break;\n          }\n          while (content.length && blank(content[content.length - 1])) content.pop();\n          var checked = null;\n          var task = content.length ? content[0].match(/^\\[([ xX])\\][ \\t]+(?=\\S)/) : null;\n          if (task) { checked = task[1] !== ' '; content[0] = content[0].slice(task[0].length); }\n          list.children.push({ type: 'listItem', checked: checked, children: blocks(content) });\n          while (at < lines.length && blank(lines[at])) {\n            var ahead = at;\n            while (ahead < lines.length && blank(lines[ahead])) ahead++;\n            if (ahead < lines.length && ITEM.test(lines[ahead])) { at = ahead; } else { break; }\n          }\n        }\n        nodes.push(list);\n        continue;\n      }\n      if (/^(?: {4}|\\t)/.test(line)) {\n        var code = [];\n        while (at < lines.length && (/^(?: {4}|\\t)/.test(lines[at]) || blank(lines[at]))) { code.push(lines[at].replace(/^(?: {4}|\\t)/, '')); at++; }\n        while (code.length && blank(code[code.length - 1])) code.pop();\n        nodes.push({ type: 'code', lang: null, value: code.join('\\n') });\n        continue;\n      }\n      if (HTML.test(line) || HTML_TAG_LINE.test(line)) { while (at < lines.length && !blank(lines[at])) at++; nodes.push({ type: 'html' }); continue; }\n      if (line.includes('|') && at + 1 < lines.length && isDelimiterRow(lines[at + 1]) && cells(lines[at + 1]).length === cells(line).length) {\n        var rows = [cells(line)];\n        at += 2;\n        while (at < lines.length && !blank(lines[at]) && !interrupts(lines[at])) { rows.push(cells(lines[at])); at++; }\n        nodes.push({ type: 'table', children: rows.map((row) => ({ type: 'tableRow', children: row.map((cell) => ({ type: 'tableCell', children: inline(cell) })) })) });\n        continue;\n      }\n      if ((match = line.match(DEFINITION))) { at++; continue; }\n      var paragraph = [];\n      while (at < lines.length && !blank(lines[at]) && (paragraph.length === 0 || !interrupts(lines[at]))) {\n        if (paragraph.length && /^ {0,3}(=+|-+)[ \\t]*$/.test(lines[at])) break;\n        paragraph.push(lines[at].replace(/^[ \\t]+/, '')); at++;\n      }\n      if (at < lines.length && paragraph.length && (match = lines[at].match(/^ {0,3}(=+|-+)[ \\t]*$/))) {\n        nodes.push({ type: 'heading', depth: match[1][0] === '=' ? 1 : 2, children: inline(paragraph.join('\\n').trim()) }); at++; continue;\n      }\n      nodes.push({ type: 'paragraph', children: inline(paragraph.join('\\n').replace(/[ \\t]+$/, '')) });\n    }\n    return nodes;\n  };\n\n  // From here on, as @tryfabric/martian turns mdast into Notion blocks.\n  var richText = (content, options) => {\n    options = options || {};\n    var annotations = Object.assign({ bold: false, strikethrough: false, underline: false, italic: false, code: false, color: 'default' }, options.annotations || {});\n    return options.type === 'equation' ? { type: 'equation', annotations: annotations, equation: { expression: content } }\n      : { type: 'text', annotations: annotations, text: { content: content, link: options.url ? { type: 'url', url: options.url } : undefined } };\n  };\n  var ensureLength = (text, options) => (text.match(/[^]{1,2000}/g) || []).flatMap((part) => richText(part, options));\n  var parseInline = (node, options) => {\n    var next = { annotations: Object.assign({}, options && options.annotations ? options.annotations : {}), url: options ? options.url : undefined };\n    switch (node.type) {\n      case 'text': return ensureLength(node.value, next);\n      case 'delete': next.annotations.strikethrough = true; return node.children.flatMap((child) => parseInline(child, next));\n      case 'emphasis': next.annotations.italic = true; return node.children.flatMap((child) => parseInline(child, next));\n      case 'strong': next.annotations.bold = true; return node.children.flatMap((child) => parseInline(child, next));\n      case 'link': next.url = node.url; return node.children.flatMap((child) => parseInline(child, next));\n      case 'inlineCode': next.annotations.code = true; return [richText(node.value, next)];\n      case 'inlineMath': return [richText(node.value, Object.assign({}, next, { type: 'equation' }))];\n      default: return [];\n    }\n  };\n  var paragraphBlock = (text) => ({ object: 'block', type: 'paragraph', paragraph: { rich_text: text } });\n  var parseImage = (node) => {\n    var address = /^[a-zA-Z][a-zA-Z0-9+.-]*:(?:\\/\\/[^\\/?#]*)?([^?#]*)/.exec(node.url);\n    if (!address) return paragraphBlock([richText(node.url)]);\n    var name = address[1].split('/').pop();\n    var dot = name.lastIndexOf('.');\n    var extension = dot > 0 ? name.slice(dot) : '';\n    return ['.png', '.jpg', '.jpeg', '.gif', '.tif', '.tiff', '.bmp', '.svg', '.heic'].includes(extension)\n      ? { object: 'block', type: 'image', image: { type: 'external', external: { url: node.url } } } : paragraphBlock([richText(node.url)]);\n  };\n  var parseParagraph = (node) => {\n    if (node.children.length > 2 && node.children[0].type === 'text' && node.children[0].value === '[[' && node.children[1].type === 'emphasis' && node.children[1].children[0].value === 'TOC') {\n      return [{ object: 'block', type: 'table_of_contents', table_of_contents: {} }];\n    }\n    var images = [], text = [];\n    node.children.forEach((child) => { if (child.type === 'image') images.push(parseImage(child)); else { var parts = parseInline(child); if (parts.length) text.push(parts); } });\n    return text.length ? [paragraphBlock(text.flat())].concat(images) : images;\n  };\n  var withChildren = (type, fields, children) => { var block = { object: 'block', type: type }; block[type] = Object.assign(fields, { children: children.length ? children : undefined }); return block; };\n  var parseNode = (node) => {\n    switch (node.type) {\n      case 'heading': {\n        var text = node.children.flatMap((child) => parseInline(child));\n        var type = node.depth === 1 ? 'heading_1' : node.depth === 2 ? 'heading_2' : 'heading_3';\n        var heading = { object: 'block', type: type }; heading[type] = { rich_text: text }; return [heading];\n      }\n      case 'paragraph': return parseParagraph(node);\n      case 'code': {\n        var language = node.lang ? node.lang.toLowerCase() : undefined;\n        if (language) language = SUPPORTED.includes(language) ? language : LANGUAGES[language];\n        return [{ object: 'block', type: 'code', code: { rich_text: ensureLength(node.value), language: language === undefined ? 'plain text' : language } }];\n      }\n      case 'blockquote': return [{ object: 'block', type: 'quote', quote: { rich_text: [richText('')], children: node.children.flatMap(parseNode) } }];\n      case 'list': return node.children.flatMap((item) => {\n        var first = item.children.shift();\n        if (first === undefined || first.type !== 'paragraph') return [];\n        var text = first.children.flatMap((child) => parseInline(child));\n        var children = item.children.flatMap(parseNode);\n        if (node.start !== null && node.start !== undefined) return [withChildren('numbered_list_item', { rich_text: text }, children)];\n        if (item.checked !== null && item.checked !== undefined) return [withChildren('to_do', { rich_text: text, checked: item.checked }, children)];\n        return [withChildren('bulleted_list_item', { rich_text: text }, children)];\n      });\n      case 'table': {\n        var width = node.children.length ? node.children[0].children.length : 0;\n        var rows = node.children.map((row) => ({ object: 'block', type: 'table_row', table_row: { cells: row.children.map((cell) => cell.children.flatMap((child) => parseInline(child))) } }));\n        return [{ object: 'block', type: 'table', table: { table_width: width, has_column_header: true, children: rows } }];\n      }\n      case 'math': return [{ type: 'equation', equation: { expression: node.value.split('\\n').join('\\\\\\\\\\n') } }];\n      default: return [];\n    }\n  };\n  return (markdown) => {\n    var lines = String(markdown).replace(/\\r\\n?/g, '\\n').split('\\n');\n    definitions = new Set(lines.map((line) => line.match(DEFINITION)).filter(Boolean).map((match) => label(match[1])));\n    return blocks(lines).flatMap(parseNode).slice(0, 1000);\n  };\n})();\nrequest.body = { children: markdownToBlocks(inputs.content) };\nreturn request;"
-    },
-    "getPageOrBlockChildren": {
-      "label": "Get Block Content",
-      "description": "Read a page's content as blocks or as Markdown.",
-      "audience": "human",
-      "inputs": {
-        "parentId": {
-          "label": "Page or Block ID",
-          "description": "Paste the ID, or map a page from a previous step. For example: 1d4805e9774b8056820bc1083bff77e3",
-          "required": true
-        },
-        "markdown": {
-          "label": "Markdown",
-          "description": "Return the content as Markdown instead of blocks.",
-          "type": "boolean",
-          "defaultValue": "false"
-        },
-        "dynamic": {
-          "label": "Depth",
-          "description": "Without Markdown: how many levels of nested blocks to include, as {\"depth\": 1}.",
-          "type": "json",
-          "required": true,
-          "defaultValue": "{\"depth\": 1}"
-        }
-      },
-      "request": {
-        "method": "GET",
-        "url": "https://api.notion.com/v1/blocks/{{parentId}}/children"
-      },
-      "afterResponse": "// As notion-to-md turns a page's blocks into Markdown, with child pages left out.\nvar children = (id, totalPage, first) => {\n  var results = [], pages = 0, cursor;\n  do {\n    var page = pages === 0 && first ? first : call({ method: 'GET', url: '/blocks/' + encodeURIComponent(id) + '/children', query: cursor ? { start_cursor: cursor } : {} });\n    results.push(...page.results);\n    cursor = page.next_cursor;\n    pages += 1;\n  } while (cursor != null && (totalPage == null || pages < totalPage));\n  var number = 0;\n  for (var block of results) if ('type' in block && block.type === 'numbered_list_item') block.numbered_list_item.number = ++number; else number = 0;\n  return results;\n};\nvar tabbed = (text, depth) => { for (var level = 0; level < depth; level++) text = text.includes('\\n') ? '\\t' + text.split(/(?:^|\\n)/).join('\\n\\t') : '\\t' + text; return text; };\nvar callout = (text, icon) => '> ' + (icon && icon.type === 'emoji' ? icon.emoji + ' ' : '') + text.replace(/\\n/g, '  \\n> ');\nvar table = (rows) => {\n  var width = Math.max(0, ...rows.map((row) => row.length)), sizes = [];\n  rows.forEach((row) => row.forEach((cell, column) => { sizes[column] = Math.max(sizes[column] || 0, String(cell).length); }));\n  var line = (row) => '| ' + Array.from({ length: width }, (unused, column) => { var cell = row[column] == null ? '' : String(row[column]); return cell + ' '.repeat(Math.max(1, sizes[column] || 0) - cell.length); }).join(' | ') + ' |';\n  var lines = rows.map(line);\n  lines.splice(1, 0, '| ' + Array.from({ length: width }, (unused, column) => '-'.repeat(Math.max(1, sizes[column] || 0))).join(' | ') + ' |');\n  return lines.join('\\n');\n};\nvar annotate = (text, annotations) => {\n  if (/^\\s*$/.test(text)) return text;\n  var leading = text.match(/^(\\s*)/)[0], trailing = text.match(/(\\s*)$/)[0];\n  text = text.trim();\n  if (text !== '') {\n    if (annotations.code) text = '`' + text + '`';\n    if (annotations.bold) text = '**' + text + '**';\n    if (annotations.italic) text = '_' + text + '_';\n    if (annotations.strikethrough) text = '~~' + text + '~~';\n    if (annotations.underline) text = '<u>' + text + '</u>';\n  }\n  return leading + text + trailing;\n};\nvar fileName = (url, fallback) => { var found = url.match(/[^\\/\\\\&\\?]+\\.\\w{3,4}(?=([\\?&].*$|$))/); return found ? found[0] : fallback; };\nvar blockToMarkdown = (block) => {\n  if (typeof block != 'object' || !('type' in block)) return '';\n  var text = '', type = block.type;\n  switch (type) {\n    case 'image': {\n      var image = block.image, caption = image.caption.map((part) => part.plain_text).join(''), url = image.type === 'external' ? image.external.url : image.type === 'file' ? image.file.url : '';\n      var alt = caption.trim().length > 0 ? caption : image.type === 'file' || image.type === 'external' ? fileName(url, 'image') : 'image';\n      return url.startsWith('data:') ? '![' + alt + '](data:image/png;base64,' + url.split(',').pop() + ')' : '![' + alt + '](' + url + ')';\n    }\n    case 'divider': return '---';\n    case 'equation': return '$$\\n' + block.equation.expression + '\\n$$';\n    case 'video': case 'file': case 'pdf': {\n      var media = block[type], name = type, mediaCaption = media ? media.caption.map((part) => part.plain_text).join('') : undefined;\n      if (media) {\n        var address = media.type === 'external' ? media.external.url : media.type === 'file' ? media.file.url : '';\n        if (mediaCaption && mediaCaption.trim().length > 0) name = mediaCaption; else if (address) name = fileName(address, type);\n        return '[' + name + '](' + address + ')';\n      }\n      break;\n    }\n    case 'bookmark': case 'embed': case 'link_preview': case 'link_to_page': {\n      var target = type === 'link_to_page' ? (block.link_to_page.type === 'page_id' ? { url: block.link_to_page.page_id } : undefined) : block[type];\n      if (target) return '[' + type + '](' + target.url + ')';\n      break;\n    }\n    case 'child_page': return '';\n    case 'child_database': return block.child_database.title || 'child_database';\n    case 'table': {\n      var rows = [];\n      if (block.has_children) children(block.id, 100).forEach((row) => rows.push(row[row.type].cells.map((cell) => blockToMarkdown({ type: 'paragraph', paragraph: { rich_text: cell } }))));\n      return table(rows);\n    }\n    default:\n      (block[type].text || block[type].rich_text || []).forEach((part) => {\n        if (part.type === 'equation') { text += '$' + part.equation.expression + '$'; return; }\n        var plain = annotate(part.plain_text, part.annotations);\n        if (part.href) plain = '[' + plain + '](' + part.href + ')';\n        text += plain;\n      });\n  }\n  switch (type) {\n    case 'code': text = '```' + (block[type].language === 'plain text' ? 'text' : block[type].language) + '\\n' + text + '\\n```'; break;\n    case 'heading_1': text = '# ' + text; break;\n    case 'heading_2': text = '## ' + text; break;\n    case 'heading_3': text = '### ' + text; break;\n    case 'quote': text = '> ' + text.replace(/\\n/g, '  \\n> '); break;\n    case 'callout': {\n      if (!block.has_children) return callout(text, block[type].icon);\n      var inner = text + '\\n';\n      blocksToMarkdown(children(block.id, 100)).forEach((child) => { inner += child.parent + '\\n\\n'; });\n      text = callout(inner.trim(), block[type].icon);\n      break;\n    }\n    case 'bulleted_list_item': text = '- ' + text.trim(); break;\n    case 'numbered_list_item': text = block.numbered_list_item.number ? block.numbered_list_item.number + '. ' + text.trim() : '- ' + text.trim(); break;\n    case 'to_do': text = block.to_do.checked ? '- [x] ' + text : '- [ ] ' + text; break;\n  }\n  return text;\n};\nvar blocksToMarkdown = (blocks, totalPage, out) => {\n  out = out || [];\n  if (!blocks) return out;\n  for (var block of blocks) {\n    if (block.type === 'child_page') continue;\n    if ('has_children' in block && block.has_children) {\n      var source = block.type == 'synced_block' && block.synced_block && block.synced_block.synced_from && block.synced_block.synced_from.block_id ? block.synced_block.synced_from.block_id : block.id;\n      var nested = children(source, totalPage);\n      out.push({ type: block.type, blockId: block.id, parent: blockToMarkdown(block), children: [] });\n      blocksToMarkdown(nested, totalPage, out[out.length - 1].children);\n      continue;\n    }\n    out.push({ type: block.type, blockId: block.id, parent: blockToMarkdown(block), children: [] });\n  }\n  return out;\n};\nvar toMarkdownString = (blocks, key, depth) => {\n  key = key || 'parent'; depth = depth || 0;\n  var result = {};\n  blocks.forEach((block) => {\n    if (block.parent && block.type !== 'toggle' && block.type !== 'child_page') {\n      result[key] = result[key] || '';\n      result[key] += block.type !== 'to_do' && block.type !== 'bulleted_list_item' && block.type !== 'numbered_list_item' ? '\\n' + tabbed(block.parent, depth) + '\\n\\n' : tabbed(block.parent, depth) + '\\n';\n    }\n    if (block.children && block.children.length > 0) {\n      if (block.type === 'synced_block' || block.type === 'column_list' || block.type === 'column') {\n        var merged = toMarkdownString(block.children, key);\n        result[key] = result[key] || '';\n        Object.keys(merged).forEach((name) => { result[name] = result[name] ? result[name] + merged[name] : merged[name]; });\n      } else if (block.type === 'toggle') {\n        var inside = toMarkdownString(block.children);\n        result[key] = result[key] || '';\n        result[key] += block.parent ? '<details>\\n<summary>' + block.parent + '</summary>\\n' + (inside.parent || '') + '\\n</details>\\n\\n' : inside.parent || '';\n      } else {\n        var deeper = toMarkdownString(block.children, key, depth + 1);\n        result[key] = result[key] || '';\n        if (key !== 'parent' && deeper.parent) result[key] += deeper.parent; else if (deeper[key]) result[key] += deeper[key];\n      }\n    }\n  });\n  return result;\n};\nvar pageToMarkdown = (id, first) => toMarkdownString(blocksToMarkdown(children(id, null, first))).parent;\nvar collect = (id, first) => {\n  var results = [], page = first || call({ method: 'GET', url: '/blocks/' + encodeURIComponent(id) + '/children', query: {} });\n  results.push(...page.results);\n  while (page.next_cursor) {\n    page = call({ method: 'GET', url: '/blocks/' + encodeURIComponent(id) + '/children', query: { start_cursor: page.next_cursor } });\n    results.push(...page.results);\n  }\n  return results;\n};\nvar tree = (id, depth, level, first) => {\n  if (level >= depth) return [];\n  var results = collect(id, first);\n  for (var block of results) if ('type' in block && block.has_children) block.children = tree(block.id, depth, level + 1);\n  return results;\n};\nif (inputs.markdown === 'true') return pageToMarkdown(inputs.parentId, response);\nreturn tree(inputs.parentId, (inputs.dynamic ? JSON.parse(inputs.dynamic) : {}).depth, 0, response);"
-    },
-    "archive_database_item": {
-      "label": "Archive Database Item",
-      "description": "Archive a database item. It can be restored later.",
-      "audience": "human",
-      "inputs": {
-        "database_id": {
-          "label": "Database",
-          "description": "Only databases shared with your integration are listed.",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "POST",
-              "url": "https://api.notion.com/v1/search",
-              "body": {
-                "filter": {
-                  "property": "object",
-                  "value": "database"
-                }
-              }
-            },
-            "list": "$.results",
-            "label": "$.title[0].plain_text",
-            "value": "$.id"
-          }
-        },
-        "database_item_id": {
-          "label": "Database Item",
-          "description": "Items in the selected database, listed by title.",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "POST",
-              "url": "https://api.notion.com/v1/databases/{{database_id}}/query",
-              "query": {
-                "filter_properties": "title"
-              }
-            },
-            "list": "$.results",
-            "label": "$.url",
-            "value": "$.id"
-          }
-        }
-      },
-      "request": {
-        "method": "PATCH",
-        "url": "https://api.notion.com/v1/pages/{{database_item_id}}",
-        "body": {
-          "archived": true
-        }
-      },
-      "afterResponse": "var title = 'Database item', url;\nif ('properties' in response && response.properties) {\n  var first = Object.values(response.properties)[0];\n  if (first && typeof first == 'object' && 'title' in first && first.title) title = (first.title[0] && first.title[0].plain_text) || 'Untitled item';\n}\nif ('url' in response) url = response.url;\nreturn { success: true, message: '\"' + title + '\" has been archived successfully', archivedItem: { id: response.id, title: title, url: url, archived_at: new Date().toISOString() }, fullResponse: response };"
-    },
-    "restore_database_item": {
-      "label": "Restore Database Item",
-      "description": "Restore an archived database item.",
-      "audience": "human",
-      "inputs": {
-        "database_id": {
-          "label": "Database",
-          "description": "Only databases shared with your integration are listed.",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "POST",
-              "url": "https://api.notion.com/v1/search",
-              "body": {
-                "filter": {
-                  "property": "object",
-                  "value": "database"
-                }
-              }
-            },
-            "list": "$.results",
-            "label": "$.title[0].plain_text",
-            "value": "$.id"
-          }
-        },
-        "archived_item_id": {
-          "label": "Archived Item",
-          "description": "Archived items in the selected database.",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "POST",
-              "url": "https://api.notion.com/v1/databases/{{database_id}}/query",
-              "query": {
-                "filter_properties": "title"
-              },
-              "body": {
-                "archived": true
-              }
-            },
-            "list": "$.results",
-            "label": "$.url",
-            "value": "$.id"
-          }
-        }
-      },
-      "request": {
-        "method": "PATCH",
-        "url": "https://api.notion.com/v1/pages/{{archived_item_id}}",
-        "body": {
-          "archived": false
-        }
-      },
-      "afterResponse": "var title = 'Database item', url;\nif ('properties' in response && response.properties) {\n  var first = Object.values(response.properties)[0];\n  if (first && typeof first == 'object' && 'title' in first && first.title) title = (first.title[0] && first.title[0].plain_text) || 'Untitled item';\n}\nif ('url' in response) url = response.url;\nreturn { success: true, message: '\"' + title + '\" has been successfully restored and is now active', restoredItem: { id: response.id, title: title, url: url, restored_at: new Date().toISOString() }, fullResponse: response };"
-    },
     "add_comment": {
       "label": "Add Comment",
       "description": "Add a comment to a page.",
@@ -509,38 +285,6 @@
         }
       },
       "afterResponse": "var message = '💬 Comment posted successfully! Your comment has been added to the page.';\nreturn response.object === 'comment' && Object.keys(response).length <= 2\n  ? { success: true, message: message, comment_id: response.id, note: 'Limited comment details available. To see full comment content, ensure your Notion integration has \"Read comments\" capability enabled in your workspace settings.' }\n  : { success: true, message: message, comment: response };"
-    },
-    "retrieve_database": {
-      "label": "Retrieve Database Structure",
-      "description": "Get a database's properties, field types and options.",
-      "audience": "human",
-      "inputs": {
-        "database_id": {
-          "label": "Database",
-          "description": "Only databases shared with your integration are listed.",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "POST",
-              "url": "https://api.notion.com/v1/search",
-              "body": {
-                "filter": {
-                  "property": "object",
-                  "value": "database"
-                }
-              }
-            },
-            "list": "$.results",
-            "label": "$.title[0].plain_text",
-            "value": "$.id"
-          }
-        }
-      },
-      "request": {
-        "method": "GET",
-        "url": "https://api.notion.com/v1/databases/{{database_id}}"
-      },
-      "afterResponse": "var describe = (database) => {\n  var form = { id: database.id, title: database.title && database.title[0] ? database.title[0].plain_text || '' : '', description: database.description && database.description[0] ? database.description[0].plain_text || '' : '',\n    properties: {}, propertyTypes: {}, requiredFields: [], selectOptions: {}, statusOptions: {}, relationConfig: {}, formulaConfig: {}, rollupConfig: {}, numberConfig: {} };\n  var option = (choice) => ({ name: choice.name, color: choice.color, id: choice.id });\n  Object.entries(database.properties).forEach(([name, property]) => {\n    form.properties[name] = { name: property.name || name, type: property.type, id: property.id, description: property.description || '' };\n    form.propertyTypes[name] = property.type;\n    switch (property.type) {\n      case 'select': if (property.select && property.select.options) form.selectOptions[name] = property.select.options.map(option); break;\n      case 'multi_select': if (property.multi_select && property.multi_select.options) form.selectOptions[name] = property.multi_select.options.map(option); break;\n      case 'status': if (property.status) form.statusOptions[name] = { options: property.status.options ? property.status.options.map(option) : [],\n        groups: property.status.groups ? property.status.groups.map((group) => ({ name: group.name, color: group.color, id: group.id, option_ids: group.option_ids || [] })) : [] }; break;\n      case 'relation': if (property.relation) form.relationConfig[name] = { database_id: property.relation.database_id, synced_property_id: property.relation.synced_property_id, synced_property_name: property.relation.synced_property_name }; break;\n      case 'formula': if (property.formula) form.formulaConfig[name] = { expression: property.formula.expression }; break;\n      case 'rollup': if (property.rollup) form.rollupConfig[name] = { function: property.rollup.function, relation_property_id: property.rollup.relation_property_id,\n        relation_property_name: property.rollup.relation_property_name, rollup_property_id: property.rollup.rollup_property_id, rollup_property_name: property.rollup.rollup_property_name }; break;\n      case 'number': if (property.number) form.numberConfig[name] = { format: property.number.format }; break;\n    }\n  });\n  var total = Object.keys(form.properties).length;\n  return { success: true, database: database, formStructure: form,\n    summary: { title: form.title || 'Untitled Database', totalProperties: total, propertyTypes: Object.values(form.propertyTypes).reduce((counts, type) => (counts[type] = (counts[type] || 0) + 1, counts), {}) } };\n};\nvar described = describe(response);\ndescribed.message = '📊 Database structure retrieved successfully! Found ' + described.summary.totalProperties + ' properties including ' + Object.keys(described.formStructure.selectOptions).length + ' dropdown fields and ' + Object.keys(described.formStructure.statusOptions).length + ' status fields.';\nreturn described;"
     },
     "get_page_comments": {
       "label": "Get Page Comments",
@@ -842,61 +586,6 @@
         "url": "https://api.notion.com/v1/blocks/{{block_id}}"
       }
     },
-    "notion_add_comment": {
-      "label": "Add Comment",
-      "description": "Posts a new comment thread on a Notion page.",
-      "audience": "ai",
-      "inputs": {
-        "page_id": {
-          "label": "Page ID",
-          "description": "The id of the page to comment on. Resolve via notion_search.",
-          "required": true
-        },
-        "comment_text": {
-          "label": "Comment Text",
-          "description": "The plain-text comment to post as a new thread on the page.",
-          "type": "multiline",
-          "required": true
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://api.notion.com/v1/comments",
-        "body": {
-          "parent": {
-            "page_id": "{{page_id}}"
-          },
-          "rich_text": [
-            {
-              "text": {
-                "content": "{{comment_text}}"
-              }
-            }
-          ]
-        }
-      },
-      "afterResponse": "return response.object === 'comment' && Object.keys(response).length <= 2\n  ? { success: true, comment_id: response.id, note: 'Limited comment details available. To see full comment content, ensure your Notion integration has \"Read comments\" capability enabled.' }\n  : { success: true, comment: response };"
-    },
-    "notion_get_page_comments": {
-      "label": "Get Page Comments",
-      "description": "Lists all comments on a page, grouped into discussion threads.",
-      "audience": "ai",
-      "inputs": {
-        "page_id": {
-          "label": "Page ID",
-          "description": "The id of the page whose comments to list. Resolve via notion_search.",
-          "required": true
-        }
-      },
-      "request": {
-        "method": "GET",
-        "url": "https://api.notion.com/v1/comments",
-        "query": {
-          "block_id": "{{page_id}}"
-        }
-      },
-      "afterResponse": "var comments = [...response.results], page = response;\nwhile (page.has_more) {\n  page = call({ method: 'GET', url: '/comments', query: { block_id: inputs.page_id, start_cursor: page.next_cursor || undefined } });\n  comments.push(...page.results);\n}\nvar threads = {}, standalone = [];\ncomments.forEach((comment) => { if (comment.discussion_id) (threads[comment.discussion_id] = threads[comment.discussion_id] || []).push(comment); else standalone.push(comment); });\nvar byTime = (first, second) => new Date(first.created_time).getTime() - new Date(second.created_time).getTime();\nObject.keys(threads).forEach((id) => threads[id].sort(byTime));\nstandalone.sort(byTime);\nvar count = Object.keys(threads).length;\nreturn { totalComments: comments.length, pageComments: standalone, discussionThreads: threads, discussionCount: count, allComments: comments };"
-    },
     "notion_search": {
       "label": "Search Pages and Databases",
       "description": "Searches the workspace by title for pages and/or databases shared with the integration, with exact or partial matching.",
@@ -997,7 +686,22 @@
         "database_id": {
           "label": "Database ID",
           "description": "The id of the database to inspect. Resolve a database title into its id with notion_search (filter_type=database).",
-          "required": true
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "method": "POST",
+              "url": "https://api.notion.com/v1/search",
+              "body": {
+                "filter": {
+                  "property": "object",
+                  "value": "database"
+                }
+              }
+            },
+            "list": "$.results",
+            "label": "$.title[0].plain_text",
+            "value": "$.id"
+          }
         }
       },
       "request": {
@@ -1121,7 +825,7 @@
       "afterResponse": "return { success: true, database: response };"
     },
     "notion_create_database_item": {
-      "label": "Create Database Item",
+      "label": "Create Database Item from Notion Properties",
       "description": "Creates a new row (page) in a Notion database, setting its property values from a raw Notion properties object, with optional body content.",
       "audience": "ai",
       "inputs": {
@@ -1157,7 +861,7 @@
       "afterResponse": "return { success: true, item: response };"
     },
     "notion_update_database_item": {
-      "label": "Update Database Item",
+      "label": "Update Database Item from Notion Properties",
       "description": "Overwrites property values on an existing Notion database row, identified by its page id, from a raw Notion properties object.",
       "audience": "ai",
       "inputs": {
@@ -1184,7 +888,7 @@
       "afterResponse": "return { success: true, item: response };"
     },
     "notion_find_database_item": {
-      "label": "Find Database Item",
+      "label": "Find Database Item by Notion Filter",
       "description": "Finds rows in a Notion database matching a raw Notion filter object, returning the first match and all matches.",
       "audience": "ai",
       "inputs": {

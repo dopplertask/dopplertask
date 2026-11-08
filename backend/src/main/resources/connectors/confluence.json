@@ -37,7 +37,7 @@
   },
   "actions": {
     "getPageContent": {
-      "label": "Get Page Content",
+      "label": "Get Page with Descendants",
       "description": "Get page content and optionally all its descendants",
       "audience": "human",
       "inputs": {
@@ -147,7 +147,7 @@
       "afterResponse": "var results = response.results ?? [];\nreturn {found: results.length > 0, count: results.length, results: results};"
     },
     "search-pages": {
-      "label": "Search Content (CQL)",
+      "label": "Search Content with Expanded Fields",
       "description": "Search Confluence content with CQL (Confluence Query Language). Example: `type = \"page\" AND space = \"DOCS\" AND title ~ \"release\"`.",
       "audience": "human",
       "inputs": {
@@ -175,102 +175,6 @@
       },
       "beforeRequest": "var enc = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar searchUrl = (start, limit) => '/rest/api/content/search?' + [['cql', inputs.cql], ['start', String(start)], ['limit', String(limit)]].concat(inputs.expand ? [['expand', inputs.expand]] : []).map((pair) => enc(pair[0]) + '=' + enc(pair[1])).join('&');\nvar max = Number(inputs.maxResults);\nif (!(max >= 1 && max <= 1000)) throw new Error('Max Results should be between 1 and 1000.');\nrequest.url = request.url.replace(/\\/rest\\/api\\/content\\/search$/, '') + searchUrl(0, Math.min(50, max));\nreturn request;",
       "afterResponse": "var enc = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar searchUrl = (start, limit) => '/rest/api/content/search?' + [['cql', inputs.cql], ['start', String(start)], ['limit', String(limit)]].concat(inputs.expand ? [['expand', inputs.expand]] : []).map((pair) => enc(pair[0]) + '=' + enc(pair[1])).join('&');\nvar max = Number(inputs.maxResults);\nvar results = response.results.slice();\nvar last = response;\nvar asked = Math.min(50, max);\nvar start = 0;\nwhile (results.length < max && last.results.length >= asked && last._links?.next) {\n  start += last.results.length;\n  asked = Math.min(50, max - results.length);\n  last = call({method: 'GET', url: searchUrl(start, asked)});\n  results = results.concat(last.results);\n}\nreturn {results: results, count: results.length};"
-    },
-    "create-page": {
-      "label": "Create Page",
-      "description": "Creates a new page in a space with the given title and body.",
-      "audience": "human",
-      "inputs": {
-        "spaceId": {
-          "label": "Space",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces",
-              "query": {
-                "limit": "200"
-              }
-            },
-            "list": "$.results",
-            "label": "$.name",
-            "value": "$.id"
-          }
-        },
-        "parentId": {
-          "label": "Parent Page",
-          "optionsFrom": {
-            "request": {
-              "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces/{{spaceId}}/pages",
-              "query": {
-                "limit": "200"
-              }
-            },
-            "list": "$.results",
-            "label": "$.title",
-            "value": "$.id"
-          }
-        },
-        "title": {
-          "label": "Title",
-          "required": true
-        },
-        "bodyFormat": {
-          "label": "Body Format",
-          "type": "select",
-          "required": true,
-          "defaultValue": "storage",
-          "options": [
-            {
-              "value": "storage",
-              "label": "Storage (XHTML)"
-            },
-            {
-              "value": "wiki",
-              "label": "Wiki Markup"
-            },
-            {
-              "value": "atlas_doc_format",
-              "label": "Atlas Document Format"
-            }
-          ]
-        },
-        "body": {
-          "label": "Body",
-          "description": "Page content in the selected format.",
-          "type": "multiline"
-        },
-        "status": {
-          "label": "Status",
-          "type": "select",
-          "required": true,
-          "defaultValue": "current",
-          "options": [
-            {
-              "value": "current",
-              "label": "Published"
-            },
-            {
-              "value": "draft",
-              "label": "Draft"
-            }
-          ]
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages",
-        "body": {
-          "spaceId": "{{spaceId}}",
-          "parentId": "{{parentId}}",
-          "title": "{{title}}",
-          "status": "{{status}}",
-          "body": {
-            "representation": "{{bodyFormat}}",
-            "value": "{{body}}"
-          }
-        }
-      },
-      "beforeRequest": "request.body.body.value = inputs.body;\nreturn request;"
     },
     "create-page-from-template": {
       "label": "Create Page from Template",
@@ -339,210 +243,6 @@
       },
       "beforeRequest": "var escape = (text) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;').replace(/'/g, '&apos;');\nvar template = call({method: 'GET', url: '/rest/api/template/' + inputs.templateId});\nvar value = template.body.storage.value.replace(/<at:declarations>[\\s\\S]*?<\\/at:declarations>/, '').trim();\nObject.entries(inputs.templateVariables ? JSON.parse(inputs.templateVariables) : {}).forEach(([name, given]) => {\n  value = value.replace(new RegExp('<at:var at:name=([\\'\"])' + name + '\\\\1\\\\s*\\\\/?>', 'g'), typeof given === 'string' ? escape(given) : '');\n});\nrequest.body.body.value = value;\nreturn request;"
     },
-    "update-page": {
-      "label": "Update Page",
-      "description": "Updates the title, body, or status of an existing page.",
-      "audience": "human",
-      "inputs": {
-        "spaceId": {
-          "label": "Space",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces",
-              "query": {
-                "limit": "200"
-              }
-            },
-            "list": "$.results",
-            "label": "$.name",
-            "value": "$.id"
-          }
-        },
-        "pageId": {
-          "label": "Page",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces/{{spaceId}}/pages",
-              "query": {
-                "limit": "200"
-              }
-            },
-            "list": "$.results",
-            "label": "$.title",
-            "value": "$.id"
-          }
-        },
-        "title": {
-          "label": "Title",
-          "description": "Leave blank to keep the current title."
-        },
-        "bodyFormat": {
-          "label": "Body Format",
-          "type": "select",
-          "required": true,
-          "defaultValue": "storage",
-          "options": [
-            {
-              "value": "storage",
-              "label": "Storage (XHTML)"
-            },
-            {
-              "value": "wiki",
-              "label": "Wiki Markup"
-            },
-            {
-              "value": "atlas_doc_format",
-              "label": "Atlas Document Format"
-            }
-          ]
-        },
-        "body": {
-          "label": "Body",
-          "description": "New page content. Leave blank to keep existing body.",
-          "type": "multiline"
-        },
-        "status": {
-          "label": "Status",
-          "type": "select",
-          "options": [
-            {
-              "value": "current",
-              "label": "Published"
-            },
-            {
-              "value": "draft",
-              "label": "Draft"
-            }
-          ]
-        }
-      },
-      "request": {
-        "method": "PUT",
-        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}"
-      },
-      "beforeRequest": "var current = call({method: 'GET', url: '/api/v2/pages/' + inputs.pageId, query: {'body-format': 'storage'}});\nrequest.body = {id: inputs.pageId, status: inputs.status || current.status, title: inputs.title || current.title, body: {representation: inputs.bodyFormat, value: inputs.body || (current.body?.storage?.value ?? '')}, version: {number: current.version.number + 1}};\nreturn request;"
-    },
-    "delete-page": {
-      "label": "Delete Page",
-      "description": "Trashes or permanently deletes a page.",
-      "audience": "human",
-      "inputs": {
-        "spaceId": {
-          "label": "Space",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces",
-              "query": {
-                "limit": "200"
-              }
-            },
-            "list": "$.results",
-            "label": "$.name",
-            "value": "$.id"
-          }
-        },
-        "pageId": {
-          "label": "Page",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces/{{spaceId}}/pages",
-              "query": {
-                "limit": "200"
-              }
-            },
-            "list": "$.results",
-            "label": "$.title",
-            "value": "$.id"
-          }
-        },
-        "purge": {
-          "label": "Purge Permanently",
-          "description": "If enabled, the page is removed from the trash permanently. Otherwise it is moved to trash.",
-          "type": "boolean",
-          "defaultValue": "false"
-        }
-      },
-      "request": {
-        "method": "DELETE",
-        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}",
-        "query": {
-          "purge": "{{purge}}"
-        }
-      },
-      "beforeRequest": "for (const key in request.query) if (request.query[key] === 'false') delete request.query[key];\nreturn request;",
-      "afterResponse": "return {success: true, pageId: inputs.pageId};"
-    },
-    "move-page": {
-      "label": "Move Page",
-      "description": "Moves a page to a new parent as a child, sibling, or to the top of the parent.",
-      "audience": "human",
-      "inputs": {
-        "spaceId": {
-          "label": "Space",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces",
-              "query": {
-                "limit": "200"
-              }
-            },
-            "list": "$.results",
-            "label": "$.name",
-            "value": "$.id"
-          }
-        },
-        "pageId": {
-          "label": "Page",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces/{{spaceId}}/pages",
-              "query": {
-                "limit": "200"
-              }
-            },
-            "list": "$.results",
-            "label": "$.title",
-            "value": "$.id"
-          }
-        },
-        "position": {
-          "label": "Position Relative to Target",
-          "type": "select",
-          "required": true,
-          "defaultValue": "append",
-          "options": [
-            {
-              "value": "append",
-              "label": "Append as last child of target"
-            },
-            {
-              "value": "before",
-              "label": "Insert as first child of target"
-            },
-            {
-              "value": "after",
-              "label": "Place after target (sibling)"
-            }
-          ]
-        },
-        "targetPageId": {
-          "label": "Target Page ID",
-          "description": "The page to move relative to. Use \"append\" or \"before\" to nest under it, \"after\" to place as sibling.",
-          "required": true
-        }
-      },
-      "request": {
-        "method": "PUT",
-        "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/content/{{pageId}}/move/{{position}}/{{targetPageId}}"
-      },
-      "afterResponse": "return {success: true, pageId: inputs.pageId, position: inputs.position, targetPageId: inputs.targetPageId};"
-    },
     "publish-draft": {
       "label": "Publish Draft",
       "description": "Publishes a draft page (changes status from draft to current).",
@@ -558,60 +258,6 @@
         "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}"
       },
       "beforeRequest": "var draft = call({method: 'GET', url: '/api/v2/pages/' + inputs.pageId, query: {'body-format': 'storage', 'get-draft': 'true'}});\nrequest.body = {id: inputs.pageId, status: 'current', title: draft.title, body: {representation: draft.body?.storage?.representation ?? 'storage', value: draft.body?.storage?.value ?? ''}, version: {number: 1}};\nreturn request;"
-    },
-    "add-comment": {
-      "label": "Add Comment to Page",
-      "description": "Adds a footer comment to a page.",
-      "audience": "human",
-      "inputs": {
-        "spaceId": {
-          "label": "Space",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces",
-              "query": {
-                "limit": "200"
-              }
-            },
-            "list": "$.results",
-            "label": "$.name",
-            "value": "$.id"
-          }
-        },
-        "pageId": {
-          "label": "Page",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces/{{spaceId}}/pages",
-              "query": {
-                "limit": "200"
-              }
-            },
-            "list": "$.results",
-            "label": "$.title",
-            "value": "$.id"
-          }
-        },
-        "body": {
-          "label": "Comment",
-          "description": "Comment body in storage (XHTML) format. Plain text works too.",
-          "type": "multiline",
-          "required": true
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/footer-comments",
-        "body": {
-          "pageId": "{{pageId}}",
-          "body": {
-            "representation": "storage",
-            "value": "{{body}}"
-          }
-        }
-      }
     },
     "reply-to-comment": {
       "label": "Reply to Comment",
@@ -642,7 +288,7 @@
       }
     },
     "list-comments": {
-      "label": "List Comments",
+      "label": "List Page Footer and Inline Comments",
       "description": "Lists footer and/or inline comments on a page.",
       "audience": "human",
       "inputs": {
@@ -724,169 +370,6 @@
       "beforeRequest": "request.url = request.url.replace(/\\/both-comments$/, '/footer-comments');\nreturn request;",
       "afterResponse": "if (inputs.commentType !== 'both') return {results: response.results ?? []};\nvar inline = call({method: 'GET', url: '/api/v2/pages/' + inputs.pageId + '/inline-comments', query: {limit: '100', 'body-format': inputs.bodyFormat}});\nreturn {footer: response.results ?? [], inline: inline.results ?? []};"
     },
-    "list-attachments": {
-      "label": "List Attachments",
-      "description": "Lists all attachments on a page.",
-      "audience": "human",
-      "inputs": {
-        "spaceId": {
-          "label": "Space",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces",
-              "query": {
-                "limit": "200"
-              }
-            },
-            "list": "$.results",
-            "label": "$.name",
-            "value": "$.id"
-          }
-        },
-        "pageId": {
-          "label": "Page",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces/{{spaceId}}/pages",
-              "query": {
-                "limit": "200"
-              }
-            },
-            "list": "$.results",
-            "label": "$.title",
-            "value": "$.id"
-          }
-        }
-      },
-      "request": {
-        "method": "GET",
-        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}/attachments",
-        "query": {
-          "limit": "100"
-        }
-      },
-      "afterResponse": "return {results: response.results ?? []};"
-    },
-    "add-label": {
-      "label": "Add Label to Page",
-      "description": "Adds one or more labels to a page.",
-      "audience": "human",
-      "inputs": {
-        "spaceId": {
-          "label": "Space",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces",
-              "query": {
-                "limit": "200"
-              }
-            },
-            "list": "$.results",
-            "label": "$.name",
-            "value": "$.id"
-          }
-        },
-        "pageId": {
-          "label": "Page",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces/{{spaceId}}/pages",
-              "query": {
-                "limit": "200"
-              }
-            },
-            "list": "$.results",
-            "label": "$.title",
-            "value": "$.id"
-          }
-        },
-        "labels": {
-          "label": "Labels",
-          "description": "Label names to add (one per row).",
-          "type": "json",
-          "required": true
-        },
-        "prefix": {
-          "label": "Prefix",
-          "type": "select",
-          "required": true,
-          "defaultValue": "global",
-          "options": [
-            {
-              "value": "global",
-              "label": "Global"
-            },
-            {
-              "value": "my",
-              "label": "My (personal)"
-            },
-            {
-              "value": "team",
-              "label": "Team"
-            }
-          ]
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/content/{{pageId}}/label"
-      },
-      "beforeRequest": "request.body = JSON.parse(inputs.labels).map((name) => ({prefix: inputs.prefix, name: name}));\nreturn request;"
-    },
-    "remove-label": {
-      "label": "Remove Label from Page",
-      "description": "Removes a label from a page.",
-      "audience": "human",
-      "inputs": {
-        "spaceId": {
-          "label": "Space",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces",
-              "query": {
-                "limit": "200"
-              }
-            },
-            "list": "$.results",
-            "label": "$.name",
-            "value": "$.id"
-          }
-        },
-        "pageId": {
-          "label": "Page",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces/{{spaceId}}/pages",
-              "query": {
-                "limit": "200"
-              }
-            },
-            "list": "$.results",
-            "label": "$.title",
-            "value": "$.id"
-          }
-        },
-        "label": {
-          "label": "Label",
-          "description": "Label name to remove.",
-          "required": true
-        }
-      },
-      "request": {
-        "method": "DELETE",
-        "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/content/{{pageId}}/label",
-        "query": {
-          "name": "{{label}}"
-        }
-      },
-      "afterResponse": "return {success: true, pageId: inputs.pageId, label: inputs.label};"
-    },
     "find-user": {
       "label": "Find User",
       "description": "Looks up Confluence users by name, email, or keyword.",
@@ -914,7 +397,7 @@
       "afterResponse": "var users = (response.results ?? []).map((result) => result.user);\nreturn {found: users.length > 0, count: users.length, results: users};"
     },
     "list-spaces": {
-      "label": "List Spaces",
+      "label": "List All Spaces",
       "description": "Lists all spaces the authenticated user can access.",
       "audience": "human",
       "inputs": {
@@ -1500,7 +983,18 @@
         "spaceId": {
           "label": "Space ID",
           "description": "Numeric space ID (not the space key), from List Spaces or Get Space.",
-          "required": true
+          "required": true,
+          "optionsFrom": {
+            "request": {
+              "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces",
+              "query": {
+                "limit": "200"
+              }
+            },
+            "list": "$.results",
+            "label": "$.name",
+            "value": "$.id"
+          }
         },
         "title": {
           "label": "Title",
@@ -1534,7 +1028,18 @@
         },
         "parentId": {
           "label": "Parent Page ID",
-          "description": "Page to nest the new page under. Leave empty to create it under the space homepage."
+          "description": "Page to nest the new page under. Leave empty to create it under the space homepage.",
+          "optionsFrom": {
+            "request": {
+              "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces/{{spaceId}}/pages",
+              "query": {
+                "limit": "200"
+              }
+            },
+            "list": "$.results",
+            "label": "$.title",
+            "value": "$.id"
+          }
         },
         "status": {
           "label": "Status",
@@ -4770,7 +4275,7 @@
       }
     },
     "confluence_search_content": {
-      "label": "Search Content",
+      "label": "Search Content with Excerpts",
       "description": "Searches content with CQL and returns matches with excerpts.",
       "audience": "ai",
       "inputs": {

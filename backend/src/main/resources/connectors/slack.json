@@ -725,98 +725,6 @@
       },
       "afterResponse": "if (!response.ok) throw new Error('An API error occurred: ' + response.error);\nconst handle = inputs.handle.replace('@', '').toLowerCase();\nconst group = (response.usergroups ?? []).find((item) => item.handle && item.handle.toLowerCase() === handle);\nif (!group) throw new Error(\"User group with handle '@\" + handle + \"' not found.\");\nreturn group;"
     },
-    "slack_post_message": {
-      "label": "Post Message",
-      "description": "Post a message to a Slack channel.",
-      "audience": "ai",
-      "inputs": {
-        "channel": {
-          "label": "Channel",
-          "description": "Channel ID to post to (e.g. C0123ABCD). Resolve a #name to an ID first with Find Channel.",
-          "required": true
-        },
-        "text": {
-          "label": "Message",
-          "description": "The text of the message. When using blocks, this is used as fallback text for notifications.",
-          "type": "multiline"
-        },
-        "threadTs": {
-          "label": "Thread Timestamp",
-          "description": "Timestamp (ts) of a parent message to reply within its thread, e.g. 1710304378.475129. Use the parent ts, not a reply ts."
-        },
-        "replyBroadcast": {
-          "label": "Broadcast Reply to Channel",
-          "description": "When replying in a thread, also make the reply visible to everyone in the channel.",
-          "type": "boolean",
-          "defaultValue": "false"
-        },
-        "unfurlLinks": {
-          "label": "Unfurl Links",
-          "description": "Enable link unfurling for this message.",
-          "type": "boolean",
-          "defaultValue": "true"
-        },
-        "blocks": {
-          "label": "Block Kit Blocks",
-          "description": "Optional Block Kit blocks array. See https://api.slack.com/block-kit",
-          "type": "json"
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://slack.com/api/chat.postMessage",
-        "headers": {
-          "Content-Type": "application/x-www-form-urlencoded"
-        }
-      },
-      "outputs": {
-        "ts": "$.ts",
-        "channel": "$.channel"
-      },
-      "beforeRequest": "const sectionsOf = (text) => {\n  const blocks = [];\n  let rest = text;\n  while (rest.length > 0) {\n    if (rest.length <= 3000) { blocks.push({type: 'section', text: {type: 'mrkdwn', text: rest}}); break; }\n    let cut = rest.lastIndexOf('\\n', 3000);\n    if (cut <= 0) cut = rest.lastIndexOf(' ', 3000);\n    if (cut <= 0) cut = 3000;\n    blocks.push({type: 'section', text: {type: 'mrkdwn', text: rest.substring(0, cut)}});\n    rest = rest.substring(cut).trimStart();\n  }\n  return blocks;\n};\nconst extraBlocks = inputs.blocks ? JSON.parse(inputs.blocks) : undefined;\nconst hasBlocks = Array.isArray(extraBlocks) && extraBlocks.length > 0;\nconst timestampOf = (value) => {\n  const link = value.match(/\\/p(\\d+)(\\d{6})$/);\n  if (link) return link[1] + '.' + link[2];\n  return /^(\\d+)\\.(\\d{6})$/.test(value) ? value : undefined;\n};\nconst present = (body) => Object.fromEntries(Object.entries(body).filter(([, value]) => value !== undefined && value !== ''));\nif (!inputs.text && !hasBlocks) throw new Error('Either Message or Block Kit blocks must be provided');\nconst blocks = [...(inputs.text ? sectionsOf(inputs.text) : []), ...(hasBlocks ? extraBlocks : [])];\nconst message = {text: inputs.text || undefined, channel: inputs.channel, username: inputs.username, icon_url: inputs.profilePicture, icon_emoji: inputs.iconEmoji, blocks: blocks.length > 0 ? blocks : undefined, thread_ts: inputs.threadTs ? timestampOf(inputs.threadTs) : undefined};\nif (inputs.replyBroadcast === 'true') message.reply_broadcast = true;\nif (inputs.unfurlLinks === 'false') message.unfurl_links = false;\nrequest.body = present(message);\nreturn request;",
-      "afterResponse": "if (!response.ok) throw new Error('An API error occurred: ' + response.error);\nif (response.response_metadata === undefined) response.response_metadata = {};\nreturn response;"
-    },
-    "slack_send_direct_message": {
-      "label": "Send Direct Message",
-      "description": "Send a direct message (DM) to a single Slack user.",
-      "audience": "ai",
-      "inputs": {
-        "userId": {
-          "label": "User ID",
-          "description": "The Slack user ID to DM (e.g. U0123ABCD). Resolve a handle/email to an ID first with Find User by Handle / Find User by Email.",
-          "required": true
-        },
-        "text": {
-          "label": "Message",
-          "description": "The text of the direct message. Renders as a section above any blocks, and is used as the notification fallback. Leave empty to send blocks only.",
-          "type": "multiline"
-        },
-        "unfurlLinks": {
-          "label": "Unfurl Links",
-          "description": "Enable link unfurling for this message.",
-          "type": "boolean",
-          "defaultValue": "true"
-        },
-        "blocks": {
-          "label": "Block Kit Blocks",
-          "description": "Optional Block Kit blocks array. See https://api.slack.com/block-kit",
-          "type": "json"
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://slack.com/api/chat.postMessage",
-        "headers": {
-          "Content-Type": "application/x-www-form-urlencoded"
-        }
-      },
-      "outputs": {
-        "ts": "$.ts",
-        "channel": "$.channel"
-      },
-      "beforeRequest": "const sectionsOf = (text) => {\n  const blocks = [];\n  let rest = text;\n  while (rest.length > 0) {\n    if (rest.length <= 3000) { blocks.push({type: 'section', text: {type: 'mrkdwn', text: rest}}); break; }\n    let cut = rest.lastIndexOf('\\n', 3000);\n    if (cut <= 0) cut = rest.lastIndexOf(' ', 3000);\n    if (cut <= 0) cut = 3000;\n    blocks.push({type: 'section', text: {type: 'mrkdwn', text: rest.substring(0, cut)}});\n    rest = rest.substring(cut).trimStart();\n  }\n  return blocks;\n};\nconst extraBlocks = inputs.blocks ? JSON.parse(inputs.blocks) : undefined;\nconst hasBlocks = Array.isArray(extraBlocks) && extraBlocks.length > 0;\nconst present = (body) => Object.fromEntries(Object.entries(body).filter(([, value]) => value !== undefined && value !== ''));\nif (!inputs.text && !hasBlocks) throw new Error('Either Message or Block Kit blocks must be provided');\nconst blocks = [...(inputs.text ? sectionsOf(inputs.text) : []), ...(Array.isArray(extraBlocks) ? extraBlocks : [])];\nconst message = {text: inputs.text || undefined, channel: inputs.userId, username: inputs.username, icon_url: inputs.profilePicture, icon_emoji: inputs.iconEmoji, blocks: blocks, thread_ts: undefined};\nif (inputs.replyBroadcast === 'true') message.reply_broadcast = true;\nif (inputs.unfurlLinks === 'false') message.unfurl_links = false;\nrequest.body = present(message);\nreturn request;",
-      "afterResponse": "if (!response.ok) throw new Error('An API error occurred: ' + response.error);\nif (response.response_metadata === undefined) response.response_metadata = {};\nreturn response;"
-    },
     "slack_schedule_message": {
       "label": "Schedule Message",
       "description": "Schedule a message to be sent to a channel at a future time.",
@@ -920,46 +828,6 @@
       },
       "afterResponse": "if (!response.ok) throw new Error('An API error occurred: ' + response.error);\nif (response.response_metadata === undefined) response.response_metadata = {};\nreturn response;"
     },
-    "slack_update_message": {
-      "label": "Update Message",
-      "description": "Edit an existing Slack message in place.",
-      "audience": "ai",
-      "inputs": {
-        "channel": {
-          "label": "Channel",
-          "description": "Channel ID containing the message (e.g. C0123ABCD). Resolve a #name with Find Channel.",
-          "required": true
-        },
-        "ts": {
-          "label": "Message Timestamp",
-          "description": "Timestamp (ts) of the message to update, e.g. 1710304378.475129. Obtain it from Post Message / Search Messages / Get Channel History.",
-          "required": true
-        },
-        "text": {
-          "label": "Message",
-          "description": "The new text of the message. Renders as a section above any blocks, and is used as the notification fallback. Leave empty for a blocks-only update.",
-          "type": "multiline"
-        },
-        "blocks": {
-          "label": "Block Kit Blocks",
-          "description": "Optional Block Kit blocks array to replace the message blocks. See https://api.slack.com/block-kit",
-          "type": "json"
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://slack.com/api/chat.update",
-        "headers": {
-          "Content-Type": "application/x-www-form-urlencoded"
-        }
-      },
-      "outputs": {
-        "ts": "$.ts",
-        "channel": "$.channel"
-      },
-      "beforeRequest": "const timestampOf = (value) => {\n  const link = value.match(/\\/p(\\d+)(\\d{6})$/);\n  if (link) return link[1] + '.' + link[2];\n  return /^(\\d+)\\.(\\d{6})$/.test(value) ? value : undefined;\n};\nif (!timestampOf(inputs.ts)) throw new Error('Invalid Timestamp Value.');\nconst sectionsOf = (text) => {\n  const blocks = [];\n  let rest = text;\n  while (rest.length > 0) {\n    if (rest.length <= 3000) { blocks.push({type: 'section', text: {type: 'mrkdwn', text: rest}}); break; }\n    let cut = rest.lastIndexOf('\\n', 3000);\n    if (cut <= 0) cut = rest.lastIndexOf(' ', 3000);\n    if (cut <= 0) cut = 3000;\n    blocks.push({type: 'section', text: {type: 'mrkdwn', text: rest.substring(0, cut)}});\n    rest = rest.substring(cut).trimStart();\n  }\n  return blocks;\n};\nconst extraBlocks = inputs.blocks ? JSON.parse(inputs.blocks) : undefined;\nconst hasBlocks = Array.isArray(extraBlocks) && extraBlocks.length > 0;\nconst present = (body) => Object.fromEntries(Object.entries(body).filter(([, value]) => value !== undefined && value !== ''));\nconst blocks = [...(inputs.text ? sectionsOf(inputs.text) : []), ...(hasBlocks ? extraBlocks : [])];\nif (blocks.length === 0) throw new Error('Either Message or Block Kit blocks must be provided');\nrequest.body = present({channel: inputs.channel, ts: timestampOf(inputs.ts), text: inputs.text || undefined, blocks});\nreturn request;",
-      "afterResponse": "if (!response.ok) throw new Error('An API error occurred: ' + response.error);\nif (response.response_metadata === undefined) response.response_metadata = {};\nreturn response;"
-    },
     "slack_send_ephemeral_message": {
       "label": "Send Ephemeral Message",
       "description": "Post a message visible only to one user within a channel.",
@@ -1026,73 +894,6 @@
       "beforeRequest": "const timestampOf = (value) => {\n  const link = value.match(/\\/p(\\d+)(\\d{6})$/);\n  if (link) return link[1] + '.' + link[2];\n  return /^(\\d+)\\.(\\d{6})$/.test(value) ? value : undefined;\n};\nif (!timestampOf(inputs.messageTs)) throw new Error('Invalid Timestamp Value.');\nrequest.body.message_ts = timestampOf(inputs.messageTs);\nreturn request;",
       "afterResponse": "if (!response.ok) throw new Error('An API error occurred: ' + response.error);\nif (response.response_metadata === undefined) response.response_metadata = {};\nreturn response;"
     },
-    "slack_get_channel_history": {
-      "label": "Get Channel History",
-      "description": "Retrieve top-level messages from a Slack channel, optionally bounded by timestamps.",
-      "audience": "ai",
-      "inputs": {
-        "channel": {
-          "label": "Channel",
-          "description": "Channel ID to read (e.g. C0123ABCD). Resolve a #name with Find Channel.",
-          "required": true
-        },
-        "oldest": {
-          "label": "Oldest",
-          "description": "Only messages after this Unix timestamp are included.",
-          "type": "number"
-        },
-        "latest": {
-          "label": "Latest",
-          "description": "Only messages before this Unix timestamp are included. Defaults to now.",
-          "type": "number"
-        },
-        "inclusive": {
-          "label": "Inclusive",
-          "description": "Include messages with the oldest/latest timestamps. Ignored unless a timestamp is set.",
-          "type": "boolean",
-          "defaultValue": "false"
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://slack.com/api/conversations.history",
-        "headers": {
-          "Content-Type": "application/x-www-form-urlencoded"
-        }
-      },
-      "beforeRequest": "const present = (body) => Object.fromEntries(Object.entries(body).filter(([, value]) => value !== undefined && value !== ''));\nconst first = present({channel: inputs.channel, oldest: inputs.oldest, latest: inputs.latest, limit: 200, inclusive: inputs.inclusive});\nrequest.body = first;\nreturn request;",
-      "afterResponse": "if (!response.ok) throw new Error('An API error occurred: ' + response.error);\nconst api = (method, body) => {\n  const answer = call({method: 'POST', url: '/' + method, headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body});\n  if (!answer.ok) throw new Error('An API error occurred: ' + answer.error);\n  return answer;\n};\nconst present = (body) => Object.fromEntries(Object.entries(body).filter(([, value]) => value !== undefined && value !== ''));\nconst first = present({channel: inputs.channel, oldest: inputs.oldest, latest: inputs.latest, limit: 200, inclusive: inputs.inclusive});\nlet page = response;\nconst items = [...(page.messages ?? [])];\nwhile (page.response_metadata?.next_cursor) {\n  page = api('conversations.history', {...first, cursor: page.response_metadata.next_cursor});\n  items.push(...(page.messages ?? []));\n}\nreturn items;"
-    },
-    "slack_get_thread_replies": {
-      "label": "Get Thread Replies",
-      "description": "Retrieve the replies in a Slack thread.",
-      "audience": "ai",
-      "inputs": {
-        "channel": {
-          "label": "Channel",
-          "description": "Channel ID containing the thread (e.g. C0123ABCD). Resolve a #name with Find Channel.",
-          "required": true
-        },
-        "threadTs": {
-          "label": "Thread Timestamp",
-          "description": "Timestamp (ts) of the parent message, e.g. 1710304378.475129. Use the parent ts, not a reply ts.",
-          "required": true
-        },
-        "cursor": {
-          "label": "Continue From Cursor",
-          "description": "Next Cursor from a previous run whose Has More was true."
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://slack.com/api/conversations.replies",
-        "headers": {
-          "Content-Type": "application/x-www-form-urlencoded"
-        }
-      },
-      "beforeRequest": "const timestampOf = (value) => {\n  const link = value.match(/\\/p(\\d+)(\\d{6})$/);\n  if (link) return link[1] + '.' + link[2];\n  return /^(\\d+)\\.(\\d{6})$/.test(value) ? value : undefined;\n};\nif (!timestampOf(inputs.threadTs)) throw new Error('Invalid Timestamp Value.');\nconst present = (body) => Object.fromEntries(Object.entries(body).filter(([, value]) => value !== undefined && value !== ''));\nconst first = present({channel: inputs.channel, ts: timestampOf(inputs.threadTs), limit: 200, cursor: inputs.cursor});\nrequest.body = first;\nreturn request;",
-      "afterResponse": "if (!response.ok) throw new Error('An API error occurred: ' + response.error);\nconst api = (method, body) => {\n  const answer = call({method: 'POST', url: '/' + method, headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body});\n  if (!answer.ok) throw new Error('An API error occurred: ' + answer.error);\n  return answer;\n};\nconst timestampOf = (value) => {\n  const link = value.match(/\\/p(\\d+)(\\d{6})$/);\n  if (link) return link[1] + '.' + link[2];\n  return /^(\\d+)\\.(\\d{6})$/.test(value) ? value : undefined;\n};\nconst present = (body) => Object.fromEntries(Object.entries(body).filter(([, value]) => value !== undefined && value !== ''));\nconst first = present({channel: inputs.channel, ts: timestampOf(inputs.threadTs), limit: 200, cursor: inputs.cursor});\nif (response.response_metadata === undefined) response.response_metadata = {};\nconst seen = new Set();\nconst messages = [];\nconst append = (page) => (page.messages ?? []).forEach((message) => { const key = message.ts ?? ''; if (key && seen.has(key)) return; seen.add(key); messages.push(message); });\nappend(response);\nlet cursor = response.response_metadata.next_cursor;\nconst used = new Set(inputs.cursor ? [inputs.cursor] : []);\nlet pages = 1;\nwhile (cursor && !used.has(cursor) && pages < 50) {\n  used.add(cursor);\n  const page = api('conversations.replies', {channel: first.channel, ts: first.ts, limit: 200, cursor});\n  append(page);\n  cursor = page.response_metadata?.next_cursor;\n  pages += 1;\n}\nreturn {...response, messages, has_more: Boolean(cursor), response_metadata: {...response.response_metadata, next_cursor: cursor ?? ''}};"
-    },
     "slack_mark_conversation_read": {
       "label": "Mark Conversation Read",
       "description": "Move the read cursor in a channel up to a given message.",
@@ -1121,151 +922,6 @@
         }
       },
       "beforeRequest": "const timestampOf = (value) => {\n  const link = value.match(/\\/p(\\d+)(\\d{6})$/);\n  if (link) return link[1] + '.' + link[2];\n  return /^(\\d+)\\.(\\d{6})$/.test(value) ? value : undefined;\n};\nif (!timestampOf(inputs.ts)) throw new Error('Invalid Timestamp Value.');\nrequest.body.ts = timestampOf(inputs.ts);\nreturn request;",
-      "afterResponse": "if (!response.ok) throw new Error('An API error occurred: ' + response.error);\nif (response.response_metadata === undefined) response.response_metadata = {};\nreturn response;"
-    },
-    "find_user_by_email": {
-      "label": "Find User by Email",
-      "description": "Find a Slack user by their exact email address.",
-      "audience": "ai",
-      "inputs": {
-        "email": {
-          "label": "Email",
-          "description": "Must match the email on the Slack profile.",
-          "required": true
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://slack.com/api/users.lookupByEmail",
-        "headers": {
-          "Content-Type": "application/x-www-form-urlencoded"
-        },
-        "body": {
-          "email": "{{email}}"
-        }
-      },
-      "afterResponse": "if (!response.ok) throw new Error('An API error occurred: ' + response.error);\nif (response.response_metadata === undefined) response.response_metadata = {};\nreturn response;"
-    },
-    "get_user": {
-      "label": "Get User",
-      "description": "Get a Slack user profile by their user ID.",
-      "audience": "ai",
-      "inputs": {
-        "id": {
-          "label": "User ID",
-          "description": "Starts with U or W.",
-          "required": true
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://slack.com/api/users.profile.get",
-        "headers": {
-          "Content-Type": "application/x-www-form-urlencoded"
-        },
-        "body": {
-          "user": "{{id}}"
-        }
-      },
-      "afterResponse": "if (!response.ok) throw new Error('An API error occurred: ' + response.error);\nif (response.response_metadata === undefined) response.response_metadata = {};\nreturn response;"
-    },
-    "list_users": {
-      "label": "List Users",
-      "description": "List all users in the workspace.",
-      "audience": "ai",
-      "inputs": {
-        "includeBots": {
-          "label": "Include Bots",
-          "description": "Also return bot users.",
-          "type": "boolean",
-          "defaultValue": "false"
-        },
-        "includeDisabled": {
-          "label": "Include Deactivated Users",
-          "description": "Also return deactivated accounts.",
-          "type": "boolean",
-          "defaultValue": "false"
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://slack.com/api/users.list",
-        "headers": {
-          "Content-Type": "application/x-www-form-urlencoded"
-        }
-      },
-      "beforeRequest": "const present = (body) => Object.fromEntries(Object.entries(body).filter(([, value]) => value !== undefined && value !== ''));\nconst first = present({limit: 1000});\nrequest.body = first;\nreturn request;",
-      "afterResponse": "if (!response.ok) throw new Error('An API error occurred: ' + response.error);\nconst api = (method, body) => {\n  const answer = call({method: 'POST', url: '/' + method, headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body});\n  if (!answer.ok) throw new Error('An API error occurred: ' + answer.error);\n  return answer;\n};\nconst present = (body) => Object.fromEntries(Object.entries(body).filter(([, value]) => value !== undefined && value !== ''));\nconst first = present({limit: 1000});\nlet page = response;\nconst items = [...(page.members ?? [])];\nwhile (page.response_metadata?.next_cursor) {\n  page = api('users.list', {...first, cursor: page.response_metadata.next_cursor});\n  items.push(...(page.members ?? []));\n}\nreturn items.filter((member) => (inputs.includeDisabled === 'true' || !member.deleted) && (inputs.includeBots === 'true' || !member.is_bot));"
-    },
-    "find_user_by_handle": {
-      "label": "Find User by Handle",
-      "description": "Find a Slack user by their handle (display name).",
-      "audience": "ai",
-      "inputs": {
-        "handle": {
-          "label": "Handle",
-          "description": "Display name without the leading @.",
-          "required": true
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://slack.com/api/users.list",
-        "headers": {
-          "Content-Type": "application/x-www-form-urlencoded"
-        }
-      },
-      "beforeRequest": "const present = (body) => Object.fromEntries(Object.entries(body).filter(([, value]) => value !== undefined && value !== ''));\nconst first = present({limit: 1000});\nrequest.body = first;\nreturn request;",
-      "afterResponse": "if (!response.ok) throw new Error('An API error occurred: ' + response.error);\nconst api = (method, body) => {\n  const answer = call({method: 'POST', url: '/' + method, headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body});\n  if (!answer.ok) throw new Error('An API error occurred: ' + answer.error);\n  return answer;\n};\nconst present = (body) => Object.fromEntries(Object.entries(body).filter(([, value]) => value !== undefined && value !== ''));\nconst first = present({limit: 1000});\nconst handle = inputs.handle.replace('@', '');\nlet page = response;\nfor (;;) {\n  const found = (page.members ?? []).find((member) => member.profile?.display_name === handle);\n  if (found) return found;\n  if (!page.response_metadata?.next_cursor) break;\n  page = api('users.list', {...first, cursor: page.response_metadata.next_cursor});\n}\nthrow new Error('Could not find user with handle @' + handle);"
-    },
-    "slack_add_reaction": {
-      "label": "Add Reaction",
-      "description": "Add an emoji reaction to a message.",
-      "audience": "ai",
-      "inputs": {
-        "channel": {
-          "label": "Channel",
-          "description": "Private channels appear only after the bot is added to them.",
-          "required": true,
-          "optionsFrom": {
-            "request": {
-              "method": "GET",
-              "url": "https://slack.com/api/users.conversations",
-              "query": {
-                "types": "public_channel,private_channel",
-                "exclude_archived": "true",
-                "limit": "1000"
-              }
-            },
-            "list": "$.channels",
-            "label": "$.name",
-            "value": "$.id"
-          }
-        },
-        "ts": {
-          "label": "Message Timestamp",
-          "description": "Timestamp of the target message, from its link or a trigger output.",
-          "required": true
-        },
-        "reaction": {
-          "label": "Emoji",
-          "description": "Emoji name without colons.",
-          "required": true
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://slack.com/api/reactions.add",
-        "headers": {
-          "Content-Type": "application/x-www-form-urlencoded"
-        },
-        "body": {
-          "channel": "{{channel}}",
-          "timestamp": "{{ts}}",
-          "name": "{{reaction}}"
-        }
-      },
-      "beforeRequest": "const timestampOf = (value) => {\n  const link = value.match(/\\/p(\\d+)(\\d{6})$/);\n  if (link) return link[1] + '.' + link[2];\n  return /^(\\d+)\\.(\\d{6})$/.test(value) ? value : undefined;\n};\nif (!timestampOf(inputs.ts)) throw new Error('Invalid Timestamp Value.');\nrequest.body.timestamp = timestampOf(inputs.ts);\nreturn request;",
       "afterResponse": "if (!response.ok) throw new Error('An API error occurred: ' + response.error);\nif (response.response_metadata === undefined) response.response_metadata = {};\nreturn response;"
     },
     "slack_archive_channel": {
@@ -1311,39 +967,6 @@
         "body": {
           "channel": "{{channel}}"
         }
-      },
-      "afterResponse": "if (!response.ok) throw new Error('An API error occurred: ' + response.error);\nif (response.response_metadata === undefined) response.response_metadata = {};\nreturn response;"
-    },
-    "slack_create_channel": {
-      "label": "Create Channel",
-      "description": "Creates a new public or private channel.",
-      "audience": "ai",
-      "inputs": {
-        "channelName": {
-          "label": "Channel Name",
-          "description": "Name for the new channel, without the leading '#'. Slack lowercases it and replaces spaces with hyphens, e.g. 'project-updates'. Max 80 characters.",
-          "required": true
-        },
-        "isPrivate": {
-          "label": "Is Private?",
-          "description": "Create the channel as private (invite-only) instead of public.",
-          "type": "boolean",
-          "defaultValue": "false"
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://slack.com/api/conversations.create",
-        "headers": {
-          "Content-Type": "application/x-www-form-urlencoded"
-        },
-        "body": {
-          "name": "{{channelName}}",
-          "is_private": "{{isPrivate}}"
-        }
-      },
-      "outputs": {
-        "id": "$.channel.id"
       },
       "afterResponse": "if (!response.ok) throw new Error('An API error occurred: ' + response.error);\nif (response.response_metadata === undefined) response.response_metadata = {};\nreturn response;"
     },
@@ -1436,36 +1059,6 @@
         }
       },
       "beforeRequest": "const timestampOf = (value) => {\n  const link = value.match(/\\/p(\\d+)(\\d{6})$/);\n  if (link) return link[1] + '.' + link[2];\n  return /^(\\d+)\\.(\\d{6})$/.test(value) ? value : undefined;\n};\nconst present = (body) => Object.fromEntries(Object.entries(body).filter(([, value]) => value !== undefined && value !== ''));\nif (inputs.file) request.body = present({file: inputs.file, full: inputs.full});\nelse if (inputs.channel && inputs.ts) {\n  const timestamp = timestampOf(inputs.ts);\n  if (!timestamp) throw new Error('Invalid Timestamp Value.');\n  request.body = present({channel: inputs.channel, timestamp, full: inputs.full});\n} else throw new Error('Provide either a File ID, or both a Channel ID and a Message Timestamp.');\nreturn request;",
-      "afterResponse": "if (!response.ok) throw new Error('An API error occurred: ' + response.error);\nif (response.response_metadata === undefined) response.response_metadata = {};\nreturn response;"
-    },
-    "slack_invite_users_to_channel": {
-      "label": "Invite Users to Channel",
-      "description": "Invites one or more existing users to a channel.",
-      "audience": "ai",
-      "inputs": {
-        "channel": {
-          "label": "Channel",
-          "description": "Channel ID (e.g. 'C0123456789'). Pass a channel ID, or resolve a #name to an ID first with Find Channel.",
-          "required": true
-        },
-        "userIds": {
-          "label": "User IDs",
-          "description": "Slack user IDs to invite, e.g. 'U0123456789'. Resolve handles/emails to IDs first with Find User by Handle / Find User by Email. Up to 1000 users per call.",
-          "type": "json",
-          "required": true
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://slack.com/api/conversations.invite",
-        "headers": {
-          "Content-Type": "application/x-www-form-urlencoded"
-        },
-        "body": {
-          "channel": "{{channel}}"
-        }
-      },
-      "beforeRequest": "request.body.users = JSON.parse(inputs.userIds).join(',');\nreturn request;",
       "afterResponse": "if (!response.ok) throw new Error('An API error occurred: ' + response.error);\nif (response.response_metadata === undefined) response.response_metadata = {};\nreturn response;"
     },
     "slack_join_channel": {
@@ -1820,36 +1413,6 @@
         "body": {
           "channel": "{{channel}}",
           "purpose": "{{purpose}}"
-        }
-      },
-      "afterResponse": "if (!response.ok) throw new Error('An API error occurred: ' + response.error);\nif (response.response_metadata === undefined) response.response_metadata = {};\nreturn response;"
-    },
-    "slack_set_channel_topic": {
-      "label": "Set Channel Topic",
-      "description": "Sets the topic on a channel.",
-      "audience": "ai",
-      "inputs": {
-        "channel": {
-          "label": "Channel",
-          "description": "Channel ID (e.g. 'C0123456789'). Pass a channel ID, or resolve a #name to an ID first with Find Channel.",
-          "required": true
-        },
-        "topic": {
-          "label": "Topic",
-          "description": "The new topic text. Pass an empty string to clear the topic.",
-          "type": "multiline",
-          "required": true
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://slack.com/api/conversations.setTopic",
-        "headers": {
-          "Content-Type": "application/x-www-form-urlencoded"
-        },
-        "body": {
-          "channel": "{{channel}}",
-          "topic": "{{topic}}"
         }
       },
       "afterResponse": "if (!response.ok) throw new Error('An API error occurred: ' + response.error);\nif (response.response_metadata === undefined) response.response_metadata = {};\nreturn response;"

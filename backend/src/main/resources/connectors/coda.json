@@ -83,162 +83,8 @@
         "result": "$.result"
       }
     },
-    "create-row": {
-      "label": "Create Row",
-      "description": "Creates a new row in the specified table.",
-      "audience": "human",
-      "inputs": {
-        "docId": {
-          "label": "Document",
-          "description": "The doc ID, for example AbC123xyZ. Use List Docs to find it.",
-          "required": true
-        },
-        "tableId": {
-          "label": "Table",
-          "description": "The table ID (starts with \"grid-\" or \"table-\"). Use List Tables to find it.",
-          "required": true
-        },
-        "rowData": {
-          "label": "Row Data",
-          "type": "json",
-          "required": true,
-          "description": "The values as a JSON object keyed by column ID or name, for example {\"c-Col1\": \"Write spec\"}. Use List Columns to find the IDs."
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://coda.io/apis/v1/docs/{{docId}}/tables/{{tableId}}/rows",
-        "query": {
-          "disableParsing": "false"
-        }
-      },
-      "beforeRequest": "var docIdOf = (raw) => {\n  var text = String(raw).trim();\n  if (!/^https?:\\/\\//i.test(text)) {\n    if (!/^[A-Za-z0-9_-]+$/.test(text)) throw new Error('\"' + text + '\" is not a valid Coda doc ID. Pass the ID (for example AbC123xyZ) or the doc\\'s browser link.');\n    return text;\n  }\n  var link = /^https?:\\/\\/(?:[^@\\/?#]*@)?([^:\\/?#]*)(?::\\d*)?([^?#]*)/i.exec(text);\n  var host = link ? link[1].toLowerCase().replace(/^www\\./, '') : '';\n  if (host !== 'coda.io' && host !== 'docs.superhuman.com') throw new Error('\"' + text + '\" is not a Coda doc link (expected coda.io or docs.superhuman.com).');\n  var segments = link[2].split('/').filter((segment) => segment.length > 0);\n  var slug = segments[0] === 'd' ? segments[1] : undefined;\n  var cut = slug ? slug.lastIndexOf('_d') : -1;\n  var id = slug && cut >= 0 ? slug.slice(cut + 2) : undefined;\n  if (!id || !/^[A-Za-z0-9_-]+$/.test(id)) throw new Error('Could not find a doc ID in \"' + text + '\". Paste a link like https://coda.io/d/My-Doc_dAbC123 or the doc ID itself.');\n  return id;\n};\nvar start = request.url.indexOf('/apis/v1/') + '/apis/v1/'.length;\nvar parts = request.url.slice(start).split('/').map((part) => decodeURIComponent(part).trim());\nparts.forEach((part) => { if (part === '.' || part === '..') throw new Error('\"' + part + '\" is not a valid Coda ID or name.'); });\nif (parts[0] === 'docs' && parts.length > 1) parts[1] = docIdOf(parts[1]);\nrequest.url = request.url.slice(0, start) + parts.map(encodeURIComponent).join('/');\nvar data = JSON.parse(inputs.rowData);\nvar cells = Object.entries(data ?? {}).filter(([, value]) => value != null && value !== '').map(([column, value]) => ({column: column, value: value}));\nif (cells.length === 0) throw new Error('Provide any column values to create new row.');\nrequest.body = {rows: [{cells: cells}]};\nreturn request;",
-      "afterResponse": "var rowId = response.addedRowIds?.[0];\nif (rowId == null) throw new Error('Unexpected error occured : ' + JSON.stringify(response));\nreturn {rowId: rowId, requestId: response.requestId};",
-      "outputs": {
-        "rowId": "$.rowId",
-        "requestId": "$.requestId"
-      }
-    },
-    "upsert-row": {
-      "label": "Upsert Row",
-      "description": "Creates a new row or updates an existing one if the row is found by the matching columns.",
-      "audience": "human",
-      "inputs": {
-        "docId": {
-          "label": "Document",
-          "description": "The doc ID, for example AbC123xyZ. Use List Docs to find it.",
-          "required": true
-        },
-        "tableId": {
-          "label": "Table",
-          "description": "The table ID (starts with \"grid-\" or \"table-\"). Use List Tables to find it.",
-          "required": true
-        },
-        "keyColumns": {
-          "label": "Matching Columns",
-          "type": "json",
-          "required": true,
-          "description": "The column IDs that find an existing row, as a JSON list such as [\"c-Col1\"]. Each needs a value in Row Data."
-        },
-        "rowData": {
-          "label": "Row Data",
-          "type": "json",
-          "required": true,
-          "description": "The values as a JSON object keyed by column ID or name, for example {\"c-Col1\": \"Write spec\"}. Use List Columns to find the IDs."
-        }
-      },
-      "request": {
-        "method": "POST",
-        "url": "https://coda.io/apis/v1/docs/{{docId}}/tables/{{tableId}}/rows",
-        "query": {
-          "disableParsing": "false"
-        }
-      },
-      "beforeRequest": "var docIdOf = (raw) => {\n  var text = String(raw).trim();\n  if (!/^https?:\\/\\//i.test(text)) {\n    if (!/^[A-Za-z0-9_-]+$/.test(text)) throw new Error('\"' + text + '\" is not a valid Coda doc ID. Pass the ID (for example AbC123xyZ) or the doc\\'s browser link.');\n    return text;\n  }\n  var link = /^https?:\\/\\/(?:[^@\\/?#]*@)?([^:\\/?#]*)(?::\\d*)?([^?#]*)/i.exec(text);\n  var host = link ? link[1].toLowerCase().replace(/^www\\./, '') : '';\n  if (host !== 'coda.io' && host !== 'docs.superhuman.com') throw new Error('\"' + text + '\" is not a Coda doc link (expected coda.io or docs.superhuman.com).');\n  var segments = link[2].split('/').filter((segment) => segment.length > 0);\n  var slug = segments[0] === 'd' ? segments[1] : undefined;\n  var cut = slug ? slug.lastIndexOf('_d') : -1;\n  var id = slug && cut >= 0 ? slug.slice(cut + 2) : undefined;\n  if (!id || !/^[A-Za-z0-9_-]+$/.test(id)) throw new Error('Could not find a doc ID in \"' + text + '\". Paste a link like https://coda.io/d/My-Doc_dAbC123 or the doc ID itself.');\n  return id;\n};\nvar start = request.url.indexOf('/apis/v1/') + '/apis/v1/'.length;\nvar parts = request.url.slice(start).split('/').map((part) => decodeURIComponent(part).trim());\nparts.forEach((part) => { if (part === '.' || part === '..') throw new Error('\"' + part + '\" is not a valid Coda ID or name.'); });\nif (parts[0] === 'docs' && parts.length > 1) parts[1] = docIdOf(parts[1]);\nrequest.url = request.url.slice(0, start) + parts.map(encodeURIComponent).join('/');\nvar data = JSON.parse(inputs.rowData);\nvar cells = Object.entries(data ?? {}).filter(([, value]) => value != null && value !== '').map(([column, value]) => ({column: column, value: value}));\nif (cells.length === 0) throw new Error('Provide at least one column value to upsert the row.');\nvar keys;\ntry { keys = JSON.parse(inputs.keyColumns); } catch (error) { keys = inputs.keyColumns; }\nvar keyColumns = Array.isArray(keys) ? keys : keys ? [keys] : [];\nvar given = new Set(cells.map((cell) => cell.column));\nvar missing = keyColumns.filter((key) => !given.has(key));\nif (missing.length > 0) throw new Error('Every matching column needs a value in Row Data, otherwise Coda cannot find the existing row. Missing values for: ' + missing.join(', ') + '.');\nrequest.body = {rows: [{cells: cells}], keyColumns: keyColumns};\nreturn request;",
-      "afterResponse": "if (!response.requestId) throw new Error('Unexpected error occured : ' + JSON.stringify(response));\nreturn {success: true, requestId: response.requestId};",
-      "outputs": {
-        "success": "$.success",
-        "requestId": "$.requestId"
-      }
-    },
-    "update-row": {
-      "label": "Update Row",
-      "description": "Updates an existing row in the specified table.",
-      "audience": "human",
-      "inputs": {
-        "docId": {
-          "label": "Document",
-          "description": "The doc ID, for example AbC123xyZ. Use List Docs to find it.",
-          "required": true
-        },
-        "tableId": {
-          "label": "Table",
-          "description": "The table ID (starts with \"grid-\" or \"table-\"). Use List Tables to find it.",
-          "required": true
-        },
-        "rowIdOrName": {
-          "label": "Row ID or Name",
-          "description": "The row ID (starts with \"i-\") or the value of its display column.",
-          "required": true
-        },
-        "rowData": {
-          "label": "Row Data",
-          "type": "json",
-          "required": true,
-          "description": "The values as a JSON object keyed by column ID or name, for example {\"c-Col1\": \"Write spec\"}. Use List Columns to find the IDs."
-        }
-      },
-      "request": {
-        "method": "PUT",
-        "url": "https://coda.io/apis/v1/docs/{{docId}}/tables/{{tableId}}/rows/{{rowIdOrName}}",
-        "query": {
-          "disableParsing": "false"
-        }
-      },
-      "beforeRequest": "var docIdOf = (raw) => {\n  var text = String(raw).trim();\n  if (!/^https?:\\/\\//i.test(text)) {\n    if (!/^[A-Za-z0-9_-]+$/.test(text)) throw new Error('\"' + text + '\" is not a valid Coda doc ID. Pass the ID (for example AbC123xyZ) or the doc\\'s browser link.');\n    return text;\n  }\n  var link = /^https?:\\/\\/(?:[^@\\/?#]*@)?([^:\\/?#]*)(?::\\d*)?([^?#]*)/i.exec(text);\n  var host = link ? link[1].toLowerCase().replace(/^www\\./, '') : '';\n  if (host !== 'coda.io' && host !== 'docs.superhuman.com') throw new Error('\"' + text + '\" is not a Coda doc link (expected coda.io or docs.superhuman.com).');\n  var segments = link[2].split('/').filter((segment) => segment.length > 0);\n  var slug = segments[0] === 'd' ? segments[1] : undefined;\n  var cut = slug ? slug.lastIndexOf('_d') : -1;\n  var id = slug && cut >= 0 ? slug.slice(cut + 2) : undefined;\n  if (!id || !/^[A-Za-z0-9_-]+$/.test(id)) throw new Error('Could not find a doc ID in \"' + text + '\". Paste a link like https://coda.io/d/My-Doc_dAbC123 or the doc ID itself.');\n  return id;\n};\nvar start = request.url.indexOf('/apis/v1/') + '/apis/v1/'.length;\nvar parts = request.url.slice(start).split('/').map((part) => decodeURIComponent(part).trim());\nparts.forEach((part) => { if (part === '.' || part === '..') throw new Error('\"' + part + '\" is not a valid Coda ID or name.'); });\nif (parts[0] === 'docs' && parts.length > 1) parts[1] = docIdOf(parts[1]);\nrequest.url = request.url.slice(0, start) + parts.map(encodeURIComponent).join('/');\nvar data = JSON.parse(inputs.rowData);\nvar cells = Object.entries(data ?? {}).filter(([, value]) => value != null && value !== '').map(([column, value]) => ({column: column, value: value}));\nif (cells.length === 0) throw new Error('Provide at least one column value to update the row.');\nrequest.body = {row: {cells: cells}};\nreturn request;",
-      "afterResponse": "if (response.id == null) throw new Error('Unexpected error occured : ' + JSON.stringify(response));\nreturn {rowId: response.id, requestId: response.requestId};",
-      "outputs": {
-        "rowId": "$.rowId",
-        "requestId": "$.requestId"
-      }
-    },
-    "get-row": {
-      "label": "Get Row",
-      "description": "Retrieves a single row by specified ID.",
-      "audience": "human",
-      "inputs": {
-        "docId": {
-          "label": "Document",
-          "description": "The doc ID, for example AbC123xyZ. Use List Docs to find it.",
-          "required": true
-        },
-        "tableId": {
-          "label": "Table",
-          "description": "The table ID (starts with \"grid-\" or \"table-\"). Use List Tables to find it.",
-          "required": true
-        },
-        "rowIdOrName": {
-          "label": "Row ID or Name",
-          "required": true
-        }
-      },
-      "request": {
-        "method": "GET",
-        "url": "https://coda.io/apis/v1/docs/{{docId}}/tables/{{tableId}}/rows/{{rowIdOrName}}",
-        "query": {
-          "useColumnNames": "true",
-          "valueFormat": "simpleWithArrays"
-        }
-      },
-      "outputs": {
-        "id": "$.id",
-        "name": "$.name",
-        "values": "$.values"
-      },
-      "beforeRequest": "var docIdOf = (raw) => {\n  var text = String(raw).trim();\n  if (!/^https?:\\/\\//i.test(text)) {\n    if (!/^[A-Za-z0-9_-]+$/.test(text)) throw new Error('\"' + text + '\" is not a valid Coda doc ID. Pass the ID (for example AbC123xyZ) or the doc\\'s browser link.');\n    return text;\n  }\n  var link = /^https?:\\/\\/(?:[^@\\/?#]*@)?([^:\\/?#]*)(?::\\d*)?([^?#]*)/i.exec(text);\n  var host = link ? link[1].toLowerCase().replace(/^www\\./, '') : '';\n  if (host !== 'coda.io' && host !== 'docs.superhuman.com') throw new Error('\"' + text + '\" is not a Coda doc link (expected coda.io or docs.superhuman.com).');\n  var segments = link[2].split('/').filter((segment) => segment.length > 0);\n  var slug = segments[0] === 'd' ? segments[1] : undefined;\n  var cut = slug ? slug.lastIndexOf('_d') : -1;\n  var id = slug && cut >= 0 ? slug.slice(cut + 2) : undefined;\n  if (!id || !/^[A-Za-z0-9_-]+$/.test(id)) throw new Error('Could not find a doc ID in \"' + text + '\". Paste a link like https://coda.io/d/My-Doc_dAbC123 or the doc ID itself.');\n  return id;\n};\nvar start = request.url.indexOf('/apis/v1/') + '/apis/v1/'.length;\nvar parts = request.url.slice(start).split('/').map((part) => decodeURIComponent(part).trim());\nparts.forEach((part) => { if (part === '.' || part === '..') throw new Error('\"' + part + '\" is not a valid Coda ID or name.'); });\nif (parts[0] === 'docs' && parts.length > 1) parts[1] = docIdOf(parts[1]);\nrequest.url = request.url.slice(0, start) + parts.map(encodeURIComponent).join('/');\nObject.keys(request.query).forEach((key) => {\n  var value = String(request.query[key]).trim();\n  if (value === '') delete request.query[key]; else request.query[key] = value;\n});\nreturn request;"
-    },
     "list-tables": {
-      "label": "List Table(s)",
+      "label": "List All Tables",
       "description": "List tables in a selected document.",
       "audience": "human",
       "inputs": {
@@ -269,33 +115,6 @@
         "found": "$.found",
         "result": "$.result"
       }
-    },
-    "get-table": {
-      "label": "Get Table",
-      "description": "Get the details of a specific table: name, type, row count, display column and layout.",
-      "audience": "human",
-      "inputs": {
-        "docId": {
-          "label": "Document",
-          "description": "The doc ID, for example AbC123xyZ. Use List Docs to find it.",
-          "required": true
-        },
-        "tableId": {
-          "label": "Table",
-          "description": "The table ID (starts with \"grid-\" or \"table-\"). Use List Tables to find it.",
-          "required": true
-        }
-      },
-      "request": {
-        "method": "GET",
-        "url": "https://coda.io/apis/v1/docs/{{docId}}/tables/{{tableId}}"
-      },
-      "outputs": {
-        "id": "$.id",
-        "name": "$.name",
-        "rowCount": "$.rowCount"
-      },
-      "beforeRequest": "var docIdOf = (raw) => {\n  var text = String(raw).trim();\n  if (!/^https?:\\/\\//i.test(text)) {\n    if (!/^[A-Za-z0-9_-]+$/.test(text)) throw new Error('\"' + text + '\" is not a valid Coda doc ID. Pass the ID (for example AbC123xyZ) or the doc\\'s browser link.');\n    return text;\n  }\n  var link = /^https?:\\/\\/(?:[^@\\/?#]*@)?([^:\\/?#]*)(?::\\d*)?([^?#]*)/i.exec(text);\n  var host = link ? link[1].toLowerCase().replace(/^www\\./, '') : '';\n  if (host !== 'coda.io' && host !== 'docs.superhuman.com') throw new Error('\"' + text + '\" is not a Coda doc link (expected coda.io or docs.superhuman.com).');\n  var segments = link[2].split('/').filter((segment) => segment.length > 0);\n  var slug = segments[0] === 'd' ? segments[1] : undefined;\n  var cut = slug ? slug.lastIndexOf('_d') : -1;\n  var id = slug && cut >= 0 ? slug.slice(cut + 2) : undefined;\n  if (!id || !/^[A-Za-z0-9_-]+$/.test(id)) throw new Error('Could not find a doc ID in \"' + text + '\". Paste a link like https://coda.io/d/My-Doc_dAbC123 or the doc ID itself.');\n  return id;\n};\nvar start = request.url.indexOf('/apis/v1/') + '/apis/v1/'.length;\nvar parts = request.url.slice(start).split('/').map((part) => decodeURIComponent(part).trim());\nparts.forEach((part) => { if (part === '.' || part === '..') throw new Error('\"' + part + '\" is not a valid Coda ID or name.'); });\nif (parts[0] === 'docs' && parts.length > 1) parts[1] = docIdOf(parts[1]);\nrequest.url = request.url.slice(0, start) + parts.map(encodeURIComponent).join('/');\nreturn request;"
     },
     "get_current_user": {
       "label": "Get Current User",
@@ -1337,7 +1156,7 @@
       "beforeRequest": "var docIdOf = (raw) => {\n  var text = String(raw).trim();\n  if (!/^https?:\\/\\//i.test(text)) {\n    if (!/^[A-Za-z0-9_-]+$/.test(text)) throw new Error('\"' + text + '\" is not a valid Coda doc ID. Pass the ID (for example AbC123xyZ) or the doc\\'s browser link.');\n    return text;\n  }\n  var link = /^https?:\\/\\/(?:[^@\\/?#]*@)?([^:\\/?#]*)(?::\\d*)?([^?#]*)/i.exec(text);\n  var host = link ? link[1].toLowerCase().replace(/^www\\./, '') : '';\n  if (host !== 'coda.io' && host !== 'docs.superhuman.com') throw new Error('\"' + text + '\" is not a Coda doc link (expected coda.io or docs.superhuman.com).');\n  var segments = link[2].split('/').filter((segment) => segment.length > 0);\n  var slug = segments[0] === 'd' ? segments[1] : undefined;\n  var cut = slug ? slug.lastIndexOf('_d') : -1;\n  var id = slug && cut >= 0 ? slug.slice(cut + 2) : undefined;\n  if (!id || !/^[A-Za-z0-9_-]+$/.test(id)) throw new Error('Could not find a doc ID in \"' + text + '\". Paste a link like https://coda.io/d/My-Doc_dAbC123 or the doc ID itself.');\n  return id;\n};\nvar start = request.url.indexOf('/apis/v1/') + '/apis/v1/'.length;\nvar parts = request.url.slice(start).split('/').map((part) => decodeURIComponent(part).trim());\nparts.forEach((part) => { if (part === '.' || part === '..') throw new Error('\"' + part + '\" is not a valid Coda ID or name.'); });\nif (parts[0] === 'docs' && parts.length > 1) parts[1] = docIdOf(parts[1]);\nrequest.url = request.url.slice(0, start) + parts.map(encodeURIComponent).join('/');\nvar title = inputs.title.trim();\nvar iconName = inputs.iconName.trim();\nif (!title && !iconName) throw new Error('Provide a Title or an Icon Name to change.');\nrequest.body = {};\nif (title) request.body.title = title;\nif (iconName) request.body.iconName = iconName;\nreturn request;"
     },
     "list_doc_tables": {
-      "label": "List Tables (by Doc ID)",
+      "label": "List Tables (One Page)",
       "description": "Lists the tables and views in a doc, one page at a time.",
       "audience": "ai",
       "inputs": {
