@@ -143,9 +143,9 @@ class ConnectorAction : Action() {
     }
 
     private fun send(connector: Connector, chosen: ConnectorOperation, values: Map<String, String>, files: Map<String, RunFile>, execution: TaskExecution): ActionResult {
-        val sender = ConnectorSender(this, connector, credentialValues)
-        val request = if (chosen === CUSTOM_CALL_OPERATION) ConnectorRequests.customCall(connector, values, credentialValues)
-        else ConnectorRequests.build(connector, chosen, values, credentialValues, sender::answerFor, files)
+        val sender = ConnectorSender(this, connector, credentialValues).also { it.openSession(values) }
+        val request = if (chosen === CUSTOM_CALL_OPERATION) ConnectorRequests.customCall(connector, values, credentialValues, sender.session)
+        else ConnectorRequests.build(connector, chosen, values, credentialValues, sender::answerFor, files, session = sender.session)
         var downloaded = ByteArray(0)
         val result = sender.send(request) { downloaded = it }
         if (result.statusCode != StatusCode.SUCCESS) return result

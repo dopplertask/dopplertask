@@ -46,6 +46,25 @@ class ConnectorCredential {
     var body: Map<String, String> = emptyMap()
     var basic: ConnectorBasicAuth? = null
     var oauth2: ConnectorOAuth? = null
+
+    /**
+     * A sign-in that gives a short-lived token, such as a session from a user name and password, or a page's own token
+     * from the account's. A step's requests then carry the token instead of the credential, while its lists and the
+     * sign-in itself are signed as usual. It is used only when the credential has every value its request needs.
+     */
+    var session: ConnectorSession? = null
+}
+
+class ConnectorSession {
+    /** The sign-in, with {{credential.field}} anywhere, also in its body, and the step's inputs, such as {{page}}. */
+    var request: ConnectorRequest = ConnectorRequest()
+
+    /** Where the token is in the answer. */
+    var token: String = "$.token"
+
+    /** Where the token goes in each request, as {{session}}, such as Authorization: Bearer {{session}}. */
+    var headers: Map<String, String> = emptyMap()
+    var query: Map<String, String> = emptyMap()
 }
 
 /** A user name and password sent as Basic sign-in, each a template of credential values. */

@@ -141,6 +141,23 @@ public class ConnectorFormatTest {
     }
 
     @Test
+    public void testASessionNeedsItsInputsInEveryStepAndSendsOnlyItsTokenFail() {
+        String sessions = """
+                {"name": "sessions", "label": "Sessions", "hosts": ["api.sessions.com"],
+                 "credential": {"fields": {"token": {"label": "Token"}},
+                   "session": {"request": {"url": "https://api.sessions.com/{{page}}", "body": {"t": "{{credential.token}}", "u": "{{credential.user}}"}},
+                               "headers": {"Authorization": "{{session}} {{page}}"}}},
+                 "actions": {"post": {"label": "Post", "inputs": {"page": {"label": "Page"}}, "request": {"url": "https://api.sessions.com/x"}},
+                             "orphan": {"label": "Orphan", "request": {"url": "https://api.sessions.com/x"}}}}
+                """;
+        String problems = String.join(" ", Connectors.INSTANCE.problemsOf(connector(sessions)));
+        Assert.assertTrue(problems, problems.contains("orphan has no input {{page}}, which the credential's session needs"));
+        Assert.assertFalse(problems, problems.contains("action post"));
+        Assert.assertTrue(problems, problems.contains("refers to {{credential.user}}, which is not one of the credential's fields"));
+        Assert.assertTrue(problems, problems.contains("sends {{page}}; only {{session}} and credential values can go there"));
+    }
+
+    @Test
     public void testEveryConnectorFileIsValidAndItsLogoExistsSuccess() throws java.io.IOException {
         String logos = java.nio.file.Files.readString(java.nio.file.Path.of("src/main/resources/static/js/flow/brand-icons.js"));
         Connectors.INSTANCE.all().forEach(connector -> {

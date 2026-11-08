@@ -16,11 +16,30 @@ import java.util.UUID
  */
 class ConnectorSender(private val step: Action, private val connector: Connector, private val credential: Map<String, String>) {
 
+    /** The token of the credential's session, once [openSession] signed in, which the step's requests carry. */
+    var session: String? = null
+        private set
+
+    /**
+     * Signs in with the credential's session, when it has one and the credential has every value it needs, such as a
+     * user name and password, or the account's token to ask for a page's own with the step's {{page}}.
+     */
+    fun openSession(values: Map<String, String>) {
+        val opening = connector.credential?.session ?: return
+        val needed = Connectors.templatesOf(opening.request).flatMap(Connectors::placeholdersIn).filter { it.startsWith(CREDENTIAL) }.map { it.removePrefix(CREDENTIAL) }
+        if (needed.any { credential[it].isNullOrBlank() }) return
+        val signIn = ConnectorOperation().also { it.request = opening.request }
+        val answer = send(ConnectorRequests.build(connector, signIn, values + credential.mapKeys { CREDENTIAL + it.key }, credential))
+        require(answer.statusCode == StatusCode.SUCCESS) { "${connector.label} did not sign in: ${answer.errorMsg}" }
+        session = JsonPaths.read(answerOf(answer), opening.token)?.asText()?.takeIf { it.isNotBlank() }
+            ?: throw IllegalArgumentException("${connector.label} signed in, but gave no token at ${opening.token}.")
+    }
+
     /** Sends a request. A download gets the answer's bytes through [answer]. */
     fun send(request: ConnectorRequests.Built, answer: (ByteArray) -> Unit = {}): ActionResult {
         require(Connectors.allows(connector, URI.create(request.url).host, credential)) { "${connector.label} may only send its credential to ${connector.hosts.joinToString(", ")}." }
         var headers = request.headers
-        if (connector.credential?.oauth2 != null) {
+        if (connector.credential?.oauth2 != null && !request.bySession) {
             val signIn = OAuthSignIn.headersFor(step, connector.label)
             signIn.failure?.let { return it }
             headers = headers + signIn.headers
@@ -74,6 +93,7 @@ class ConnectorSender(private val step: Action, private val connector: Connector
 
     companion object {
         private const val CONTENT_TYPE = "Content-Type"
+        private const val CREDENTIAL = "credential."
         private const val FORM = "application/x-www-form-urlencoded"
         private const val MULTIPART = "multipart/"
         private const val FORM_DATA = "multipart/form-data"
@@ -97,7 +117,7 @@ class ConnectorSender(private val step: Action, private val connector: Connector
 
     /** What a script's request answered. A failed one stops the script with what the service said. */
     fun answerFor(spec: JsonNode): JsonNode {
-        val answer = send(ConnectorRequests.sign(connector, spec, credential))
+        val answer = send(ConnectorRequests.sign(connector, spec, credential, session = session))
         require(answer.statusCode == StatusCode.SUCCESS) { answer.errorMsg }
         return answerOf(answer)
     }

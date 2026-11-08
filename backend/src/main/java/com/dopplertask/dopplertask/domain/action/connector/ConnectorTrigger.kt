@@ -211,9 +211,9 @@ class ConnectorTrigger : Trigger() {
     fun subscribe(webhook: ConnectorWebhook) {
         val connector = spec!!
         val values = settingValues() + ("webhookUrl" to ConnectorWebhooks.addressOf(addressKey(webhook)))
-        val sender = ConnectorSender(this, connector, credentialValues)
+        val sender = senderFor(values)
         val remembered = remembered()
-        val answer = JsonApi.parsed(send(connector, webhook.subscribe!!, values, webhook.beforeRequest, remembered))
+        val answer = JsonApi.parsed(send(sender, connector, webhook.subscribe!!, values, webhook.beforeRequest, remembered))
         pollState = (webhook.afterResponse?.let { ConnectorScripts.run(it, values, null, answer, sender::answerFor, memory = remembered) } ?: JsonPaths.read(answer, webhook.id))?.asText() ?: ""
         memory = remembered.toString()
         keepPlace()
@@ -223,7 +223,7 @@ class ConnectorTrigger : Trigger() {
     override fun stop() {
         val webhook = spec?.triggers?.get(operation)?.webhook ?: return
         ConnectorWebhooks.stopListening(addressKey(webhook))
-        webhook.unsubscribe?.takeIf { pollState != null }?.let { send(spec!!, it, settingValues() + ("webhookId" to pollState!!)) }
+        webhook.unsubscribe?.takeIf { pollState != null }?.let { request -> (settingValues() + ("webhookId" to pollState!!)).let { send(senderFor(it), spec!!, request, it) } }
         pollState = null
         keepPlace()
     }
@@ -232,7 +232,7 @@ class ConnectorTrigger : Trigger() {
     fun takeItemsOf(event: ConnectorWebhooks.Event) {
         val poll = spec!!.triggers[operation]!!
         // An event often names what changed, so its script may ask the service for the rest, as the original does.
-        val sender = ConnectorSender(this, spec!!, credentialValues)
+        val sender = senderFor(settingValues())
         val remembered = remembered()
         val reply = poll.afterResponse?.let { ConnectorScripts.run(it, settingValues(), null, event.body, sender::answerFor, event.received, remembered, ::keepFile) } ?: event.body
         memory = remembered.toString()
@@ -264,11 +264,13 @@ class ConnectorTrigger : Trigger() {
     /** The memory of the trigger's scripts, as an object they may change. */
     private fun remembered(): ObjectNode = JsonApi.mapper.readTree(memory) as ObjectNode
 
-    private fun send(connector: Connector, request: ConnectorRequest, values: Map<String, String>, beforeRequest: String? = null,
+    /** A sender for this trigger, signed in with the credential's session when it has one. */
+    private fun senderFor(values: Map<String, String>) = ConnectorSender(this, spec!!, credentialValues).also { it.openSession(values) }
+
+    private fun send(sender: ConnectorSender, connector: Connector, request: ConnectorRequest, values: Map<String, String>, beforeRequest: String? = null,
                      remembered: ObjectNode? = null): ActionResult {
         val operation = ConnectorOperation().also { it.request = request; it.inputs = linkedMapOf(); it.beforeRequest = beforeRequest }
-        val sender = ConnectorSender(this, connector, credentialValues)
-        val answer = sender.send(ConnectorRequests.build(connector, operation, values, credentialValues, sender::answerFor, memory = remembered))
+        val answer = sender.send(ConnectorRequests.build(connector, operation, values, credentialValues, sender::answerFor, memory = remembered, session = sender.session))
         check(answer.statusCode == StatusCode.SUCCESS) { answer.errorMsg }
         return answer
     }
@@ -282,11 +284,11 @@ class ConnectorTrigger : Trigger() {
         val poll = connector.triggers[operation] ?: throw IllegalStateException(problem())
         val asked = Instant.now()
         val lookup = ConnectorOperation().also { it.inputs = poll.inputs; it.request = poll.request; it.beforeRequest = poll.beforeRequest }
-        val sender = ConnectorSender(this, connector, credentialValues)
         // A check by time may ask only for what changed since the last one, which is empty before the first.
         val values = settingValues() + (LAST_POLL_TIME to if (poll.newBy == "lastItem") "" else pollState.orEmpty())
+        val sender = senderFor(values)
         val remembered = remembered()
-        val answer = sender.send(ConnectorRequests.build(connector, lookup, values, credentialValues, sender::answerFor, memory = remembered))
+        val answer = sender.send(ConnectorRequests.build(connector, lookup, values, credentialValues, sender::answerFor, memory = remembered, session = sender.session))
         check(answer.statusCode == StatusCode.SUCCESS) { answer.errorMsg }
         val reply = poll.afterResponse?.let { ConnectorScripts.run(it, values, null, ConnectorSender.answerOf(answer), sender::answerFor, ConnectorSender.receivedOf(answer), remembered, ::keepFile) }
             ?: ConnectorSender.answerOf(answer)

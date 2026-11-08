@@ -15,9 +15,11 @@ object ConnectorRequests {
 
     /**
      * A request ready to send, with the files of a multipart body by the part they go in, and the request as the
-     * connector made it before the credential was added, which is all a script may see of it.
+     * connector made it before the credential was added, which is all a script may see of it. One signed with a session
+     * carries its token and nothing else of the credential.
      */
-    class Built(val method: String, val url: String, val headers: Map<String, String>, val body: JsonNode?, val files: Map<String, RunFile>, val unsigned: JsonNode)
+    class Built(val method: String, val url: String, val headers: Map<String, String>, val body: JsonNode?, val files: Map<String, RunFile>, val unsigned: JsonNode,
+                val bySession: Boolean = false)
 
     private val NODES = JsonNodeFactory.instance
 
@@ -30,10 +32,13 @@ object ConnectorRequests {
     const val WHOLE_BODY = ""
     private val METHODS_WITH_BODY = setOf("POST", "PUT", "PATCH")
 
+    /** The placeholder of a session's token in where the credential's session puts it. */
+    const val SESSION = "session"
+
     @JvmOverloads
     fun build(connector: Connector, operation: ConnectorOperation, values: Map<String, String>, credential: Map<String, String>,
               send: (JsonNode) -> JsonNode = { throw IllegalArgumentException("This action cannot send more requests.") },
-              files: Map<String, RunFile> = emptyMap(), memory: ObjectNode? = null): Built {
+              files: Map<String, RunFile> = emptyMap(), memory: ObjectNode? = null, session: String? = null): Built {
         val request = operation.request
         val draft = NODES.objectNode()
         draft.put("method", request.method)
@@ -47,14 +52,15 @@ object ConnectorRequests {
         val fileIn = { template: JsonNode -> template.takeIf { it.isTextual }?.let { Connectors.placeholdersIn(it.asText()).singleOrNull() }?.let { files[it] } }
         val whole = request.body?.let(fileIn)?.let { mapOf(WHOLE_BODY to it) }
         val parts = whole ?: request.body?.properties()?.mapNotNull { (part, template) -> fileIn(template)?.let { part to it } }?.toMap().orEmpty()
-        return sign(connector, ready, credential, parts)
+        return sign(connector, ready, credential, parts, session)
     }
 
     /**
      * Any call of the service's API, with its credential, for what the connector's actions do not cover. The address
      * starts at the connector's base, so the credential still only goes to the connector's hosts.
      */
-    fun customCall(connector: Connector, values: Map<String, String>, credential: Map<String, String>): Built {
+    @JvmOverloads
+    fun customCall(connector: Connector, values: Map<String, String>, credential: Map<String, String>, session: String? = null): Built {
         val path = values["path"].orEmpty().trim()
         require(!path.contains("://") && !path.startsWith("//")) { "The path should start after the address of ${connector.label}, such as /contacts." }
         val draft = NODES.objectNode()
@@ -63,15 +69,19 @@ object ConnectorRequests {
         draft.set("query", json(values["query"]) ?: NODES.objectNode())
         draft.set("headers", json(values["headers"]) ?: NODES.objectNode())
         draft.set("body", json(values["body"]) ?: NODES.nullNode())
-        return sign(connector, draft, credential)
+        return sign(connector, draft, credential, session = session)
     }
 
     /** Adds the credential to a request, whose address may also be a path after the connector's base, such as /items. */
-    fun sign(connector: Connector, draft: JsonNode, credential: Map<String, String>, files: Map<String, RunFile> = emptyMap()): Built {
+    @JvmOverloads
+    fun sign(connector: Connector, draft: JsonNode, credential: Map<String, String>, files: Map<String, RunFile> = emptyMap(), session: String? = null): Built {
         val target = draft.path("url").asText()
         if (target.startsWith("/")) (draft as ObjectNode).put("url", address(connector.baseUrl, emptyMap(), credential).trimEnd('/') + target)
-        val signIn = connector.credential
-        val credentialValue = { name: String -> credential[name.removePrefix(CREDENTIAL)].orEmpty() }
+        // A session's token stands in for the rest of the credential.
+        val signIn = if (session == null) connector.credential else connector.credential?.session?.let { opened ->
+            ConnectorCredential().also { it.headers = opened.headers; it.query = opened.query }
+        }
+        val credentialValue = { name: String -> if (name == SESSION) session.orEmpty() else credential[name.removePrefix(CREDENTIAL)].orEmpty() }
         val query = textsOf(draft.path("query")) + signIn?.query.orEmpty().mapValues { Connectors.fill(it.value, credentialValue) }
         val url = draft.path("url").asText() + query.entries.joinToString("&", prefix = if (query.isEmpty()) "" else if ('?' in draft.path("url").asText()) "&" else "?") {
             "${JsonApi.encoded(it.key)}=${JsonApi.encoded(it.value)}"
@@ -88,7 +98,7 @@ object ConnectorRequests {
             // A credential in the body goes only where a body goes, never into a GET or a DELETE that has none.
             if (fields.isEmpty() || (body == null && method !in METHODS_WITH_BODY)) body else ((body as? ObjectNode)?.deepCopy() ?: NODES.objectNode()).also { filled -> fields.forEach { (key, value) -> filled.put(key, value) } }
         }
-        return Built(method, url, headers, body, files, draft.deepCopy())
+        return Built(method, url, headers, body, files, draft.deepCopy(), bySession = session != null)
     }
 
     /** The address with its host from the credential, checked as a host name, and every other value percent-encoded. */

@@ -44,7 +44,7 @@ object Connectors {
     /** The inputs a list is read with, such as base for the tables of a base. */
     fun inputsOf(list: ConnectorList): List<String> = templatesOf(list.request).flatMap(::placeholdersIn).filter { !it.startsWith(CREDENTIAL) }.distinct()
 
-    private fun templatesOf(request: ConnectorRequest) = listOf(request.url) + request.headers.values + request.query.values + listOfNotNull(request.body?.toString())
+    fun templatesOf(request: ConnectorRequest) = listOf(request.url) + request.headers.values + request.query.values + listOfNotNull(request.body?.toString())
 
     fun fill(template: String, value: (String) -> String): String = PLACEHOLDER.replace(template) { value(it.groupValues[1]) }
 
@@ -72,6 +72,17 @@ object Connectors {
         signIn.flatMap(::placeholdersIn).filter { !it.startsWith(CREDENTIAL) || it.removePrefix(CREDENTIAL) !in fields }
             .forEach { problems += "The credential part refers to {{$it}}, which is not one of the credential's fields." }
         if (connector.baseUrl.isNotEmpty()) problems += addressProblems("The base address", connector, connector.baseUrl, sample)
+        credential?.session?.let { session ->
+            problems += addressProblems("The credential's session", connector, session.request.url, sample)
+            val needs = templatesOf(session.request).flatMap(::placeholdersIn)
+            needs.filter { it.startsWith(CREDENTIAL) && it.removePrefix(CREDENTIAL) !in fields }.forEach { problems += "The credential's session refers to {{$it}}, which is not one of the credential's fields." }
+            (session.headers.values + session.query.values).flatMap(::placeholdersIn).filter { it != ConnectorRequests.SESSION && !it.startsWith(CREDENTIAL) }
+                .forEach { problems += "The credential's session sends {{$it}}; only {{session}} and credential values can go there." }
+            val inputs = needs.filterNot { it.startsWith(CREDENTIAL) }
+            (connector.actions.map { "The action ${it.key}" to it.value.inputs.keys } + connector.triggers.map { "The trigger ${it.key}" to it.value.inputs.keys }).forEach { (where, names) ->
+                inputs.filter { it !in names }.forEach { problems += "$where has no input {{$it}}, which the credential's session needs." }
+            }
+        }
         if (connector.actions.isEmpty()) problems += "It needs at least one action."
         connector.lists.forEach { (name, list) -> problems += addressProblems("The list $name", connector, list.request.url, sample) }
         val inputsWithLists = connector.actions.map { (key, operation) -> "The action $key" to operation.inputs } +
