@@ -1,5 +1,7 @@
 package com.dopplertask.dopplertask.service;
 
+import com.dopplertask.dopplertask.domain.action.trigger.Webhook;
+
 import com.dopplertask.dopplertask.dao.TaskDao;
 import com.dopplertask.dopplertask.dao.TaskExecutionDao;
 import com.dopplertask.dopplertask.domain.ActionPort;
@@ -10,6 +12,7 @@ import com.dopplertask.dopplertask.domain.TaskExecution;
 import com.dopplertask.dopplertask.domain.TaskExecutionStatus;
 import com.dopplertask.dopplertask.domain.TaskParameter;
 import com.dopplertask.dopplertask.domain.action.Action;
+import com.dopplertask.dopplertask.domain.action.trigger.Trigger;
 import com.dopplertask.dopplertask.domain.action.common.LinkedTaskAction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -178,12 +181,28 @@ public class TaskServiceImpl implements TaskService {
         }
         // It takes over from the current version, so a schedule that is on stays on.
         boolean active = taskDao.findFirstByNameAndProposedFalseOrderByCreatedDesc(proposal.get().getName()).map(Task::isActive).orElse(false);
+        if (active) {
+            requireWorkingTriggers(proposal.get().getActionList());
+        }
         proposal.get().setProposed(false);
         proposal.get().setApprovedBy(approvedBy);
         proposal.get().setActive(active);
         proposal.get().setCreated(new Date());
         triggerListenerService.updateTriggers(proposal.get().getId());
         return true;
+    }
+
+    /** A trigger that cannot start the task is reported when the task is turned on, rather than each time it would start. */
+    private static void requireWorkingTriggers(List<Action> actions) {
+        for (Action action : actions) {
+            String problem = action instanceof Trigger trigger ? trigger.problem() : null;
+            if (problem != null) {
+                String name = action.getActionName();
+                boolean named = name != null && !name.isBlank() && !name.equals(action.getClass().getSimpleName());
+                String step = named ? name : "The trigger";
+                throw new BrokenTriggerException(step + " cannot start the task. " + problem);
+            }
+        }
     }
 
     private Long saveTask(String name, List<TaskParameter> taskParameters, List<Action> actions, String description, List<Connection> connections, String checksum, boolean active, boolean autoSaved, boolean proposed) {
@@ -199,6 +218,9 @@ public class TaskServiceImpl implements TaskService {
 
         // If we try to add the same task again, we just return the current id.
         Optional<Task> existingTask = taskDao.findByChecksum(checksum);
+        if (active) {
+            requireWorkingTriggers(existingTask.map(Task::getActionList).orElse(actions));
+        }
         if (existingTask.isPresent()) {
             // An agent saving what already exists changes nothing, and a person saving a proposal accepts it.
             if (proposed) {
@@ -344,6 +366,25 @@ public class TaskServiceImpl implements TaskService {
             triggerListenerService.stopTriggers(task.getName());
         }
         return task;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public String webhookReplyMode(String taskName, String triggerName, String triggerSuffix, String path, String method) {
+        Webhook webhook = webhookOf(taskName, triggerName, triggerSuffix, path, method);
+        return webhook == null ? null : webhook.getResponseMode();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public String webhookReplyCode(String taskName, String triggerName, String triggerSuffix, String path, String method) {
+        Webhook webhook = webhookOf(taskName, triggerName, triggerSuffix, path, method);
+        return webhook == null ? null : webhook.getResponseCode();
+    }
+
+    private Webhook webhookOf(String taskName, String triggerName, String triggerSuffix, String path, String method) {
+        Task task = getTaskByName(taskName);
+        return task == null ? null : task.getWebhookStartAction(triggerName, triggerSuffix, path, method) instanceof Webhook webhook ? webhook : null;
     }
 
     @Override

@@ -1,5 +1,6 @@
 package com.dopplertask.dopplertask.domain.action.connection
 
+import com.dopplertask.dopplertask.domain.action.integration.OAuthSignIn
 import com.dopplertask.dopplertask.domain.ActionResult
 import com.dopplertask.dopplertask.domain.StatusCode
 import com.dopplertask.dopplertask.domain.TaskExecution
@@ -79,6 +80,11 @@ class HttpAction : Action() {
             variableExtractorUtil.extract(it.headerName, execution, scriptLanguage) to
                     variableExtractorUtil.extract(it.headerValue, execution, scriptLanguage)
         } + credentialHeader(variableExtractorUtil, execution)
+        if (OAuthSignIn.isUsedBy(this)) {
+            val account = OAuthSignIn.headersFor(this, "The HTTP request")
+            account.failure?.let { return it }
+            return send(urlVariable, bodyVariable, headerVariables + account.headers, insecureContext())
+        }
         return send(urlVariable, bodyVariable, headerVariables, insecureContext())
     }
 
@@ -179,6 +185,7 @@ class HttpAction : Action() {
             val actionInfo = super.actionInfo
             actionInfo.add(PropertyInformation("authHeaderName", "Header name", PropertyInformationType.STRING, "", "Such as Authorization.", mutableListOf(), PropertyInformationCategory.CREDENTIAL))
             actionInfo.add(PropertyInformation("authHeaderValue", "Header value", PropertyInformationType.STRING, "", "Such as Bearer and the token.", mutableListOf(), PropertyInformationCategory.SECRET))
+            actionInfo.addAll(OAuthSignIn.fields("CUSTOM", ""))
             actionInfo.add(PropertyInformation("url", "URL", PropertyInformationType.STRING, "", "The full address, such as https://example.com/status"))
             actionInfo.add(
                 PropertyInformation(

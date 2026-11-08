@@ -87,4 +87,10 @@ public interface TaskService {
     Task getTaskByName(String taskName);
 
     Task getTaskByChecksum(String checksum);
+
+    /** How the webhook that a call reaches answers it, or null when there is no such webhook. */
+    String webhookReplyMode(String taskName, String triggerName, String triggerSuffix, String path, String method);
+
+    /** The status a webhook answers with when it answers with what the last step gave. */
+    String webhookReplyCode(String taskName, String triggerName, String triggerSuffix, String path, String method);
 }

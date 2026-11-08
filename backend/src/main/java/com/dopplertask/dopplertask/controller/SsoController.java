@@ -72,7 +72,7 @@ public class SsoController {
         try {
             String session = sso.complete(code, state);
             ResponseCookie cookie = ResponseCookie.from(AccessFilter.SESSION_COOKIE, session)
-                    .httpOnly(true).sameSite("Lax").path("/").secure(isHttps(request)).build();
+                    .httpOnly(true).sameSite("Lax").path("/").secure(ServerAddress.isHttps(request)).build();
             return ResponseEntity.status(HttpStatus.FOUND).location(URI.create(EDITOR)).header(HttpHeaders.SET_COOKIE, cookie.toString()).build();
         } catch (SsoService.SsoException e) {
             return backToSignIn(e.getMessage());
@@ -90,11 +90,7 @@ public class SsoController {
         if (!redirectUri.isEmpty()) {
             return redirectUri;
         }
-        return (isHttps(request) ? "https" : "http") + "://" + request.getHeader(HttpHeaders.HOST) + "/sso/callback";
-    }
-
-    private boolean isHttps(HttpServletRequest request) {
-        return request.isSecure() || "https".equalsIgnoreCase(request.getHeader("X-Forwarded-Proto"));
+        return ServerAddress.of(request) + "/sso/callback";
     }
 
     private ResponseEntity<Void> redirect(String location) {

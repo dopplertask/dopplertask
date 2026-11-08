@@ -140,6 +140,19 @@ public class RunResultTest {
         this.mockMvc.perform(post("/task").content(createJson)).andExpect(status().isOk());
     }
 
+    @Test
+    public void testTurningOnABrokenScheduleExplainsWhyFail() throws Exception {
+        String createJson = "{\"name\":\"run_bad_schedule\",\"active\":true,\"parameters\":[],\"actions\":["
+                + "{\"@type\":\"StartAction\",\"ports\":[{\"externalId\":\"bad_s\",\"portType\":\"OUTPUT\"}]},"
+                + "{\"@type\":\"ScheduleTrigger\",\"actionName\":\"Mornings\",\"rule\":\"CRON\",\"cronExpression\":\"every morning\",\"ports\":[{\"externalId\":\"bad_t\",\"portType\":\"OUTPUT\"}]}],"
+                + "\"connections\":[]}";
+        this.mockMvc.perform(post("/task").content(createJson)).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", containsString("Mornings cannot start the task. The cron line \"every morning\" needs 5 fields")));
+        this.mockMvc.perform(post("/task").content(createJson.replace("\"active\":true", "\"active\":false"))).andExpect(status().isOk());
+        // Turning the saved version on is refused too.
+        this.mockMvc.perform(post("/task").content(createJson)).andExpect(status().isBadRequest());
+    }
+
     private ResultActions run(String name, String parameters) throws Exception {
         return this.mockMvc.perform(post("/schedule/directtask").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"taskName\":\"" + name + "\",\"parameters\":" + parameters + "}"));

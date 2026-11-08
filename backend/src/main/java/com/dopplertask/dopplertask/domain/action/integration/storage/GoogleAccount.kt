@@ -2,7 +2,10 @@ package com.dopplertask.dopplertask.domain.action.integration.storage
 
 import com.dopplertask.dopplertask.domain.ActionResult
 import com.dopplertask.dopplertask.domain.StatusCode
+import com.dopplertask.dopplertask.domain.action.Action
+import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation
 import com.dopplertask.dopplertask.domain.action.integration.JsonApi
+import com.dopplertask.dopplertask.domain.action.integration.OAuthSignIn
 import com.nimbusds.jose.JWSAlgorithm
 import com.nimbusds.jose.JWSHeader
 import com.nimbusds.jose.crypto.RSASSASigner
@@ -24,6 +27,19 @@ object GoogleAccount {
     private const val TOKEN_SECONDS = 3600L
 
     class SignIn(val headers: Map<String, String>, val failure: ActionResult?)
+
+    /** What a Google account needs to connect. Sheets, Drive and Calendar share one credential, so it asks for all three. */
+    fun accountFields(): List<PropertyInformation> =
+        OAuthSignIn.fields("GOOGLE", "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/calendar")
+
+    /** Signs in as the connected Google account when the credential has one, and otherwise with the service account. */
+    fun signIn(service: String, step: Action, keyText: String, scope: String): SignIn {
+        if (keyText.isBlank() && OAuthSignIn.isUsedBy(step)) {
+            val account = OAuthSignIn.headersFor(step, service)
+            return SignIn(account.headers, account.failure)
+        }
+        return signIn(service, keyText, scope)
+    }
 
     fun signIn(service: String, keyText: String, scope: String): SignIn {
         val account = try {
