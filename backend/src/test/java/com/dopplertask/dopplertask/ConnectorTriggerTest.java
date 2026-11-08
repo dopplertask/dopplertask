@@ -227,6 +227,18 @@ public class ConnectorTriggerTest {
         Assert.assertEquals("hi", new String(started.getFiles().get("note.txt"), StandardCharsets.UTF_8));
     }
 
+    @Test
+    public void testATimeIsReadInTheFormatsServicesWriteSuccess() {
+        long noon = Instant.parse("2025-10-10T12:00:00Z").toEpochMilli();
+        for (String time : List.of("2025-10-10T12:00:00Z", "2025-10-10T14:00:00+02:00", "2025-10-10T12:00:00.000+0000", "Fri, 10 Oct 2025 12:00:00 +0000",
+                "2025-10-10T12:00:00", "2025-10-10 12:00:00", "/Date(" + noon + "+0000)/")) {
+            Assert.assertEquals(time, Long.valueOf(noon), ConnectorTrigger.Companion.timeOf(JsonApi.INSTANCE.getMapper().getNodeFactory().textNode(time)));
+        }
+        Assert.assertEquals(Long.valueOf(Instant.parse("2026-01-05T00:00:00Z").toEpochMilli()),
+                ConnectorTrigger.Companion.timeOf(JsonApi.INSTANCE.getMapper().getNodeFactory().textNode("2026-01-05")));
+        Assert.assertNull(ConnectorTrigger.Companion.timeOf(JsonApi.INSTANCE.getMapper().getNodeFactory().textNode("soon")));
+    }
+
     private static ConnectorWebhooks.Event event(String json) {
         return ConnectorWebhooks.INSTANCE.eventOf("application/json", json, Map.of(), Map.of());
     }

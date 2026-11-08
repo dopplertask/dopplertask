@@ -24,7 +24,12 @@ import tools.jackson.databind.JsonNode
 import tools.jackson.databind.node.ObjectNode
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.OffsetDateTime
+import java.time.ZoneOffset
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 import java.util.Base64
 import java.util.UUID
 
@@ -331,12 +336,25 @@ class ConnectorTrigger : Trigger() {
         /** How many keys a trigger that finds new items by unseen keys remembers, the newest first. */
         private const val MOST_KEYS_SEEN = 10000
 
-        /** A time in an item, as milliseconds: a number of seconds or milliseconds, or a date and time. */
+        /**
+         * The ways services write a time in text: ISO 8601, with its offset written with or without a colon, RFC 2822 as
+         * in email, a date and time without a zone, read as UTC as the originals' servers read it, a date alone, and
+         * Microsoft's /Date(milliseconds)/.
+         */
+        private val TIME_FORMATS = listOf<(String) -> Instant>(
+            { OffsetDateTime.parse(it).toInstant() },
+            { OffsetDateTime.parse(it, DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss[.SSS]XX")).toInstant() },
+            { ZonedDateTime.parse(it, DateTimeFormatter.RFC_1123_DATE_TIME).toInstant() },
+            { LocalDateTime.parse(it.replace(' ', 'T')).toInstant(ZoneOffset.UTC) },
+            { LocalDate.parse(it).atStartOfDay().toInstant(ZoneOffset.UTC) },
+            { Instant.ofEpochMilli(Regex("^/Date\\((-?\\d+)").find(it)!!.groupValues[1].toLong()) },
+        )
+
+        /** A time in an item, as milliseconds: a number of seconds or milliseconds, or a date and time in text. */
         fun timeOf(value: JsonNode?): Long? = when {
             value == null || value.isNull -> null
             value.isNumber -> value.asLong().let { if (it < 100_000_000_000) it * 1000 else it }
-            else -> runCatching { OffsetDateTime.parse(value.asText()).toInstant().toEpochMilli() }.getOrNull()
-                ?: runCatching { Instant.parse(value.asText()).toEpochMilli() }.getOrNull()
+            else -> TIME_FORMATS.firstNotNullOfOrNull { format -> runCatching { format(value.asText().trim()).toEpochMilli() }.getOrNull() }
         }
     }
 }
