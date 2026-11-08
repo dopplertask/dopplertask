@@ -112,7 +112,7 @@ object Connectors {
             if (operation.label.isBlank()) problems += "$where needs a label."
             val request = operation.request
             problems += addressProblems(where, connector, request.url, sample)
-            val known = operation.inputs.keys + fields.map { CREDENTIAL + it }
+            val known = operation.inputs.keys + fields.map { CREDENTIAL + it } + listOfNotNull(ConnectorAction.RESUME_URL.takeIf { operation.resume != null })
             val templates = templatesOf(request)
             templates.flatMap(::placeholdersIn).filter { it !in known }
                 .forEach { problems += "$where refers to {{$it}}, which is not one of its inputs." }

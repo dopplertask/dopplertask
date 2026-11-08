@@ -560,7 +560,7 @@ async function request(url, options = {}) {
 
 /* ---------- Runs ---------- */
 
-const RUN_STATUSES = { FINISHED: 'success', FAILED: 'failed' };
+const RUN_STATUSES = { FINISHED: 'success', FAILED: 'failed', WAITING: 'waiting' };
 const SWITCH_PORT = /port nr: (\d+)/;
 
 function choosePort(node, output) {

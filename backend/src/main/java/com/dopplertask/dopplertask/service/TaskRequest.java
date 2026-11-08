@@ -14,6 +14,8 @@ public class TaskRequest {
     // If defined then automation starts from a trigger
     private TriggerInfo triggerInfo;
     private Long resumeFromExecutionId;
+    // What arrived at the address of the step a resumed run waited at, which that step reads.
+    private String resumeWith;
     private boolean startedByAgent;
 
     public TaskRequest(String taskName, Map<String, ExecutionParameter> parameters) {
@@ -44,6 +46,14 @@ public class TaskRequest {
 
     public void setResumeFromExecutionId(Long resumeFromExecutionId) {
         this.resumeFromExecutionId = resumeFromExecutionId;
+    }
+
+    public String getResumeWith() {
+        return resumeWith;
+    }
+
+    public void setResumeWith(String resumeWith) {
+        this.resumeWith = resumeWith;
     }
 
     public String getTaskName() {

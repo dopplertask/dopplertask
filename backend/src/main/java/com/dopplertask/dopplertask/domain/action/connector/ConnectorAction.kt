@@ -23,6 +23,7 @@ import jakarta.persistence.Table
 import jakarta.persistence.Transient
 import tools.jackson.databind.JsonNode
 import java.util.Base64
+import java.util.UUID
 
 /**
  * A step of a connector file. Its kind is the connector's name, so a task says Slack rather than ConnectorAction, and
@@ -136,19 +137,25 @@ class ConnectorAction : Action() {
             RunFile(name, RunFiles.read(execution, name) ?: return ActionResult.failure("The run has no file called \"$name\". Read or download it in an earlier step."))
         }
         return try {
-            send(connector, chosen, values, files, execution)
+            val arrived = execution.resumeEvent
+            if (chosen.resume != null && arrived != null) resume(connector, chosen, values, ConnectorWebhooks.eventOfStored(arrived))
+            else send(connector, chosen, values, files, execution)
         } catch (e: IllegalArgumentException) {
             ActionResult.failure(e.message ?: "The request could not be made.")
         }
     }
 
-    private fun send(connector: Connector, chosen: ConnectorOperation, values: Map<String, String>, files: Map<String, RunFile>, execution: TaskExecution): ActionResult {
+    private fun send(connector: Connector, chosen: ConnectorOperation, inputs: Map<String, String>, files: Map<String, RunFile>, execution: TaskExecution): ActionResult {
+        // An action that waits gives the service the one address that continues this run.
+        val waitKey = chosen.resume?.let { UUID.randomUUID().toString() }
+        val values = if (waitKey == null) inputs else inputs + (RESUME_URL to ConnectorWebhooks.addressOf(ConnectorWebhooks.RESUME + waitKey))
         val sender = ConnectorSender(this, connector, credentialValues).also { it.openSession(values) }
         val request = if (chosen === CUSTOM_CALL_OPERATION) ConnectorRequests.customCall(connector, values, credentialValues, sender.session)
         else ConnectorRequests.build(connector, chosen, values, credentialValues, sender::answerFor, files, session = sender.session)
         var downloaded = ByteArray(0)
         val result = sender.send(request) { downloaded = it }
         if (result.statusCode != StatusCode.SUCCESS) return result
+        result.waitKey = waitKey
         chosen.download?.let { template ->
             // The answer is a file: the run keeps it, and the step tells later steps about it.
             val name = Connectors.fill(template) { values[it].orEmpty() }.ifBlank { "${connector.name}-download" }
@@ -161,7 +168,7 @@ class ConnectorAction : Action() {
         var answer = ConnectorSender.answerOf(result)
         if (chosen.result.isNotEmpty()) {
             answer = JsonPaths.read(answer, chosen.result) ?: JsonApi.mapper.nullNode()
-            result.output = if (answer.isValueNode) answer.asText() else answer.toString()
+            result.output = textOf(answer)
         }
         chosen.afterResponse?.let { script ->
             // A script may keep a file it finds in the answer, such as an attachment sent as base64, for later steps.
@@ -169,11 +176,24 @@ class ConnectorAction : Action() {
                 RunFiles.freeName(name) { it in execution.parameters }.also { RunFiles.keep(execution, it, Base64.getDecoder().decode(base64)) }
             }
             answer = ConnectorScripts.run(script, values, request.unsigned, answer, sender::answerFor, ConnectorSender.receivedOf(result), keepFile = keepFile)
-            result.output = if (answer.isValueNode) answer.asText() else answer.toString()
+            result.output = textOf(answer)
         }
-        chosen.outputs.forEach { (name, path) -> JsonPaths.read(answer, path)?.let { result.outputVariables[name] = if (it.isValueNode) it.asText() else it.toString() } }
+        return withOutputs(result, chosen, answer)
+    }
+
+    /** The step again, when the address of its waiting run was called: its resume script reads what arrived. */
+    private fun resume(connector: Connector, chosen: ConnectorOperation, values: Map<String, String>, event: ConnectorWebhooks.Event): ActionResult {
+        val sender = ConnectorSender(this, connector, credentialValues).also { it.openSession(values) }
+        val answer = ConnectorScripts.run(chosen.resume!!, values, null, event.body, sender::answerFor, event.received)
+        return withOutputs(ActionResult(StatusCode.SUCCESS, textOf(answer), ""), chosen, answer)
+    }
+
+    private fun withOutputs(result: ActionResult, chosen: ConnectorOperation, answer: JsonNode): ActionResult {
+        chosen.outputs.forEach { (name, path) -> JsonPaths.read(answer, path)?.let { result.outputVariables[name] = textOf(it) } }
         return result
     }
+
+    private fun textOf(answer: JsonNode): String = if (answer.isValueNode) answer.asText() else answer.toString()
 
     /** The choices of an input, such as the audiences of the account, read from the service with the step's credential. */
     fun choices(input: String): List<ConnectorOption> {
@@ -220,6 +240,9 @@ class ConnectorAction : Action() {
         fun of(connector: String) = ConnectorAction().also { it.connector = connector }
 
         const val CUSTOM_CALL = "custom_api_call"
+
+        /** The one-time address of an action that waits, for its request and scripts. */
+        const val RESUME_URL = "resumeUrl"
 
         private val CUSTOM_CALL_OPERATION = JsonApi.mapper.readValue(
             """{"label": "Custom API call", "description": "Any call of the service's API, signed in with the credential",

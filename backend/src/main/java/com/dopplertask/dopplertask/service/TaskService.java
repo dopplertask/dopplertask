@@ -44,6 +44,17 @@ public interface TaskService {
      */
     TaskExecution runRequest(TaskRequest request);
 
+    /** Whether a run waits for the key. */
+    boolean isWaiting(String waitKey);
+
+    /**
+     * Continues the run that waits for the key, once.
+     *
+     * @param resumeEvent what arrived, which the waiting step reads.
+     * @return the run that continues it, or null when no run waits for the key.
+     */
+    TaskExecution resumeWaiting(String waitKey, String resumeEvent);
+
     /**
      * Get all tasks
      *

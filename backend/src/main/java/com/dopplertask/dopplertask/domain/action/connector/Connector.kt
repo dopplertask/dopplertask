@@ -114,6 +114,14 @@ class ConnectorOperation {
      * Both scripts can send more requests with call({method, url, query, headers, body}), such as for the next page.
      */
     var afterResponse: String? = null
+
+    /**
+     * JavaScript for an action that waits, such as for an approval. The request and scripts get {{resumeUrl}}, a one-time
+     * address, and the run stops after the step. When the address is called, the step runs again without its request:
+     * this script gets inputs, response, what arrived, and received, its headers, query and text, and returns what the
+     * step gives.
+     */
+    var resume: String? = null
 }
 
 /**

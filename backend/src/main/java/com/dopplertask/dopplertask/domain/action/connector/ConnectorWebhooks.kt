@@ -24,6 +24,9 @@ object ConnectorWebhooks {
 
     const val PATH = "/hooks/"
 
+    /** Where the address of a waiting run starts after PATH, /hooks/resume/<key>. */
+    const val RESUME = "resume/"
+
     /** Where services reach this server, such as https://tasks.example.com. Set from DOPPLERTASK_PUBLIC_URL. */
     @Volatile
     var publicUrl: String = ""
@@ -43,6 +46,20 @@ object ConnectorWebhooks {
     fun appKey(connector: String) = "app/$connector"
 
     fun addressOf(key: String) = publicUrl.trimEnd('/') + PATH + key
+
+    /**
+     * An event as the text a waiting run keeps until its step reads it with eventOfStored. A person's sign-in, such as the
+     * editor's cookie in a browser that opens an approval link, is not kept.
+     */
+    fun storedOf(event: Event): String {
+        val received = event.received.deepCopy() as ObjectNode
+        (received.path("headers") as? ObjectNode)?.remove(SIGN_IN_HEADERS)
+        return JsonApi.mapper.writeValueAsString(mapOf("body" to event.body, "received" to received))
+    }
+
+    fun eventOfStored(text: String): Event = JsonApi.mapper.readTree(text).let { Event(it.path("body"), it.path("received")) }
+
+    private val SIGN_IN_HEADERS = listOf("cookie", "authorization", "proxy-authorization")
 
     fun listen(key: String, reply: (Event) -> JsonNode? = { null }, accepts: (Event) -> Boolean = { true }): Listener =
         Listener(LinkedBlockingQueue(), reply, accepts).also { listening.computeIfAbsent(key) { CopyOnWriteArrayList() }.add(it) }

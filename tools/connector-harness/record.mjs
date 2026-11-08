@@ -54,6 +54,11 @@ const memory = new Map(Object.entries(fixture.store || {}));
 context.store = { put: async (key, value) => (memory.set(key, value), value), get: async (key) => memory.get(key) ?? null, delete: async (key) => { memory.delete(key); } };
 // A webhook trigger subscribes with a fixed address, then reads the fixture's event as a service would send it.
 const WEBHOOK_URL = 'https://tasks.example.com/hooks/test-key';
+// An action that waits gets a fixed address, as each run's own address. Older pieces ask with generateResumeUrl.
+const RESUME_URL = 'https://tasks.example.com/hooks/resume/test-key';
+const resumeUrlWith = ({ queryParams = {} } = {}) => Object.keys(queryParams).length ? `${RESUME_URL}?${new URLSearchParams(queryParams)}` : RESUME_URL;
+context.run = { ...context.run, createWaitpoint: async () => ({ id: 'test-waitpoint', resumeUrl: RESUME_URL, buildResumeUrl: resumeUrlWith }), waitForWaitpoint: () => {} };
+context.generateResumeUrl = resumeUrlWith;
 let output;
 try {
   if (fixture.webhook) {
@@ -62,6 +67,12 @@ try {
     context.payload = { body: fixture.event, headers: fixture.eventHeaders || {}, queryParams: {} };
   }
   output = await step.run(context);
+  // The answer to a waiting action, such as an approval link opened: the step runs again and reads it.
+  if (fixture.answer) {
+    context.executionType = 'RESUME';
+    context.resumePayload = { body: fixture.answer.body ?? {}, headers: fixture.answer.headers || {}, queryParams: fixture.answer.query || {} };
+    output = await step.run(context);
+  }
 } catch (error) {
   output = { error: String(error?.message || error) };
 } finally {

@@ -73,6 +73,7 @@ public class TaskServiceImpl implements TaskService {
         taskExecutionRequest.setRemoveTaskAfterExecution(request.isRemoveTaskAfterExecution());
         taskExecutionRequest.setTriggerInfo(request.getTriggerInfo());
         taskExecutionRequest.setResumeFromExecutionId(request.getResumeFromExecutionId());
+        taskExecutionRequest.setResumeWith(request.getResumeWith());
         taskExecutionRequest.setStartedByAgent(request.isStartedByAgent());
 
         RunQueue queue = runQueue.getIfAvailable();
@@ -83,6 +84,27 @@ public class TaskServiceImpl implements TaskService {
         }
 
         return execution;
+    }
+
+    @Override
+    public boolean isWaiting(String waitKey) {
+        return waitingRun(waitKey) != null;
+    }
+
+    @Override
+    public TaskExecution resumeWaiting(String waitKey, String resumeEvent) {
+        TaskExecution waiting = waitingRun(waitKey);
+        if (waiting == null || taskExecutionDao.takeWaitKey(waiting.getId(), waitKey) == 0) {
+            return null;
+        }
+        TaskRequest request = new TaskRequest(waiting.getTask().getName(), new HashMap<>());
+        request.setResumeFromExecutionId(waiting.getId());
+        request.setResumeWith(resumeEvent);
+        return delegate(request);
+    }
+
+    private TaskExecution waitingRun(String waitKey) {
+        return taskExecutionDao.findByWaitKey(waitKey).filter(run -> run.getStatus() == TaskExecutionStatus.WAITING && run.getTask() != null).orElse(null);
     }
 
     @Override
@@ -427,6 +449,7 @@ public class TaskServiceImpl implements TaskService {
         taskExecutionRequest.setChecksum(request.getChecksum());
         taskExecutionRequest.setTriggerInfo(request.getTriggerInfo());
         taskExecutionRequest.setResumeFromExecutionId(request.getResumeFromExecutionId());
+        taskExecutionRequest.setResumeWith(request.getResumeWith());
         taskExecutionRequest.setStartedByAgent(request.isStartedByAgent());
 
         return this.runRequest(taskExecutionRequest);

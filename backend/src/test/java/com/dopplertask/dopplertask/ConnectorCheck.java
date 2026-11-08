@@ -7,6 +7,7 @@ import com.dopplertask.dopplertask.domain.TaskExecution;
 import com.dopplertask.dopplertask.domain.action.connector.ConnectorAction;
 import com.dopplertask.dopplertask.domain.action.connector.ConnectorTrigger;
 import com.dopplertask.dopplertask.domain.action.connector.ConnectorWebhooks;
+import com.dopplertask.dopplertask.domain.action.integration.JsonApi;
 import com.dopplertask.dopplertask.domain.action.connector.Connectors;
 import com.dopplertask.dopplertask.service.VariableExtractorUtil;
 import com.sun.net.httpserver.HttpExchange;
@@ -121,7 +122,22 @@ public class ConnectorCheck {
             RunFiles.INSTANCE.keep(run, name, Base64.getDecoder().decode(file.getValue().path("base64").asText()));
             step.setSetting(file.getKey(), name);
         });
+        // An action that waits gets the address the recorder gave the original: https://tasks.example.com/hooks/resume/test-key.
+        ConnectorWebhooks.INSTANCE.setPublicUrl("https://tasks.example.com");
         ActionResult result = step.perform(run, variables);
+        String waitKey = result.getWaitKey();
+        if (waitKey != null) {
+            sent.replaceAll(request -> MAPPER.readTree(request.toString().replace(waitKey, "test-key")));
+        }
+        // The answer to it, such as an approval link opened: the step runs again and reads it.
+        if (fixture.has("answer") && waitKey != null) {
+            JsonNode answer = fixture.path("answer");
+            StringBuilder query = new StringBuilder();
+            answer.path("query").properties().forEach(field -> query.append(query.isEmpty() ? "" : "&").append(JsonApi.INSTANCE.encoded(field.getKey())).append('=').append(JsonApi.INSTANCE.encoded(field.getValue().asText())));
+            run.setResumeEvent(ConnectorWebhooks.INSTANCE.storedOf(ConnectorWebhooks.INSTANCE.eventOf("application/json", answer.has("body") ? answer.path("body").toString() : "",
+                    answer.has("headers") ? MAPPER.convertValue(answer.path("headers"), Map.class) : Map.of(), query.toString())));
+            result = step.perform(run, variables);
+        }
         return new Outcome(parsed(result.getOutput()), result.getErrorMsg());
     }
 

@@ -264,6 +264,10 @@ public class TaskController {
         if (execution.getStatus() == TaskExecutionStatus.FAILED) {
             return failed(execution.getId());
         }
+        // The run continues later, when someone answers, so there is no reply yet.
+        if (execution.getStatus() == TaskExecutionStatus.WAITING) {
+            return ResponseEntity.status(HttpStatus.ACCEPTED).body("The run waits for an answer at one of its steps.");
+        }
         if (WebhookReply.LAST_STEP.equals(mode)) {
             String output = reply.getLastOutput() == null ? "" : reply.getLastOutput();
             int status = WebhookReplyAction.statusOf(taskService.webhookReplyCode(taskName, triggerInfo.getTriggerName(), triggerInfo.getTriggerSuffix(), triggerInfo.getPath(), triggerInfo.getMethod().name()), 200);

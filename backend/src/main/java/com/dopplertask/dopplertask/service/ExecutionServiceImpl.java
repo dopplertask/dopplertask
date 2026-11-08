@@ -65,7 +65,7 @@ public class ExecutionServiceImpl implements ExecutionService {
             execution.setStartdate(new Date());
             execution.setStartedByAgent(taskExecutionRequest.isStartedByAgent());
 
-            String cannotResume = taskExecutionRequest.getResumeFromExecutionId() == null ? null : prepareResume(execution, task, taskExecutionRequest.getResumeFromExecutionId());
+            String cannotResume = taskExecutionRequest.getResumeFromExecutionId() == null ? null : prepareResume(execution, task, taskExecutionRequest);
             if (cannotResume != null) {
                 execution.setStatus(TaskExecutionStatus.FAILED);
                 TaskExecutionLog resumeFailed = new TaskExecutionLog();
@@ -255,15 +255,28 @@ public class ExecutionServiceImpl implements ExecutionService {
             // The output stays out of the log: it can be large and hold secrets, and it is stored with the run.
             LOG.info("Ran current action: {} with status code: {}", currentAction.getClass().getSimpleName(), actionResult.getStatusCode());
 
+            // What arrived is only for the step the run continues at.
+            execution.setResumeEvent(null);
+
             if (actionResult.getStatusCode() == StatusCode.FAILURE && !currentAction.isContinueOnFailure()) {
                 addLog(execution, actionResult.getErrorMsg(), actionResult.getOutputType(), actionResult.getOutputVariables(), true, false, false);
                 break;
+            }
+
+            // A step that waits stops the run. Its key continues the run at that step, which then reads the answer.
+            if (actionResult.getWaitKey() != null) {
+                execution.keepRunningLoops();
+                execution.setWaitKey(actionResult.getWaitKey());
+                execution.setStatus(TaskExecutionStatus.WAITING);
+                addLog(execution, "The run waits for an answer at " + currentAction.getActionName() + ".", OutputType.STRING, Map.of(), true, false);
+                return execution;
             }
 
             // A pass of a loop ends where its steps end, and the loop goes on with its next item.
             if (execution.getCurrentAction() == null && execution.getInnermostLoop() != null) {
                 execution.setCurrentAction(task.getActionByPort(execution.getInnermostLoop().getStep()));
             }
+
         }
 
         execution.keepRunningLoops();
@@ -288,28 +301,41 @@ public class ExecutionServiceImpl implements ExecutionService {
     }
 
     /**
-     * Sets up the execution to continue where an earlier run failed: with its values and its finished steps.
+     * Sets up the execution to continue an earlier run with its values and its finished steps, at the step where it
+     * failed, or at the step where it waits, which then reads what arrived.
      *
      * @return why the run cannot be resumed, or null when it can.
      */
-    private String prepareResume(TaskExecution execution, Task task, Long resumeFromExecutionId) {
+    private String prepareResume(TaskExecution execution, Task task, TaskExecutionRequest request) {
+        Long resumeFromExecutionId = request.getResumeFromExecutionId();
         TaskExecution earlierRun = taskExecutionDao.findById(resumeFromExecutionId).orElse(null);
         if (earlierRun == null || earlierRun.getTask() == null || !earlierRun.getTask().getName().equals(task.getName())) {
             return "Could not resume. Execution " + resumeFromExecutionId + " is not a run of " + task.getName() + ".";
         }
+        // A waiting run continues only with what arrived at its address, which took its key.
+        boolean answered = earlierRun.getStatus() == TaskExecutionStatus.WAITING && earlierRun.getWaitKey() == null && request.getResumeWith() != null;
         List<TaskExecutionStep> steps = earlierRun.getSteps();
-        if (steps.isEmpty() || steps.get(steps.size() - 1).getStatus() != StatusCode.FAILURE || earlierRun.getStatus() != TaskExecutionStatus.FAILED) {
-            return "Could not resume. Execution " + resumeFromExecutionId + " did not fail at a step.";
+        if (!answered && (steps.isEmpty() || steps.get(steps.size() - 1).getStatus() != StatusCode.FAILURE || earlierRun.getStatus() != TaskExecutionStatus.FAILED)) {
+            return "Could not resume. Execution " + resumeFromExecutionId + (earlierRun.getStatus() == TaskExecutionStatus.WAITING ? " waits for its answer." : " did not fail at a step.");
         }
-        String failedPort = steps.get(steps.size() - 1).getPortId();
-        if (failedPort == null || task.getActionByPort(failedPort) == null) {
-            return "Could not resume. The step that failed is no longer in this task, so run the whole task instead.";
+        String resumePort = steps.get(steps.size() - 1).getPortId();
+        if (resumePort == null || task.getActionByPort(resumePort) == null) {
+            // Its key is taken, so a waiting run that cannot continue ends here.
+            if (answered) {
+                earlierRun.setStatus(TaskExecutionStatus.FAILED);
+            }
+            return "Could not resume. The step to continue at is no longer in this task, so run the whole task instead.";
         }
 
         earlierRun.getParameters().forEach((name, parameter) -> execution.getParameters().putIfAbsent(name, new ExecutionParameter(name, parameter.getParamValue(), parameter.isBinary())));
         steps.subList(0, steps.size() - 1).forEach(step -> execution.addStep(step.copyTo(execution)));
         execution.continueLoopsOf(earlierRun);
-        execution.setResumePortId(failedPort);
+        execution.setResumePortId(resumePort);
+        if (answered) {
+            execution.setResumeEvent(request.getResumeWith());
+            earlierRun.setStatus(TaskExecutionStatus.FINISHED);
+            earlierRun.setEnddate(new Date());
+        }
         return null;
     }
 

@@ -158,6 +158,18 @@ public class ConnectorFormatTest {
     }
 
     @Test
+    public void testOnlyAnActionThatWaitsHasAResumeAddressFail() {
+        String waiting = """
+                {"name": "waiting", "label": "Waiting", "hosts": ["api.waiting.com"],
+                 "actions": {"ask": {"label": "Ask", "request": {"url": "https://api.waiting.com/ask?link={{resumeUrl}}"}, "resume": "return response;"},
+                             "tell": {"label": "Tell", "request": {"url": "https://api.waiting.com/tell?link={{resumeUrl}}"}}}}
+                """;
+        String problems = String.join(" ", Connectors.INSTANCE.problemsOf(connector(waiting)));
+        Assert.assertFalse(problems, problems.contains("action ask"));
+        Assert.assertTrue(problems, problems.contains("The action tell refers to {{resumeUrl}}, which is not one of its inputs."));
+    }
+
+    @Test
     public void testEveryConnectorFileIsValidAndItsLogoExistsSuccess() throws java.io.IOException {
         String logos = java.nio.file.Files.readString(java.nio.file.Path.of("src/main/resources/static/js/flow/brand-icons.js"));
         Connectors.INSTANCE.all().forEach(connector -> {

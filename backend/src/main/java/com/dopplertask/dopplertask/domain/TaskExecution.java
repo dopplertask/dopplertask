@@ -56,6 +56,14 @@ public class TaskExecution {
     @Column
     private String resumePortId;
 
+    // The one-time key that continues a waiting run.
+    @Column(unique = true)
+    private String waitKey;
+
+    // What arrived for the waiting step this run continues at, which that step reads.
+    @Column(columnDefinition = "TEXT")
+    private String resumeEvent;
+
     @Transient
     private Map<Long, Integer> actionAccessCountMap = new HashMap<>();
 
@@ -247,6 +255,22 @@ public class TaskExecution {
 
     public void setResumePortId(String resumePortId) {
         this.resumePortId = resumePortId;
+    }
+
+    public String getWaitKey() {
+        return waitKey;
+    }
+
+    public void setWaitKey(String waitKey) {
+        this.waitKey = waitKey;
+    }
+
+    public String getResumeEvent() {
+        return resumeEvent;
+    }
+
+    public void setResumeEvent(String resumeEvent) {
+        this.resumeEvent = resumeEvent;
     }
 
     public Action getCurrentAction() {

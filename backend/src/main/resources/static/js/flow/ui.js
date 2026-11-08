@@ -830,10 +830,10 @@ export default function boot() {
       ${step.output ? `<div class="ui-result"><div class="ui-result-head"><span class="ui-label">Output</span>${navigator.clipboard ? `<button type="button" class="ui-link-button" data-copy-output>${icon('copy')}Copy</button>` : ''}</div><pre>${escapeHtml(readableOutput(step.output))}</pre></div>` : ''}`;
   }
 
-  const STATE_GLYPHS = { success: 'check', failed: 'x', warning: 'alert' };
+  const STATE_GLYPHS = { success: 'check', failed: 'x', warning: 'alert', waiting: 'pause' };
   const statusGlyph = (state) => `<span class="status-glyph is-${state}" role="img" aria-label="${state}">${STATE_GLYPHS[state] ? icon(STATE_GLYPHS[state]) : ''}</span>`;
 
-  const RUN_STATUS_LABELS = { success: 'Succeeded', failed: 'Failed', warning: 'Finished with warnings', running: 'Running' };
+  const RUN_STATUS_LABELS = { success: 'Succeeded', failed: 'Failed', warning: 'Finished with warnings', running: 'Running', waiting: 'Waiting for an answer' };
   const runParameterSummary = (run) => Object.values(run.parameters).join(' · ');
 
   window.DT.ui = {
