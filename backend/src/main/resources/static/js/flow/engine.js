@@ -139,6 +139,7 @@ function toField(information) {
     case 'BOOLEAN': return [{ ...common, type: 'toggle' }];
     case 'NUMBER': return [{ ...common, type: 'number' }];
     case 'MULTILINE': return [{ ...common, type: 'code' }];
+    case 'CHOICES': return [{ ...common, type: 'expression', choices: true }];
     case 'MAP': return [{ ...common, type: 'map', columns: information.options.map((option) => ({ key: option.name, label: option.displayName || option.name, options: option.type === 'DROPDOWN' ? option.options.map((choice) => choice.name) : null })) }];
     case 'DROPDOWN': {
       const select = { ...common, type: 'select', options: information.options.map((option) => ({ value: option.name, label: option.displayName || option.name })) };
@@ -783,6 +784,12 @@ function createStore() {
       await loadCredentials();
     },
     /* The address of the service's sign-in page, where a person connects the credential's account. */
+    /* The choices of a connector's input, read on the server with the step's credential. */
+    async connectorChoices(node, input) {
+      const settings = Object.fromEntries(Object.entries(node.config).filter(([, value]) => typeof value === 'string'));
+      return request(`/connectors/${encodeURIComponent(ACTIONS[node.type].backend)}/choices`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operation: node.config.operation, input, credential: node.config.credential, settings }) });
+    },
     async connectCredential(name) {
       return (await request(`/credentials/${encodeURIComponent(name)}/connect`, { method: 'POST' })).url;
     },

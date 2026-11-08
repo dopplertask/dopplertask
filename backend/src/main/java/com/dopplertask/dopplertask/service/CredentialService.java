@@ -111,6 +111,16 @@ public class CredentialService {
         }
     }
 
+    /** The values of a credential for a kind of step, which only fit a credential of that kind. */
+    @Transactional(readOnly = true)
+    public Map<String, String> valuesFor(String name, String type) {
+        Credential credential = credentialDao.findByName(name).orElseThrow(() -> new CredentialProblemException("There is no credential called \"" + name + "\"."));
+        if (!credential.getType().equals(type)) {
+            throw new CredentialProblemException("The credential \"" + name + "\" is of the kind " + credential.getType() + ", and this step needs " + type + ".");
+        }
+        return valuesOf(credential);
+    }
+
     @Transactional(readOnly = true)
     public String typeNamed(String name) {
         return credentialDao.findByName(name).orElseThrow(() -> new CredentialProblemException("There is no credential called \"" + name + "\".")).getType();

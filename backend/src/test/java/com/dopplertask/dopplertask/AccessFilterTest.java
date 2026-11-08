@@ -57,6 +57,11 @@ public class AccessFilterTest {
     }
 
     @Test
+    public void testAnAgentCannotReadChoicesWithACredentialFail() throws Exception {
+        Assert.assertEquals(403, statusOf(WITH_TOKENS, "POST", "/connectors/slack/choices", "agent-token"));
+    }
+
+    @Test
     public void testAnAgentCanListCredentialsButNotChangeThemFail() throws Exception {
         Assert.assertEquals(200, statusOf(WITH_TOKENS, "GET", "/credentials", "agent-token"));
         Assert.assertEquals(403, statusOf(WITH_TOKENS, "POST", "/credentials", "agent-token"));

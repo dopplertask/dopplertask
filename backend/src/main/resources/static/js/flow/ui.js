@@ -172,14 +172,17 @@ export default function boot() {
       case 'toggle': return wrap(`<label class="ui-toggle"><input type="checkbox" ${common} ${fieldValue ? 'checked' : ''}><span class="ui-toggle-track"></span><span>${escapeHtml(field.label)}</span></label>`);
       case 'code': return wrap(`${label}<textarea class="ui-input is-mono" rows="${Math.min(8, Math.max(3, String(fieldValue ?? '').split('\n').length + 1))}" spellcheck="false" data-variables ${common} ${placeholder}>${escapeHtml(fieldValue ?? '')}</textarea><p class="ui-hint">Type <code>$</code> to insert a parameter or earlier output.</p>`);
       case 'expression': {
-        /* Which task to run is picked from the saved ones, rather than typed from memory. */
-        const taskChoices = node.type === 'linkedTask' && field.key === 'name'
-          ? `<datalist id="${inputId}-tasks">${DT.canvas.store.tasks.filter((task) => task.name !== DT.canvas.store.task.name).map((task) => `<option value="${escapeHtml(task.name)}">`).join('')}</datalist>`
-          : '';
+        /* Which task to run is picked from the saved ones, and a connector reads the choices of a field from its service
+           when the field is entered, rather than a person typing an id from memory. */
+        const savedTasks = node.type === 'linkedTask' && field.key === 'name'
+          ? DT.canvas.store.tasks.filter((task) => task.name !== DT.canvas.store.task.name).map((task) => `<option value="${escapeHtml(task.name)}">`).join('')
+          : null;
+        const choices = savedTasks ?? (field.choices ? '' : null);
+        const list = choices === null ? '' : `<datalist id="${inputId}-choices">${choices}</datalist>`;
         const control = field.multiline
           ? `<textarea class="ui-input is-mono" rows="3" spellcheck="false" data-variables ${common} ${placeholder}>${escapeHtml(fieldValue ?? '')}</textarea>`
-          : `<input class="ui-input is-mono" spellcheck="false" autocomplete="off" data-variables ${taskChoices ? `list="${inputId}-tasks"` : ''} ${common} ${placeholder} value="${escapeHtml(fieldValue ?? '')}">`;
-        return wrap(`${label}${control}${taskChoices}<p class="ui-preview" data-preview="${field.key}"></p>`);
+          : `<input class="ui-input is-mono" spellcheck="false" autocomplete="off" data-variables ${list ? `list="${inputId}-choices"` : ''} ${field.choices ? 'data-choices' : ''} ${common} ${placeholder} value="${escapeHtml(fieldValue ?? '')}">`;
+        return wrap(`${label}${control}${list}<p class="ui-preview" data-preview="${field.key}"></p>`);
       }
       case 'map': {
         const rows = fieldValue || [];
@@ -284,12 +287,21 @@ export default function boot() {
         button.setAttribute('aria-label', revealing ? 'Hide value' : 'Show value');
       } else if (button.dataset.copy) { navigator.clipboard?.writeText(button.dataset.copy); toast('Webhook URL copied'); }
     };
+    const onFocus = async (event) => {
+      const input = event.target;
+      if (input.dataset.choices === undefined || input.list?.options.length) return;
+      try {
+        const choices = await store.connectorChoices(currentNode(), input.dataset.field);
+        input.list.innerHTML = choices.map((choice) => `<option value="${escapeHtml(choice.value)}" label="${escapeHtml(choice.label)}">`).join('');
+      } catch (error) { toast(error.message, { tone: 'danger' }); }
+    };
     const onVariableKey = attachVariableMenu(root, store);
+    root.addEventListener('focusin', onFocus);
     root.addEventListener('input', onInput);
     root.addEventListener('change', onInput);
     root.addEventListener('click', onClick);
     render();
-    return { render, dispose() { root.removeEventListener('input', onInput); root.removeEventListener('change', onInput); root.removeEventListener('click', onClick); onVariableKey(); } };
+    return { render, dispose() { root.removeEventListener('focusin', onFocus); root.removeEventListener('input', onInput); root.removeEventListener('change', onInput); root.removeEventListener('click', onClick); onVariableKey(); } };
   }
 
   /* `$` in any expression-capable input opens a menu of what is available at this point. */

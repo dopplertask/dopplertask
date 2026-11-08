@@ -496,7 +496,10 @@ abstract class Action {
         }
 
         enum class PropertyInformationType {
-            STRING, MULTILINE, BOOLEAN, NUMBER, DROPDOWN, MAP
+            STRING, MULTILINE, BOOLEAN, NUMBER, DROPDOWN, MAP,
+
+            /** Text, with choices that the server fetches from the step's service when a person asks for them. */
+            CHOICES
         }
 
         enum class PropertyInformationCategory {

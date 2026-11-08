@@ -127,7 +127,7 @@ class ConnectorAction() : Action() {
         }
 
     private fun propertyOf(name: String, input: ConnectorInput, category: PropertyInformationCategory, shownFor: Map<String, Array<String>>) =
-        PropertyInformation(name, input.label, TYPES[input.type] ?: PropertyInformationType.STRING, input.defaultValue, input.description,
+        PropertyInformation(name, input.label, if (input.optionsFrom != null) PropertyInformationType.CHOICES else TYPES[input.type] ?: PropertyInformationType.STRING, input.defaultValue, input.description,
             input.options.map { PropertyInformation(it.value, it.label) }, category, shownFor)
 
     override fun run(taskService: TaskService, execution: TaskExecution, variableExtractorUtil: VariableExtractorUtil, broadcastListener: BroadcastListener?) =
@@ -174,6 +174,23 @@ class ConnectorAction() : Action() {
         }
         chosen.outputs.forEach { (name, path) -> JsonPaths.read(answer, path)?.let { result.outputVariables[name] = if (it.isValueNode) it.asText() else it.toString() } }
         return result
+    }
+
+    /** The choices of an input, such as the audiences of the account, read from the service with the step's credential. */
+    fun choices(input: String): List<ConnectorOption> {
+        val connector = spec ?: return emptyList()
+        val chosen = operations[operation] ?: return emptyList()
+        val source = chosen.inputs[input]?.optionsFrom ?: return emptyList()
+        val lookup = ConnectorOperation().also { it.inputs = chosen.inputs; it.request = source.request }
+        val answer = deliver(connector, ConnectorRequests.build(connector, lookup, settingValues(), credentialValues))
+        require(answer.statusCode == StatusCode.SUCCESS) { answer.errorMsg }
+        val list = JsonPaths.read(JsonApi.parsed(answer), source.list) ?: return emptyList()
+        return list.toList().map { item ->
+            ConnectorOption().also { option ->
+                option.value = JsonPaths.read(item, source.value)?.asText().orEmpty()
+                option.label = JsonPaths.read(item, source.label)?.asText() ?: option.value
+            }
+        }
     }
 
     /** Sends a signed request, only to the connector's hosts. */
