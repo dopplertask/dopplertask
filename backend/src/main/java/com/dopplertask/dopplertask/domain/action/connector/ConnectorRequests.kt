@@ -42,7 +42,7 @@ object ConnectorRequests {
         val request = operation.request
         val draft = NODES.objectNode()
         draft.put("method", request.method)
-        draft.put("url", address(request.url, values, credential))
+        draft.put("url", address(Connectors.urlOf(connector, request.url), values, credential))
         draft.set("query", JsonApi.mapper.valueToTree(request.query.mapValues { Connectors.fill(it.value) { name -> values[name].orEmpty() } }.filterValues { it.isNotEmpty() }))
         draft.set("headers", JsonApi.mapper.valueToTree(request.headers.mapValues { Connectors.fill(it.value) { name -> values[name].orEmpty() } }))
         draft.set("body", request.body?.let { bodyOf(it, operation, values, files) } ?: NODES.nullNode())

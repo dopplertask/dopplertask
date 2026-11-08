@@ -41,6 +41,9 @@ object Connectors {
     /** The placeholders in a template, such as channel in {{channel}}. */
     fun placeholdersIn(template: String): List<String> = PLACEHOLDER.findAll(template).map { it.groupValues[1] }.toList()
 
+    /** A request's address as written in the file: a full address, or a path after the connector's baseUrl, such as /items. */
+    fun urlOf(connector: Connector, template: String) = if (template.startsWith("/")) connector.baseUrl.trimEnd('/') + template else template
+
     /** The inputs a list is read with, such as base for the tables of a base. */
     fun inputsOf(list: ConnectorList): List<String> = templatesOf(list.request).flatMap(::placeholdersIn).filter { !it.startsWith(CREDENTIAL) }.distinct()
 
@@ -125,7 +128,8 @@ object Connectors {
         return problems
     }
 
-    private fun addressProblems(where: String, connector: Connector, template: String, sample: Map<String, String>): List<String> {
+    private fun addressProblems(where: String, connector: Connector, written: String, sample: Map<String, String>): List<String> {
+        val template = urlOf(connector, written)
         val host = template.substringAfter("://").substringBefore('/')
         // An input may never decide the host, since the credential goes wherever the request goes.
         if (placeholdersIn(host).any { !it.startsWith(CREDENTIAL) }) return listOf("$where has an input in its host.")

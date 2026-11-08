@@ -137,7 +137,11 @@ public class ConnectorCheck {
             // The same address the recorder gave the original: https://tasks.example.com/hooks/test-key.
             ConnectorWebhooks.INSTANCE.setPublicUrl("https://tasks.example.com");
             trigger.setHookKey("test-key");
-            trigger.subscribe(Connectors.INSTANCE.find(connector).getTriggers().get(fixture.path("trigger").asText()).getWebhook());
+            var webhook = Connectors.INSTANCE.find(connector).getTriggers().get(fixture.path("trigger").asText()).getWebhook();
+            // A webhook the person sets up by pasting its address has nothing to subscribe.
+            if (webhook.getSubscribe() != null) {
+                trigger.subscribe(webhook);
+            }
             trigger.takeItemsOf(ConnectorWebhooks.INSTANCE.eventOf("application/json", fixture.path("event").toString(),
                     fixture.has("eventHeaders") ? MAPPER.convertValue(fixture.path("eventHeaders"), Map.class) : Map.of(), Map.of()));
         } else {
