@@ -39,6 +39,9 @@ public interface ExecutionService {
     /** Ends a run as failed, and says why. */
     TaskExecution failRun(long id, String reason);
 
+    /** Ends a run that a person stopped, and says who. A run that reached its end before it could stop stays finished. */
+    TaskExecution abortRun(long id, String reason);
+
     Optional<TaskExecution> getExecution(long id);
 
     @Transactional

@@ -70,6 +70,7 @@ public class AccessFilterTest {
         Assert.assertEquals(403, statusOf(WITH_TOKENS, "DELETE", "/execution/12", "agent-token"));
         Assert.assertEquals(403, statusOf(WITH_TOKENS, "POST", "/task/action", "agent-token"));
         Assert.assertEquals(403, statusOf(WITH_TOKENS, "POST", "/task/action/test", "agent-token"));
+        Assert.assertEquals(403, statusOf(WITH_TOKENS, "POST", "/execution/12/stop", "agent-token"));
     }
 
     @Test

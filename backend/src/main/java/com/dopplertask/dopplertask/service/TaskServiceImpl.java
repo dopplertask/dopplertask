@@ -119,7 +119,7 @@ public class TaskServiceImpl implements TaskService {
         if (execution != null) {
             taskExecutionRequest.setExecutionId(execution.getId());
             runHousekeeping.watch(execution.getId(), Thread.currentThread());
-            if (execution.getStatus() == TaskExecutionStatus.FAILED) {
+            if (execution.getStatus() != TaskExecutionStatus.STARTED) {
 
                 // If set to true, then remove the task after finish executing. This is used for mainly for unsaved workflows.
                 if (taskExecutionRequest.isRemoveTaskAfterExecution()) {

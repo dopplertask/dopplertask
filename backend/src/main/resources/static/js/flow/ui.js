@@ -10,6 +10,7 @@ export default function boot() {
     replay: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/>',
     play: '<path d="M7 4.5v15l12-7.5z"/>',
     pause: '<path d="M8 5v14M16 5v14"/>',
+    stop: '<rect x="6" y="6" width="12" height="12" rx="1.5"/>',
     split: '<path d="M4 12h5l6-6h5M9 12l6 6h5"/><path d="m17 3 3 3-3 3M17 15l3 3-3 3"/>',
     signpost: '<path d="M12 3v18M12 5h6l3 3-3 3h-6M12 11H6l-3 3 3 3h6"/>',
     repeat: '<path d="m17 2 4 4-4 4M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v1a4 4 0 0 1-4 4H3"/>',
@@ -692,10 +693,10 @@ export default function boot() {
       ${step.output ? `<div class="ui-result"><div class="ui-result-head"><span class="ui-label">Output</span>${navigator.clipboard ? `<button type="button" class="ui-link-button" data-copy-output>${icon('copy')}Copy</button>` : ''}</div><pre>${escapeHtml(readableOutput(step.output))}</pre></div>` : ''}`;
   }
 
-  const STATE_GLYPHS = { success: 'check', failed: 'x', warning: 'alert' };
+  const STATE_GLYPHS = { success: 'check', failed: 'x', warning: 'alert', stopped: 'stop' };
   const statusGlyph = (state) => `<span class="status-glyph is-${state}" role="img" aria-label="${state}">${STATE_GLYPHS[state] ? icon(STATE_GLYPHS[state]) : ''}</span>`;
 
-  const RUN_STATUS_LABELS = { success: 'Succeeded', failed: 'Failed', warning: 'Finished with warnings', running: 'Running' };
+  const RUN_STATUS_LABELS = { success: 'Succeeded', failed: 'Failed', warning: 'Finished with warnings', running: 'Running', stopped: 'Stopped' };
   const runParameterSummary = (run) => Object.values(run.parameters).join(' · ');
 
   window.DT.ui = {

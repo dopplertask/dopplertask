@@ -4,6 +4,7 @@ import com.jayway.jsonpath.JsonPath;
 import org.junit.Test;
 import org.junit.Assert;
 import org.junit.runner.RunWith;
+import com.dopplertask.dopplertask.service.ExecutionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -35,6 +36,9 @@ public class RunResultTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private ExecutionService executionService;
 
     @Test
     public void testSuccessfulRunReportsFinishedSuccess() throws Exception {
@@ -204,6 +208,19 @@ public class RunResultTest {
     }
 
     @Test
+    public void testResumeContinuesAtTheStepWhereAPersonStoppedTheRunSuccess() throws Exception {
+        Path marker = Files.createTempFile("resume", ".txt");
+        saveResumable("run_stopped", marker.toString());
+        String ended = run("run_stopped", "{\"gate\":\"exit 3\",\"who\":\"Ada\"}").andReturn().getResponse().getContentAsString();
+        int stoppedId = JsonPath.read(ended, "$.executionId");
+        executionService.abortRun(stoppedId, "This run was stopped.");
+
+        resume("run_stopped", "{\"gate\":\"true\"}", stoppedId).andExpect(jsonPath("$.status").value("FINISHED"));
+
+        Assert.assertEquals("The step before the stop must not run twice", 1, Files.readAllLines(marker).size());
+    }
+
+    @Test
     public void testResumeExplainsARunThatDidNotFailSuccess() throws Exception {
         save("run_no_resume", "[]", false, "");
         String finished = run("run_no_resume", "{}").andReturn().getResponse().getContentAsString();
@@ -211,7 +228,7 @@ public class RunResultTest {
 
         resume("run_no_resume", "{}", finishedId)
                 .andExpect(jsonPath("$.status").value("FAILED"))
-                .andExpect(jsonPath("$.error", containsString("did not fail at a step")));
+                .andExpect(jsonPath("$.error", containsString("did not fail or stop at a step")));
     }
 
     @Test

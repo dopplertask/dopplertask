@@ -309,7 +309,7 @@ export default function boot() {
       const step = runner.stepFor(node.id);
       const resultElement = element.querySelector('.node-result');
       const done = step && !['pending', 'running'].includes(state);
-      const resultText = done ? `${formatDuration(step.durationMs)}${step.error ? ' · failed' : step.output && node.type !== 'start' ? ' · ' : ''}${step.error ? '' : node.type !== 'start' && step.output ? `<b>${escapeHtml(step.output.split('\n')[0])}</b>` : ''}` : '';
+      const resultText = done ? `${formatDuration(step.durationMs)}${step.error ? ` · ${step.status === 'stopped' ? 'stopped' : 'failed'}` : step.output && node.type !== 'start' ? ' · ' : ''}${step.error ? '' : node.type !== 'start' && step.output ? `<b>${escapeHtml(step.output.split('\n')[0])}</b>` : ''}` : '';
       if (resultElement.dataset.text !== resultText) { resultElement.innerHTML = resultText; resultElement.dataset.text = resultText; }
       element.querySelectorAll('.branch-row').forEach((row) => row.classList.toggle('is-chosen', !!done && step.port === row.dataset.branch));
     });

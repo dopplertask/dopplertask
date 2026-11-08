@@ -5,6 +5,7 @@ import com.dopplertask.dopplertask.domain.TaskExecution;
 import com.dopplertask.dopplertask.domain.TaskExecutionLog;
 import com.dopplertask.dopplertask.domain.TaskExecutionStatus;
 import com.dopplertask.dopplertask.service.CustomerScope;
+import com.dopplertask.dopplertask.service.RunAlreadyEndedException;
 import com.dopplertask.dopplertask.service.RunHousekeeping;
 import com.dopplertask.dopplertask.service.RunQueue;
 import com.dopplertask.dopplertask.service.TaskExecutionRequest;
@@ -108,6 +109,25 @@ public class RunHousekeepingTest {
 
         Assert.assertEquals(TaskExecutionStatus.FAILED, taskExecutionDao.findById(going).orElseThrow().getStatus());
         Assert.assertEquals(TaskExecutionStatus.CREATED, taskExecutionDao.findById(waiting).orElseThrow().getStatus());
+    }
+
+    @Test
+    public void testARunStoppedWhileItWaitsIsAbortedWithWhoStoppedItSuccess() {
+        Long waiting = saveRun(TaskExecutionStatus.CREATED, null);
+
+        housekeeping(0).stop(waiting, "This run was stopped by ann@example.com.");
+        entityManager.flush();
+        entityManager.clear();
+
+        TaskExecution stopped = taskExecutionDao.findById(waiting).orElseThrow();
+        Assert.assertEquals(TaskExecutionStatus.ABORTED, stopped.getStatus());
+        Assert.assertTrue(stopped.getLogs().stream().anyMatch(log -> log.getOutput().equals("This run was stopped by ann@example.com.")));
+        Assert.assertNotNull(stopped.getEnddate());
+    }
+
+    @Test(expected = RunAlreadyEndedException.class)
+    public void testARunThatHasEndedCannotBeStoppedSuccess() {
+        housekeeping(0).stop(saveRun(TaskExecutionStatus.FINISHED, new Date()), "This run was stopped.");
     }
 
     @Test
