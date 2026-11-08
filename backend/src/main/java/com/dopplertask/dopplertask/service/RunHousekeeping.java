@@ -136,8 +136,14 @@ public class RunHousekeeping {
         forEachCustomer(() -> taskExecutionDao.deleteAll(taskExecutionDao.findTop1000ByEnddateBefore(cutoff)));
     }
 
-    /** Each customer's runs are its own, so each gets a transaction of its own. */
+    /** Each customer's runs are its own, so each gets a transaction of its own, and a failure in one stops no other. */
     private void forEachCustomer(Runnable work) {
-        customerScope.forEachCustomer(() -> transactions.executeWithoutResult(status -> work.run()));
+        customerScope.forEachCustomer(() -> {
+            try {
+                transactions.executeWithoutResult(status -> work.run());
+            } catch (RuntimeException e) {
+                LOG.error("Housekeeping failed for customer scope '{}', and goes on with the others.", customerScope.current(), e);
+            }
+        });
     }
 }
