@@ -1,27 +1,30 @@
 package com.dopplertask.dopplertask.domain.action.connector
 
 import com.dopplertask.dopplertask.domain.action.integration.JsonApi
+import org.slf4j.LoggerFactory
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver
 import java.net.URI
 
 /**
- * The connectors that come with DopplerTask, read once from the connector files. A file with a problem stops the
- * server from starting and says which file and why, so that a broken connector is never offered to a person.
+ * The connectors that come with DopplerTask, read once from the connector files. A file with a problem is left out and
+ * logged, so that a broken connector is never offered and the others still are. The build test refuses such a file.
  */
 object Connectors {
 
     private const val FILES = "classpath*:connectors/*.json"
     private val NAME = Regex("[a-z0-9][a-z0-9-]*")
+    private val ACTION_NAME = Regex("[A-Za-z0-9][A-Za-z0-9_-]*")
+    private val LOG = LoggerFactory.getLogger(Connectors::class.java)
     private const val CREDENTIAL = "credential."
     private val PLACEHOLDER = Regex("\\{\\{\\s*([\\w.]+)\\s*}}")
 
     private val byName: Map<String, Connector> by lazy {
-        PathMatchingResourcePatternResolver().getResources(FILES).associate { file ->
+        PathMatchingResourcePatternResolver().getResources(FILES).mapNotNull { file ->
             val connector = JsonApi.mapper.readValue(file.inputStream, Connector::class.java)
             val problems = problemsOf(connector)
-            check(problems.isEmpty()) { "The connector file ${file.filename} has problems: ${problems.joinToString(" ")}" }
-            connector.name to connector
-        }
+            if (problems.isNotEmpty()) LOG.error("The connector file {} is left out: {}", file.filename, problems.joinToString(" "))
+            connector.takeIf { problems.isEmpty() }?.let { it.name to it }
+        }.toMap()
     }
 
     /** Where requests go instead of the connector's hosts, after the host is checked. Only tests set it. */
@@ -31,6 +34,9 @@ object Connectors {
     fun all(): Collection<Connector> = byName.values
 
     fun find(name: String?): Connector? = byName[name]
+
+    /** A host as a person may type it into a credential, with https:// and a trailing slash left off. */
+    fun hostOf(value: String) = value.trim().removePrefix("https://").trimEnd('/')
 
     /** The placeholders in a template, such as channel in {{channel}}. */
     fun placeholdersIn(template: String): List<String> = PLACEHOLDER.findAll(template).map { it.groupValues[1] }.toList()
@@ -42,7 +48,7 @@ object Connectors {
      * credential value, such as {{credential.subdomain}}.zendesk.com, which only the person who made the credential sets.
      */
     fun allows(connector: Connector, host: String?, credential: Map<String, String> = emptyMap()): Boolean = host != null && connector.hosts.any { template ->
-        val allowed = fill(template) { credential[it.removePrefix(CREDENTIAL)].orEmpty() }
+        val allowed = fill(template) { hostOf(credential[it.removePrefix(CREDENTIAL)].orEmpty()) }
         if (allowed.startsWith("*.")) host.endsWith(allowed.substring(1)) && host.length > allowed.length - 1 else host.equals(allowed, ignoreCase = true)
     }
 
@@ -64,7 +70,7 @@ object Connectors {
         if (connector.actions.isEmpty()) problems += "It needs at least one action."
         connector.actions.forEach { (key, operation) ->
             val where = "The action $key"
-            if (!NAME.matches(key.replace('_', '-'))) problems += "$where should be named with lowercase letters, numbers and underscores."
+            if (!ACTION_NAME.matches(key)) problems += "$where should be named with letters, numbers, dashes and underscores, as the original names it."
             if (operation.label.isBlank()) problems += "$where needs a label."
             val request = operation.request
             problems += addressProblems(where, connector, request.url, sample)

@@ -23,10 +23,21 @@ class ConnectorSender(private val step: Action, private val connector: Connector
             headers = headers + signIn.headers
         }
         val address = Connectors.localServerForTests?.let { request.url.replaceFirst(Regex("^https://[^/]+"), it) } ?: request.url
-        return JsonApi.call(connector.label, request.method, address, headers, request.body)
+        // JSON, as most services and the originals send, unless the connector names another type, such as a form or JSON Patch.
+        val contentType = headers.entries.firstOrNull { it.key.equals(CONTENT_TYPE, ignoreCase = true) }?.value ?: "application/json"
+        val body = request.body?.let { if (contentType.startsWith(FORM)) formOf(it) else it.toString() }.orEmpty()
+        val typed = headers.filterKeys { !it.equals(CONTENT_TYPE, ignoreCase = true) } + (CONTENT_TYPE to contentType)
+        return JsonApi.send(connector.label, request.method, address, typed, body)
+    }
+
+    private fun formOf(body: JsonNode): String = body.properties().joinToString("&") { (key, value) ->
+        "${JsonApi.encoded(key)}=${JsonApi.encoded(if (value.isValueNode) value.asText() else value.toString())}"
     }
 
     companion object {
+        private const val CONTENT_TYPE = "Content-Type"
+        private const val FORM = "application/x-www-form-urlencoded"
+
         /** What a step signing in with an account reads from its own fields, as every step that offers it does. */
         fun accountFields(connector: Connector, values: Map<String, String>): Map<String, String> =
             if (connector.credential?.oauth2 == null) emptyMap() else values.filterKeys { it.startsWith("oauth") } + ("oauthProvider" to connector.name)

@@ -40,7 +40,7 @@ object JsonApi {
         null
     }
 
-    private fun send(service: String, method: String, url: String, headers: Map<String, String>, body: String, timeout: Duration): ActionResult {
+    fun send(service: String, method: String, url: String, headers: Map<String, String>, body: String, timeout: Duration = Duration.ofMinutes(1)): ActionResult {
         val request = HttpAction()
         request.method = method
         val result = request.send(url, body, headers + mapOf("Accept" to "application/json"), timeout = timeout)

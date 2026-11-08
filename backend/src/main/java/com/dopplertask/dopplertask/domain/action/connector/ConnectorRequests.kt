@@ -78,13 +78,17 @@ object ConnectorRequests {
     private fun address(template: String, values: Map<String, String>, credential: Map<String, String>): String {
         val hostEnd = template.indexOf('/', template.indexOf("://") + 3).let { if (it < 0) template.length else it }
         val path = Connectors.fill(template.substring(hostEnd)) { name ->
-            JsonApi.encoded(if (name.startsWith(CREDENTIAL)) credential[name.removePrefix(CREDENTIAL)].orEmpty() else values[name].orEmpty())
+            pathPart(if (name.startsWith(CREDENTIAL)) credential[name.removePrefix(CREDENTIAL)].orEmpty() else values[name].orEmpty())
         }
         return Connectors.fill(template.substring(0, hostEnd)) { hostPart(credential, it) } + path
     }
 
+    /** A value made safe for an address the way browsers and the originals do it, with encodeURIComponent. */
+    private fun pathPart(value: String) = JsonApi.encoded(value)
+        .replace("%21", "!").replace("%27", "'").replace("%28", "(").replace("%29", ")").replace("%7E", "~")
+
     private fun hostPart(credential: Map<String, String>, name: String): String {
-        val value = credential[name.removePrefix(CREDENTIAL)].orEmpty().trim().removePrefix("https://").trimEnd('/')
+        val value = Connectors.hostOf(credential[name.removePrefix(CREDENTIAL)].orEmpty())
         require(HOST_PART.matches(value)) { "The credential's ${name.removePrefix(CREDENTIAL)} should be a host name, such as example.zendesk.com." }
         return value
     }
