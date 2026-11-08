@@ -14,29 +14,18 @@ import com.dopplertask.dopplertask.domain.action.connection.RedisAction
 import com.dopplertask.dopplertask.domain.action.connection.SSHAction
 import com.dopplertask.dopplertask.domain.action.connection.SecureCopyAction
 import com.dopplertask.dopplertask.domain.action.integration.anthropic.ClaudeAction
-import com.dopplertask.dopplertask.domain.action.integration.chat.DiscordAction
 import com.dopplertask.dopplertask.domain.action.integration.chat.MattermostAction
-import com.dopplertask.dopplertask.domain.action.integration.chat.SlackAction
 import com.dopplertask.dopplertask.domain.action.integration.chat.TeamsAction
 import com.dopplertask.dopplertask.domain.action.integration.chat.TelegramAction
 import com.dopplertask.dopplertask.domain.action.integration.chat.TwilioAction
 import com.dopplertask.dopplertask.domain.action.integration.chat.WhatsAppAction
-import com.dopplertask.dopplertask.domain.action.integration.code.AsanaAction
 import com.dopplertask.dopplertask.domain.action.integration.code.BitbucketAction
 import com.dopplertask.dopplertask.domain.action.integration.code.CircleCIAction
 import com.dopplertask.dopplertask.domain.action.integration.code.ClickUpAction
 import com.dopplertask.dopplertask.domain.action.integration.code.FreshdeskAction
-import com.dopplertask.dopplertask.domain.action.integration.code.GitHubAction
-import com.dopplertask.dopplertask.domain.action.integration.code.GitLabAction
 import com.dopplertask.dopplertask.domain.action.integration.code.GiteaAction
-import com.dopplertask.dopplertask.domain.action.integration.code.IntercomAction
 import com.dopplertask.dopplertask.domain.action.integration.code.JiraAction
-import com.dopplertask.dopplertask.domain.action.integration.code.LinearAction
-import com.dopplertask.dopplertask.domain.action.integration.code.MondayAction
-import com.dopplertask.dopplertask.domain.action.integration.code.TrelloAction
-import com.dopplertask.dopplertask.domain.action.integration.code.ZendeskAction
 import com.dopplertask.dopplertask.domain.action.integration.commerce.PayPalAction
-import com.dopplertask.dopplertask.domain.action.integration.commerce.ShopifyAction
 import com.dopplertask.dopplertask.domain.action.integration.commerce.StripeAction
 import com.dopplertask.dopplertask.domain.action.integration.commerce.WooCommerceAction
 import com.dopplertask.dopplertask.domain.action.integration.connection.ElasticsearchAction
@@ -58,20 +47,13 @@ import com.dopplertask.dopplertask.domain.action.integration.mail.OutlookAction
 import com.dopplertask.dopplertask.domain.action.integration.mail.ReadEmailAction
 import com.dopplertask.dopplertask.domain.action.integration.mail.SendGridAction
 import com.dopplertask.dopplertask.domain.action.integration.openai.OpenAIAction
-import com.dopplertask.dopplertask.domain.action.integration.sales.HubSpotAction
 import com.dopplertask.dopplertask.domain.action.integration.sales.MailchimpAction
-import com.dopplertask.dopplertask.domain.action.integration.sales.PipedriveAction
-import com.dopplertask.dopplertask.domain.action.integration.sales.SalesforceAction
-import com.dopplertask.dopplertask.domain.action.integration.storage.AirtableAction
 import com.dopplertask.dopplertask.domain.action.integration.storage.BoxAction
-import com.dopplertask.dopplertask.domain.action.integration.storage.ConfluenceAction
 import com.dopplertask.dopplertask.domain.action.integration.storage.GoogleCalendarAction
 import com.dopplertask.dopplertask.domain.action.integration.storage.GoogleDriveAction
 import com.dopplertask.dopplertask.domain.action.integration.storage.GoogleSheetsAction
-import com.dopplertask.dopplertask.domain.action.integration.storage.NotionAction
 import com.dopplertask.dopplertask.domain.action.integration.storage.OneDriveAction
 import com.dopplertask.dopplertask.domain.action.integration.storage.S3Action
-import com.dopplertask.dopplertask.domain.action.integration.storage.SupabaseAction
 import com.dopplertask.dopplertask.domain.action.integration.storage.WordPressAction
 import com.dopplertask.dopplertask.domain.action.io.ReadFileAction
 import com.dopplertask.dopplertask.domain.action.io.WriteFileAction
@@ -151,9 +133,7 @@ import org.hibernate.annotations.FetchMode
     JsonSubTypes.Type(value = RegexAction::class, name = "RegexAction"),
     JsonSubTypes.Type(value = OpenAIAction::class, name = "OpenAIAction"),
     JsonSubTypes.Type(value = TelegramAction::class, name = "TelegramAction"),
-    JsonSubTypes.Type(value = DiscordAction::class, name = "DiscordAction"),
     JsonSubTypes.Type(value = PagerDutyAction::class, name = "PagerDutyAction"),
-    JsonSubTypes.Type(value = GitHubAction::class, name = "GitHubAction"),
     JsonSubTypes.Type(value = JiraAction::class, name = "JiraAction"),
     JsonSubTypes.Type(value = RedisAction::class, name = "RedisAction"),
     JsonSubTypes.Type(value = PostgresAction::class, name = "PostgresAction"),
@@ -162,33 +142,17 @@ import org.hibernate.annotations.FetchMode
     JsonSubTypes.Type(value = TeamsAction::class, name = "TeamsAction"),
     JsonSubTypes.Type(value = MattermostAction::class, name = "MattermostAction"),
     JsonSubTypes.Type(value = TwilioAction::class, name = "TwilioAction"),
-    JsonSubTypes.Type(value = GitLabAction::class, name = "GitLabAction"),
-    JsonSubTypes.Type(value = LinearAction::class, name = "LinearAction"),
-    JsonSubTypes.Type(value = ZendeskAction::class, name = "ZendeskAction"),
-    JsonSubTypes.Type(value = NotionAction::class, name = "NotionAction"),
     JsonSubTypes.Type(value = GoogleSheetsAction::class, name = "GoogleSheetsAction"),
     JsonSubTypes.Type(value = ClaudeAction::class, name = "ClaudeAction"),
     JsonSubTypes.Type(value = ReadEmailAction::class, name = "ReadEmailAction"),
-    JsonSubTypes.Type(value = SlackAction::class, name = "SlackAction"),
-    JsonSubTypes.Type(value = HubSpotAction::class, name = "HubSpotAction"),
-    JsonSubTypes.Type(value = SalesforceAction::class, name = "SalesforceAction"),
-    JsonSubTypes.Type(value = PipedriveAction::class, name = "PipedriveAction"),
     JsonSubTypes.Type(value = MailchimpAction::class, name = "MailchimpAction"),
     JsonSubTypes.Type(value = StripeAction::class, name = "StripeAction"),
-    JsonSubTypes.Type(value = ShopifyAction::class, name = "ShopifyAction"),
     JsonSubTypes.Type(value = WooCommerceAction::class, name = "WooCommerceAction"),
-    JsonSubTypes.Type(value = IntercomAction::class, name = "IntercomAction"),
     JsonSubTypes.Type(value = FreshdeskAction::class, name = "FreshdeskAction"),
-    JsonSubTypes.Type(value = AsanaAction::class, name = "AsanaAction"),
-    JsonSubTypes.Type(value = TrelloAction::class, name = "TrelloAction"),
     JsonSubTypes.Type(value = ClickUpAction::class, name = "ClickUpAction"),
-    JsonSubTypes.Type(value = MondayAction::class, name = "MondayAction"),
     JsonSubTypes.Type(value = WhatsAppAction::class, name = "WhatsAppAction"),
-    JsonSubTypes.Type(value = AirtableAction::class, name = "AirtableAction"),
-    JsonSubTypes.Type(value = SupabaseAction::class, name = "SupabaseAction"),
     JsonSubTypes.Type(value = GoogleDriveAction::class, name = "GoogleDriveAction"),
     JsonSubTypes.Type(value = GoogleCalendarAction::class, name = "GoogleCalendarAction"),
-    JsonSubTypes.Type(value = ConfluenceAction::class, name = "ConfluenceAction"),
     JsonSubTypes.Type(value = MongoDBAction::class, name = "MongoDBAction"),
     JsonSubTypes.Type(value = KafkaAction::class, name = "KafkaAction"),
     JsonSubTypes.Type(value = RabbitMQAction::class, name = "RabbitMQAction"),

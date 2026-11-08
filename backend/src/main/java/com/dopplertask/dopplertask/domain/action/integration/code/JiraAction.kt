@@ -19,7 +19,7 @@ import jakarta.persistence.Lob
 import jakarta.persistence.Table
 import jakarta.persistence.Transient
 
-const val ATLASSIAN_ACCOUNT = "Atlassian account"
+private const val ATLASSIAN_ACCOUNT = "Atlassian account"
 
 @Entity
 @Table(name = "JiraAction")

@@ -46,13 +46,6 @@ Sends a message to a Telegram chat. The next step can read the id of the message
 * message: Up to 4096 characters.
 * baseUrl: Optional. Only change this to go through a proxy or your own Bot API server.
 
-## DiscordAction
-Sends a message to a Discord channel through a webhook. The next step can read the id of the message from `$lastLog.outputVariables.messageId`.
-
-### Variables
-* webhookUrl: In a credential. Made in the settings of the channel under Integrations.
-* message: Up to 2000 characters.
-
 ## PagerDutyAction
 Opens, acknowledges or resolves an incident through the Events API v2. The next step can read the key of the incident from `$lastLog.outputVariables.incidentKey`.
 
@@ -64,19 +57,6 @@ Opens, acknowledges or resolves an incident through the Events API v2. The next 
 * newIncidentKey: Optional when opening. Opening with the same key again does not open a second incident.
 * incidentKey: Required to acknowledge or resolve.
 * baseUrl: Optional. An account in the EU uses `https://events.eu.pagerduty.com`.
-
-## GitHubAction
-Creates, comments on or closes an issue. The next step can read `$lastLog.outputVariables.url`, and also `issueNumber` after creating or closing.
-
-### Variables
-* token: A personal access token, with permission to write issues in the repository.
-* repository: Written as `owner/name`.
-* operation: `createIssue`, `addComment` or `closeIssue`.
-* issueNumber: Required to comment or close.
-* title: Required to create.
-* issueDescription: Used to create.
-* comment: Required to comment.
-* baseUrl: Optional. GitHub Enterprise uses `https://your-host/api/v3`.
 
 ## JiraAction
 Creates or comments on an issue, both in the cloud and on your own server. The next step can read `$lastLog.outputVariables.issueKey` and `url`.
@@ -171,54 +151,6 @@ Sends an SMS through Twilio. The next step can read the id of the message from `
 * message: Up to 1600 characters.
 * baseUrl: Optional.
 
-## GitLabAction
-Creates, comments on or closes an issue, on gitlab.com or your own server. The next step can read `$lastLog.outputVariables.issueNumber` and `url`.
-
-### Variables
-* token: An access token with the api scope.
-* project: Written as `group/name`.
-* operation: `createIssue`, `addComment` or `closeIssue`.
-* issueNumber: Required to comment or close.
-* title, issueDescription: Used to create.
-* comment: Required to comment.
-* baseUrl: The address of your own GitLab.
-
-## LinearAction
-Creates or comments on an issue. The next step can read `$lastLog.outputVariables.issueKey` and `url`.
-
-### Variables
-* token: An API key.
-* operation: `createIssue` or `addComment`.
-* team: The key of the team, such as `ENG`. Used to create.
-* title, issueDescription: Used to create.
-* issueKey: Such as `ENG-12`. Used to comment.
-* comment: Required to comment.
-* baseUrl: Optional.
-
-## ZendeskAction
-Creates, comments on or solves a ticket. A comment is an internal note unless `visibleToCustomer` is set. The next step can read `$lastLog.outputVariables.ticketNumber` and `url`.
-
-### Variables
-* siteUrl: Such as `https://acme.zendesk.com`.
-* email, token: The email of an agent and an API token.
-* operation: `createTicket`, `addComment` or `solveTicket`.
-* ticketNumber: Required to comment or solve.
-* subject, ticketDescription: Required to create.
-* comment: Required to comment.
-* visibleToCustomer: `true` to show the comment to the customer.
-
-## NotionAction
-Creates a page, or adds text to one. The next step can read `$lastLog.outputVariables.pageId` and `url`.
-
-### Variables
-* token: From an integration that the page is shared with.
-* operation: `createPage` or `addText`.
-* page: The address or the id. A new page is placed under this one.
-* title: Required to create.
-* content: Used to create. Each line becomes a paragraph.
-* addedText: Required to add text. Each line becomes a paragraph.
-* baseUrl: Optional.
-
 ## GoogleSheetsAction
 Reads the rows of a sheet, or adds one. The rows are given as JSON with the first row as names, such as `[{"name":"Ada"}]`, and the number of rows as `$lastLog.outputVariables.rowCount`. Values are written as text, so that a value from an earlier step cannot become a formula.
 
@@ -252,16 +184,6 @@ Reads messages from a mailbox over IMAP, newest first, as JSON with `from`, `sub
 * onlyUnread: Only messages that are not read.
 * markAsRead: So that the next run does not read them again.
 * maxMessages: The most messages to read.
-
-## SlackAction
-Sends a message to a Slack channel. The bot needs the `chat:write` permission and has to be a member of the channel. The next step can read the id of the message from `$lastLog.outputVariables.messageId`, for example to reply in its thread.
-
-### Variables
-* token: A bot token that starts with `xoxb-`.
-* channel: Such as `#deploys` or a channel id.
-* message
-* replyToMessageId: Optional. The id of a message, to answer in its thread.
-* baseUrl: Optional. Only change this to go through a proxy.
 
 ## MySQLAction
 The output is JSON in the form `[{"query": "...", "rows": [{"columns": [{"name": "...", "value": "..."}]}]}]`.
@@ -403,47 +325,6 @@ Run Javascript or Velocity script
 * type: JAVASCRIPT or VELOCITY
 * script: Code to execute
 
-## HubSpotAction
-Saves or finds a HubSpot contact, or creates a deal. The next step can read `$lastLog.outputVariables.contactId`, `$lastLog.outputVariables.found`, `$lastLog.outputVariables.dealId`.
-
-### Variables
-* operation: `saveContact`, `findContact`, `createDeal`.
-* token: Access token. From a private app in HubSpot.
-* email: Email. A contact with this email is updated, and otherwise created.
-* firstName: First name.
-* lastName: Last name.
-* dealName: Deal name.
-* amount: Amount.
-* dealStage: Deal stage. The internal name of the stage, such as appointmentscheduled.
-
-## SalesforceAction
-Creates or updates a Salesforce record, or runs a query. The next step can read `$lastLog.outputVariables.recordId`, `$lastLog.outputVariables.url`, `$lastLog.outputVariables.recordCount`.
-
-### Variables
-* operation: `createRecord`, `updateRecord`, `runQuery`.
-* siteUrl: My Domain address. Such as https://acme.my.salesforce.com.
-* clientId: Consumer key. From a connected app with the client credentials flow.
-* clientSecret: Consumer secret.
-* objectName: Object. Such as Contact, Lead or Case.
-* recordId: Record id. A step that creates a record gives it as $lastLog.outputVariables.recordId.
-* recordFields: Fields. As JSON, such as {"LastName": "Lovelace"}.
-* query: Query. Such as SELECT Id, Name FROM Contact LIMIT 10.
-
-## PipedriveAction
-Creates a Pipedrive person or deal, or adds a note to a deal. The next step can read `$lastLog.outputVariables.personId`, `$lastLog.outputVariables.dealId`.
-
-### Variables
-* operation: `createPerson`, `createDeal`, `addNote`.
-* siteUrl: Company address. Such as https://acme.pipedrive.com.
-* token: API token. Under Personal preferences, API.
-* personName: Name.
-* email: Email.
-* dealTitle: Title.
-* dealValue: Value.
-* personId: Person id. A step that creates a person gives it as $lastLog.outputVariables.personId.
-* dealId: Deal id. A step that creates a deal gives it as $lastLog.outputVariables.dealId.
-* note: Note.
-
 ## MailchimpAction
 Adds, tags or unsubscribes a Mailchimp contact. The next step can read `$lastLog.outputVariables.contactId`.
 
@@ -470,18 +351,6 @@ Creates a Stripe customer or payment link, reads a payment or refunds it. The ne
 * paymentId: Payment ID. Such as pi_3Mt.
 * amount: Amount. In the smallest unit, such as cents. Leave it empty to refund all of it.
 
-## ShopifyAction
-Reads, lists or cancels Shopify orders, or finds a customer. The next step can read `$lastLog.outputVariables.orderId`, `$lastLog.outputVariables.url`, `$lastLog.outputVariables.orderCount`, `$lastLog.outputVariables.customerId`, `$lastLog.outputVariables.found`.
-
-### Variables
-* operation: `readOrder`, `listOpenOrders`, `cancelOrder`, `findCustomer`.
-* siteUrl: Store. Such as https://acme.myshopify.com.
-* clientId: Client ID. From an app in the Dev Dashboard, under Settings.
-* clientSecret: Client secret.
-* token: Admin API access token. Instead of the client ID and secret, for a custom app that was made in the admin.
-* orderNumber: Order number. The number shown on the order, such as 1001.
-* email: Email.
-
 ## WooCommerceAction
 Reads or updates a WooCommerce order, or sets the stock of a product. The next step can read `$lastLog.outputVariables.orderStatus`, `$lastLog.outputVariables.url`.
 
@@ -496,19 +365,6 @@ Reads or updates a WooCommerce order, or sets the stock of a product. The next s
 * visibleToCustomer: Visible to the customer. Otherwise the note is only for the shop.
 * productId: Product ID. Shown in the list of products.
 * stockQuantity: Stock.
-
-## IntercomAction
-Creates an Intercom contact, or replies to or closes a conversation. The next step can read `$lastLog.outputVariables.contactId`.
-
-### Variables
-* operation: `createContact`, `replyToConversation`, `closeConversation`.
-* token: Access token. From an app in the Developer Hub.
-* email: Email.
-* contactName: Name.
-* conversationId: Conversation ID. The last number in the address of the conversation.
-* teammateId: Teammate ID. The last number in the address of your teammate profile. The reply is sent in this name.
-* comment: Reply.
-* visibleToCustomer: Visible to the customer. Otherwise the reply is an internal note.
 
 ## FreshdeskAction
 Creates, notes on, replies to or solves a Freshdesk ticket. The next step can read `$lastLog.outputVariables.ticketNumber`, `$lastLog.outputVariables.url`.
@@ -535,31 +391,6 @@ Sends a WhatsApp message or template. The next step can read `$lastLog.outputVar
 * templateName: Template. An approved template, under WhatsApp Manager, Message templates.
 * templateLanguage: Language of the template.
 
-## AsanaAction
-Creates, comments on or completes an Asana task. The next step can read `$lastLog.outputVariables.taskId`, `$lastLog.outputVariables.url`.
-
-### Variables
-* operation: `createTask`, `addComment`, `completeTask`.
-* token: Personal access token. Made in the Asana developer console.
-* projectId: Project. The number in the address of the project.
-* taskId: Task. A step that creates a task gives it as $lastLog.outputVariables.taskId.
-* title: Title.
-* taskDescription: Description.
-* comment: Comment.
-
-## TrelloAction
-Creates, moves or comments on a Trello card. The next step can read `$lastLog.outputVariables.cardId`, `$lastLog.outputVariables.url`.
-
-### Variables
-* operation: `createCard`, `moveCard`, `addComment`.
-* apiKey: API key. Under Power-Ups and integrations, in your own Power-Up.
-* token: Token. Made from the same page, with the link next to the API key.
-* listId: List ID. Add .json to the address of a board to see the id of each list.
-* cardId: Card. The short code in the address of the card.
-* title: Title.
-* cardDescription: Description.
-* comment: Comment.
-
 ## ClickUpAction
 Creates, comments on or changes the status of a ClickUp task. The next step can read `$lastLog.outputVariables.taskId`, `$lastLog.outputVariables.url`.
 
@@ -572,43 +403,6 @@ Creates, comments on or changes the status of a ClickUp task. The next step can 
 * taskDescription: Description.
 * comment: Comment.
 * taskStatus: Status. As it is written in the list, such as in progress.
-
-## MondayAction
-Creates or comments on a monday.com item, or sets one of its columns. The next step can read `$lastLog.outputVariables.itemId`.
-
-### Variables
-* operation: `createItem`, `addComment`, `setColumn`.
-* token: API token. Under your profile, Developers, My access tokens.
-* boardId: Board. The number in the address of the board.
-* itemId: Item. A step that creates an item gives it as $lastLog.outputVariables.itemId.
-* itemName: Name.
-* columnValues: Column values. As JSON, such as {"status": "Done"}.
-* comment: Update.
-* columnId: Column ID. Shown in the settings of the column, such as status.
-* columnValue: Value.
-
-## AirtableAction
-Reads, adds or updates Airtable records. The next step can read `$lastLog.outputVariables.recordCount`, `$lastLog.outputVariables.recordId`.
-
-### Variables
-* operation: `readRecords`, `addRecord`, `updateRecord`.
-* token: Personal access token. Made in the builder hub, with the scopes for records.
-* base: Base. The address of the base, or its id that starts with app.
-* tableName: Table. As it is named in the base.
-* filterFormula: Filter. A formula, such as {Status} = "Open". Leave it empty for all records.
-* recordId: Record id. Starts with rec.
-* recordFields: Fields. As JSON, such as {"Name": "Ada"}.
-
-## SupabaseAction
-Reads, adds or updates rows in a Supabase table. The next step can read `$lastLog.outputVariables.rowCount`.
-
-### Variables
-* operation: `readRows`, `addRows`, `updateRows`.
-* siteUrl: Project URL. Such as https://abc.supabase.co. Under Project settings, API.
-* secretKey: Secret key. Under Project settings, API keys. It can read and change all data, so only store it here.
-* tableName: Table.
-* filter: Filter. Which rows, such as status=eq.open. Combine with &.
-* rowValues: Values. As JSON, such as {"status": "done"}, or a list of these to add several.
 
 ## GoogleDriveAction
 Finds, reads, creates or shares a Google Drive file. The next step can read `$lastLog.outputVariables.fileCount`, `$lastLog.outputVariables.fileId`, `$lastLog.outputVariables.url`.
@@ -635,20 +429,6 @@ Creates, lists or deletes Google Calendar events. The next step can read `$lastL
 * startTime: Start. With its time zone, such as 2026-12-01T09:00:00+01:00.
 * endTime: End. With its time zone, such as 2026-12-01T10:00:00+01:00.
 * eventId: Event ID. A step that creates an event gives it as $lastLog.outputVariables.eventId.
-
-## ConfluenceAction
-Creates, reads or updates a Confluence page. The next step can read `$lastLog.outputVariables.pageId`, `$lastLog.outputVariables.url`.
-
-### Variables
-* operation: `createPage`, `readPage`, `updatePage`.
-* siteUrl: Site. Such as https://acme.atlassian.net.
-* email: Email. The email of the Atlassian account.
-* token: API token. Made under the security settings of the Atlassian account.
-* spaceKey: Space. The short key in the address of the space, such as ENG.
-* pageId: Page. The number in the address of the page.
-* parentPageId: Under the page. The number in the address of a page. Otherwise it goes directly in the space.
-* title: Title. When updating, leave it empty to keep it.
-* pageContent: Content. In the storage format of Confluence, such as <p>Hello</p>.
 
 ## MongoDBAction
 Finds, adds, updates or deletes MongoDB documents. The next step can read `$lastLog.outputVariables.documentCount`, `$lastLog.outputVariables.documentId`.

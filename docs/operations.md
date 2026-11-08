@@ -22,11 +22,11 @@ To change the editor or the command line tool, use Node 26, which `.nvmrc` names
 * **A run has a time limit of 24 hours.** `DOPPLERTASK_MAXRUNMINUTES` changes it, and 0 turns it off. A run over the limit is asked to stop and then marked as failed. A step that ignores this still takes up one of the 40 to 50 places for runs until the server restarts, so use commands that have their own timeout.
 
 ## Credentials
-What a step signs in with is kept apart from tasks, under **Credentials** in the editor or through the API. A step only has `credential`, the name of one of the type it needs, so a task can be shared, exported and read by an agent without exposing anything. Steps that sign in to the same service share a type: Email and Read email use a `Mail account`, SSH and SCP a `Server login`, Google Sheets, Drive and Calendar a `Google service account`, and Jira and Confluence an `Atlassian account`. Other steps have a type of their own, named after the step.
+What a step signs in with is kept apart from tasks, under **Credentials** in the editor or through the API. A step only has `credential`, the name of one of the type it needs, so a task can be shared, exported and read by an agent without exposing anything. Steps that sign in to the same service share a type: Email and Read email use a `Mail account`, SSH and SCP a `Server login`, and Google Sheets, Drive and Calendar a `Google service account`. Jira uses an `Atlassian account`, and other steps have a type of their own, named after the step.
 
 Create one under Credentials, or with New on a step:
 ```
-curl -X POST localhost:8090/credentials -H 'Content-Type: application/json' -d '{"name":"prod-slack","type":"SlackAction","values":{"token":"xoxb-..."}}'
+curl -X POST localhost:8090/credentials -H 'Content-Type: application/json' -d '{"name":"prod-linear","type":"linear","values":{"apiKey":"lin_api_..."}}'
 ```
 * `GET /credentials`: names, types, the steps each one fits and which tasks use them. Never the values.
 * `PUT /credentials/{name}`: change values. A field left out or empty keeps its value.

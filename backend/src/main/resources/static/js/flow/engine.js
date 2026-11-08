@@ -41,9 +41,7 @@ const PRESENTATION = {
   OpenAIAction: ['openAI', 'OpenAI', 'ai', 'openAi', ['model', 'userInput']],
   JenkinsAction: ['jenkins', 'Jenkins', 'integration', 'jenkins', ['jenkinsUrl']],
   TelegramAction: ['telegram', 'Telegram', 'messages', 'telegram', ['token', 'chat', 'message']],
-  DiscordAction: ['discord', 'Discord', 'messages', 'discord', ['webhookUrl', 'message']],
   PagerDutyAction: ['pagerduty', 'PagerDuty', 'messages', 'pagerDuty', ['integrationKey', 'summary', 'incidentKey']],
-  GitHubAction: ['github', 'GitHub', 'work', 'gitHub', ['token', 'repository', 'issueNumber', 'title', 'comment']],
   JiraAction: ['jira', 'Jira', 'work', 'jira', ['siteUrl', 'token', 'project', 'summary', 'issueKey', 'comment']],
   RedisAction: ['redis', 'Redis', 'connection', 'redis', ['hostname', 'key']],
   PostgresAction: ['postgres', 'Postgres', 'connection', 'postgres', ['hostname', 'database', 'command']],
@@ -52,33 +50,17 @@ const PRESENTATION = {
   TeamsAction: ['teams', 'Microsoft Teams', 'messages', 'teams', ['webhookUrl', 'message']],
   MattermostAction: ['mattermost', 'Mattermost', 'messages', 'mattermost', ['siteUrl', 'token', 'channelId', 'message']],
   TwilioAction: ['twilio', 'SMS (Twilio)', 'messages', 'twilio', ['accountSid', 'token', 'sender', 'to', 'message']],
-  GitLabAction: ['gitlab', 'GitLab', 'work', 'gitLab', ['token', 'project', 'issueNumber', 'title', 'comment']],
-  LinearAction: ['linear', 'Linear', 'work', 'linear', ['token', 'team', 'title', 'issueKey', 'comment']],
-  ZendeskAction: ['zendesk', 'Zendesk', 'work', 'zendesk', ['siteUrl', 'email', 'token', 'ticketNumber', 'subject', 'ticketDescription', 'comment']],
-  NotionAction: ['notion', 'Notion', 'documents', 'notion', ['token', 'page', 'title', 'addedText']],
   GoogleSheetsAction: ['googleSheets', 'Google Sheets', 'documents', 'googleSheets', ['serviceAccountKey', 'spreadsheet', 'rowValues']],
   ClaudeAction: ['claude', 'Claude', 'ai', 'claude', ['apiKey', 'userInput']],
   ReadEmailAction: ['readEmail', 'Read email', 'messages', 'mail', ['hostname', 'username']],
-  SlackAction: ['slack', 'Slack', 'messages', 'slack', ['token', 'channel', 'message']],
-  HubSpotAction: ['hubspot', 'HubSpot', 'sales', 'hubSpot', ['token', 'email', 'dealName']],
-  SalesforceAction: ['salesforce', 'Salesforce', 'sales', 'salesforce', ['siteUrl', 'clientId', 'clientSecret', 'recordId', 'recordFields', 'query']],
-  PipedriveAction: ['pipedrive', 'Pipedrive', 'sales', 'tags', ['token', 'personName', 'dealTitle', 'dealId', 'note']],
   MailchimpAction: ['mailchimp', 'Mailchimp', 'sales', 'mailchimp', ['apiKey', 'audienceId', 'email', 'tagName']],
   StripeAction: ['stripe', 'Stripe', 'sales', 'stripe', ['secretKey', 'email', 'priceId', 'paymentId']],
-  ShopifyAction: ['shopify', 'Shopify', 'sales', 'shopify', ['siteUrl', 'token', 'orderNumber', 'email']],
   WooCommerceAction: ['wooCommerce', 'WooCommerce', 'sales', 'wooCommerce', ['siteUrl', 'consumerKey', 'consumerSecret', 'orderNumber', 'orderStatus', 'note', 'productId', 'stockQuantity']],
-  IntercomAction: ['intercom', 'Intercom', 'work', 'intercom', ['token', 'email', 'conversationId', 'teammateId', 'comment']],
   FreshdeskAction: ['freshdesk', 'Freshdesk', 'work', 'tags', ['siteUrl', 'apiKey', 'ticketNumber', 'email', 'subject', 'ticketDescription', 'comment']],
-  AsanaAction: ['asana', 'Asana', 'work', 'asana', ['token', 'projectId', 'taskId', 'title', 'comment']],
-  TrelloAction: ['trello', 'Trello', 'work', 'trello', ['apiKey', 'token', 'listId', 'cardId', 'title', 'comment']],
   ClickUpAction: ['clickUp', 'ClickUp', 'work', 'clickUp', ['token', 'listId', 'taskId', 'title', 'comment', 'taskStatus']],
-  MondayAction: ['monday', 'monday.com', 'work', 'monday', ['token', 'boardId', 'itemId', 'itemName', 'comment', 'columnId']],
   WhatsAppAction: ['whatsApp', 'WhatsApp', 'messages', 'whatsApp', ['token', 'phoneNumberId', 'to', 'message', 'templateName']],
-  AirtableAction: ['airtable', 'Airtable', 'documents', 'airtable', ['token', 'base', 'tableName', 'recordId', 'recordFields']],
-  SupabaseAction: ['supabase', 'Supabase', 'documents', 'supabase', ['siteUrl', 'secretKey', 'tableName', 'filter', 'rowValues']],
   GoogleDriveAction: ['googleDrive', 'Google Drive', 'documents', 'googleDrive', ['serviceAccountKey', 'fileName', 'fileId', 'folderId', 'email']],
   GoogleCalendarAction: ['googleCalendar', 'Google Calendar', 'documents', 'googleCalendar', ['serviceAccountKey', 'calendar', 'title', 'startTime', 'endTime', 'eventId']],
-  ConfluenceAction: ['confluence', 'Confluence', 'documents', 'confluence', ['siteUrl', 'email', 'token', 'spaceKey', 'pageId', 'title', 'pageContent']],
   MongoDBAction: ['mongoDB', 'MongoDB', 'connection', 'mongoDb', ['connectionString', 'database', 'collection', 'document', 'changes']],
   KafkaAction: ['kafka', 'Kafka', 'connection', 'kafka', ['servers', 'topic', 'messageBody', 'consumerGroup']],
   RabbitMQAction: ['rabbitMQ', 'RabbitMQ', 'connection', 'rabbitMq', ['hostname', 'routingKey', 'messageBody', 'queueName']],
@@ -340,9 +322,7 @@ function describeNode(node) {
     case 'browseWeb': return ['Open ', value(inlineVariables(config.url), 'a page')];
     case 'mouse': return [{ value: (config.action || 'CLICK').toLowerCase() }, ' the mouse'];
     case 'telegram': return ['Send ', value(inlineVariables(config.message), 'a message'), ' to ', value(config.chat, 'a chat')];
-    case 'discord': return ['Send ', value(inlineVariables(config.message), 'a message'), ' to Discord'];
     case 'pagerduty': return config.operation === 'resolve' ? ['Resolve ', value(inlineVariables(config.incidentKey), 'an incident')] : config.operation === 'acknowledge' ? ['Acknowledge ', value(inlineVariables(config.incidentKey), 'an incident')] : ['Open an incident: ', value(inlineVariables(config.summary), 'no summary yet')];
-    case 'github': return config.operation === 'addComment' ? ['Comment on ', value(config.repository, 'a repository'), ' #', value(inlineVariables(config.issueNumber), '?')] : config.operation === 'closeIssue' ? ['Close ', value(config.repository, 'a repository'), ' #', value(inlineVariables(config.issueNumber), '?')] : ['Create ', value(inlineVariables(config.title), 'an issue'), ' in ', value(config.repository, 'a repository')];
     case 'jira': return config.operation === 'addComment' ? ['Comment on ', value(inlineVariables(config.issueKey), 'an issue')] : ['Create ', value(inlineVariables(config.summary), 'an issue'), ' in ', value(config.project, 'a project')];
     case 'redis': return config.operation === 'set' ? ['Write ', value(config.key, 'a key')] : config.operation === 'increment' ? ['Increment ', value(config.key, 'a key')] : config.operation === 'delete' ? ['Delete ', value(config.key, 'a key')] : ['Read ', value(config.key, 'a key')];
     case 'postgres': return ['On ', value(config.database && `${config.database}@${config.hostname}`, 'a database'), ' run ', value(inlineVariables(config.command), 'a query')];
@@ -351,17 +331,16 @@ function describeNode(node) {
     case 'teams': return ['Send ', value(inlineVariables(config.message), 'a message'), ' to Teams'];
     case 'mattermost': return ['Send ', value(inlineVariables(config.message), 'a message'), ' to Mattermost'];
     case 'twilio': return ['Send SMS to ', value(inlineVariables(config.to), 'a number')];
-    case 'gitlab': return config.operation === 'addComment' ? ['Comment on ', value(config.project, 'a project'), ' #', value(inlineVariables(config.issueNumber), '?')] : config.operation === 'closeIssue' ? ['Close ', value(config.project, 'a project'), ' #', value(inlineVariables(config.issueNumber), '?')] : ['Create ', value(inlineVariables(config.title), 'an issue'), ' in ', value(config.project, 'a project')];
-    case 'linear': return config.operation === 'addComment' ? ['Comment on ', value(inlineVariables(config.issueKey), 'an issue')] : ['Create ', value(inlineVariables(config.title), 'an issue'), ' in ', value(config.team, 'a team')];
-    case 'zendesk': return config.operation === 'addComment' ? ['Comment on ticket ', value(inlineVariables(config.ticketNumber), '?')] : config.operation === 'solveTicket' ? ['Solve ticket ', value(inlineVariables(config.ticketNumber), '?')] : ['Create ', value(inlineVariables(config.subject), 'a ticket')];
-    case 'notion': return config.operation === 'addText' ? ['Add text to a page'] : ['Create ', value(inlineVariables(config.title), 'a page')];
     case 'googleSheets': return config.operation === 'addRow' ? ['Add a row to ', value(config.sheet, 'a sheet')] : ['Read the rows of ', value(config.sheet, 'a sheet')];
     case 'claude': return ['Ask Claude: ', value(inlineVariables(config.userInput), 'no prompt yet')];
     case 'readEmail': return ['Read ', value(config.folder, 'INBOX'), config.onlyUnread === false ? '' : ' (unread)'];
-    case 'slack': return ['Send ', value(inlineVariables(config.message), 'a message'), ' to ', value(config.channel, 'a channel')];
     case 'openAI': return ['Ask ', { value: config.model || 'OpenAI' }, ' ', value(readableExpression(config.userInput), 'a prompt')];
     case 'jenkins': return [{ value: config.operation || 'Call' }, ' on Jenkins'];
-    default: return [ACTIONS[node.type].description || ACTIONS[node.type].label];
+    default: {
+      const { fields, description, label } = ACTIONS[node.type];
+      const chosen = fields.find((field) => field.key === 'operation')?.options.find((option) => option.value === config.operation);
+      return [chosen?.label || description || label];
+    }
   }
 }
 

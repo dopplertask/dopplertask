@@ -1,6 +1,5 @@
 package com.dopplertask.dopplertask;
 
-import com.dopplertask.dopplertask.domain.action.integration.sales.HubSpotAction;
 import com.dopplertask.dopplertask.domain.action.integration.connection.KafkaAction;
 import com.dopplertask.dopplertask.domain.action.integration.connection.RabbitMQAction;
 import com.dopplertask.dopplertask.domain.action.integration.connection.MqttAction;
@@ -21,24 +20,14 @@ import com.dopplertask.dopplertask.domain.action.integration.storage.OneDriveAct
 import com.dopplertask.dopplertask.domain.action.integration.mail.OutlookAction;
 import com.dopplertask.dopplertask.domain.action.integration.mail.SendGridAction;
 import com.dopplertask.dopplertask.domain.action.integration.commerce.PayPalAction;
-import com.dopplertask.dopplertask.domain.action.integration.sales.SalesforceAction;
-import com.dopplertask.dopplertask.domain.action.integration.sales.PipedriveAction;
 import com.dopplertask.dopplertask.domain.action.integration.sales.MailchimpAction;
 import com.dopplertask.dopplertask.domain.action.integration.commerce.StripeAction;
-import com.dopplertask.dopplertask.domain.action.integration.commerce.ShopifyAction;
 import com.dopplertask.dopplertask.domain.action.integration.commerce.WooCommerceAction;
-import com.dopplertask.dopplertask.domain.action.integration.code.IntercomAction;
 import com.dopplertask.dopplertask.domain.action.integration.code.FreshdeskAction;
-import com.dopplertask.dopplertask.domain.action.integration.code.AsanaAction;
-import com.dopplertask.dopplertask.domain.action.integration.code.TrelloAction;
 import com.dopplertask.dopplertask.domain.action.integration.code.ClickUpAction;
-import com.dopplertask.dopplertask.domain.action.integration.code.MondayAction;
 import com.dopplertask.dopplertask.domain.action.integration.chat.WhatsAppAction;
-import com.dopplertask.dopplertask.domain.action.integration.storage.AirtableAction;
-import com.dopplertask.dopplertask.domain.action.integration.storage.SupabaseAction;
 import com.dopplertask.dopplertask.domain.action.integration.storage.GoogleDriveAction;
 import com.dopplertask.dopplertask.domain.action.integration.storage.GoogleCalendarAction;
-import com.dopplertask.dopplertask.domain.action.integration.storage.ConfluenceAction;
 import com.dopplertask.dopplertask.domain.action.integration.connection.MongoDBAction;
 import com.dopplertask.dopplertask.domain.ActionResult;
 import com.dopplertask.dopplertask.domain.StatusCode;
@@ -49,10 +38,7 @@ import com.dopplertask.dopplertask.domain.TaskExecutionStep;
 import com.dopplertask.dopplertask.domain.action.connection.PostgresAction;
 import com.dopplertask.dopplertask.domain.action.connection.RedisAction;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
-import com.dopplertask.dopplertask.domain.action.integration.chat.DiscordAction;
-import com.dopplertask.dopplertask.domain.action.integration.code.GitHubAction;
 import com.dopplertask.dopplertask.domain.action.integration.code.JiraAction;
-import com.dopplertask.dopplertask.domain.action.integration.chat.SlackAction;
 import com.dopplertask.dopplertask.domain.action.integration.chat.TelegramAction;
 import com.dopplertask.dopplertask.domain.action.integration.incident.PagerDutyAction;
 import com.dopplertask.dopplertask.service.TaskServiceImpl;
@@ -76,12 +62,8 @@ import com.dopplertask.dopplertask.domain.action.integration.openai.OpenAIAction
 import com.dopplertask.dopplertask.domain.action.integration.chat.MattermostAction;
 import com.dopplertask.dopplertask.domain.action.integration.chat.TeamsAction;
 import com.dopplertask.dopplertask.domain.action.integration.chat.TwilioAction;
-import com.dopplertask.dopplertask.domain.action.integration.code.GitLabAction;
-import com.dopplertask.dopplertask.domain.action.integration.code.LinearAction;
-import com.dopplertask.dopplertask.domain.action.integration.code.ZendeskAction;
 import com.dopplertask.dopplertask.domain.action.integration.mail.ReadEmailAction;
 import com.dopplertask.dopplertask.domain.action.integration.storage.GoogleSheetsAction;
-import com.dopplertask.dopplertask.domain.action.integration.storage.NotionAction;
 import com.icegreen.greenmail.util.GreenMailUtil;
 import com.nimbusds.jose.JWSObject;
 import com.nimbusds.jose.crypto.RSASSAVerifier;
@@ -172,60 +154,13 @@ public class IntegrationActionsTest {
         return action.run(new TaskServiceImpl(), new TaskExecution(), new VariableExtractorUtil(new VelocityEngine()), null);
     }
 
-    private SlackAction slack() {
-        SlackAction slack = new SlackAction();
-        slack.setBaseUrl(baseUrl);
-        slack.setToken("xoxb-test");
-        slack.setChannel("#deploys");
-        slack.setMessage("Deployed");
-        return slack;
-    }
-
-    @Test
-    public void testSlackSendsTheMessageAndGivesItsTimeStampSuccess() throws IOException {
-        answerBody = "{\"ok\":true,\"ts\":\"1700.5\"}";
-        SlackAction slack = slack();
-        slack.setReplyToMessageId("1600.1");
-        ActionResult result = run(slack);
-
-        Assert.assertEquals(StatusCode.SUCCESS, result.getStatusCode());
-        Assert.assertEquals("/chat.postMessage", path);
-        Assert.assertEquals("POST", method);
-        Assert.assertEquals("Bearer xoxb-test", authorization);
-        Assert.assertEquals("#deploys", received.path("channel").asText());
-        Assert.assertEquals("Deployed", received.path("text").asText());
-        Assert.assertEquals("1600.1", received.path("thread_ts").asText());
-        Assert.assertEquals("1700.5", result.getOutputVariables().get("messageId"));
-    }
-
-    @Test
-    public void testSlackReportsARefusalThatComesWithStatus200Fail() throws IOException {
-        answerBody = "{\"ok\":false,\"error\":\"channel_not_found\"}";
-        ActionResult result = run(slack());
-        Assert.assertEquals(StatusCode.FAILURE, result.getStatusCode());
-        Assert.assertEquals("Slack refused the message: channel_not_found.", result.getErrorMsg());
-    }
-
     @Test
     public void testAServiceErrorNamesTheServiceAndItsReasonFail() throws IOException {
         answerStatus = 429;
         answerBody = "{\"error\":\"ratelimited\"}";
-        ActionResult result = run(slack());
+        ActionResult result = run(telegram());
         Assert.assertEquals(StatusCode.FAILURE, result.getStatusCode());
-        Assert.assertEquals("Slack answered with status 429: ratelimited.", result.getErrorMsg());
-    }
-
-    @Test
-    public void testSlackSaysWhatIsMissingFail() throws IOException {
-        SlackAction slack = slack();
-        slack.setToken("");
-        Assert.assertTrue(run(slack).getErrorMsg().contains("bot token"));
-        slack = slack();
-        slack.setChannel("");
-        Assert.assertTrue(run(slack).getErrorMsg().contains("channel"));
-        slack = slack();
-        slack.setMessage("");
-        Assert.assertTrue(run(slack).getErrorMsg().contains("message"));
+        Assert.assertEquals("Telegram answered with status 429: ratelimited.", result.getErrorMsg());
     }
 
     @Test
@@ -234,9 +169,9 @@ public class IntegrationActionsTest {
         TaskExecution execution = new TaskExecution();
         com.dopplertask.dopplertask.domain.ExecutionParameter parameter = new com.dopplertask.dopplertask.domain.ExecutionParameter("text", "#set($x = 1)$x \"quoted\"".getBytes(StandardCharsets.UTF_8), false);
         execution.getParameters().put("text", parameter);
-        SlackAction slack = slack();
-        slack.setMessage("$parameters.get('text')");
-        slack.run(new TaskServiceImpl(), execution, new VariableExtractorUtil(new VelocityEngine()), null);
+        TelegramAction telegram = telegram();
+        telegram.setMessage("$parameters.get('text')");
+        telegram.run(new TaskServiceImpl(), execution, new VariableExtractorUtil(new VelocityEngine()), null);
         Assert.assertEquals("#set($x = 1)$x \"quoted\"", received.path("text").asText());
     }
 
@@ -275,39 +210,6 @@ public class IntegrationActionsTest {
         Assert.assertNull(path);
     }
 
-
-    private DiscordAction discord() {
-        DiscordAction discord = new DiscordAction();
-        discord.setWebhookUrl(baseUrl + "/api/webhooks/1/secret");
-        discord.setMessage("Disk is full");
-        return discord;
-    }
-
-    @Test
-    public void testDiscordSendsTheMessageAndGivesItsIdSuccess() throws IOException {
-        answerBody = "{\"id\":\"99\",\"content\":\"Disk is full\"}";
-        ActionResult result = run(discord());
-        Assert.assertEquals(StatusCode.SUCCESS, result.getStatusCode());
-        Assert.assertEquals("/api/webhooks/1/secret", path);
-        Assert.assertEquals("wait=true", query);
-        Assert.assertEquals("Disk is full", received.path("content").asText());
-        Assert.assertEquals("99", result.getOutputVariables().get("messageId"));
-    }
-
-    @Test
-    public void testDiscordGivesTheReasonFromItsAnswerFail() throws IOException {
-        answerStatus = 404;
-        answerBody = "{\"message\":\"Unknown Webhook\",\"code\":10015}";
-        Assert.assertEquals("Discord answered with status 404: Unknown Webhook.", run(discord()).getErrorMsg());
-    }
-
-    @Test
-    public void testDiscordRefusesTooLongAMessageBeforeSendingFail() throws IOException {
-        DiscordAction discord = discord();
-        discord.setMessage("x".repeat(2001));
-        Assert.assertTrue(run(discord).getErrorMsg().contains("2000"));
-        Assert.assertNull(path);
-    }
 
     private PagerDutyAction pagerDuty() {
         PagerDutyAction pagerDuty = new PagerDutyAction();
@@ -359,64 +261,6 @@ public class IntegrationActionsTest {
         pagerDuty.setOperation("resolve");
         Assert.assertTrue(run(pagerDuty).getErrorMsg().contains("incident key"));
         Assert.assertNull(path);
-    }
-
-    private GitHubAction gitHub() {
-        GitHubAction gitHub = new GitHubAction();
-        gitHub.setBaseUrl(baseUrl);
-        gitHub.setToken("ghp");
-        gitHub.setRepository("acme/site");
-        gitHub.setTitle("Disk is full");
-        gitHub.setIssueDescription("On web-1");
-        gitHub.setComment("Looking at it");
-        return gitHub;
-    }
-
-    @Test
-    public void testGitHubCreatesAnIssueAndGivesItsNumberSuccess() throws IOException {
-        answerStatus = 201;
-        answerBody = "{\"number\":7,\"html_url\":\"https://github.com/acme/site/issues/7\"}";
-        ActionResult result = run(gitHub());
-        Assert.assertEquals(StatusCode.SUCCESS, result.getStatusCode());
-        Assert.assertEquals("/repos/acme/site/issues", path);
-        Assert.assertEquals("Bearer ghp", authorization);
-        Assert.assertEquals("Disk is full", received.path("title").asText());
-        Assert.assertEquals("On web-1", received.path("body").asText());
-        Assert.assertEquals(7L, result.getOutputVariables().get("issueNumber"));
-        Assert.assertEquals("https://github.com/acme/site/issues/7", result.getOutputVariables().get("url"));
-    }
-
-    @Test
-    public void testGitHubCommentsAndClosesOnTheIssueSuccess() throws IOException {
-        GitHubAction gitHub = gitHub();
-        gitHub.setIssueNumber("7");
-        gitHub.setOperation("addComment");
-        Assert.assertEquals(StatusCode.SUCCESS, run(gitHub).getStatusCode());
-        Assert.assertEquals("/repos/acme/site/issues/7/comments", path);
-        gitHub.setOperation("closeIssue");
-        Assert.assertEquals(StatusCode.SUCCESS, run(gitHub).getStatusCode());
-        Assert.assertEquals("PATCH", method);
-        Assert.assertEquals("/repos/acme/site/issues/7", path);
-        Assert.assertEquals("closed", received.path("state").asText());
-    }
-
-    @Test
-    public void testGitHubSaysWhatIsWrongBeforeSendingFail() throws IOException {
-        GitHubAction gitHub = gitHub();
-        gitHub.setRepository("site");
-        Assert.assertTrue(run(gitHub).getErrorMsg().contains("owner/name"));
-        gitHub.setRepository("acme/site");
-        gitHub.setOperation("closeIssue");
-        gitHub.setIssueNumber("seven");
-        Assert.assertTrue(run(gitHub).getErrorMsg().contains("number of the issue"));
-        Assert.assertNull(path);
-    }
-
-    @Test
-    public void testGitHubGivesItsOwnReasonFail() throws IOException {
-        answerStatus = 404;
-        answerBody = "{\"message\":\"Not Found\"}";
-        Assert.assertEquals("GitHub answered with status 404: Not Found.", run(gitHub()).getErrorMsg());
     }
 
     @Test
@@ -550,9 +394,9 @@ public class IntegrationActionsTest {
     @Test
     public void testARunKeepsOnlyWhatAStepDeclaresSoCookiesAreNotStoredSuccess() {
         TaskExecutionStep step = new TaskExecutionStep();
-        step.keepOutputs(new GitHubAction().getOutputs().keySet(), Map.of("issueNumber", 7, "set-cookie", List.of("session=secret")));
-        Assert.assertEquals(Map.of("issueNumber", 7), step.getOutputVariables());
-        Assert.assertEquals(Map.of("issueNumber", 7), step.copyTo(new TaskExecution()).getOutputVariables());
+        step.keepOutputs(new TelegramAction().getOutputs().keySet(), Map.of("messageId", 7, "set-cookie", List.of("session=secret")));
+        Assert.assertEquals(Map.of("messageId", 7), step.getOutputVariables());
+        Assert.assertEquals(Map.of("messageId", 7), step.copyTo(new TaskExecution()).getOutputVariables());
         Assert.assertEquals(Map.of(), new TaskExecutionStep().getOutputVariables());
     }
 
@@ -708,146 +552,6 @@ public class IntegrationActionsTest {
         twilio.setTo("0701234567");
         Assert.assertTrue(run(twilio).getErrorMsg().contains("country code"));
         Assert.assertNull(path);
-    }
-
-    private GitLabAction gitLab() {
-        GitLabAction gitLab = new GitLabAction();
-        gitLab.setBaseUrl(baseUrl);
-        gitLab.setToken("glpat");
-        gitLab.setProject("acme/site");
-        gitLab.setTitle("Disk is full");
-        gitLab.setIssueDescription("On web-1");
-        gitLab.setComment("Looking at it");
-        gitLab.setIssueNumber("7");
-        return gitLab;
-    }
-
-    @Test
-    public void testGitLabCreatesCommentsAndClosesOnAnEncodedProjectSuccess() throws IOException {
-        answerStatus = 201;
-        answerBody = "{\"iid\":7}";
-        GitLabAction gitLab = gitLab();
-        ActionResult created = run(gitLab);
-        Assert.assertEquals("/api/v4/projects/acme%2Fsite/issues", rawPath);
-        Assert.assertEquals("glpat", requestHeaders.get("private-token"));
-        Assert.assertEquals("On web-1", received.path("description").asText());
-        Assert.assertEquals("7", created.getOutputVariables().get("issueNumber"));
-        Assert.assertEquals(baseUrl + "/acme/site/-/issues/7", created.getOutputVariables().get("url"));
-
-        gitLab.setOperation("addComment");
-        run(gitLab);
-        Assert.assertEquals("/api/v4/projects/acme%2Fsite/issues/7/notes", rawPath);
-        Assert.assertEquals("Looking at it", received.path("body").asText());
-
-        gitLab.setOperation("closeIssue");
-        answerStatus = 200;
-        run(gitLab);
-        Assert.assertEquals("PUT", method);
-        Assert.assertEquals("close", received.path("state_event").asText());
-    }
-
-    private LinearAction linear() {
-        LinearAction linear = new LinearAction();
-        linear.setBaseUrl(baseUrl);
-        linear.setToken("lin");
-        linear.setTeam("ENG");
-        linear.setTitle("Disk is full");
-        return linear;
-    }
-
-    @Test
-    public void testLinearFindsTheTeamByItsKeyThenCreatesSuccess() throws IOException {
-        answersByRequest.put("teams(filter", "{\"data\":{\"teams\":{\"nodes\":[{\"id\":\"team-uuid\"}]}}}");
-        answersByRequest.put("issueCreate", "{\"data\":{\"issueCreate\":{\"issue\":{\"identifier\":\"ENG-12\",\"url\":\"https://linear.app/i/ENG-12\"}}}}");
-        ActionResult result = run(linear());
-        Assert.assertEquals("lin", authorization);
-        Assert.assertEquals(2, requests.size());
-        Assert.assertEquals("team-uuid", received.path("variables").path("input").path("teamId").asText());
-        Assert.assertEquals("ENG-12", result.getOutputVariables().get("issueKey"));
-        Assert.assertEquals("https://linear.app/i/ENG-12", result.getOutputVariables().get("url"));
-    }
-
-    @Test
-    public void testLinearSaysWhenATeamIsMissingAndReadsErrorsWithStatus200Fail() throws IOException {
-        answerBody = "{\"data\":{\"teams\":{\"nodes\":[]}}}";
-        Assert.assertEquals("Linear has no team with the key \"ENG\".", run(linear()).getErrorMsg());
-        answerBody = "{\"errors\":[{\"message\":\"Authentication required.\"}]}";
-        Assert.assertEquals("Linear refused: Authentication required.", run(linear()).getErrorMsg());
-    }
-
-    @Test
-    public void testLinearCommentsOnTheIssueItFoundByKeySuccess() throws IOException {
-        answersByRequest.put("issue(id", "{\"data\":{\"issue\":{\"id\":\"issue-uuid\",\"url\":\"u\"}}}");
-        answersByRequest.put("commentCreate", "{\"data\":{\"commentCreate\":{\"success\":true}}}");
-        LinearAction linear = linear();
-        linear.setOperation("addComment");
-        linear.setIssueKey("ENG-12");
-        linear.setComment("Looking at it");
-        ActionResult result = run(linear);
-        Assert.assertEquals("issue-uuid", received.path("variables").path("input").path("issueId").asText());
-        Assert.assertEquals("ENG-12", result.getOutputVariables().get("issueKey"));
-    }
-
-    private ZendeskAction zendesk() {
-        ZendeskAction zendesk = new ZendeskAction();
-        zendesk.setSiteUrl(baseUrl);
-        zendesk.setEmail("a@b.se");
-        zendesk.setToken("tok");
-        zendesk.setSubject("Printer");
-        zendesk.setTicketDescription("It is broken");
-        zendesk.setComment("Looking at it");
-        zendesk.setTicketNumber("35");
-        return zendesk;
-    }
-
-    @Test
-    public void testZendeskCreatesASignedInTicketSuccess() throws IOException {
-        answerStatus = 201;
-        answerBody = "{\"ticket\":{\"id\":35}}";
-        ActionResult result = run(zendesk());
-        Assert.assertEquals("/api/v2/tickets.json", path);
-        Assert.assertEquals("Basic " + Base64.getEncoder().encodeToString("a@b.se/token:tok".getBytes(StandardCharsets.UTF_8)), authorization);
-        Assert.assertEquals("It is broken", received.path("ticket").path("comment").path("body").asText());
-        Assert.assertEquals("35", result.getOutputVariables().get("ticketNumber"));
-    }
-
-    @Test
-    public void testZendeskCommentIsHiddenFromTheCustomerUnlessAskedForSuccess() throws IOException {
-        ZendeskAction zendesk = zendesk();
-        zendesk.setOperation("addComment");
-        run(zendesk);
-        Assert.assertEquals("/api/v2/tickets/35.json", path);
-        Assert.assertFalse(received.path("ticket").path("comment").path("public").asBoolean(true));
-        zendesk.setVisibleToCustomer("true");
-        run(zendesk);
-        Assert.assertTrue(received.path("ticket").path("comment").path("public").asBoolean(false));
-        zendesk.setOperation("solveTicket");
-        run(zendesk);
-        Assert.assertEquals("solved", received.path("ticket").path("status").asText());
-    }
-
-    @Test
-    public void testNotionTakesTheAddressOfAPageAndSplitsLongTextSuccess() throws IOException {
-        NotionAction notion = new NotionAction();
-        notion.setBaseUrl(baseUrl);
-        notion.setToken("ntn");
-        notion.setPage("https://www.notion.so/acme/Reports-1429989fe8ac4effbc8f57f56486db54?pvs=4");
-        notion.setTitle("Today");
-        notion.setContent("First\n\n" + "x".repeat(2001));
-        answerBody = "{\"id\":\"new\",\"url\":\"https://notion.so/new\"}";
-        ActionResult created = run(notion);
-        Assert.assertEquals("/v1/pages", path);
-        Assert.assertEquals("2022-06-28", requestHeaders.get("notion-version"));
-        Assert.assertEquals("1429989fe8ac4effbc8f57f56486db54", received.path("parent").path("page_id").asText());
-        Assert.assertEquals("Today", received.path("properties").path("title").path("title").path(0).path("text").path("content").asText());
-        Assert.assertEquals(3, received.path("children").size());
-        Assert.assertEquals("new", created.getOutputVariables().get("pageId"));
-
-        notion.setOperation("addText");
-        notion.setAddedText("More");
-        run(notion);
-        Assert.assertEquals("PATCH", method);
-        Assert.assertEquals("/v1/blocks/1429989fe8ac4effbc8f57f56486db54/children", path);
     }
 
     private KeyPair sheetsKeys;
@@ -1121,117 +825,6 @@ public class IntegrationActionsTest {
     }
 
     @Test
-    public void testHubSpotSavesAContactByEmailAndFindsItSuccess() throws IOException {
-        HubSpotAction hubspot = new HubSpotAction();
-        hubspot.setBaseUrl(baseUrl);
-        hubspot.setToken("tok");
-        hubspot.setEmail("ada@example.com");
-        hubspot.setFirstName("Ada");
-        answerBody = "{\"results\":[{\"id\":\"51\"}]}";
-        ActionResult saved = run(hubspot);
-        assertSucceeded(saved);
-        Assert.assertEquals("/crm/objects/2026-09/contacts/batch/upsert", path);
-        Assert.assertEquals("Bearer tok", authorization);
-        Assert.assertEquals("email", received.path("inputs").path(0).path("idProperty").asText());
-        Assert.assertEquals("Ada", received.path("inputs").path(0).path("properties").path("firstname").asText());
-        Assert.assertTrue(received.path("inputs").path(0).path("properties").path("lastname").isMissingNode());
-        Assert.assertEquals("51", saved.getOutputVariables().get("contactId"));
-        hubspot.setOperation("findContact");
-        answerBody = "{\"results\":[]}";
-        ActionResult missing = run(hubspot);
-        assertSucceeded(missing);
-        Assert.assertEquals(false, missing.getOutputVariables().get("found"));
-    }
-
-    @Test
-    public void testHubSpotCreatesADealAndNeedsAToken() throws IOException {
-        HubSpotAction hubspot = new HubSpotAction();
-        hubspot.setBaseUrl(baseUrl);
-        hubspot.setOperation("createDeal");
-        hubspot.setDealName("Big one");
-        assertFailsWith(hubspot, "access token");
-        hubspot.setToken("tok");
-        answerBody = "{\"id\":\"7\"}";
-        ActionResult created = run(hubspot);
-        Assert.assertEquals("Big one", received.path("properties").path("dealname").asText());
-        Assert.assertEquals("7", created.getOutputVariables().get("dealId"));
-    }
-
-    private SalesforceAction salesforce() {
-        SalesforceAction salesforce = new SalesforceAction();
-        salesforce.setSiteUrl(baseUrl);
-        salesforce.setClientId("key");
-        salesforce.setClientSecret("secret");
-        answersByRequest.put("/services/oauth2/token", "{\"access_token\":\"sf\"}");
-        return salesforce;
-    }
-
-    @Test
-    public void testSalesforceSignsInAndCreatesARecordSuccess() throws IOException {
-        SalesforceAction salesforce = salesforce();
-        salesforce.setRecordFields("{\"LastName\": \"Lovelace\"}");
-        answerBody = "{\"id\":\"003\"}";
-        ActionResult created = run(salesforce);
-        assertSucceeded(created);
-        Assert.assertEquals(List.of("/services/oauth2/token", "/services/data/v68.0/sobjects/Contact"), requests);
-        Assert.assertEquals("Bearer sf", authorization);
-        Assert.assertEquals("Lovelace", received.path("LastName").asText());
-        Assert.assertEquals("003", created.getOutputVariables().get("recordId"));
-        Assert.assertEquals(baseUrl + "/003", created.getOutputVariables().get("url"));
-    }
-
-    @Test
-    public void testSalesforceRunsAQueryAndGivesItsReasonWhenRefusedSuccess() throws IOException {
-        SalesforceAction salesforce = salesforce();
-        salesforce.setOperation("runQuery");
-        salesforce.setQuery("SELECT Id FROM Contact");
-        answerBody = "{\"totalSize\":2,\"records\":[]}";
-        ActionResult found = run(salesforce);
-        Assert.assertEquals("q=SELECT Id FROM Contact", query);
-        Assert.assertEquals(2, found.getOutputVariables().get("recordCount"));
-        answerStatus = 400;
-        answerBody = "[{\"message\":\"unexpected token\",\"errorCode\":\"MALFORMED_QUERY\"}]";
-        answersByRequest.clear();
-        assertFailsWith(salesforce, "unexpected token");
-    }
-
-    @Test
-    public void testSalesforceRefusesFieldsThatAreNotJsonFailure() throws IOException {
-        SalesforceAction salesforce = salesforce();
-        salesforce.setRecordFields("LastName: Lovelace");
-        assertFailsWith(salesforce, "JSON object");
-        Assert.assertTrue(requests.isEmpty());
-    }
-
-    @Test
-    public void testPipedriveCreatesAPersonADealAndANoteSuccess() throws IOException {
-        PipedriveAction pipedrive = new PipedriveAction();
-        pipedrive.setSiteUrl(baseUrl);
-        pipedrive.setToken("tok");
-        pipedrive.setPersonName("Ada");
-        pipedrive.setEmail("ada@example.com");
-        answerBody = "{\"data\":{\"id\":9}}";
-        ActionResult person = run(pipedrive);
-        Assert.assertEquals("/api/v2/persons", path);
-        Assert.assertEquals("tok", requestHeaders.get("x-api-token"));
-        Assert.assertEquals("ada@example.com", received.path("emails").path(0).path("value").asText());
-        Assert.assertEquals("9", person.getOutputVariables().get("personId"));
-        pipedrive.setOperation("createDeal");
-        pipedrive.setDealTitle("Big one");
-        pipedrive.setDealValue("12.5");
-        pipedrive.setPersonId("9");
-        run(pipedrive);
-        Assert.assertEquals(12.5, received.path("value").asDouble(), 0);
-        Assert.assertEquals(9, received.path("person_id").asInt());
-        pipedrive.setOperation("addNote");
-        pipedrive.setDealId("3");
-        pipedrive.setNote("Called");
-        assertSucceeded(run(pipedrive));
-        Assert.assertEquals("/api/v1/notes", path);
-        Assert.assertEquals(3, received.path("deal_id").asInt());
-    }
-
-    @Test
     public void testMailchimpFindsTheContactByTheHashOfItsLowercaseEmailSuccess() throws IOException {
         MailchimpAction mailchimp = new MailchimpAction();
         mailchimp.setBaseUrl(baseUrl);
@@ -1273,35 +866,6 @@ public class IntegrationActionsTest {
     }
 
     @Test
-    public void testShopifyFindsAnOrderByItsNumberBeforeCancellingItSuccess() throws IOException {
-        ShopifyAction shopify = new ShopifyAction();
-        shopify.setSiteUrl(baseUrl);
-        shopify.setToken("shpat");
-        shopify.setOperation("cancelOrder");
-        shopify.setOrderNumber("#1001");
-        answerBody = "{\"orders\":[{\"id\":450789}]}";
-        ActionResult cancelled = run(shopify);
-        assertSucceeded(cancelled);
-        Assert.assertEquals(List.of("/admin/api/2026-10/orders.json", "/admin/api/2026-10/orders/450789/cancel.json"), requests);
-        Assert.assertEquals("shpat", requestHeaders.get("x-shopify-access-token"));
-        Assert.assertEquals("450789", cancelled.getOutputVariables().get("orderId"));
-    }
-
-    @Test
-    public void testShopifyAsksForATokenWithAClientIdAndSaysWhenAnOrderIsMissingFailure() throws IOException {
-        ShopifyAction shopify = new ShopifyAction();
-        shopify.setSiteUrl(baseUrl);
-        shopify.setOrderNumber("1001");
-        assertFailsWith(shopify, "client ID");
-        shopify.setClientId("id");
-        shopify.setClientSecret("secret");
-        answersByRequest.put("/admin/oauth/access_token", "{\"access_token\":\"short\"}");
-        answerBody = "{\"orders\":[]}";
-        assertFailsWith(shopify, "no order with the number");
-        Assert.assertEquals("short", requestHeaders.get("x-shopify-access-token"));
-    }
-
-    @Test
     public void testWooCommerceNoteIsOnlyForTheShopUnlessAskedForSuccess() throws IOException {
         WooCommerceAction shop = new WooCommerceAction();
         shop.setSiteUrl(baseUrl);
@@ -1321,24 +885,6 @@ public class IntegrationActionsTest {
         Assert.assertEquals("/wp-json/wc/v3/products/8", path);
         Assert.assertEquals(40, received.path("stock_quantity").asInt());
         Assert.assertTrue(received.path("manage_stock").asBoolean());
-    }
-
-    @Test
-    public void testIntercomReplyIsANoteUnlessAskedForSuccess() throws IOException {
-        IntercomAction intercom = new IntercomAction();
-        intercom.setBaseUrl(baseUrl);
-        intercom.setToken("tok");
-        intercom.setOperation("replyToConversation");
-        intercom.setConversationId("77");
-        intercom.setTeammateId("5");
-        intercom.setComment("Looking at it");
-        assertSucceeded(run(intercom));
-        Assert.assertEquals("/conversations/77/reply", path);
-        Assert.assertEquals("note", received.path("message_type").asText());
-        Assert.assertEquals("2.17", requestHeaders.get("intercom-version"));
-        intercom.setVisibleToCustomer("true");
-        assertSucceeded(run(intercom));
-        Assert.assertEquals("comment", received.path("message_type").asText());
     }
 
     @Test
@@ -1390,42 +936,6 @@ public class IntegrationActionsTest {
     }
 
     @Test
-    public void testAsanaAsksForTheAddressOfTheTaskItCreatesSuccess() throws IOException {
-        AsanaAction asana = new AsanaAction();
-        asana.setBaseUrl(baseUrl);
-        asana.setToken("tok");
-        asana.setProjectId("12");
-        asana.setTitle("Call Ada");
-        answerBody = "{\"data\":{\"gid\":\"99\",\"permalink_url\":\"https://app.asana.com/99\"}}";
-        ActionResult created = run(asana);
-        Assert.assertEquals("/api/1.0/tasks", path);
-        Assert.assertEquals("opt_fields=permalink_url", query);
-        Assert.assertEquals("12", received.path("data").path("projects").path(0).asText());
-        Assert.assertEquals("99", created.getOutputVariables().get("taskId"));
-        Assert.assertEquals("https://app.asana.com/99", created.getOutputVariables().get("url"));
-    }
-
-    @Test
-    public void testTrelloKeepsItsKeysOutOfTheAddressSuccess() throws IOException {
-        TrelloAction trello = new TrelloAction();
-        trello.setBaseUrl(baseUrl);
-        trello.setApiKey("key");
-        trello.setToken("tok");
-        trello.setOperation("addComment");
-        trello.setCardId("abc");
-        trello.setComment("Done & dusted");
-        assertSucceeded(run(trello));
-        Assert.assertEquals("/1/cards/abc/actions/comments", path);
-        Assert.assertEquals("text=Done & dusted", query);
-        Assert.assertEquals("OAuth oauth_consumer_key=\"key\", oauth_token=\"tok\"", authorization);
-        trello.setOperation("moveCard");
-        trello.setListId("list2");
-        assertSucceeded(run(trello));
-        Assert.assertEquals("PUT", method);
-        Assert.assertEquals("idList=list2", query);
-    }
-
-    @Test
     public void testClickUpSaysWhetherToNotifyEveryoneOfACommentSuccess() throws IOException {
         ClickUpAction clickUp = new ClickUpAction();
         clickUp.setBaseUrl(baseUrl);
@@ -1437,68 +947,6 @@ public class IntegrationActionsTest {
         Assert.assertEquals("/api/v2/task/86a/comment", path);
         Assert.assertEquals("pk_1", authorization);
         Assert.assertFalse(received.path("notify_all").asBoolean(true));
-    }
-
-    @Test
-    public void testMondayGivesTheReasonEvenWhenItAnswersWithSuccess() throws IOException {
-        MondayAction monday = new MondayAction();
-        monday.setBaseUrl(baseUrl);
-        monday.setToken("tok");
-        monday.setBoardId("1");
-        monday.setItemName("Call Ada");
-        answerBody = "{\"data\":{\"create_item\":{\"id\":\"44\"}}}";
-        ActionResult created = run(monday);
-        assertSucceeded(created);
-        Assert.assertEquals("/v2", path);
-        Assert.assertEquals("2026-10", requestHeaders.get("api-version"));
-        Assert.assertEquals("{}", received.path("variables").path("columns").asText());
-        Assert.assertEquals("44", created.getOutputVariables().get("itemId"));
-        answerBody = "{\"errors\":[{\"message\":\"Board not found\"}]}";
-        assertFailsWith(monday, "Board not found");
-    }
-
-    @Test
-    public void testAirtableTakesTheAddressOfABaseAndFiltersSuccess() throws IOException {
-        AirtableAction airtable = new AirtableAction();
-        airtable.setBaseUrl(baseUrl);
-        airtable.setToken("pat");
-        airtable.setBase("https://airtable.com/appAbC123/tblX/viwY");
-        airtable.setTableName("My customers");
-        airtable.setFilterFormula("{Status} = \"Open\"");
-        answerBody = "{\"records\":[{\"id\":\"rec1\"}]}";
-        ActionResult read = run(airtable);
-        Assert.assertEquals("/v0/appAbC123/My%20customers", rawPath);
-        Assert.assertEquals("maxRecords=100&filterByFormula={Status} = \"Open\"", query);
-        Assert.assertEquals(1, read.getOutputVariables().get("recordCount"));
-        airtable.setOperation("addRecord");
-        airtable.setRecordFields("{\"Name\": \"Ada\"}");
-        answerBody = "{\"id\":\"rec2\"}";
-        ActionResult added = run(airtable);
-        Assert.assertEquals("Ada", received.path("fields").path("Name").asText());
-        Assert.assertEquals("rec2", added.getOutputVariables().get("recordId"));
-    }
-
-    @Test
-    public void testSupabaseNeedsAFilterToUpdateAndSendsTheKeyTheRightWaySuccess() throws IOException {
-        SupabaseAction supabase = new SupabaseAction();
-        supabase.setSiteUrl(baseUrl);
-        supabase.setSecretKey("sb_secret_1");
-        supabase.setTableName("orders");
-        supabase.setOperation("updateRows");
-        supabase.setRowValues("{\"status\": \"done\"}");
-        assertFailsWith(supabase, "filter");
-        supabase.setFilter("id=eq.5");
-        answerBody = "[{\"id\":5}]";
-        ActionResult updated = run(supabase);
-        assertSucceeded(updated);
-        Assert.assertEquals("/rest/v1/orders", path);
-        Assert.assertEquals("id=eq.5", query);
-        Assert.assertEquals("sb_secret_1", requestHeaders.get("apikey"));
-        Assert.assertNull(authorization);
-        Assert.assertEquals(1, updated.getOutputVariables().get("rowCount"));
-        supabase.setSecretKey("eyJservice");
-        run(supabase);
-        Assert.assertEquals("Bearer eyJservice", authorization);
     }
 
     private String googleKeyFile() throws Exception {
@@ -1551,32 +999,6 @@ public class IntegrationActionsTest {
     }
 
     @Test
-    public void testConfluenceFindsTheSpaceAndUpdatesToTheNextVersionSuccess() throws IOException {
-        ConfluenceAction confluence = new ConfluenceAction();
-        confluence.setSiteUrl(baseUrl);
-        confluence.setEmail("a@b.se");
-        confluence.setToken("tok");
-        confluence.setSpaceKey("ENG");
-        confluence.setTitle("Plan");
-        confluence.setPageContent("<p>Hello</p>");
-        answersByRequest.put("/wiki/api/v2/spaces", "{\"results\":[{\"id\":\"42\"}]}");
-        answerBody = "{\"id\":\"900\",\"title\":\"Old\",\"version\":{\"number\":3},\"_links\":{\"webui\":\"/spaces/ENG/pages/900\"}}";
-        ActionResult created = run(confluence);
-        assertSucceeded(created);
-        Assert.assertEquals("42", received.path("spaceId").asText());
-        Assert.assertEquals("storage", received.path("body").path("representation").asText());
-        Assert.assertEquals(basicOf("a@b.se:tok"), authorization);
-        Assert.assertEquals(baseUrl + "/wiki/spaces/ENG/pages/900", created.getOutputVariables().get("url"));
-        confluence.setOperation("updatePage");
-        confluence.setPageId("900");
-        confluence.setTitle("");
-        assertSucceeded(run(confluence));
-        Assert.assertEquals("PUT", method);
-        Assert.assertEquals(4, received.path("version").path("number").asInt());
-        Assert.assertEquals("Old", received.path("title").asText());
-    }
-
-    @Test
     public void testMongoDBRefusesToChangeEverythingWithoutBeingToldFailure() throws IOException {
         MongoDBAction mongo = new MongoDBAction();
         mongo.setConnectionString("mongodb://localhost:1");
@@ -1586,38 +1008,6 @@ public class IntegrationActionsTest {
         assertFailsWith(mongo, "filter");
         mongo.setOperation("addDocument");
         assertFailsWith(mongo, "document");
-    }
-
-    @Test
-    public void testHubSpotCreatesADealWithWhatItsApiRequiresSuccess() throws IOException {
-        HubSpotAction hubspot = new HubSpotAction();
-        hubspot.setBaseUrl(baseUrl);
-        hubspot.setToken("pat");
-        hubspot.setOperation("createDeal");
-        hubspot.setDealName("Big order");
-        assertSucceeded(run(hubspot));
-        Assert.assertEquals("/crm/objects/2026-09/0-3", path);
-        Assert.assertTrue(received.path("associations").isArray());
-        hubspot.setOperation("findContact");
-        hubspot.setEmail("ada@example.com");
-        assertSucceeded(run(hubspot));
-        Assert.assertEquals(1, received.path("limit").asInt());
-        Assert.assertEquals("email", received.path("properties").path(0).asText());
-    }
-
-    @Test
-    public void testTrelloCreatesACardWithItsFieldsInTheAddressSuccess() throws IOException {
-        TrelloAction trello = new TrelloAction();
-        trello.setBaseUrl(baseUrl);
-        trello.setApiKey("key");
-        trello.setToken("tok");
-        trello.setOperation("createCard");
-        trello.setListId("list1");
-        trello.setTitle("Call Ada");
-        trello.setCardDescription("About the order");
-        assertSucceeded(run(trello));
-        Assert.assertEquals("idList=list1&name=Call Ada&desc=About the order", query);
-        Assert.assertEquals("", receivedText);
     }
 
     @Test
