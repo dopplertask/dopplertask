@@ -31,4 +31,4 @@ The logos in the editor come from [Simple Icons](https://github.com/simple-icons
 - The Jenkins logo is by the Jenkins project, under [CC-BY-SA-3.0](https://creativecommons.org/licenses/by-sa/3.0/).
 - The Apache Kafka logo is by the Apache Software Foundation, under [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0).
 
-They are only used to show which service a step connects to, and they remain trademarks of their owners. A step without a logo here, such as Outlook, Freshdesk and Pipedrive, has a general icon since no set with an open licence holds one.
+A connector gets its logo from Simple Icons with `node tools/brand-icons/add.mjs`, which only takes a logo under CC0-1.0 that comes from the connector's own domain. They are only used to show which service a step connects to, and they remain trademarks of their owners. A step without a logo here, such as Outlook, Freshdesk and Pipedrive, has a general icon since no set with an open licence holds one.

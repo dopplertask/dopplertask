@@ -96,6 +96,16 @@ public class ConnectorFormatTest {
         Assert.assertTrue(problems, problems.contains("Credential values belong in the credential's headers or query"));
     }
 
+    @Test
+    public void testEveryConnectorFileIsValidAndItsLogoExistsSuccess() throws java.io.IOException {
+        String logos = java.nio.file.Files.readString(java.nio.file.Path.of("src/main/resources/static/js/flow/brand-icons.js"));
+        Connectors.INSTANCE.all().forEach(connector -> {
+            Assert.assertEquals(connector.getName(), java.util.List.of(), Connectors.INSTANCE.problemsOf(connector));
+            Assert.assertTrue(connector.getName() + " names the logo " + connector.getIcon() + ", which the editor does not have",
+                    connector.getIcon().isEmpty() || logos.contains("\"" + connector.getIcon() + "\": {"));
+        });
+    }
+
     private static Connector connector(String json) {
         return JsonApi.INSTANCE.getMapper().readValue(json, Connector.class);
     }
