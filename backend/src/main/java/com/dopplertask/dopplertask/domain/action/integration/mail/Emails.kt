@@ -31,13 +31,15 @@ object Emails {
     // As JavaScript writes a date in JSON.
     private val DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC)
 
-    fun read(raw: String): JsonNode {
-        val message = MimeMessage(Session.getInstance(Properties()), ByteArrayInputStream(raw.toByteArray(Charsets.UTF_8)))
+    fun read(raw: String): JsonNode = read(MimeMessage(Session.getInstance(Properties()), ByteArrayInputStream(raw.toByteArray(Charsets.UTF_8))))
+
+    /** An email as a mailbox gives it, such as one Read email fetched. */
+    fun read(message: MimeMessage): JsonNode {
         val parts = Parts().also { it.collect(message) }
         val fields = linkedMapOf<String, Any?>(
             "attachments" to parts.attachments,
             "headers" to emptyMap<String, Any>(),
-            "headerLines" to headerLinesOf(raw),
+            "headerLines" to headerLinesOf(message),
             "html" to (parts.html ?: false),
             "text" to parts.text,
             "textAsHtml" to parts.text?.let(::textAsHtml),
@@ -80,13 +82,8 @@ object Emails {
     }
 
     /** Each header as it was written, by its lowercase name. A header that goes on over several lines keeps them. */
-    private fun headerLinesOf(raw: String): List<Map<String, String>> {
-        val head = raw.replace("\r\n", "\n").substringBefore("\n\n")
-        return head.split("\n").fold(mutableListOf<String>()) { lines, line ->
-            if ((line.startsWith(" ") || line.startsWith("\t")) && lines.isNotEmpty()) lines[lines.lastIndex] += "\r\n" + line else lines += line
-            lines
-        }.mapNotNull { line -> HEADER_NAMES.find(line)?.let { mapOf("key" to it.groupValues[1].lowercase(), "line" to line) } }
-    }
+    private fun headerLinesOf(message: MimeMessage): List<Map<String, String>> =
+        message.allHeaderLines.toList().mapNotNull { line -> HEADER_NAMES.find(line)?.let { mapOf("key" to it.groupValues[1].lowercase(), "line" to line) } }
 
     /** Addresses as mailparser gives them: each with its name, and all of them as text and as HTML. */
     private fun addressesOf(addresses: Array<Address>?): Map<String, Any>? {
