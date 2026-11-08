@@ -138,6 +138,7 @@ function toField(information) {
     case 'CHOICES': return [{ ...common, type: 'expression', choices: true, dependsOn: information.dependsOn || [] }];
     case 'FIELDS': return [{ ...common, type: 'form' }];
     case 'FILE': return [{ ...common, type: 'expression', files: true }];
+    case 'ADDRESS': return [{ ...common, type: 'address' }];
     case 'MAP': return [{ ...common, type: 'map', columns: information.options.map((option) => ({ key: option.name, label: option.displayName || option.name, options: option.type === 'DROPDOWN' ? option.options.map((choice) => choice.name) : null })) }];
     case 'DROPDOWN': {
       const select = { ...common, type: 'select', options: information.options.map((option) => ({ value: option.name, label: option.displayName || option.name })) };
@@ -846,8 +847,8 @@ function createStore() {
       node.config[key] = value;
       if (node.type === 'start' && key === 'trigger' && (TRIGGER_ACTIONS[value] || value === APP_TRIGGER)) {
         Object.entries(TRIGGER_DEFAULTS[value] || {}).forEach(([name, preset]) => { if (node.config[name] === undefined) node.config[name] = preset; });
-        /* Triggers of one kind are told apart by their suffix. */
-        node.config.triggerSuffix ??= uniqueId();
+        /* Triggers of one kind are told apart by their suffix. It is random, since an address that a person copies into a service is made of it. */
+        node.config.triggerSuffix ??= crypto.randomUUID();
         task.active = true;
       }
       /* A further start is named after its trigger, as it is when the task is opened again. */

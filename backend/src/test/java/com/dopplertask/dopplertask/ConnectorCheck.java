@@ -135,7 +135,7 @@ public class ConnectorCheck {
             ConnectorWebhooks.INSTANCE.setPublicUrl("https://tasks.example.com");
             trigger.setHookKey("test-key");
             trigger.subscribe(Connectors.INSTANCE.find(connector).getTriggers().get(fixture.path("trigger").asText()).getWebhook());
-            trigger.takeItemsOf(fixture.path("event"));
+            trigger.takeItemsOf(ConnectorWebhooks.INSTANCE.eventOf("application/json", fixture.path("event").toString(), Map.of(), Map.of()));
         } else {
             JsonNode place = fixture.path("store");
             trigger.setPollState(place.has("lastPoll") ? place.path("lastPoll").asText() : place.path("lastItem").asText(null));

@@ -138,6 +138,12 @@ class ConnectorTrigger : Trigger() {
             connector.triggers.forEach { (key, poll) ->
                 poll.inputs.forEach { (name, input) -> info.add(ConnectorSettings.propertyOf(name, input, mapOf("operation" to arrayOf(key)), connector)) }
             }
+            // A webhook the person sets up shows the address to copy into the service.
+            val copied = connector.triggers.filterValues { it.webhook != null && it.webhook!!.subscribe == null }.keys.toTypedArray()
+            if (copied.isNotEmpty()) {
+                info.add(PropertyInformation("address", "Address", PropertyInformationType.ADDRESS, "", "Copy it into ${connector.label}, which sends its events there.",
+                    mutableListOf(), PropertyInformation.PropertyInformationCategory.PROPERTY, mapOf("operation" to copied)))
+            }
             // Only a trigger that asks the service checks every few minutes; a webhook gets each event as it happens.
             val polling = connector.triggers.filterValues { it.webhook == null }.keys.toTypedArray()
             if (polling.isNotEmpty()) {
@@ -163,8 +169,10 @@ class ConnectorTrigger : Trigger() {
         while (true) {
             nextWaiting()?.let { return TriggerResult(mutableMapOf("item" to it)) }
             if (webhook != null) {
-                if (pollState == null) subscribe(webhook)
-                takeItemsOf(ConnectorWebhooks.listen(hookKey!!).take())
+                // Listening comes first, since a service may check the address while it subscribes it.
+                val events = ConnectorWebhooks.listen(addressKey(webhook), ::replyTo)
+                if (pollState == null && webhook.subscribe != null) subscribe(webhook)
+                takeItemsOf(events.take())
             } else {
                 if (pollState != null) Thread.sleep(Duration.ofMinutes(every!!.trim().toLong()).toMillis())
                 lookForNewItems()
@@ -172,13 +180,19 @@ class ConnectorTrigger : Trigger() {
         }
     }
 
+    /**
+     * The key in this trigger's address. One the person copies into the service is chosen with the task, so that it
+     * stays the same from version to version; one the trigger subscribes itself is made when it first does.
+     */
+    private fun addressKey(webhook: ConnectorWebhook): String =
+        if (webhook.subscribe == null) triggerSuffix else hookKey ?: UUID.randomUUID().toString().also { hookKey = it }
+
     /** Asks the service to send this trigger's events here, and keeps the subscription's id. */
     fun subscribe(webhook: ConnectorWebhook) {
         val connector = spec!!
-        hookKey = hookKey ?: UUID.randomUUID().toString()
-        val values = settingValues() + ("webhookUrl" to ConnectorWebhooks.addressOf(hookKey!!))
+        val values = settingValues() + ("webhookUrl" to ConnectorWebhooks.addressOf(addressKey(webhook)))
         val sender = ConnectorSender(this, connector, credentialValues)
-        val answer = JsonApi.parsed(send(connector, webhook.subscribe, values, webhook.beforeRequest))
+        val answer = JsonApi.parsed(send(connector, webhook.subscribe!!, values, webhook.beforeRequest))
         pollState = (webhook.afterResponse?.let { ConnectorScripts.run(it, values, null, answer, sender::answerFor) } ?: JsonPaths.read(answer, webhook.id))?.asText() ?: ""
         keepPlace()
     }
@@ -186,20 +200,25 @@ class ConnectorTrigger : Trigger() {
     /** Ends the subscription when the task stops, so that the service no longer sends events. */
     override fun stop() {
         val webhook = spec?.triggers?.get(operation)?.webhook ?: return
-        hookKey?.let(ConnectorWebhooks::stopListening)
+        ConnectorWebhooks.stopListening(addressKey(webhook))
         webhook.unsubscribe?.takeIf { pollState != null }?.let { send(spec!!, it, settingValues() + ("webhookId" to pollState!!)) }
         pollState = null
         keepPlace()
     }
 
     /** The new items in an event a service sent, read as on a check. */
-    fun takeItemsOf(event: JsonNode) {
+    fun takeItemsOf(event: ConnectorWebhooks.Event) {
         val poll = spec!!.triggers[operation]!!
         // An event often names what changed, so its script may ask the service for the rest, as the original does.
         val sender = ConnectorSender(this, spec!!, credentialValues)
-        val reply = poll.afterResponse?.let { ConnectorScripts.run(it, settingValues(), null, event, sender::answerFor) } ?: event
+        val reply = poll.afterResponse?.let { ConnectorScripts.run(it, settingValues(), null, event.body, sender::answerFor, event.received) } ?: event.body
         waiting.addAll(JsonPaths.read(reply, poll.items)?.let { if (it.isArray) it.toList() else listOf(it) }.orEmpty().filterNot { it.isNull }.take(MOST_ITEMS_PER_CHECK))
     }
+
+    /** What the address answers to an event, such as the challenge back. It may not send requests, since the service waits. */
+    private fun replyTo(event: ConnectorWebhooks.Event): JsonNode? = spec?.triggers?.get(operation)?.webhook?.reply?.let { script ->
+        ConnectorScripts.run(script, settingValues(), null, event.body, { throw IllegalArgumentException("A reply cannot send requests.") }, event.received)
+    }?.takeUnless { it.isNull }
 
     private fun send(connector: Connector, request: ConnectorRequest, values: Map<String, String>, beforeRequest: String? = null): ActionResult {
         val operation = ConnectorOperation().also { it.request = request; it.inputs = linkedMapOf(); it.beforeRequest = beforeRequest }

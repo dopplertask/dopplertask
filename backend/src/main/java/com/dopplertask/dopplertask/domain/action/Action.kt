@@ -475,7 +475,10 @@ abstract class Action {
             FIELDS,
 
             /** The name of a file the run keeps, such as one Read file read, with the run's files as suggestions. */
-            FILE
+            FILE,
+
+            /** The address a service sends events to, which the person copies into that service. Not set by anyone. */
+            ADDRESS
         }
 
         enum class PropertyInformationCategory {

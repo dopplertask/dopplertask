@@ -113,13 +113,13 @@ public class ConnectorTriggerTest {
             }
             Assert.assertEquals("h1", trigger.getPollState());
             Assert.assertTrue(asked.get(0), asked.get(0).startsWith("POST /hooks {\"url\":\"https://tasks.example.com/hooks/" + trigger.getHookKey() + "\",\"list\":\"l1\"}"));
-            ConnectorWebhooks.INSTANCE.deliver(trigger.getHookKey(), JsonApi.INSTANCE.getMapper().readTree("{\"type\": \"deleted\", \"data\": {\"id\": \"x\"}}"));
-            ConnectorWebhooks.INSTANCE.deliver(trigger.getHookKey(), JsonApi.INSTANCE.getMapper().readTree("{\"type\": \"created\", \"data\": {\"id\": \"e1\"}}"));
+            ConnectorWebhooks.INSTANCE.deliver(trigger.getHookKey(), event("{\"type\": \"deleted\", \"data\": {\"id\": \"x\"}}"));
+            ConnectorWebhooks.INSTANCE.deliver(trigger.getHookKey(), event("{\"type\": \"created\", \"data\": {\"id\": \"e1\"}}"));
             Assert.assertEquals("{\"id\":\"e1\"}", started.get(5, java.util.concurrent.TimeUnit.SECONDS).getResultMap().get("item"));
             trigger.stop();
             Assert.assertTrue(asked.toString(), asked.contains("DELETE /hooks/h1 "));
             Assert.assertNull(trigger.getPollState());
-            Assert.assertFalse(ConnectorWebhooks.INSTANCE.deliver(trigger.getHookKey(), JsonApi.INSTANCE.getMapper().readTree("{}")));
+            Assert.assertNull(ConnectorWebhooks.INSTANCE.deliver(trigger.getHookKey(), event("{}")));
         } finally {
             ConnectorWebhooks.INSTANCE.setPublicUrl("");
         }
@@ -145,7 +145,7 @@ public class ConnectorTriggerTest {
             answer.set("{\"hook\": {\"id\": \"h2\"}}");
             trigger.subscribe(Connectors.INSTANCE.find("poll-test").getTriggers().get("new_task").getWebhook());
             answer.set("{\"id\": \"t9\", \"name\": \"Call Ada\"}");
-            trigger.takeItemsOf(JsonApi.INSTANCE.getMapper().readTree("{\"task_id\": \"t9\"}"));
+            trigger.takeItemsOf(event("{\"task_id\": \"t9\"}"));
             Assert.assertEquals("{\"id\":\"t9\",\"name\":\"Call Ada\"}", trigger.nextWaiting());
             Assert.assertEquals("GET /tasks/t9 ", asked.get(1));
             Assert.assertEquals("Bearer poll-key", signedInWith.get());
@@ -174,6 +174,30 @@ public class ConnectorTriggerTest {
         Assert.assertTrue(output, output.contains("\"sent\":{\"note\":\"hello\"}"));
         Assert.assertFalse(output, output.contains("poll-key"));
         Assert.assertEquals("Bearer poll-key", signedInWith.get());
+    }
+
+    @Test
+    public void testAWebhookThePersonSetsUpListensAtItsOwnAddressAndAnswersChecksSuccess() throws Exception {
+        ConnectorWebhooks.INSTANCE.setPublicUrl("https://tasks.example.com");
+        try {
+            ConnectorTrigger trigger = trigger("pasted");
+            trigger.setTriggerSuffix("pasted-key");
+            Assert.assertTrue(trigger.getActionInfo().stream().anyMatch(property -> property.getType() == Action.PropertyInformation.PropertyInformationType.ADDRESS));
+            var started = java.util.concurrent.CompletableFuture.supplyAsync(trigger::trigger);
+            while (!ConnectorWebhooks.INSTANCE.isListening("pasted-key")) {
+                Thread.sleep(20);
+            }
+            Assert.assertEquals("{\"challenge\":\"c1\"}", ConnectorWebhooks.INSTANCE.deliver("pasted-key", event("{\"challenge\": \"c1\"}")).toString());
+            Assert.assertTrue(ConnectorWebhooks.INSTANCE.deliver("pasted-key", event("{\"id\": \"m1\"}")).isNull());
+            Assert.assertEquals("{\"id\":\"m1\"}", started.get(5, java.util.concurrent.TimeUnit.SECONDS).getResultMap().get("item"));
+            Assert.assertEquals(List.of(), asked);
+        } finally {
+            ConnectorWebhooks.INSTANCE.setPublicUrl("");
+        }
+    }
+
+    private static ConnectorWebhooks.Event event(String json) {
+        return ConnectorWebhooks.INSTANCE.eventOf("application/json", json, Map.of(), Map.of());
     }
 
     @Test

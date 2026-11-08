@@ -9,7 +9,7 @@ A connector is a service that steps can work with, described in one file in `bac
 * **baseUrl**: where the API starts. With it, every connector also offers a **Custom API call**.
 * **credential**: its fields, and where they go: `headers`, `query`, `body`, `basic`, or `oauth2` to sign in with an account.
 * **actions**, each with its `inputs`, its `request` (`method`, `url`, `headers`, `query`, `body`), and what it gives: `result`, `outputs`, or `download` for an answer that is a file.
-* **triggers**, which ask the service every few minutes for what is new (`newBy` time or lastItem), or subscribe to its events with `webhook`.
+* **triggers**, which ask the service every few minutes for what is new (`newBy` time or lastItem), or take its events with `webhook`. A webhook with a `subscribe` request sets itself up; one without shows the person an address to copy into the service. Events arrive at `/hooks/<key>` as JSON, a form (read as nested fields, such as `contact[email]`) or text, and `reply` sets what the address answers, such as a challenge the service sends back to check it. Scripts read an event as `response` and what came with it as `received`: its headers, query and text.
 
 ## Inputs
 

@@ -103,6 +103,7 @@ object Connectors {
             if (poll.label.isBlank()) problems += "$where needs a label."
             val webhook = poll.webhook
             val requests = if (webhook == null) listOf(poll.request) else listOfNotNull(webhook.subscribe, webhook.unsubscribe)
+            if (webhook != null && webhook.subscribe == null && webhook.unsubscribe != null) problems += "$where unsubscribes, but has no subscribe request: the person sets it up in the service."
             requests.forEach { problems += addressProblems(where, connector, it.url, sample) }
             val known = poll.inputs.keys + fields.map { CREDENTIAL + it } + setOf("webhookUrl", "webhookId", ConnectorTrigger.LAST_POLL_TIME)
             requests.flatMap(::templatesOf).flatMap(::placeholdersIn)

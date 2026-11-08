@@ -14,10 +14,14 @@ import tools.jackson.databind.JsonNode
  */
 object ConnectorScripts {
 
-    /** Runs the body of a function of inputs, request and response, and gives what it returns. */
-    fun run(script: String, inputs: Map<String, String>, request: JsonNode?, response: JsonNode?, send: (JsonNode) -> JsonNode): JsonNode {
+    /**
+     * Runs a script with the step's inputs, the request, the response read as JSON, and received: what came with the
+     * response, its headers and its text, also for a response that is not JSON.
+     */
+    @JvmOverloads
+    fun run(script: String, inputs: Map<String, String>, request: JsonNode?, response: JsonNode?, send: (JsonNode) -> JsonNode, received: JsonNode? = null): JsonNode {
         val source = "const call = (spec) => JSON.parse(sendRequest(JSON.stringify(spec)));\n" +
-            "JSON.stringify((function (inputs, request, response) {\n$script\n})(${json(inputs)}, ${json(request)}, ${json(response)}))"
+            "JSON.stringify((function (inputs, request, response, received) {\n$script\n})(${json(inputs)}, ${json(request)}, ${json(response)}, ${json(received)}))"
         return VariableExtractorUtil.restrictedContext().use { context ->
             // Only text crosses into the script, so it holds no object of the server.
             context.getBindings("js").putMember("sendRequest", ProxyExecutable { arguments -> json(send(JsonApi.mapper.readTree(arguments[0].asString()))) })

@@ -121,8 +121,11 @@ class ConnectorPoll {
 
 /** How a trigger subscribes to a service's events when its task is turned on, and unsubscribes when it is turned off. */
 class ConnectorWebhook {
-    /** The request that subscribes, with {{webhookUrl}} where the service should send events. */
-    var subscribe: ConnectorRequest = ConnectorRequest()
+    /**
+     * The request that subscribes, with {{webhookUrl}} where the service should send events. Without one, the person
+     * copies the trigger's address into the service.
+     */
+    var subscribe: ConnectorRequest? = null
 
     /** Where the subscription's id is in the answer, which unsubscribe can name as {{webhookId}}. */
     var id: String = "$.id"
@@ -131,6 +134,12 @@ class ConnectorWebhook {
     /** Scripts for the subscribe request, such as asking for the account first; afterResponse returns the id. */
     var beforeRequest: String? = null
     var afterResponse: String? = null
+
+    /**
+     * What the address answers to a delivery, such as the challenge a service sends to check the address, which it
+     * expects back. The script reads the event as response and returns the body of the answer, or null for none.
+     */
+    var reply: String? = null
 }
 
 class ConnectorInput {

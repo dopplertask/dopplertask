@@ -221,6 +221,7 @@ export default function boot() {
           : `<input class="ui-input is-mono" data-variables placeholder="${escapeHtml(column.label)}" aria-label="${escapeHtml(column.label)}" data-map-index="${index}" data-map-part="${column.key}" value="${escapeHtml(row[column.key] ?? '')}">`);
         return `<fieldset class="ui-field ui-list" data-map="${field.key}"><legend class="ui-label">${escapeHtml(field.label)}${field.required ? '' : '<span class="ui-optional">optional</span>'}</legend>${rows.map((row, index) => `<div class="ui-list-row">${field.columns.map((column) => cell(column, row, index)).join('')}<button type="button" class="ui-icon-button" data-map-remove="${index}" aria-label="Remove">${icon('x')}</button></div>`).join('')}<button type="button" class="ui-link-button" data-map-add>${icon('plus')}Add</button></fieldset>`;
       }
+      case 'address': return addressRow(field.label, `${window.location.origin}/hooks/${node.config.triggerSuffix}`, `${field.hint} Works once the task is saved with its trigger on.`);
       default: return wrap(`${label}<input class="ui-input ${field.mono ? 'is-mono' : ''}" autocomplete="off" spellcheck="false" ${common} ${placeholder} value="${escapeHtml(fieldValue ?? '')}">`);
     }
   }
@@ -228,6 +229,9 @@ export default function boot() {
   function webhookUrl(task, node) {
     return `${window.location.origin}/webhook/${encodeURIComponent(task.name)}/Webhook/${node.config.triggerSuffix}/${node.config.path || ''}`;
   }
+
+  /* An address that a service calls, with a button that copies it. */
+  const addressRow = (label, url, hint) => `<div class="ui-field"><span class="ui-label">${escapeHtml(label)}</span><div class="ui-copy-row"><code data-address>${escapeHtml(url)}</code><button type="button" class="ui-icon-button" data-copy="${escapeHtml(url)}" aria-label="Copy address">${icon('copy')}</button></div><p class="ui-hint">${escapeHtml(hint)}</p></div>`;
 
   function renderForm(node, store) {
     const action = ACTIONS[node.type];
@@ -241,7 +245,7 @@ export default function boot() {
     return `
       ${issues.map((issue) => `<p class="ui-note is-warn">${icon('alert')}${escapeHtml(issue.message)}</p>`).join('')}
       <div class="ui-field-grid">${visibleFields.map((field) => renderField(field, node)).join('')}</div>
-      ${node.type === 'start' && node.config.trigger === 'webhook' ? `<div class="ui-field"><span class="ui-label">Call this URL</span><div class="ui-copy-row"><code data-webhook-url>${escapeHtml(webhookUrl(store.task, node))}</code><button type="button" class="ui-icon-button" data-copy="${escapeHtml(webhookUrl(store.task, node))}" aria-label="Copy URL">${icon('copy')}</button></div><p class="ui-hint">Works once the task is saved with its trigger on.</p></div>` : ''}
+      ${node.type === 'start' && node.config.trigger === 'webhook' ? addressRow('Call this URL', webhookUrl(store.task, node), 'Works once the task is saved with its trigger on.') : ''}
       ${canFail ? `<details class="ui-disclosure" ${hasFailureSettings ? 'open' : ''}><summary>${icon('chevronRight')}If this step fails${node.config.retries ? `<span class="ui-pill">${node.config.retries} ${node.config.retries === 1 ? 'retry' : 'retries'}</span>` : ''}</summary><div class="ui-field-grid">${FAILURE_FIELDS.map((field) => renderField(field, node)).join('')}</div></details>` : ''}
       ${advancedFields.length ? `<details class="ui-disclosure" ${node.config.scriptLanguage === 'JAVASCRIPT' || node.config.baseUrl ? 'open' : ''}><summary>${icon('chevronRight')}Advanced</summary><div class="ui-field-grid">${advancedFields.map((field) => renderField(field, node)).join('')}</div></details>` : ''}
       <p class="ui-backend-name">${escapeHtml(action.backend)}</p>`;
@@ -280,7 +284,7 @@ export default function boot() {
         if (node.config[target.dataset.field] !== newValue) store.updateConfig(nodeId, target.dataset.field, newValue);
         if (event.type === 'change' && (target.tagName === 'SELECT' || target.type === 'checkbox') && (hasConditionalFields() || target.dataset.field === 'credential')) render();
         updatePreviews(root, store);
-        const urlElement = root.querySelector('[data-webhook-url]');
+        const urlElement = node.config.trigger === 'webhook' && root.querySelector('[data-address]');
         if (urlElement) {
           urlElement.textContent = webhookUrl(store.task, node);
           urlElement.nextElementSibling.dataset.copy = urlElement.textContent;
