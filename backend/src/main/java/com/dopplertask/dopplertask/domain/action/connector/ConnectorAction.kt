@@ -104,7 +104,8 @@ class ConnectorAction : Action() {
         get() {
             val info = super.actionInfo
             val connector = spec ?: return info
-            val choices = operations.filterValues { it.audience != "ai" }
+            // Every action is offered, also those the original made for its agents, since many have no other form.
+            val choices = operations
             info.add(PropertyInformation("operation", "Action", PropertyInformationType.DROPDOWN, choices.keys.firstOrNull().orEmpty(), "",
                 choices.map { (key, operation) -> PropertyInformation(key, if (operation.group.isEmpty()) operation.label else "${operation.group}: ${operation.label}") }))
             choices.forEach { (key, operation) ->

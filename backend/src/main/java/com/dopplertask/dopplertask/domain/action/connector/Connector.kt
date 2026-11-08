@@ -63,7 +63,7 @@ class ConnectorOperation {
     /** What the action works on, such as Contacts, so that a long list of actions reads by group. */
     var group: String = ""
 
-    /** Who the action is for: both, a person in the editor, or an agent. */
+    /** Who the original made the action for: both, a person, or an agent. Kept so that an importer can map it. */
     var audience: String = "both"
     var inputs: LinkedHashMap<String, ConnectorInput> = linkedMapOf()
     var request: ConnectorRequest = ConnectorRequest()
