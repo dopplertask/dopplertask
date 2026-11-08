@@ -3,6 +3,7 @@ package com.dopplertask.dopplertask.domain.action.connector
 import com.dopplertask.dopplertask.domain.action.integration.JsonApi
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.node.JsonNodeFactory
+import tools.jackson.databind.node.ObjectNode
 import java.util.Base64
 
 /**
@@ -61,7 +62,10 @@ object ConnectorRequests {
                 "Authorization" to "Basic " + Base64.getEncoder().encodeToString(pair.toByteArray())
             })
         headers.forEach { (name, value) -> require('\r' !in value && '\n' !in value) { "The header $name may not hold a line break." } }
-        val body = draft.path("body").takeUnless { it.isNull || it.isMissingNode }
+        val body = draft.path("body").takeUnless { it.isNull || it.isMissingNode }.let { body ->
+            val fields = signIn?.body.orEmpty().mapValues { Connectors.fill(it.value, credentialValue) }
+            if (fields.isEmpty()) body else ((body as? ObjectNode)?.deepCopy() ?: NODES.objectNode()).also { filled -> fields.forEach { (key, value) -> filled.put(key, value) } }
+        }
         return Built(draft.path("method").asText("GET"), url, headers, body)
     }
 

@@ -165,6 +165,10 @@ class ConnectorAction() : Action() {
         val result = JsonApi.call(connector.label, request.method, address, headers, request.body)
         if (result.statusCode != StatusCode.SUCCESS) return result
         var answer = JsonApi.parsed(result)
+        if (chosen.result.isNotEmpty()) {
+            answer = JsonPaths.read(answer, chosen.result) ?: JsonApi.mapper.nullNode()
+            result.output = if (answer.isValueNode) answer.asText() else answer.toString()
+        }
         chosen.afterResponse?.let { script ->
             answer = ConnectorScripts.run(script, values, null, answer)
             result.output = if (answer.isValueNode) answer.asText() else answer.toString()

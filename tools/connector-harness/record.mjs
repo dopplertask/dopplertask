@@ -15,6 +15,8 @@ import { createMockActionContext } from '@activepieces/pieces-framework';
 // Headers that differ between HTTP clients without changing what a service receives.
 const NOISE = new Set(['user-agent', 'accept-encoding', 'accept', 'content-length', 'host', 'connection', 'accept-language', 'sec-fetch-mode']);
 
+if (Number(process.versions.node.split('.')[0]) < 22) throw new Error(`The recorder needs Node 22 or later, and this is ${process.version}.`);
+
 const fixturePath = process.argv[2];
 const fixture = JSON.parse(readFileSync(fixturePath, 'utf8'));
 const exchanges = [];

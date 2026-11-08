@@ -56,7 +56,8 @@ object Connectors {
         val credential = connector.credential
         val fields = credential?.fields?.keys.orEmpty()
         val sample = fields.associateWith { "example" }
-        val signIn = listOfNotNull(credential?.basic?.username, credential?.basic?.password) + credential?.headers?.values.orEmpty() + credential?.query?.values.orEmpty() + connector.hosts + connector.baseUrl
+        val signIn = listOfNotNull(credential?.basic?.username, credential?.basic?.password) + credential?.headers?.values.orEmpty() + credential?.query?.values.orEmpty() +
+            credential?.body?.values.orEmpty() + connector.hosts + connector.baseUrl
         signIn.flatMap(::placeholdersIn).filter { !it.startsWith(CREDENTIAL) || it.removePrefix(CREDENTIAL) !in fields }
             .forEach { problems += "The credential part refers to {{$it}}, which is not one of the credential's fields." }
         if (connector.baseUrl.isNotEmpty()) problems += addressProblems("The base address", connector, connector.baseUrl, sample)
@@ -73,6 +74,8 @@ object Connectors {
                 .forEach { problems += "$where refers to {{$it}}, which is not one of its inputs." }
             templates.drop(1).flatMap(::placeholdersIn).filter { it.startsWith(CREDENTIAL) }
                 .forEach { problems += "$where puts {{$it}} in the request. Credential values belong in the credential's headers or query." }
+            operation.inputs.values.mapNotNull { it.optionsFrom?.request?.url }.forEach { problems += addressProblems("$where's choices", connector, it, sample) }
+            if (operation.result.isNotEmpty() && !operation.result.startsWith("$")) problems += "$where's result ${operation.result} should start with $."
             operation.outputs.filter { !it.value.startsWith("$") }.forEach { problems += "$where gives ${it.key} from ${it.value}, which should start with $." }
         }
         return problems

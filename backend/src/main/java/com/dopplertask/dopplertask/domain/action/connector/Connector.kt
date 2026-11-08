@@ -32,6 +32,9 @@ class ConnectorCredential {
     var fields: LinkedHashMap<String, ConnectorInput> = linkedMapOf()
     var headers: Map<String, String> = emptyMap()
     var query: Map<String, String> = emptyMap()
+
+    /** Fields added to a JSON body, for services that take the key in the body. */
+    var body: Map<String, String> = emptyMap()
     var basic: ConnectorBasicAuth? = null
     var oauth2: ConnectorOAuth? = null
 }
@@ -62,6 +65,9 @@ class ConnectorOperation {
     /** What a later step reads, by name, as a path in the answer such as $.channel.id. */
     var outputs: LinkedHashMap<String, String> = linkedMapOf()
 
+    /** The part of the answer the step gives, such as $.data. Empty gives the whole answer. */
+    var result: String = ""
+
     /** JavaScript that gets inputs and request, and returns the request to send, such as with a field left out. */
     var beforeRequest: String? = null
 
@@ -79,6 +85,18 @@ class ConnectorInput {
     var secret: Boolean = false
     var defaultValue: String = ""
     var options: List<ConnectorOption> = emptyList()
+
+    /** Where a list of choices comes from, such as the audiences of the account. The step itself sends the value. */
+    var optionsFrom: ConnectorOptionsSource? = null
+}
+
+class ConnectorOptionsSource {
+    var request: ConnectorRequest = ConnectorRequest()
+
+    /** Where the list is in the answer, and the label and value of each item in it. */
+    var list: String = "$"
+    var label: String = "$.name"
+    var value: String = "$.id"
 }
 
 class ConnectorOption {
