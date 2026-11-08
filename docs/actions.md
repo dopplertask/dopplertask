@@ -774,6 +774,9 @@ Starts the flow at an interval, while the task has `"active": true`. A trigger i
 * time: The length of the interval.
 * timeUnit: SECONDS, MINUTES, HOURS or DAYS.
 
+### Several triggers
+A task can have as many triggers as it needs, such as a webhook and a schedule, each with its own OUTPUT port, and they can lead to the same action or to different ones. Two triggers of one kind need different `triggerSuffix` values, since a run finds its trigger by kind and suffix. Running a task by hand always starts at the StartAction. In the editor every trigger is a start tile, and **Add a trigger** on a start tile adds another.
+
 ## Important variables
 
 * $lastLog.output / lastLog.getOutput(): Gets the last actions output. Every action replaces it, also an IfAction, whose output is `true` or `false`. To use a value later, save it with SetVariableAction first.

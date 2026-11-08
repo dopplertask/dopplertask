@@ -388,6 +388,15 @@ export default function boot() {
     input.focus();
   }
 
+  /* The ways a task can start, built in and from every app, in one searchable list. */
+  function openTriggerPicker(store, anchor) {
+    const builtIn = ACTIONS.start.fields.find((field) => field.key === 'trigger').options
+      .filter((option) => option.value !== 'manual' && option.value !== DT.APP_TRIGGER)
+      .map((option) => ({ value: option.value, label: `Built in: ${option.label}` }));
+    const apps = Object.entries(ACTIONS).filter(([, action]) => action.category === 'starts').map(([type, action]) => ({ value: type, label: `Apps: ${action.label}` }));
+    openPicker(anchor, [...builtIn, ...apps], null, (value) => (ACTIONS[value] ? store.addStep(value) : store.addTrigger(value)));
+  }
+
   /* `$` in any expression-capable input opens a menu of what is available at this point. */
   function attachVariableMenu(root, store) {
     let menu = null;
@@ -775,7 +784,7 @@ export default function boot() {
   function removeWithUndo(store, nodeId) {
     const node = DT.nodeById(store.task, nodeId);
     if (!node) return;
-    if (node.type === 'start') { toast('Every task needs its Start step.'); return; }
+    if (node === DT.rootNode(store.task)) { toast('The first start stays, since running by hand starts there.'); return; }
     const name = node.name;
     store.removeNode(nodeId);
     toast(`Deleted “${name}”`, { actionLabel: 'Undo', onAction: () => store.undo() });
@@ -804,7 +813,7 @@ export default function boot() {
 
   window.DT.ui = {
     statusGlyph, RUN_STATUS_LABELS, runParameterSummary,
-    icon, escapeHtml, modKey, toast, openPopover, mountForm, openPalette,
+    icon, escapeHtml, modKey, toast, openPopover, mountForm, openPalette, openTriggerPicker,
     openRunDialog, openParametersDialog, openTaskDialog, openCredentialsDialog, openSaveAsDialog, exportTask, importTask, openShortcutsDialog,
     saveStatus, bindShortcuts, removeWithUndo, renderStepResult, formatDuration, formatAgo,
   };

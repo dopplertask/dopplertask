@@ -1,6 +1,6 @@
 # Connectors
 
-A connector is a service that steps can work with, described in one file in `backend/src/main/resources/connectors/`. Each connector is one step in the editor, such as Slack, with its actions to choose from, and its triggers start a task from the Start step. The format is documented in `Connector.kt`, and `ConnectorFormatTest` shows every word in use.
+A connector is a service that steps can work with, described in one file in `backend/src/main/resources/connectors/`. Each connector is one step in the editor, such as Slack, with its actions to choose from, and its triggers start a task, each from a start tile of its own when the task has several. The format is documented in `Connector.kt`, and `ConnectorFormatTest` shows every word in use.
 
 ## What a file holds
 

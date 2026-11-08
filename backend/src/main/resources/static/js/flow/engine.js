@@ -95,6 +95,10 @@ const TRIGGER_KINDS = Object.fromEntries(Object.entries(TRIGGER_ACTIONS).map(([k
 const APP_TRIGGER = 'app';
 /* The icon of a connector with no free logo: its name, which the form draws as initials. */
 const INITIALS = 'initials:';
+const TRIGGER_ICONS = { webhook: 'webhook', schedule: 'clock', interval: 'clock', activemq: 'server', manual: 'play' };
+/* A start shows what starts it, such as the logo of its app. */
+const iconOf = (node) => (node.type !== 'start' ? ACTIONS[node.type].icon
+  : node.config.trigger === APP_TRIGGER ? ACTIONS[TYPE_BY_BACKEND[node.config.app]]?.icon ?? 'workflow' : TRIGGER_ICONS[node.config.trigger] ?? 'play');
 const isAppTrigger = (backend) => backend?.endsWith('.trigger');
 const triggerBackend = (config) => (config.trigger === APP_TRIGGER ? config.app : TRIGGER_ACTIONS[config.trigger]);
 const TRIGGER_DEFAULTS = { webhook: { method: 'POST', authentication: 'none' }, schedule: { rule: 'DAYS', every: '1', atHour: '9', atMinute: '0' }, interval: { time: '1', timeUnit: 'MINUTES' }, activemq: {} };
@@ -196,7 +200,7 @@ function loadCatalogue(actions) {
       { value: APP_TRIGGER, label: 'When something new appears in an app' },
     // A server can leave out kinds of trigger that it does not offer.
     ].filter((option) => (option.value === APP_TRIGGER ? appTriggers.length : !TRIGGER_ACTIONS[option.value] || triggers[TRIGGER_ACTIONS[option.value]])) },
-    { key: 'app', label: 'App', type: 'expression', required: true, suggestions: appTriggers.map(({ name, label }) => ({ value: name, label })), showWhen: { trigger: [APP_TRIGGER] } },
+    { key: 'app', label: 'App', type: 'select', required: true, options: appTriggers.map(({ name, label }) => ({ value: name, label })), showWhen: { trigger: [APP_TRIGGER] } },
     ...Object.entries(TRIGGER_ACTIONS).flatMap(([kind, backend]) => (triggers[backend] || []).map((field) => ({ ...field, showWhen: { ...field.showWhen, trigger: [kind] } }))),
     ...appTriggers.flatMap(({ name }) => triggers[name].map((field) => ({ ...field, showWhen: { ...field.showWhen, trigger: [APP_TRIGGER], app: [name] } }))),
   ];
@@ -258,7 +262,7 @@ function computeLayout(task) {
     placements[nodeId] = { column: depth, row };
     return row;
   };
-  place(rootNode(task).id, 0);
+  task.nodes.filter(isEntry).forEach((node) => { if (!seen.has(node.id)) place(node.id, 0); });
   task.nodes.filter((node) => !seen.has(node.id)).forEach((node) => { placements[node.id] = { column: 1, row: nextRow++ }; });
   return placements;
 }
@@ -366,6 +370,7 @@ function findIssues(task) {
       if (empty) issues.push({ nodeId: node.id, field: field.key, message: `${field.label} is required` });
     });
     if (!reachable.has(node.id)) issues.push({ nodeId: node.id, message: 'Not connected to the task, so it will not run' });
+    if (node.type === 'start' && node !== rootNode(task) && !triggerBackend(node.config)) issues.push({ nodeId: node.id, field: 'trigger', message: 'Choose what starts the task here. Running by hand starts at the first start' });
   });
   return issues;
 }
@@ -402,17 +407,18 @@ function triggerConfigKeys(backend) {
   return (ACTIONS[TYPE_BY_BACKEND[backend]]?.fields || []).map((field) => field.key);
 }
 
-/* Start and its trigger are one tile here, and two actions that lead to the same step in the saved
-   task, so that a task with a trigger can still be run by hand. */
+/* Each start tile is its trigger in the saved task. The first tile is also the Start action, so the task
+   can always be run by hand, and both lead to the same step. */
 function toBackend(task) {
   const actions = [];
   const connections = [];
+  const root = rootNode(task);
   task.nodes.forEach((node) => {
     const position = { guiXPos: Math.round(node.position.x), guiYPos: Math.round(node.position.y) };
     const inputs = isEntry(node) ? [] : [{ externalId: portId(node.id, INPUT_PORT), portType: 'INPUT' }];
     const outputs = portsOf(node).map((port) => ({ externalId: portId(node.id, port.id), portType: 'OUTPUT' }));
     if (node.type === 'start') {
-      actions.push({ '@type': ACTIONS.start.backend, ports: outputs, ...position });
+      if (node === root) actions.push({ '@type': ACTIONS.start.backend, ports: outputs, ...position });
       const backend = triggerBackend(node.config);
       if (backend) {
         const settings = Object.fromEntries([...triggerConfigKeys(backend), 'triggerSuffix'].filter((key) => key in node.config).map((key) => [key, node.config[key]]));
@@ -423,9 +429,10 @@ function toBackend(task) {
     }
   });
   task.edges.forEach((edge) => {
+    const from = nodeById(task, edge.from);
     const target = { externalId: portId(edge.to, INPUT_PORT) };
-    connections.push({ source: { externalId: portId(edge.from, edge.port) }, target });
-    if (edge.from === rootNode(task).id && triggerBackend(rootNode(task).config)) connections.push({ source: { externalId: portId(edge.from, TRIGGER_PORT) }, target });
+    if (from.type !== 'start' || from === root) connections.push({ source: { externalId: portId(edge.from, edge.port) }, target });
+    if (from.type === 'start' && triggerBackend(from.config)) connections.push({ source: { externalId: portId(edge.from, TRIGGER_PORT) }, target });
   });
   return { name: task.name, active: !!task.active, description: task.description || '', parameters: task.parameters, actions, connections };
 }
@@ -436,13 +443,17 @@ const outputPortsOf = (action) => (action.ports || []).filter((port) => port.por
 function fromBackend(saved) {
   const portOwners = {};
   if (!Array.isArray(saved.actions)) throw new Error('That file is not a task, since it has no steps.');
+  const savedIdOf = (action) => action?.ports?.[0]?.externalId.match(/^([^:]+):/)?.[1];
+  const startId = savedIdOf(saved.actions.find((action) => action['@type'] === ACTIONS.start.backend));
   const nodes = saved.actions.map((action) => {
     const type = TYPE_BY_BACKEND[action['@type']];
     if (!type) throw new Error(`This task uses a step this version does not know: ${action['@type']}.`);
     const config = Object.fromEntries(Object.entries(action).filter(([key]) => !LAYOUT_FIELDS.includes(key)));
-    /* Keeping the saved id keeps the checksum, so saving an unchanged task adds no version. */
-    const savedId = !ACTIONS[type].trigger && action.ports?.[0]?.externalId.match(/^([^:]+):/)?.[1];
-    const node = createNode(savedId || `n${uniqueId()}`, type, action[STEP_ACTION_NAME] && action[STEP_ACTION_NAME] !== action['@type'] ? action[STEP_ACTION_NAME] : undefined, config);
+    /* Keeping the saved id keeps the checksum, so saving an unchanged task adds no version. The trigger of the
+       Start tile carries the id of that tile. */
+    const savedId = savedIdOf(action);
+    const ownId = savedId && !(ACTIONS[type].trigger && savedId === startId) ? savedId : undefined;
+    const node = createNode(ownId || `n${uniqueId()}`, type, action[STEP_ACTION_NAME] && action[STEP_ACTION_NAME] !== action['@type'] ? action[STEP_ACTION_NAME] : undefined, config);
     node.position = { x: action.guiXPos || 0, y: action.guiYPos || 0 };
     node.savedPort = action.ports?.[0]?.externalId;
     node.backendAction = action;
@@ -462,20 +473,26 @@ function fromBackend(saved) {
     if (from && to) task.edges.push({ from: from.id, port: outputName(from, source.externalId), to });
   });
 
-  /* A single trigger joins the Start tile when both lead to the same step. Anything else stays as its own tile. */
+  /* Every trigger is a start tile. The first that leads where Start leads joins the Start tile, and the others
+     keep a tile of their own. */
   const start = rootNode(task);
-  const triggers = nodes.filter((node) => ACTIONS[node.type].trigger);
-  const startEdge = task.edges.find((edge) => edge.from === start.id);
-  const triggerEdge = triggers.length === 1 && task.edges.find((edge) => edge.from === triggers[0].id);
-  if (triggers.length === 1 && (!startEdge || !triggerEdge || startEdge.to === triggerEdge.to)) {
-    const trigger = triggers[0];
+  let startEdge = task.edges.find((edge) => edge.from === start.id);
+  nodes.filter((node) => ACTIONS[node.type].trigger).forEach((trigger) => {
     const backend = trigger.backendAction['@type'];
-    Object.assign(start.config, trigger.config, isAppTrigger(backend) ? { trigger: APP_TRIGGER, app: backend } : { trigger: TRIGGER_KINDS[backend] });
-    outputPortsOf(trigger.backendAction).forEach((port) => { portOwners[port.externalId] = start.id; });
-    task.nodes = nodes.filter((node) => node !== trigger);
-    task.edges = task.edges.filter((edge) => edge.from !== trigger.id && edge.from !== start.id);
-    if (startEdge || triggerEdge) task.edges.push({ from: start.id, port: 'out', to: (startEdge || triggerEdge).to });
-  }
+    const settings = { ...trigger.config, ...(isAppTrigger(backend) ? { trigger: APP_TRIGGER, app: backend } : { trigger: TRIGGER_KINDS[backend] }) };
+    const triggerEdge = task.edges.find((edge) => edge.from === trigger.id);
+    task.edges = task.edges.filter((edge) => edge.from !== trigger.id);
+    if (start.config.trigger === 'manual' && (!startEdge || !triggerEdge || startEdge.to === triggerEdge.to)) {
+      Object.assign(start.config, settings);
+      outputPortsOf(trigger.backendAction).forEach((port) => { portOwners[port.externalId] = start.id; });
+      task.nodes = task.nodes.filter((node) => node !== trigger);
+      if (!startEdge && triggerEdge) { startEdge = { from: start.id, port: 'out', to: triggerEdge.to }; task.edges.push(startEdge); }
+    } else {
+      Object.assign(trigger, { type: 'start', config: settings });
+      if (triggerEdge) task.edges.push({ from: trigger.id, port: 'out', to: triggerEdge.to });
+    }
+  });
+  task.nodes = [start, ...task.nodes.filter((node) => node !== start)];
   task.nodes.forEach((node) => { delete node.backendAction; });
 
   /* Tasks without usable positions are laid out, since their steps would otherwise sit on top of each other. */
@@ -826,18 +843,34 @@ function createStore() {
       node.config[key] = value;
       if (node.type === 'start' && key === 'trigger' && (TRIGGER_ACTIONS[value] || value === APP_TRIGGER)) {
         Object.entries(TRIGGER_DEFAULTS[value] || {}).forEach(([name, preset]) => { if (node.config[name] === undefined) node.config[name] = preset; });
-        if (value === 'webhook') node.config.triggerSuffix ??= uniqueId();
+        /* Triggers of one kind are told apart by their suffix. */
+        node.config.triggerSuffix ??= uniqueId();
         task.active = true;
       }
+      /* A further start is named after its trigger, as it is when the task is opened again. */
+      if (node.type === 'start' && node !== rootNode(task) && (key === 'trigger' || key === 'app')) node.name = ACTIONS[TYPE_BY_BACKEND[triggerBackend(node.config)]]?.label ?? node.name;
       changed(key === 'switchCases' ? 'structure' : 'config');
     },
-    startWith(type) {
-      const start = rootNode(task);
-      this.updateConfig(start.id, 'trigger', APP_TRIGGER);
-      this.updateConfig(start.id, 'app', ACTIONS[type].backend);
+    /* The Start tile takes the first trigger. Each further one gets a start tile of its own under the others,
+       leading where Start leads, since most tasks do the same work however they start. */
+    addTrigger(trigger, app) {
+      const root = rootNode(task);
+      let tile = root;
+      if (root.config.trigger !== 'manual' && trigger !== 'manual') {
+        remember();
+        const starts = task.nodes.filter((node) => node.type === 'start');
+        tile = createNode(`n${uniqueId()}`, 'start', nameWithNumber(task, 'Start'));
+        tile.position = { x: root.position.x, y: Math.max(...starts.map((node) => node.position.y)) + layout.rowGap };
+        task.nodes.push(tile);
+        const next = edgeFrom(task, root.id, 'out');
+        if (next) task.edges.push({ from: tile.id, port: 'out', to: next.to });
+        changed('structure');
+      }
+      this.updateConfig(tile.id, 'trigger', trigger);
+      if (app) this.updateConfig(tile.id, 'app', app);
       selectedId = null;
-      this.select(start.id);
-      return start;
+      this.select(tile.id);
+      return tile;
     },
     rename(nodeId, name) { remember(`${nodeId}.name`); nodeById(task, nodeId).name = name; changed('config'); },
     updateTask(fields) { remember(`task.${Object.keys(fields)[0]}`); Object.assign(task, fields); changed('meta'); },
@@ -854,8 +887,7 @@ function createStore() {
     endMove() { markChanged(); },
 
     addStep(type, { fromId, port, position } = {}) {
-      /* An app's trigger is how the task starts, so choosing one sets the Start step rather than adding a step. */
-      if (isAppTrigger(ACTIONS[type].backend)) return this.startWith(type);
+      if (isAppTrigger(ACTIONS[type].backend)) return this.addTrigger(APP_TRIGGER, ACTIONS[type].backend);
       remember();
       const node = createNode(`n${uniqueId()}`, type, nameWithNumber(task, ACTIONS[type].label));
       const anchor = fromId || selectedId || lastOnMainPath(task);
@@ -886,7 +918,7 @@ function createStore() {
     },
     removeNode(nodeId) {
       const node = nodeById(task, nodeId);
-      if (!node || node.type === 'start') return false;
+      if (!node || node === rootNode(task)) return false;
       remember();
       const incoming = task.edges.filter((edge) => edge.to === nodeId);
       const outgoing = task.edges.filter((edge) => edge.from === nodeId);
@@ -1140,7 +1172,7 @@ function formatAgo(timestamp) {
 export default async function bootEngine() {
   loadCatalogue((await request('/task/actions')).actions);
   window.DT = {
-    ACTIONS, CATEGORIES, FAILURE_FIELDS, INITIALS,
+    ACTIONS, CATEGORIES, FAILURE_FIELDS, INITIALS, APP_TRIGGER, iconOf,
     createStore, stepsMatching, portsOf, edgeFrom, nodeById, rootNode,
     describeNode, summaryText, fieldVisible, interpolate,
     formatDuration, formatAgo, intervalText, scheduleText,
