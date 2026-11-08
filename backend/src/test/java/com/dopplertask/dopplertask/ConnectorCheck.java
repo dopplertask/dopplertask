@@ -5,6 +5,7 @@ import com.dopplertask.dopplertask.domain.ActionResult;
 import com.dopplertask.dopplertask.domain.TaskExecution;
 import com.dopplertask.dopplertask.domain.action.connector.ConnectorAction;
 import com.dopplertask.dopplertask.domain.action.connector.ConnectorTrigger;
+import com.dopplertask.dopplertask.domain.action.connector.ConnectorWebhooks;
 import com.dopplertask.dopplertask.domain.action.connector.Connectors;
 import com.dopplertask.dopplertask.service.VariableExtractorUtil;
 import com.sun.net.httpserver.HttpExchange;
@@ -120,9 +121,17 @@ public class ConnectorCheck {
         trigger.setOperation(fixture.path("trigger").asText());
         settings.properties().forEach(setting -> trigger.setSetting(setting.getKey(), setting.getValue().isString() ? setting.getValue().asString() : setting.getValue()));
         trigger.useCredentialValues(credential);
-        JsonNode place = fixture.path("store");
-        trigger.setPollState(place.has("lastPoll") ? place.path("lastPoll").asText() : place.path("lastItem").asText(null));
-        trigger.lookForNewItems();
+        if (fixture.path("webhook").asBoolean()) {
+            // The same address the recorder gave the original: https://tasks.example.com/hooks/test-key.
+            ConnectorWebhooks.INSTANCE.setPublicUrl("https://tasks.example.com");
+            trigger.setHookKey("test-key");
+            trigger.subscribe(Connectors.INSTANCE.find(connector).getTriggers().get(fixture.path("trigger").asText()).getWebhook());
+            trigger.takeItemsOf(fixture.path("event"));
+        } else {
+            JsonNode place = fixture.path("store");
+            trigger.setPollState(place.has("lastPoll") ? place.path("lastPoll").asText() : place.path("lastItem").asText(null));
+            trigger.lookForNewItems();
+        }
         List<JsonNode> items = new ArrayList<>();
         for (String item = trigger.nextWaiting(); item != null; item = trigger.nextWaiting()) {
             items.add(parsed(item));

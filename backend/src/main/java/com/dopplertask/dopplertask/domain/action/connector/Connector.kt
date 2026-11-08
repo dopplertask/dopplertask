@@ -117,6 +117,10 @@ class ConnectorWebhook {
     /** Where the subscription's id is in the answer, which unsubscribe can name as {{webhookId}}. */
     var id: String = "$.id"
     var unsubscribe: ConnectorRequest? = null
+
+    /** Scripts for the subscribe request, such as asking for the account first; afterResponse returns the id. */
+    var beforeRequest: String? = null
+    var afterResponse: String? = null
 }
 
 class ConnectorInput {

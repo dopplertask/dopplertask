@@ -171,8 +171,10 @@ class ConnectorTrigger : Trigger() {
     fun subscribe(webhook: ConnectorWebhook) {
         val connector = spec!!
         hookKey = hookKey ?: UUID.randomUUID().toString()
-        val answer = send(connector, webhook.subscribe, settingValues() + ("webhookUrl" to ConnectorWebhooks.addressOf(hookKey!!)))
-        pollState = JsonPaths.read(JsonApi.parsed(answer), webhook.id)?.asText() ?: ""
+        val values = settingValues() + ("webhookUrl" to ConnectorWebhooks.addressOf(hookKey!!))
+        val sender = ConnectorSender(this, connector, credentialValues)
+        val answer = JsonApi.parsed(send(connector, webhook.subscribe, values, webhook.beforeRequest))
+        pollState = (webhook.afterResponse?.let { ConnectorScripts.run(it, values, null, answer, sender::answerFor) } ?: JsonPaths.read(answer, webhook.id))?.asText() ?: ""
         keepPlace()
     }
 
@@ -192,8 +194,8 @@ class ConnectorTrigger : Trigger() {
         waiting.addAll(JsonPaths.read(reply, poll.items)?.let { if (it.isArray) it.toList() else listOf(it) }.orEmpty().filterNot { it.isNull }.take(MOST_ITEMS_PER_CHECK))
     }
 
-    private fun send(connector: Connector, request: ConnectorRequest, values: Map<String, String>): ActionResult {
-        val operation = ConnectorOperation().also { it.request = request; it.inputs = linkedMapOf() }
+    private fun send(connector: Connector, request: ConnectorRequest, values: Map<String, String>, beforeRequest: String? = null): ActionResult {
+        val operation = ConnectorOperation().also { it.request = request; it.inputs = linkedMapOf(); it.beforeRequest = beforeRequest }
         val sender = ConnectorSender(this, connector, credentialValues)
         val answer = sender.send(ConnectorRequests.build(connector, operation, values, credentialValues, sender::answerFor))
         check(answer.statusCode == StatusCode.SUCCESS) { answer.errorMsg }

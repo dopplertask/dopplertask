@@ -41,8 +41,15 @@ const context = createMockActionContext({ propsValue: fixture.inputs || {} });
 context.auth = fixture.auth;
 const memory = new Map(Object.entries(fixture.store || {}));
 context.store = { put: async (key, value) => (memory.set(key, value), value), get: async (key) => memory.get(key) ?? null, delete: async (key) => { memory.delete(key); } };
+// A webhook trigger subscribes with a fixed address, then reads the fixture's event as a service would send it.
+const WEBHOOK_URL = 'https://tasks.example.com/hooks/test-key';
 let output;
 try {
+  if (fixture.webhook) {
+    context.webhookUrl = WEBHOOK_URL;
+    await step.onEnable(context);
+    context.payload = { body: fixture.event, headers: {}, queryParams: {} };
+  }
   output = await step.run(context);
 } catch (error) {
   output = { error: String(error?.message || error) };
