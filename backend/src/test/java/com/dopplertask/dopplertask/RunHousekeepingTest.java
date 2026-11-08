@@ -6,6 +6,8 @@ import com.dopplertask.dopplertask.domain.TaskExecutionLog;
 import com.dopplertask.dopplertask.domain.TaskExecutionStatus;
 import com.dopplertask.dopplertask.service.CustomerScope;
 import com.dopplertask.dopplertask.service.RunHousekeeping;
+import com.dopplertask.dopplertask.service.RunQueue;
+import com.dopplertask.dopplertask.service.TaskExecutionRequest;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -24,6 +26,7 @@ import jakarta.persistence.EntityManager;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
+import java.util.Set;
 
 @RunWith(SpringRunner.class)
 @DataJpaTest(properties = "spring.datasource.url=jdbc:h2:mem:runhousekeeping")
@@ -83,6 +86,31 @@ public class RunHousekeepingTest {
     }
 
     @Test
+    public void testRunsThatStillWaitInAQueueThatKeepsThemAreNotFailedSuccess() {
+        Long going = saveRun(TaskExecutionStatus.STARTED, null);
+        Long waiting = saveRun(TaskExecutionStatus.CREATED, null);
+        StaticListableBeanFactory beans = new StaticListableBeanFactory();
+        beans.addBean("runQueue", new RunQueue() {
+            @Override
+            public void submit(TaskExecutionRequest request) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Set<Long> waiting() {
+                return Set.of(waiting);
+            }
+        });
+
+        housekeeping(0, beans).failInterruptedRuns();
+        entityManager.flush();
+        entityManager.clear();
+
+        Assert.assertEquals(TaskExecutionStatus.FAILED, taskExecutionDao.findById(going).orElseThrow().getStatus());
+        Assert.assertEquals(TaskExecutionStatus.CREATED, taskExecutionDao.findById(waiting).orElseThrow().getStatus());
+    }
+
+    @Test
     public void testOldRunsAreDeletedWithTheirOutputWhenAskedForSuccess() {
         Long old = saveRun(TaskExecutionStatus.FINISHED, daysAgo(40));
         Long recent = saveRun(TaskExecutionStatus.FINISHED, daysAgo(5));
@@ -107,7 +135,11 @@ public class RunHousekeepingTest {
     }
 
     private RunHousekeeping housekeeping(int keepRunsDays) {
-        return new RunHousekeeping(taskExecutionDao, keepRunsDays, 0, null, new StaticListableBeanFactory().getBeanProvider(CustomerScope.class),
+        return housekeeping(keepRunsDays, new StaticListableBeanFactory());
+    }
+
+    private RunHousekeeping housekeeping(int keepRunsDays, StaticListableBeanFactory beans) {
+        return new RunHousekeeping(taskExecutionDao, keepRunsDays, 0, null, beans.getBeanProvider(CustomerScope.class), beans.getBeanProvider(RunQueue.class),
                 TransactionOperations.withoutTransaction());
     }
 }

@@ -7,6 +7,7 @@ import com.dopplertask.dopplertask.domain.TaskExecutionStatus;
 import com.dopplertask.dopplertask.service.CustomerScope;
 import com.dopplertask.dopplertask.service.ExecutionService;
 import com.dopplertask.dopplertask.service.RunHousekeeping;
+import com.dopplertask.dopplertask.service.RunQueue;
 import com.dopplertask.dopplertask.service.TaskExecutionRequest;
 import com.dopplertask.dopplertask.service.TaskServiceImpl;
 import org.junit.Assert;
@@ -25,7 +26,8 @@ public class StuckRunsTest {
     private final ExecutionService service = Mockito.mock(ExecutionService.class);
 
     private RunHousekeeping housekeeping(long maxRunMinutes) {
-        return new RunHousekeeping(executions, 0, maxRunMinutes, service, new StaticListableBeanFactory().getBeanProvider(CustomerScope.class), TransactionOperations.withoutTransaction());
+        StaticListableBeanFactory beans = new StaticListableBeanFactory();
+        return new RunHousekeeping(executions, 0, maxRunMinutes, service, beans.getBeanProvider(CustomerScope.class), beans.getBeanProvider(RunQueue.class), TransactionOperations.withoutTransaction());
     }
 
     private TaskExecution going(long id) {
@@ -94,7 +96,7 @@ public class StuckRunsTest {
                 return customer[0];
             }
         });
-        RunHousekeeping housekeeping = new RunHousekeeping(executions, 0, 60, service, beans.getBeanProvider(CustomerScope.class), TransactionOperations.withoutTransaction());
+        RunHousekeeping housekeeping = new RunHousekeeping(executions, 0, 60, service, beans.getBeanProvider(CustomerScope.class), beans.getBeanProvider(RunQueue.class), TransactionOperations.withoutTransaction());
         Thread firstStep = new Thread(() -> {
         });
         Thread secondStep = Mockito.spy(new Thread(() -> {

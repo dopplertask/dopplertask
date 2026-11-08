@@ -16,6 +16,7 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -33,6 +34,7 @@ public class RunHousekeeping {
     private final long maxRunMinutes;
     private final ExecutionService executionService;
     private final CustomerScope customerScope;
+    private final ObjectProvider<RunQueue> runQueue;
     private final TransactionOperations transactions;
     private final Map<RunOfCustomer, GoingRun> going = new ConcurrentHashMap<>();
 
@@ -52,12 +54,14 @@ public class RunHousekeeping {
 
     public RunHousekeeping(TaskExecutionDao taskExecutionDao, @Value("${dopplertask.keepRunsDays:0}") int keepRunsDays,
                            @Value("${dopplertask.maxRunMinutes:1440}") long maxRunMinutes,
-                           ExecutionService executionService, ObjectProvider<CustomerScope> customers, TransactionOperations transactions) {
+                           ExecutionService executionService, ObjectProvider<CustomerScope> customers, ObjectProvider<RunQueue> runQueue,
+                           TransactionOperations transactions) {
         this.taskExecutionDao = taskExecutionDao;
         this.keepRunsDays = keepRunsDays;
         this.maxRunMinutes = maxRunMinutes;
         this.executionService = executionService;
         this.customerScope = customers.getIfAvailable(() -> CustomerScope.ONE_CUSTOMER);
+        this.runQueue = runQueue;
         this.transactions = transactions;
     }
 
@@ -110,12 +114,17 @@ public class RunHousekeeping {
     }
 
     /**
-     * Runs live in this one process and its queue in memory, so at startup nothing can still be going. A run that says
-     * so was stopped by a crash or a restart, and whoever waits for it would otherwise wait forever.
+     * Runs live in this one process, so at startup nothing can still be going. A run that says so was stopped by a crash
+     * or a restart, and whoever waits for it would otherwise wait forever. The built-in queue is in memory and loses its
+     * runs, but a queue that keeps them starts them later, so those are not interrupted.
      */
     public void failInterruptedRuns() {
         forEachCustomer(() -> {
-            List<TaskExecution> interrupted = taskExecutionDao.findByStatusIn(List.of(TaskExecutionStatus.CREATED, TaskExecutionStatus.STARTED));
+            RunQueue queue = runQueue.getIfAvailable();
+            Set<Long> waiting = queue == null ? Set.of() : queue.waiting();
+            List<TaskExecution> interrupted = taskExecutionDao.findByStatusIn(List.of(TaskExecutionStatus.CREATED, TaskExecutionStatus.STARTED)).stream()
+                    .filter(execution -> !waiting.contains(execution.getId()))
+                    .toList();
             interrupted.forEach(execution -> execution.fail(INTERRUPTED));
             if (!interrupted.isEmpty()) {
                 LOG.warn("Marked {} runs as failed, since the server stopped during them.", interrupted.size());
