@@ -7,6 +7,7 @@ import com.dopplertask.dopplertask.domain.action.Action
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationCategory
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
 import com.dopplertask.dopplertask.domain.action.integration.JsonApi
+import com.dopplertask.dopplertask.domain.action.integration.OAuthSignIn
 import com.dopplertask.dopplertask.service.BroadcastListener
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
@@ -55,11 +56,11 @@ class GoogleSheetsAction : Action() {
         val sheetValue = read(sheet).trim().ifEmpty { "Sheet1" }
         val operationValue = read(operation)
         val spreadsheetId = SPREADSHEET_ID.find(spreadsheetText)?.groupValues?.get(1) ?: spreadsheetText
-        if (keyText.isBlank()) return ActionResult.failure("Google Sheets needs the key file of a service account.")
+        if (keyText.isBlank() && !OAuthSignIn.isUsedBy(this)) return ActionResult.failure("Google Sheets needs the key file of a service account, or a connected Google account.")
         if (spreadsheetId.isBlank()) return ActionResult.failure("Google Sheets needs the address or the id of a spreadsheet.")
         if (operationValue == ADD_ROW && rowValues.isNullOrBlank()) return ActionResult.failure("Google Sheets needs the values of the row, one per line.")
 
-        val signIn = GoogleAccount.signIn("Google Sheets", keyText, SCOPE)
+        val signIn = GoogleAccount.signIn("Google Sheets", this, keyText, SCOPE)
         if (signIn.failure != null) return signIn.failure
         val headers = signIn.headers
 
@@ -106,6 +107,7 @@ class GoogleSheetsAction : Action() {
         get() {
             val actionInfo = super.actionInfo
             actionInfo.add(PropertyInformation("serviceAccountKey", "Service account key", PropertyInformationType.STRING, "", "The JSON file that Google Cloud gives for a service account. Share the spreadsheet with the email of that account.", mutableListOf(), PropertyInformationCategory.SECRET))
+            actionInfo.addAll(GoogleAccount.accountFields())
             actionInfo.add(PropertyInformation("spreadsheet", "Spreadsheet", PropertyInformationType.STRING, "", "The address or the id."))
             actionInfo.add(PropertyInformation("sheet", "Sheet", PropertyInformationType.STRING, "Sheet1", "The name of the tab."))
             actionInfo.add(PropertyInformation("operation", "Action", PropertyInformationType.DROPDOWN, READ_ROWS, "", listOf(

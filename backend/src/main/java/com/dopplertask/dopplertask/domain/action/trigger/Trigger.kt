@@ -18,6 +18,9 @@ abstract class Trigger : Action() {
 
     abstract fun trigger(): TriggerResult
 
+    /** Why the trigger cannot start the task, or null when it can. Asked when the task is turned on and when triggers start. */
+    open fun problem(): String? = null
+
     override val actionInfo: MutableList<PropertyInformation>
         get() {
             val actionInfo = super.actionInfo

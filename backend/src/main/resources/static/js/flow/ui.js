@@ -13,6 +13,7 @@ export default function boot() {
     stop: '<rect x="6" y="6" width="12" height="12" rx="1.5"/>',
     split: '<path d="M4 12h5l6-6h5M9 12l6 6h5"/><path d="m17 3 3 3-3 3M17 15l3 3-3 3"/>',
     signpost: '<path d="M12 3v18M12 5h6l3 3-3 3h-6M12 11H6l-3 3 3 3h6"/>',
+    repeat: '<path d="m17 2 4 4-4 4M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v1a4 4 0 0 1-4 4H3"/>',
     braces: '<path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5a2 2 0 0 0 2 2h1M16 3h1a2 2 0 0 1 2 2v5a2 2 0 0 0 2 2 2 2 0 0 0-2 2v5a2 2 0 0 1-2 2h-1"/>',
     code: '<path d="m8 7-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/>',
     regex: '<path d="M16 4v8M12.5 6l7 4M19.5 6l-7 4"/><circle cx="7" cy="17" r="3"/>',
@@ -509,30 +510,72 @@ export default function boot() {
   /* A saved value is never sent back, so a field is shown empty and stays as it is unless something is typed. */
   function openCredentialDialog(store, field, editing, onSaved) {
     const form = { id: 'credential', config: {} };
+    const asField = (one) => renderField({ ...one, required: one.required && !editing, placeholder: editing?.fieldsSet.includes(one.key) ? 'Saved. Leave empty to keep it.' : one.placeholder }, form);
+    /* Signing in with an account is its own part, and its tokens come from connecting, never from typing. */
+    const accountFields = field.fields.filter((one) => one.key.startsWith('oauth') && !ACCOUNT_TOKENS.includes(one.key));
+    const ownFields = field.fields.filter((one) => !one.key.startsWith('oauth'));
+    const connected = ACCOUNT_TOKENS.some((key) => editing?.fieldsSet.includes(key));
+    const account = accountFields.length ? `<details class="ui-disclosure" ${connected || !ownFields.length ? 'open' : ''}><summary>${icon('chevronRight')}Sign in with an account<span class="ui-pill">${connected ? 'Connected' : 'Not connected'}</span></summary>
+        <div class="ui-field-grid"><p class="ui-hint">Register <code>${escapeHtml(location.origin)}/oauth/callback</code> as the return address with the service.</p>
+        ${accountFields.map(asField).join('')}</div></details>` : '';
     const dialog = openDialog(`${dialogHeader(editing ? `Edit ${editing.name}` : 'New credential', 'Encrypted when saved, and never shown again. Steps name it, and get its values only while they run.')}
       <form class="ui-form">
         ${editing ? '' : '<div class="ui-field"><label class="ui-label" for="credential-name">Name</label><input class="ui-input" id="credential-name" autocomplete="off" spellcheck="false" placeholder="such as prod-slack"></div>'}
-        ${field.fields.map((one) => renderField({ ...one, required: one.required && !editing, placeholder: editing?.fieldsSet.includes(one.key) ? 'Saved. Leave empty to keep it.' : one.placeholder }, form)).join('')}
-        <footer class="ui-dialog-foot"><button type="button" class="ui-button" data-dialog-close>Cancel</button><button type="submit" class="ui-button is-primary">Save</button></footer>
+        ${ownFields.map(asField).join('')}
+        ${account}
+        <footer class="ui-dialog-foot"><button type="button" class="ui-button" data-dialog-close>Cancel</button>${accountFields.length ? `<button type="button" class="ui-button" data-connect>${connected ? 'Save and connect again' : 'Save and connect'}</button>` : ''}<button type="submit" class="ui-button is-primary">Save</button></footer>
       </form>`);
     dialog.querySelector('.ui-input')?.focus();
     dialog.addEventListener('click', (event) => {
       const reveal = event.target.closest('[data-reveal]');
       if (reveal) { const input = reveal.parentElement.querySelector('input'); input.type = input.type === 'password' ? 'text' : 'password'; }
     });
-    dialog.querySelector('form').addEventListener('submit', async (event) => {
-      event.preventDefault();
-      const name = editing ? editing.name : dialog.querySelector('#credential-name').value.trim();
-      const values = Object.fromEntries([...dialog.querySelectorAll('[data-field]')].map((input) => [input.dataset.field, input.value]));
-      const missing = field.fields.find((one) => one.required && !editing && !values[one.key]);
-      if (missing) { toast(`${missing.label} is required`, { tone: 'danger' }); return; }
+    const nameOf = () => (editing ? editing.name : dialog.querySelector('#credential-name').value.trim());
+    const valuesOf = () => Object.fromEntries([...dialog.querySelectorAll('[data-field]')].map((input) => [input.dataset.field, input.value]));
+
+    /* Saving comes first, so a credential is kept even when connecting its account fails, and the person is told which. */
+    async function save(signInWindow) {
+      const name = nameOf();
       try {
-        await store.saveCredential(name, field.credentialType, values, !!editing);
-        dialog.close();
-        toast(editing ? `Saved ${name}` : `Created ${name}`);
-        onSaved?.(name);
-      } catch (error) { toast(error.message, { tone: 'danger' }); }
+        await store.saveCredential(name, field.credentialType, valuesOf(), !!editing);
+      } catch (error) { signInWindow?.close(); toast(error.message, { tone: 'danger' }); return; }
+      dialog.close();
+      onSaved?.(name);
+      if (!signInWindow) { toast(editing ? `Saved ${name}` : `Created ${name}`); return; }
+      try {
+        signInWindow.location = await store.connectCredential(name);
+        watchConnection(store, name);
+      } catch (error) { signInWindow.close(); toast(`Saved ${name}, but the account is not connected. ${error.message}`, { tone: 'danger' }); }
+    }
+
+    /* Checked before the sign-in window opens, so that a missing field leaves no empty window behind. */
+    const complete = () => {
+      const values = valuesOf();
+      const missing = nameOf() ? field.fields.find((one) => one.required && !editing && !values[one.key])?.label : 'Name';
+      if (missing) toast(`${missing} is required`, { tone: 'danger' });
+      return !missing;
+    };
+    dialog.querySelector('form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      if (complete()) save(null);
     });
+    dialog.querySelector('[data-connect]')?.addEventListener('click', () => {
+      /* Opened at once, inside the click, so that the browser does not block it. */
+      if (complete()) save(window.open('', 'dopplertask-connect', 'width=520,height=700'));
+    });
+  }
+
+  const ACCOUNT_TOKENS = ['oauthRefreshToken', 'oauthAccessToken'];
+
+  /* The sign-in page says when the account is connected, so that the list shows it without a reload. */
+  function watchConnection(store, name) {
+    const done = async (event) => {
+      if (event.origin !== location.origin || event.data !== 'dopplertask-account-connected') return;
+      window.removeEventListener('message', done);
+      await store.loadCredentials();
+      toast(`Connected the account of ${name}`);
+    };
+    window.addEventListener('message', done);
   }
 
   const credentialFieldOf = (type) => Object.values(ACTIONS).flatMap((action) => action.fields).find((field) => field.type === 'credential' && field.credentialType === type);

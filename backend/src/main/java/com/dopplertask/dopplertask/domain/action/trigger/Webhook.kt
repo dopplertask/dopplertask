@@ -7,6 +7,9 @@ import com.dopplertask.dopplertask.domain.TaskExecution
 import com.dopplertask.dopplertask.service.BroadcastListener
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
+import com.dopplertask.dopplertask.service.WebhookReply
+import com.dopplertask.dopplertask.domain.action.common.WebhookReplyAction
+import jakarta.persistence.Lob
 import java.io.IOException
 import java.util.*
 import jakarta.persistence.Column
@@ -40,6 +43,18 @@ class Webhook : Trigger() {
     @Transient
     var headerValue: String? = "";
 
+    /** How the caller is answered. Empty answers with the run log, as webhooks always have. */
+    @Column
+    var responseMode: String? = WebhookReply.RUN_LOG
+
+    @Column
+    var responseCode: String? = "200"
+
+    /** What the caller gets when it is answered at once. Empty gives the run id. */
+    @Lob
+    @Column(columnDefinition = "TEXT")
+    var responseBody: String? = null
+
     @Throws(IOException::class)
     override fun run(
         taskService: TaskService,
@@ -68,7 +83,7 @@ class Webhook : Trigger() {
                 passwordDecoded = parts[1]
             }
 
-            return if (authentication != null && passwordVariable.isNotEmpty() && usernameVariable.equals(usernameDecoded) && passwordVariable.equals(
+            return answered(if (authentication != null && passwordVariable.isNotEmpty() && usernameVariable.equals(usernameDecoded) && passwordVariable.equals(
                     passwordDecoded
                 )
             ) {
@@ -79,7 +94,7 @@ class Webhook : Trigger() {
                 result
             } else {
                 authenticationFailed()
-            }
+            }, execution, variableExtractorUtil)
 
         } else if (authentication == "header") {
             val headerNameVariable = variableExtractorUtil.extract(headerName, execution, scriptLanguage)
@@ -87,7 +102,7 @@ class Webhook : Trigger() {
 
             val authentication = execution.parameters["TRIGGER_$headerNameVariable"]
 
-            return respond(headerValueVariable, authentication.toString())
+            return answered(respond(headerValueVariable, authentication.toString()), execution, variableExtractorUtil)
         } else if (authentication == "bearer") {
             val tokenVariable = variableExtractorUtil.extract(token, execution, scriptLanguage)
 
@@ -97,13 +112,26 @@ class Webhook : Trigger() {
             // Remove Basic and decode the base64 encoded string containing the username and password.
             val bearerAuth = authentication.toString().replace("Bearer ", "")
 
-            return respond(tokenVariable, bearerAuth)
+            return answered(respond(tokenVariable, bearerAuth), execution, variableExtractorUtil)
         }
 
         val result = ActionResult()
         result.output = "Webhook triggered"
         result.statusCode = StatusCode.SUCCESS
         result.outputType = OutputType.STRING
+        return answered(result, execution, variableExtractorUtil)
+    }
+
+    /** Answers a caller who should not wait, once it is known that the call may start the task. */
+    private fun answered(result: ActionResult, execution: TaskExecution, variableExtractorUtil: VariableExtractorUtil): ActionResult {
+        val reply = execution.webhookReply ?: return result
+        if (result.statusCode == StatusCode.FAILURE) {
+            reply.give(401, mapOf("Content-Type" to "text/plain"), "The webhook could not check who is calling.")
+        } else if (reply.mode == WebhookReply.AT_ONCE) {
+            val body = variableExtractorUtil.extract(responseBody, execution, scriptLanguage)
+            val answer = body.ifBlank { "{\"executionId\":${execution.id},\"status\":\"started\"}" }
+            reply.give(WebhookReplyAction.statusOf(variableExtractorUtil.extract(responseCode, execution, scriptLanguage), 200), mapOf("Content-Type" to WebhookReplyAction.contentTypeOf(answer)), answer)
+        }
         return result
     }
 
@@ -235,6 +263,26 @@ class Webhook : Trigger() {
             )
 
             actionInfo.add(PropertyInformation("path", "Path", PropertyInformation.PropertyInformationType.STRING))
+            actionInfo.add(
+                PropertyInformation(
+                    "responseMode", "Reply", PropertyInformation.PropertyInformationType.DROPDOWN, WebhookReply.RUN_LOG, "What the caller gets back, and when.",
+                    WebhookReply.LABELS.map { (mode, label) -> PropertyInformation(mode, label) }
+                )
+            )
+            actionInfo.add(
+                PropertyInformation(
+                    "responseCode", "Status code", PropertyInformation.PropertyInformationType.NUMBER, "200", "The HTTP status of the answer, such as 200 or 202.",
+                    mutableListOf(), PropertyInformation.PropertyInformationCategory.PROPERTY,
+                    mutableMapOf(Pair("responseMode", arrayOf(WebhookReply.AT_ONCE, WebhookReply.LAST_STEP)))
+                )
+            )
+            actionInfo.add(
+                PropertyInformation(
+                    "responseBody", "Answer", PropertyInformation.PropertyInformationType.MULTILINE, "", "Text or JSON for the caller. Empty gives the run id.",
+                    mutableListOf(), PropertyInformation.PropertyInformationCategory.PROPERTY,
+                    mutableMapOf(Pair("responseMode", arrayOf(WebhookReply.AT_ONCE)))
+                )
+            )
             return actionInfo
         }
 

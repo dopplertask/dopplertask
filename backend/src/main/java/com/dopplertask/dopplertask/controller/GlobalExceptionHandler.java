@@ -3,6 +3,7 @@ package com.dopplertask.dopplertask.controller;
 
 import com.dopplertask.dopplertask.service.CredentialProblemException;
 import com.dopplertask.dopplertask.service.IncompleteConnectionException;
+import com.dopplertask.dopplertask.service.BrokenTriggerException;
 import com.dopplertask.dopplertask.service.LinkedTaskNotFoundException;
 import com.dopplertask.dopplertask.service.NoStartActionFoundException;
 import com.dopplertask.dopplertask.service.RunAlreadyEndedException;
@@ -36,7 +37,7 @@ public class GlobalExceptionHandler {
         return error(ex.getMessage(), HttpStatus.FORBIDDEN);
     }
 
-    @ExceptionHandler({CredentialProblemException.class, WhiteSpaceInNameException.class, NoStartActionFoundException.class, IncompleteConnectionException.class})
+    @ExceptionHandler({CredentialProblemException.class, WhiteSpaceInNameException.class, NoStartActionFoundException.class, IncompleteConnectionException.class, BrokenTriggerException.class})
     public ResponseEntity<ErrorDto> generateInvalidTaskError(RuntimeException ex) {
         return error(ex.getMessage(), HttpStatus.BAD_REQUEST);
     }

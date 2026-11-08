@@ -19,6 +19,7 @@ const PRESENTATION = {
   StartAction: ['start', 'Start', 'logic', 'play'],
   IfAction: ['if', 'If', 'logic', 'split', ['condition']],
   SwitchAction: ['switch', 'Switch', 'logic', 'signpost', ['value', 'switchCases']],
+  LoopAction: ['loop', 'Loop over items', 'logic', 'repeat'],
   SetVariableAction: ['setVariable', 'Set variable', 'logic', 'braces', ['setVariableList']],
   ScriptAction: ['script', 'Script', 'logic', 'code', ['script']],
   RegexAction: ['regex', 'Extract with regex', 'logic', 'regex', ['stringToCheck', 'regexPattern']],
@@ -26,6 +27,7 @@ const PRESENTATION = {
   LinkedTaskAction: ['linkedTask', 'Run another task', 'logic', 'workflow', ['name']],
   PrintAction: ['print', 'Print message', 'logic', 'message', ['message']],
   TimedWait: ['wait', 'Wait', 'logic', 'clock', ['seconds']],
+  WebhookReplyAction: ['webhookReply', 'Reply to webhook', 'logic', 'webhook'],
   HttpAction: ['http', 'HTTP request', 'connection', 'globe', ['url']],
   SSHAction: ['ssh', 'SSH command', 'connection', 'server', ['hostname', 'command']],
   SecureCopyAction: ['secureCopy', 'Copy file over SCP', 'connection', 'send', ['hostname', 'sourceFilename', 'destinationFilename']],
@@ -99,13 +101,14 @@ const PRESENTATION = {
   PayPalAction: ['payPal', 'PayPal', 'sales', 'payPal', ['clientId', 'clientSecret', 'amount', 'orderId', 'captureId']],
   /* Without these a trigger stops at once, and nothing but the server log says so. */
   IntervalTrigger: ['IntervalTrigger', 'Schedule', 'logic', 'clock', ['time']],
+  ScheduleTrigger: ['ScheduleTrigger', 'Schedule', 'logic', 'clock', ['rule']],
   ActiveMQTrigger: ['ActiveMQTrigger', 'Queue', 'logic', 'server', ['url', 'queue']],
 };
 
 /* Triggers are shown as one Start tile with a choice of how it starts. */
-const TRIGGER_ACTIONS = { webhook: 'Webhook', interval: 'IntervalTrigger', activemq: 'ActiveMQTrigger' };
+const TRIGGER_ACTIONS = { webhook: 'Webhook', schedule: 'ScheduleTrigger', interval: 'IntervalTrigger', activemq: 'ActiveMQTrigger' };
 const TRIGGER_KINDS = Object.fromEntries(Object.entries(TRIGGER_ACTIONS).map(([kind, backend]) => [backend, kind]));
-const TRIGGER_DEFAULTS = { webhook: { method: 'POST', authentication: 'none' }, interval: { time: '1', timeUnit: 'MINUTES' }, activemq: {} };
+const TRIGGER_DEFAULTS = { webhook: { method: 'POST', authentication: 'none' }, schedule: { rule: 'DAYS', every: '1', atHour: '9', atMinute: '0' }, interval: { time: '1', timeUnit: 'MINUTES' }, activemq: {} };
 const STEP_ACTION_NAME = 'actionName';
 const FAILURE_FIELD_NAMES = ['continueOnFailure', 'retries', 'retryWait', 'failOn'];
 const AUTO_SAVE_DELAY_MS = 30000;
@@ -189,11 +192,13 @@ function loadCatalogue(actions) {
 
   ACTIONS.switch.ports = (node) => [...(node.config.switchCases || []).map((switchCase, index) => ({ id: `case:${index}`, label: switchCase.currentCase || `Case ${index + 1}` })), { id: 'default', label: 'Default' }];
   ACTIONS.if.ports = () => [{ id: 'true', label: 'Yes' }, { id: 'false', label: 'No' }];
+  ACTIONS.loop.ports = () => [{ id: 'each', label: 'Each item' }, { id: 'done', label: 'Done' }];
   ACTIONS.start.fields = [
     { key: 'trigger', label: 'Starts', type: 'select', options: [
       { value: 'manual', label: 'Only when I run it' },
       { value: 'webhook', label: 'When a webhook is called' },
-      { value: 'interval', label: 'On a schedule' },
+      { value: 'schedule', label: 'On a schedule' },
+      { value: 'interval', label: 'After a fixed pause (older)' },
       { value: 'activemq', label: 'When a queue message arrives' },
     // A server can leave out kinds of trigger that it does not offer.
     ].filter((option) => !TRIGGER_ACTIONS[option.value] || triggers[TRIGGER_ACTIONS[option.value]]) },
@@ -298,11 +303,13 @@ function describeNode(node) {
       return ({
         manual: ['Starts ', { value: 'when I run it' }],
         webhook: ['Starts on ', { value: `${config.method || 'POST'} /${config.path || ''}` }],
+        schedule: ['Starts ', { value: scheduleText(config) }],
         interval: ['Starts every ', { value: intervalText(config) }],
         activemq: ['Starts on messages from ', value(config.queue, 'no queue')],
       })[config.trigger] || ['Starts'];
     case 'if': return ['If ', value(readableExpression(config.condition), 'a condition')];
     case 'switch': return ['Check ', value(readableExpression(config.value), 'a value')];
+    case 'loop': return ['For each item in ', value(config.path || readableExpression(config.items), 'a list')];
     case 'setVariable': return ['Set ', value((config.setVariableList || [])[0]?.name, 'a variable')];
     case 'script': return ['Run ', value(config.script, 'a script')];
     case 'regex': return ['Extract ', value(config.regexPattern, 'a pattern'), ' from ', value(readableExpression(config.stringToCheck), 'text')];
@@ -530,6 +537,7 @@ const SWITCH_PORT = /port nr: (\d+)/;
 
 function choosePort(node, output) {
   if (node.type === 'if') return output === 'true' ? 'true' : 'false';
+  if (node.type === 'loop') return (output || '').startsWith('Done') ? 'done' : 'each';
   if (node.type === 'switch') return portsOf(node)[Number((output || '').match(SWITCH_PORT)?.[1])]?.id || null;
   return 'out';
 }
@@ -807,6 +815,10 @@ function createStore() {
     async saveCredential(name, type, values, editing) {
       await request(editing ? `/credentials/${encodeURIComponent(name)}` : '/credentials', { method: editing ? 'PUT' : 'POST', body: JSON.stringify(editing ? values : { name, type, values }) });
       await loadCredentials();
+    },
+    /* The address of the service's sign-in page, where a person connects the credential's account. */
+    async connectCredential(name) {
+      return (await request(`/credentials/${encodeURIComponent(name)}/connect`, { method: 'POST' })).url;
     },
     async deleteCredential(name) {
       await request(`/credentials/${encodeURIComponent(name)}`, { method: 'DELETE' });
@@ -1121,6 +1133,21 @@ function intervalText(config) {
   return `${time} ${String(time) === '1' ? unit.replace(/s$/, '') : unit}`;
 }
 
+const SCHEDULE_UNITS = { SECONDS: 'second', MINUTES: 'minute', HOURS: 'hour', DAYS: 'day', WEEKS: 'week', MONTHS: 'month' };
+
+/* The schedule as a short sentence, such as "every 15 minutes" or "every week on MON at 09:00". */
+function scheduleText(config) {
+  const rule = config.rule || 'MINUTES';
+  const zone = config.timezone ? ` (${config.timezone})` : '';
+  if (rule === 'CRON') return `by cron ${firstLine(config.cronExpression || '') || '…'}${zone}`;
+  const every = Number(config.every || 1);
+  const unit = SCHEDULE_UNITS[rule] || 'minute';
+  const often = every === 1 ? `every ${unit}` : `every ${every} ${unit}s`;
+  const time = `${String(config.atHour || 0).padStart(2, '0')}:${String(config.atMinute || 0).padStart(2, '0')}`;
+  const when = { HOURS: ` at minute ${config.atMinute || 0}`, DAYS: ` at ${time}`, WEEKS: ` on ${config.onDays || 'MON'} at ${time}`, MONTHS: ` on day ${config.onDayOfMonth || 1} at ${time}` }[rule] || '';
+  return `${often}${when}${config.weekdaysOnly && ['SECONDS', 'MINUTES', 'HOURS', 'DAYS'].includes(rule) ? ' on weekdays' : ''}${zone}`;
+}
+
 function formatAgo(timestamp) {
   const minutes = Math.round((Date.now() - timestamp) / 60000);
   if (minutes < 1) return 'just now';
@@ -1135,6 +1162,6 @@ export default async function bootEngine() {
     ACTIONS, CATEGORIES, FAILURE_FIELDS,
     createStore, stepsMatching, portsOf, edgeFrom, nodeById, rootNode,
     describeNode, summaryText, fieldVisible, interpolate,
-    formatDuration, formatAgo, intervalText,
+    formatDuration, formatAgo, intervalText, scheduleText,
   };
 }

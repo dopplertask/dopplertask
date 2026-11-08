@@ -11,7 +11,7 @@ export default function boot() {
   const START_OPTIONS = [
     ['manual', 'play', 'Run by hand', 'Starts only when someone runs it.'],
     ['webhook', 'webhook', 'Webhook', 'Starts when a URL is called.'],
-    ['interval', 'clock', 'Schedule', 'Starts on a repeating interval.'],
+    ['schedule', 'clock', 'Schedule', 'Starts every few minutes, at set times, or by cron.'],
     ['activemq', 'server', 'Queue message', 'Starts when an ActiveMQ message arrives.'],
   ];
 
