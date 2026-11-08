@@ -1,5 +1,6 @@
 package com.dopplertask.dopplertask;
 
+import com.jayway.jsonpath.JsonPath;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -12,6 +13,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -70,10 +72,19 @@ public class WebhookReplyTest {
     }
 
     @Test
-    public void testReplyWithBrokenJsonExplainsWhyFail() throws Exception {
+    public void testFailedRunKeepsItsReasonFromTheCallerFail() throws Exception {
         MockHttpServletResponse response = call("reply_bad_json", "replyStep", "", step("WebhookReplyAction", "\"replyWith\":\"JSON\",\"body\":\"{not json\""), "");
         Assert.assertEquals(500, response.getStatus());
-        Assert.assertTrue(response.getContentAsString().contains("not valid JSON"));
+        Assert.assertTrue(response.getContentAsString().contains("\"status\":\"FAILED\""));
+        Assert.assertFalse(response.getContentAsString().contains("not valid JSON"));
+        Assert.assertTrue(reasonOf(response).contains("not valid JSON"));
+    }
+
+    @Test
+    public void testReplyStepUnderARunLogWebhookSaysWhyFail() throws Exception {
+        MockHttpServletResponse response = call("reply_unused", "", "", step("WebhookReplyAction", "\"replyWith\":\"TEXT\",\"body\":\"hi\""), "");
+        Assert.assertTrue(response.getContentAsString().contains("\"status\":\"FAILED\""));
+        Assert.assertTrue(reasonOf(response).contains("does not wait for this step"));
     }
 
     @Test
@@ -89,6 +100,12 @@ public class WebhookReplyTest {
         this.mockMvc.perform(post("/task").content(task(name, "replyStep", "", step("WebhookReplyAction", "\"replyWith\":\"TEXT\",\"body\":\"hi\"")))).andExpect(status().isOk());
         this.mockMvc.perform(post("/schedule/directtask").contentType(MediaType.APPLICATION_JSON).content("{\"taskName\":\"" + name + "\",\"parameters\":{}}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("FINISHED"));
+    }
+
+    /** What the run says in the editor, which the caller does not get. */
+    private String reasonOf(MockHttpServletResponse response) throws Exception {
+        String executionId = JsonPath.read(response.getContentAsString(), "$.executionId").toString();
+        return this.mockMvc.perform(get("/execution/" + executionId)).andReturn().getResponse().getContentAsString();
     }
 
     private MockHttpServletResponse call(String name, String mode, String webhookFields, String step, String body) throws Exception {

@@ -9,6 +9,7 @@ import com.dopplertask.dopplertask.domain.action.integration.JsonApi
 import com.dopplertask.dopplertask.service.BroadcastListener
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
+import com.fasterxml.jackson.annotation.JsonIgnore
 import jakarta.persistence.Column
 import jakarta.persistence.DiscriminatorValue
 import jakarta.persistence.Entity
@@ -42,7 +43,8 @@ class LoopAction : Action() {
         variableExtractorUtil: VariableExtractorUtil,
         broadcastListener: BroadcastListener?
     ): ActionResult {
-        val key = loopKey()
+        val key = ports?.firstOrNull()?.externalId
+            ?: return ActionResult.failure("The loop has no input port id, so it cannot keep its place. Save the task again from the editor.")
         var state = execution.loops[key]
         if (state == null) {
             val list = try {
@@ -52,10 +54,11 @@ class LoopAction : Action() {
                 return ActionResult.failure(e.message ?: "The list could not be read.")
             }
             val size = batchSize?.trim()?.toIntOrNull()?.takeIf { it > 0 } ?: 1
-            state = LoopState(this, actionName ?: "Loop", list, size)
-            execution.startLoop(key, state)
+            state = LoopState(key, actionName ?: "Loop", list, size)
+            execution.startLoop(state)
         } else {
-            // What the pass that just ended gave.
+            // A pass ended here, so a loop inside it, which a wire may have left, is done as well.
+            execution.returnToLoop(key)
             state.results.add(valueOf(execution.logs.lastOrNull()?.output ?: ""))
         }
 
@@ -76,8 +79,6 @@ class LoopAction : Action() {
         result.outputVariables["count"] = state.count
         return result
     }
-
-    private fun loopKey(): Long = id ?: System.identityHashCode(this).toLong()
 
     override val description: String
         get() = "Runs the next steps once for every item of a list, then carries on with all they gave"
@@ -149,27 +150,36 @@ class LoopAction : Action() {
     }
 }
 
-/** Where a loop is in its list, for as long as it runs. */
-class LoopState(val loop: Action, val name: String, private val items: List<Any?>, private val batchSize: Int) {
-    val results: MutableList<Any?> = mutableListOf()
-    var index = -1
-        private set
-    private var nextStart = 0
-    var batch: List<Any?> = emptyList()
-        private set
-
+/**
+ * Where a loop is in its list. It is kept with the run, so that a run resumed inside a pass carries on with the rest of
+ * the items. A loop is known by the port id of its step, which stays the same across versions of the task.
+ */
+class LoopState(
+    var step: String = "",
+    var name: String = "Loop",
+    var items: List<Any?> = emptyList(),
+    var batchSize: Int = 1,
+    var nextStart: Int = 0,
+    var index: Int = -1,
+    var results: MutableList<Any?> = mutableListOf()
+) {
+    @get:JsonIgnore
     val count: Int
         get() = items.size
 
     /** From 1, as a person counts. */
+    @get:JsonIgnore
     val number: Int
         get() = index + 1
+
+    @get:JsonIgnore
+    val batch: List<Any?>
+        get() = if (index < 0) emptyList() else items.subList(index, minOf(index + batchSize, items.size))
 
     fun hasMore() = nextStart < items.size
 
     fun next() {
         index = nextStart
-        batch = items.subList(nextStart, minOf(nextStart + batchSize, items.size))
         nextStart += batchSize
     }
 

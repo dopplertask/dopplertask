@@ -41,7 +41,7 @@ public class CredentialController {
     /** Where to send the person to connect the account of this credential. */
     @PostMapping("/credentials/{name}/connect")
     public Map<String, String> connect(@PathVariable String name, HttpServletRequest request) {
-        return Map.of("url", connections.start(name, serverAddress(request)));
+        return Map.of("url", connections.start(name, ServerAddress.of(request)));
     }
 
     /** The service sends the person back here. It is open, since the browser comes from the service, and the state proves the rest. */
@@ -52,10 +52,6 @@ public class CredentialController {
         } catch (CredentialProblemException e) {
             return ResponseEntity.badRequest().body(page(e.getMessage(), false));
         }
-    }
-
-    private static String serverAddress(HttpServletRequest request) {
-        return request.getScheme() + "://" + request.getHeader("Host");
     }
 
     private static String page(String message, boolean connected) {

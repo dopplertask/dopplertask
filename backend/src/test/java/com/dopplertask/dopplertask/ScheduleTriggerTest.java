@@ -4,6 +4,7 @@ import com.dopplertask.dopplertask.domain.action.trigger.ScheduleTrigger;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.time.Duration;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Map;
@@ -74,6 +75,48 @@ public class ScheduleTriggerTest {
     }
 
     @Test
+    public void testIntervalsThatDoNotFitTheUnitKeepTheirGapAcrossBoundariesSuccess() {
+        Assert.assertEquals(Duration.ofMinutes(90), gap(schedule("MINUTES", "90"), 40));
+        Assert.assertEquals(Duration.ofSeconds(90), gap(schedule("SECONDS", "90"), 80));
+        Assert.assertEquals(Duration.ofHours(5), gap(schedule("HOURS", "5"), 20));
+        Assert.assertEquals(Duration.ofHours(30), gap(schedule("HOURS", "30"), 10));
+        // From October to the end of the year, with the clock change on 25 October in between.
+        Assert.assertEquals(Duration.ofDays(2), gap(schedule("DAYS", "2"), 40));
+    }
+
+    @Test
+    public void testEveryFiveMonthsKeepsFiveMonthsApartAcrossTheYearSuccess() {
+        ScheduleTrigger trigger = schedule("MONTHS", "5");
+        ZonedDateTime moment = next(trigger);
+        for (int run = 0; run < 6; run++) {
+            ZonedDateTime following = ScheduleTrigger.Schedule.Companion.of(trigger).nextAfter(moment);
+            Assert.assertEquals(moment.plusMonths(5), following);
+            moment = following;
+        }
+    }
+
+    @Test
+    public void testDayTheMonthDoesNotHaveMeansItsLastDaySuccess() {
+        ScheduleTrigger trigger = schedule("MONTHS", "1");
+        trigger.setOnDayOfMonth("30");
+        Assert.assertEquals(at(2027, 2, 28, 0, 0), ScheduleTrigger.Schedule.Companion.of(trigger).nextAfter(at(2027, 1, 30, 0, 0)));
+        Assert.assertEquals(at(2027, 3, 30, 0, 0), ScheduleTrigger.Schedule.Companion.of(trigger).nextAfter(at(2027, 2, 28, 0, 0)));
+    }
+
+    @Test
+    public void testUnknownTimeZoneExplainsWhyFail() {
+        ScheduleTrigger trigger = schedule("MINUTES", "5");
+        trigger.setTimezone("Mars/Olympus");
+        Assert.assertTrue(trigger.problem(), trigger.problem().contains("\"Mars/Olympus\" is not a time zone"));
+        Assert.assertNull(schedule("MINUTES", "5").problem());
+    }
+
+    @Test
+    public void testEveryAboveTheLimitExplainsWhyFail() {
+        Assert.assertTrue(schedule("MINUTES", "10001").problem().contains("Every should be from 1 to 10000"));
+    }
+
+    @Test
     public void testCronWithFiveFieldsAndSeveralLinesSuccess() {
         ScheduleTrigger trigger = schedule("CRON", "1");
         trigger.setCronExpression("0 9 * * MON-FRI\n# a note\n30 10 * * *");
@@ -131,6 +174,21 @@ public class ScheduleTriggerTest {
 
     private static ZonedDateTime next(ScheduleTrigger trigger) {
         return ScheduleTrigger.Schedule.Companion.of(trigger).nextAfter(NOW);
+    }
+
+    /** The one gap between all the starts from 1 October, or a failure when they differ. */
+    private static Duration gap(ScheduleTrigger trigger, int starts) {
+        ScheduleTrigger.Schedule schedule = ScheduleTrigger.Schedule.Companion.of(trigger);
+        ZonedDateTime moment = schedule.nextAfter(at(2026, 10, 1, 0, 0));
+        Duration gap = null;
+        for (int start = 0; start < starts; start++) {
+            ZonedDateTime following = schedule.nextAfter(moment);
+            Duration between = Duration.between(moment.toLocalDateTime(), following.toLocalDateTime());
+            Assert.assertTrue("From " + moment + " to " + following, gap == null || gap.equals(between));
+            gap = between;
+            moment = following;
+        }
+        return gap;
     }
 
     private static ZonedDateTime at(int year, int month, int day, int hour, int minute) {

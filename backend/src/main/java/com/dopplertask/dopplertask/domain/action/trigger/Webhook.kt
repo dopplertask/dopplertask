@@ -266,12 +266,7 @@ class Webhook : Trigger() {
             actionInfo.add(
                 PropertyInformation(
                     "responseMode", "Reply", PropertyInformation.PropertyInformationType.DROPDOWN, WebhookReply.RUN_LOG, "What the caller gets back, and when.",
-                    mutableListOf(
-                        PropertyInformation(WebhookReply.RUN_LOG, "The run log, when the task ends"),
-                        PropertyInformation(WebhookReply.AT_ONCE, "At once, while the task runs on"),
-                        PropertyInformation(WebhookReply.LAST_STEP, "What the last step gave, when the task ends"),
-                        PropertyInformation(WebhookReply.REPLY_STEP, "What a Reply to webhook step sends")
-                    )
+                    WebhookReply.LABELS.map { (mode, label) -> PropertyInformation(mode, label) }
                 )
             )
             actionInfo.add(

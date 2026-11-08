@@ -32,8 +32,13 @@ import com.dopplertask.dopplertask.service.WebhookTriggerInfo;
 import com.dopplertask.dopplertask.service.WebhookReply;
 import com.dopplertask.dopplertask.service.CustomerScope;
 import org.springframework.beans.factory.ObjectProvider;
+import com.dopplertask.dopplertask.domain.action.common.WebhookReplyAction;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Semaphore;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
 import org.jetbrains.annotations.NotNull;
 import com.dopplertask.dopplertask.filter.AccessFilter;
 import com.dopplertask.dopplertask.filter.Caller;
@@ -70,6 +75,8 @@ import java.util.Map;
 @RestController
 public class TaskController {
 
+    private static final Logger LOG = LoggerFactory.getLogger(TaskController.class);
+
     private final TaskService taskService;
     private final ExecutionService executionService;
     private final CredentialService credentialService;
@@ -105,6 +112,11 @@ public class TaskController {
 
     @Autowired
     private ObjectProvider<CustomerScope> customerScope;
+
+    // Webhook runs on a thread beside the request, for every Reply but the run log. Kept below the 60 database
+    // connections, so that the editor and other runs keep some.
+    private static final int MAX_REPLYING_RUNS = 40;
+    private final Semaphore replyingRuns = new Semaphore(MAX_REPLYING_RUNS);
 
     @PostMapping(path = "/schedule/task")
     public ResponseEntity<SimpleIdResponseDto> scheduleTask(@RequestBody TaskRequestDTO taskRequestDTO, HttpServletRequest servletRequest) {
@@ -197,6 +209,8 @@ public class TaskController {
 
         String mode = taskService.webhookReplyMode(taskName, triggerName, triggerSuffix, path, httpMethod.name());
         if (mode == null || mode.isBlank() || WebhookReply.RUN_LOG.equals(mode)) {
+            // A Reply to webhook step still learns that this call waits for the run log, not for it.
+            ((WebhookTriggerInfo) triggerInfo).setReply(new WebhookReply(WebhookReply.RUN_LOG));
             return runResult(taskService.runRequest(request), taskName);
         }
         return runAndReply(request, (WebhookTriggerInfo) triggerInfo, mode, taskName);
@@ -204,27 +218,40 @@ public class TaskController {
 
     /**
      * Runs the task beside the request, so that the caller can be answered before it ends: at once, by a Reply to webhook
-     * step, or by what the last step gave.
+     * step, or by what the last step gave. A failure gives only the status and the run id, since anyone can call a webhook,
+     * and the reason stays in the editor.
      */
     private ResponseEntity<?> runAndReply(TaskRequest request, WebhookTriggerInfo triggerInfo, String mode, String taskName) {
+        // A full server answers at once rather than holding a request thread, so that the editor stays reachable.
+        if (!replyingRuns.tryAcquire()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).header(HttpHeaders.RETRY_AFTER, "10").body("The server is busy with other webhook calls. Try again in a moment.");
+        }
         WebhookReply reply = new WebhookReply(mode);
         triggerInfo.setReply(reply);
         CompletableFuture<TaskExecution> ended = new CompletableFuture<>();
-        CustomerScope scope = customerScope.getIfAvailable(() -> CustomerScope.ONE_CUSTOMER);
-        Thread.ofVirtual().name("webhook-" + taskName).start(scope.bound(() -> {
-            try {
-                ended.complete(taskService.runRequest(request));
-            } catch (RuntimeException | Error e) {
-                ended.completeExceptionally(e);
-            }
-        }));
+        try {
+            CustomerScope scope = customerScope.getIfAvailable(() -> CustomerScope.ONE_CUSTOMER);
+            Thread.ofVirtual().name("webhook-" + taskName).start(scope.bound(() -> {
+                try {
+                    ended.complete(taskService.runRequest(request));
+                } catch (RuntimeException | Error e) {
+                    LOG.error("A webhook run of {} stopped on an unexpected problem", taskName, e);
+                    ended.completeExceptionally(e);
+                } finally {
+                    replyingRuns.release();
+                }
+            }));
+        } catch (RuntimeException | Error e) {
+            replyingRuns.release();
+            throw e;
+        }
         try {
             CompletableFuture.anyOf(reply.answered(), ended).get();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body("The server stopped before the task answered.");
         } catch (ExecutionException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("The task could not run: " + e.getCause().getMessage());
+            return failed(null);
         }
         if (reply.isGiven()) {
             return answerOf(reply.answered().join());
@@ -234,14 +261,21 @@ public class TaskController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("There is no task called " + taskName + ".");
         }
         if (execution.getStatus() == TaskExecutionStatus.FAILED) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(execution.getFailureReason() == null ? "The task failed." : execution.getFailureReason());
+            return failed(execution.getId());
         }
         if (WebhookReply.LAST_STEP.equals(mode)) {
-            String output = reply.getLastOutput();
-            int status = com.dopplertask.dopplertask.domain.action.common.WebhookReplyAction.statusOf(taskService.webhookReplyCode(taskName, triggerInfo.getTriggerName(), triggerInfo.getTriggerSuffix(), triggerInfo.getPath(), triggerInfo.getMethod().name()), 200);
-            return answerOf(new WebhookReply.Answer(status, Map.of("Content-Type", com.dopplertask.dopplertask.domain.action.common.WebhookReplyAction.contentTypeOf(output == null ? "" : output)), output));
+            String output = reply.getLastOutput() == null ? "" : reply.getLastOutput();
+            int status = WebhookReplyAction.statusOf(taskService.webhookReplyCode(taskName, triggerInfo.getTriggerName(), triggerInfo.getTriggerSuffix(), triggerInfo.getPath(), triggerInfo.getMethod().name()), 200);
+            return answerOf(new WebhookReply.Answer(status, Map.of("Content-Type", WebhookReplyAction.contentTypeOf(output)), output));
         }
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("The task ended without a Reply to webhook step, so there was nothing to answer with.");
+    }
+
+    private static ResponseEntity<TaskExecutionLogResponseDTO> failed(Long executionId) {
+        TaskExecutionLogResponseDTO answer = new TaskExecutionLogResponseDTO();
+        answer.setStatus(TaskExecutionStatus.FAILED.name());
+        answer.setExecutionId(executionId);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(answer);
     }
 
     private ResponseEntity<?> answerOf(WebhookReply.Answer answer) {

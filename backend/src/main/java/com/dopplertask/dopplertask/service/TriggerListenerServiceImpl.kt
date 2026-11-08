@@ -117,7 +117,7 @@ open class TriggerListenerServiceImpl {
     private fun startTriggers(currentTask: Task) {
         val threadPool = threadPoolMap[poolName(currentTask.name)]!!
         currentTask.triggerActions.forEach { trigger ->
-            val refusal = StepRules.active().refusalOf(trigger)
+            val refusal = StepRules.active().refusalOf(trigger) ?: trigger.problem()
             if (refusal != null) {
                 logger.warn("Trigger of task ${currentTask.name} did not start. $refusal")
                 return@forEach

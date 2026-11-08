@@ -230,53 +230,37 @@ public class ExecutionServiceImpl implements ExecutionService {
             execution.addLog(previousOutput);
         }
 
-        boolean running = true;
-        if (execution.getCurrentAction() != null) {
-            while (running && execution.getCurrentAction() != null && !Thread.currentThread().isInterrupted()) {
-                // Start processing task
-                Action currentAction = execution.getCurrentAction();
+        execution.restoreRunningLoops();
+        while (execution.getCurrentAction() != null && !Thread.currentThread().isInterrupted()) {
+            Action currentAction = execution.getCurrentAction();
 
-                // Add count to action
-                execution.addActionAccessCountByOne(currentAction.getId());
+            execution.addActionAccessCountByOne(currentAction.getId());
+            if (checkActionOverfloodAccess(execution, currentAction)) {
+                break;
+            }
 
-                // Prevent overflood (Hard limit)
-                if (checkActionOverfloodAccess(execution, currentAction)) {
-                    break;
-                }
+            // The step on the first output follows, unless the step chooses another output, as If, Switch and Loop do.
+            execution.setCurrentAction(stepOnFirstOutput(currentAction));
 
-                // If output port does not have a connection then we've reached the end of the execution.
-                boolean outputPortAvailable = currentAction.getOutputPorts() != null && !currentAction.getOutputPorts().isEmpty() && currentAction.getOutputPorts().get(0) != null;
-                if (currentAction.getOutputPorts() == null || currentAction.getOutputPorts() != null && currentAction.getOutputPorts().isEmpty() || outputPortAvailable && currentAction.getOutputPorts().get(0).getConnectionSource() == null) {
-                    running = false;
-                } else {
-                    // There is a port so lets pick the first one.
-                    ActionPort targetPort = currentAction.getOutputPorts().get(0).getConnectionSource().getTarget();
-                    Action nextAction = targetPort.getAction();
-                    execution.setCurrentAction(nextAction);
-                }
+            long actionStart = System.currentTimeMillis();
+            ActionResult actionResult = runAction(taskService, execution, currentAction);
+            recordStep(execution, currentAction, actionResult, System.currentTimeMillis() - actionStart);
 
-                long actionStart = System.currentTimeMillis();
-                ActionResult actionResult = runAction(taskService, execution, currentAction);
-                recordStep(execution, currentAction, actionResult, System.currentTimeMillis() - actionStart);
+            // The output stays out of the log: it can be large and hold secrets, and it is stored with the run.
+            LOG.info("Ran current action: {} with status code: {}", currentAction.getClass().getSimpleName(), actionResult.getStatusCode());
 
-                // The output stays out of the log: it can be large and hold secrets, and it is stored with the run.
-                LOG.info("Ran current action: {} with status code: {}", currentAction.getClass().getSimpleName(), actionResult.getStatusCode());
+            if (actionResult.getStatusCode() == StatusCode.FAILURE && !currentAction.isContinueOnFailure()) {
+                addLog(execution, actionResult.getErrorMsg(), actionResult.getOutputType(), actionResult.getOutputVariables(), true, false, false);
+                break;
+            }
 
-                // If action did not go well
-                if (actionResult.getStatusCode() == StatusCode.FAILURE && !currentAction.isContinueOnFailure()) {
-                    addLog(execution, actionResult.getErrorMsg(), actionResult.getOutputType(), actionResult.getOutputVariables(), true, false, false);
-                    break;
-                }
-
-                // A pass of a loop ends where its steps end, and the loop goes on with its next item.
-                if ((!running || execution.getCurrentAction() == null) && execution.getInnermostLoop() != null) {
-                    execution.setCurrentAction(execution.getInnermostLoop().getLoop());
-                    running = true;
-                }
-
-
+            // A pass of a loop ends where its steps end, and the loop goes on with its next item.
+            if (execution.getCurrentAction() == null && execution.getInnermostLoop() != null) {
+                execution.setCurrentAction(task.getActionByPort(execution.getInnermostLoop().getStep()));
             }
         }
+
+        execution.keepRunningLoops();
 
         // The time limit asks a run to stop, and a step may have ignored that.
         if (Thread.interrupted()) {
@@ -318,8 +302,17 @@ public class ExecutionServiceImpl implements ExecutionService {
 
         earlierRun.getParameters().forEach((name, parameter) -> execution.getParameters().putIfAbsent(name, new ExecutionParameter(name, parameter.getParamValue(), parameter.isBinary())));
         steps.subList(0, steps.size() - 1).forEach(step -> execution.addStep(step.copyTo(execution)));
+        execution.continueLoopsOf(earlierRun);
         execution.setResumePortId(failedPort);
         return null;
+    }
+
+    private static Action stepOnFirstOutput(Action action) {
+        List<ActionPort> outputs = action.getOutputPorts();
+        if (outputs == null || outputs.isEmpty() || outputs.get(0) == null || outputs.get(0).getConnectionSource() == null) {
+            return null;
+        }
+        return outputs.get(0).getConnectionSource().getTarget().getAction();
     }
 
     private void recordStep(TaskExecution execution, Action action, ActionResult result, long durationMs) {

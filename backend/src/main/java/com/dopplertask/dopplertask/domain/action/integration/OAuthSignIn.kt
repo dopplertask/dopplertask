@@ -10,6 +10,8 @@ import java.security.MessageDigest
 import java.time.Instant
 import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 /**
  * Signing in to a service with a person's own account (OAuth 2). A person connects the account once from the credential;
@@ -64,46 +66,72 @@ object OAuthSignIn {
     fun isUsedBy(step: Action): Boolean =
         !step.oauthRefreshToken.isNullOrBlank() || !step.oauthAccessToken.isNullOrBlank() || (step.oauthGrant == CLIENT_CREDENTIALS && !step.oauthClientId.isNullOrBlank())
 
-    /** Saves what a service gives in place of a used refresh token. Set by the credential store. */
+    /** Where connected accounts are kept. Set by the credential store. */
+    interface Accounts {
+        /** What keeps the same-named credentials of different customers apart. */
+        fun keyOf(credential: String): String = credential
+
+        /** Saves the refresh token a service gave in place of the used one, unless the credential holds another one by now. */
+        fun keepRefreshToken(credential: String, usedToken: String, newToken: String) {}
+    }
+
     @Volatile
-    var keepNewRefreshToken: (credential: String, refreshToken: String) -> Unit = { _, _ -> }
+    var accounts: Accounts = object : Accounts {}
 
-    private class Token(val value: String, val expires: Instant)
+    /**
+     * The latest access token of an account, and the refresh token to use next. A run that started before a refresh still
+     * holds a refresh token that was replaced, which some services no longer accept, so that run gets the new one from here.
+     */
+    private class Account(val accessToken: String, val expires: Instant, val refreshToken: String?, val replaced: List<String>) {
+        fun follows(refreshToken: String?) = refreshToken == this.refreshToken || refreshToken in replaced
+    }
 
-    private val tokens = ConcurrentHashMap<String, Token>()
+    /** Enough for runs that last through several refreshes, without keeping every old token for good. */
+    private const val REPLACED_TOKENS_KEPT = 5
+
+    private val signedIn = ConcurrentHashMap<String, Account>()
+    private val refreshing = ConcurrentHashMap<String, ReentrantLock>()
 
     /** The header that signs a request in as the connected account. */
     fun headersFor(step: Action, service: String): SignIn {
         val values = valuesOf(step)
         val tokenUrl = tokenUrlOf(values)
         if (step.oauthRefreshToken.isNullOrBlank() && !step.oauthAccessToken.isNullOrBlank()) {
-            return SignIn(mapOf("Authorization" to "Bearer ${step.oauthAccessToken}"), null)
+            return bearer(step.oauthAccessToken!!)
         }
         if (tokenUrl.isBlank()) return SignIn(mapOf(), ActionResult.failure("$service needs the token address of the account's service. Choose the service, or fill in the token address."))
         val clientCredentials = step.oauthGrant == CLIENT_CREDENTIALS
         if (!clientCredentials && step.oauthRefreshToken.isNullOrBlank()) {
             return SignIn(mapOf(), ActionResult.failure("$service has no connected account yet. Open the credential and connect the account."))
         }
-        val cacheKey = digest(tokenUrl + "|" + step.oauthClientId + "|" + (step.oauthRefreshToken ?: step.oauthScope))
-        tokens[cacheKey]?.takeIf { it.expires.isAfter(Instant.now().plusSeconds(60)) }?.let { return SignIn(mapOf("Authorization" to "Bearer ${it.value}"), null) }
-
-        val form = if (clientCredentials) mutableMapOf("grant_type" to "client_credentials").also { if (!step.oauthScope.isNullOrBlank()) it["scope"] = step.oauthScope!! }
-        else mutableMapOf("grant_type" to "refresh_token", "refresh_token" to step.oauthRefreshToken!!)
-        val answer = requestToken(service, tokenUrl, values, form)
-        if (answer.statusCode == StatusCode.FAILURE) return SignIn(mapOf(), answer)
-        val json = JsonApi.parsed(answer)
-        val accessToken = json.path("access_token").asText("")
-        if (accessToken.isBlank()) {
-            return SignIn(mapOf(), ActionResult.failure("$service did not give an access token. It said: ${json.path("error_description").asText(json.path("error").asText("nothing"))}. Connect the account again."))
-        }
-        tokens[cacheKey] = Token(accessToken, Instant.now().plusSeconds(json.path("expires_in").asLong(3600)))
-        val newRefreshToken = json.path("refresh_token").asText("")
         val credential = step.credential
-        if (newRefreshToken.isNotBlank() && newRefreshToken != step.oauthRefreshToken && credential != null) {
-            keepNewRefreshToken(credential, newRefreshToken)
+        val key = digest(listOf(tokenUrl, step.oauthClientId, step.oauthScope, credential?.let { accounts.keyOf(it) } ?: step.oauthRefreshToken).joinToString("|"))
+        // One refresh at a time for an account, so that runs at the same moment do not each use the same refresh token.
+        refreshing.computeIfAbsent(key) { ReentrantLock() }.withLock {
+            val known = signedIn[key]?.takeIf { clientCredentials || it.follows(step.oauthRefreshToken) }
+            if (known != null && known.expires.isAfter(Instant.now().plusSeconds(60))) return bearer(known.accessToken)
+
+            val refreshToken = known?.refreshToken ?: step.oauthRefreshToken
+            val form = if (clientCredentials) mutableMapOf("grant_type" to "client_credentials").also { if (!step.oauthScope.isNullOrBlank()) it["scope"] = step.oauthScope!! }
+            else mutableMapOf("grant_type" to "refresh_token", "refresh_token" to refreshToken!!)
+            val answer = requestToken(service, tokenUrl, values, form)
+            if (answer.statusCode == StatusCode.FAILURE) return SignIn(mapOf(), answer)
+            val json = JsonApi.parsed(answer)
+            val accessToken = json.path("access_token").asText("")
+            if (accessToken.isBlank()) {
+                return SignIn(mapOf(), ActionResult.failure("$service did not give an access token. It said: ${json.path("error_description").asText(json.path("error").asText("nothing"))}. Connect the account again."))
+            }
+            val newRefreshToken = json.path("refresh_token").asText("").ifBlank { null }?.takeIf { it != refreshToken }
+            val replaced = (known?.replaced.orEmpty() + listOfNotNull(refreshToken.takeIf { newRefreshToken != null })).takeLast(REPLACED_TOKENS_KEPT)
+            signedIn[key] = Account(accessToken, Instant.now().plusSeconds(json.path("expires_in").asLong(3600)), newRefreshToken ?: refreshToken, replaced)
+            if (newRefreshToken != null && credential != null) {
+                accounts.keepRefreshToken(credential, refreshToken!!, newRefreshToken)
+            }
+            return bearer(accessToken)
         }
-        return SignIn(mapOf("Authorization" to "Bearer $accessToken"), null)
     }
+
+    private fun bearer(accessToken: String) = SignIn(mapOf("Authorization" to "Bearer $accessToken"), null)
 
     /** Asks the token address for tokens, with the client in the form or as Basic sign-in. */
     fun requestToken(service: String, tokenUrl: String, values: Map<String, String?>, form: MutableMap<String, String>): ActionResult {

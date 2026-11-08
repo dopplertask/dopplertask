@@ -26,7 +26,7 @@ public class BranchingTest {
     private static final String START = "{\"@type\":\"StartAction\",\"ports\":[{\"externalId\":\"%1$s_start\",\"portType\":\"OUTPUT\"}]}";
     private static final String PRINT = "{\"@type\":\"PrintAction\",\"message\":\"first branch\",\"ports\":[{\"externalId\":\"%1$s_print\",\"portType\":\"INPUT\"}]}";
     private static final String CONNECTIONS = "[{\"source\":{\"externalId\":\"%1$s_start\"},\"target\":{\"externalId\":\"%1$s_in\"}},"
-            + "{\"source\":{\"externalId\":\"%1$s_0\"},\"target\":{\"externalId\":\"%1$s_print\"}}]";
+            + "{\"source\":{\"externalId\":\"%1$s_%2$d\"},\"target\":{\"externalId\":\"%1$s_print\"}}]";
 
     @Autowired
     private MockMvc mockMvc;
@@ -44,6 +44,16 @@ public class BranchingTest {
     @Test
     public void testIfFalseWithOnlyOneBranchEndsRunSuccess() throws Exception {
         Assert.assertFalse(run("if_single", ifAction("1 == 2", 1)).contains("first branch"));
+    }
+
+    @Test
+    public void testIfFalseRunsItsBranchWhenTrueIsUnconnectedSuccess() throws Exception {
+        Assert.assertTrue(run("if_false_only", ifAction("1 == 2", 2), 1).contains("first branch"));
+    }
+
+    @Test
+    public void testSwitchRunsALaterBranchWhenTheFirstIsUnconnectedSuccess() throws Exception {
+        Assert.assertTrue(run("switch_b_only", switchAction("b", 2), 1).contains("first branch"));
     }
 
     @Test
@@ -93,9 +103,14 @@ public class BranchingTest {
     }
 
     private String run(String name, String branchingAction) throws Exception {
+        return run(name, branchingAction, 0);
+    }
+
+    /** Runs the task with only one output of the branching step connected, to the print step. */
+    private String run(String name, String branchingAction, int connectedOutput) throws Exception {
         String actions = String.format("[" + START + "," + branchingAction + "," + PRINT + "]", name);
         String createJson = "{\"name\":\"" + name + "\",\"description\":\"\",\"active\":false,\"actions\":" + actions
-                + ",\"connections\":" + String.format(CONNECTIONS, name) + "}";
+                + ",\"connections\":" + String.format(CONNECTIONS, name, connectedOutput) + "}";
         this.mockMvc.perform(post("/task").content(createJson)).andExpect(status().isOk());
 
         return this.mockMvc.perform(post("/schedule/directtask").contentType(MediaType.APPLICATION_JSON)

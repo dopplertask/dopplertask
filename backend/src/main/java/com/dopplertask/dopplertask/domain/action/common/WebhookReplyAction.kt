@@ -8,6 +8,7 @@ import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.Prop
 import com.dopplertask.dopplertask.service.BroadcastListener
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
+import com.dopplertask.dopplertask.service.WebhookReply
 import com.dopplertask.dopplertask.domain.action.integration.JsonApi
 import jakarta.persistence.Column
 import jakarta.persistence.DiscriminatorValue
@@ -17,7 +18,7 @@ import jakarta.persistence.Table
 
 /**
  * Answers the caller of the webhook that started the task, then lets the task carry on. The webhook has to be set to
- * reply with what this step sends.
+ * reply with what this step sends, and the step fails when it is not, since the answer would otherwise be lost.
  */
 @Entity
 @Table(name = "WebhookReplyAction")
@@ -51,6 +52,10 @@ class WebhookReplyAction : Action() {
     ): ActionResult {
         val reply = execution.webhookReply
             ?: return ActionResult(StatusCode.SUCCESS, "Nothing to reply to, since no webhook call started this run.", "")
+        if (reply.mode != WebhookReply.REPLY_STEP) {
+            return ActionResult.failure("The webhook's Reply is \"${WebhookReply.LABELS[reply.mode] ?: reply.mode}\", so it does not wait for this step. "
+                + "Set it to \"${WebhookReply.LABELS[WebhookReply.REPLY_STEP]}\", or remove this step.")
+        }
         val kind = replyWith ?: "JSON"
         val previous = execution.logs.lastOrNull()?.output ?: ""
         val text = when (kind) {

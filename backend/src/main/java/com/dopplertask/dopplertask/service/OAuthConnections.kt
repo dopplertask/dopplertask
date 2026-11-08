@@ -3,6 +3,7 @@ package com.dopplertask.dopplertask.service
 import com.dopplertask.dopplertask.domain.StatusCode
 import com.dopplertask.dopplertask.domain.action.integration.JsonApi
 import com.dopplertask.dopplertask.domain.action.integration.OAuthSignIn
+import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
@@ -22,7 +23,7 @@ import java.util.concurrent.atomic.AtomicReference
 class OAuthConnections(
     private val credentials: CredentialService,
     private val customerScope: ObjectProvider<CustomerScope>,
-    @Value("\${dopplertask.publicUrl:}") private val publicUrl: String
+    @Value("\${dopplertask.accounts.redirectUri:}") private val configuredRedirectUri: String
 ) {
     private class Pending(val verifier: String, val redirectUri: String, val values: Map<String, String>, val created: Instant, val tokens: AtomicReference<Map<String, String>>, val save: Runnable)
 
@@ -30,11 +31,21 @@ class OAuthConnections(
     private val random = SecureRandom()
 
     init {
-        OAuthSignIn.keepNewRefreshToken = { credential, refreshToken -> credentials.update(credential, mapOf("oauthRefreshToken" to refreshToken)) }
+        OAuthSignIn.accounts = object : OAuthSignIn.Accounts {
+            override fun keyOf(credential: String) = customerScope.getIfAvailable { CustomerScope.ONE_CUSTOMER }.current() + "/" + credential
+            override fun keepRefreshToken(credential: String, usedToken: String, newToken: String) {
+                // The step already has its token, so a failed save is only logged; the next refresh tries again from memory.
+                try {
+                    credentials.keepRefreshToken(credential, usedToken, newToken)
+                } catch (e: RuntimeException) {
+                    LOG.error("Could not keep the new refresh token of {}", credential, e)
+                }
+            }
+        }
     }
 
     /** Where the service sends a person back to, which has to be registered with the service. */
-    fun redirectUri(serverAddress: String) = publicUrl.ifBlank { serverAddress }.trimEnd('/') + CALLBACK_PATH
+    fun redirectUri(serverAddress: String) = configuredRedirectUri.ifBlank { serverAddress + CALLBACK_PATH }
 
     /** The address of the service's sign-in page for this credential. */
     fun start(name: String, serverAddress: String): String {
@@ -102,6 +113,7 @@ class OAuthConnections(
     }
 
     companion object {
+        private val LOG = LoggerFactory.getLogger(OAuthConnections::class.java)
         const val CALLBACK_PATH = "/oauth/callback"
         private val LINK_LIFETIME: Duration = Duration.ofMinutes(10)
     }

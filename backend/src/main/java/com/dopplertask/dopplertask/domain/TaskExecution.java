@@ -4,11 +4,13 @@ import com.dopplertask.dopplertask.service.WebhookReply;
 
 import com.dopplertask.dopplertask.domain.action.Action;
 import com.dopplertask.dopplertask.domain.action.common.LoopState;
+import com.dopplertask.dopplertask.domain.action.integration.JsonApi;
 
 import jakarta.persistence.*;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -71,38 +73,68 @@ public class TaskExecution {
     @Transient
     private WebhookReply webhookReply;
 
-    // The loops that are running, the innermost last.
+    // The loops that are running, the innermost last, by the port id of their step.
     @Transient
-    private LinkedHashMap<Long, LoopState> loops = new LinkedHashMap<>();
+    private LinkedHashMap<String, LoopState> loops = new LinkedHashMap<>();
+
+    // The loops as JSON when the run ended, so that a run resumed inside a pass carries on with the rest of the items.
+    @Lob
+    @Column(columnDefinition = "TEXT")
+    private String runningLoops;
 
     // How many more visits to a step a run may make, since every item of a loop visits the steps of a pass again.
     @Transient
     private long loopVisits = 0;
 
-    public Map<Long, LoopState> getLoops() {
+    public Map<String, LoopState> getLoops() {
         return loops;
     }
 
-    public void startLoop(Long key, LoopState state) {
-        loops.put(key, state);
+    public void startLoop(LoopState state) {
+        loops.put(state.getStep(), state);
         loopVisits += state.getCount();
     }
 
-    public void endLoop(Long key) {
-        loops.remove(key);
+    public void endLoop(String step) {
+        loops.remove(step);
+    }
+
+    /** Back at a loop, so the loops that started inside its pass are done. */
+    public void returnToLoop(String step) {
+        boolean inside = false;
+        for (Iterator<String> running = loops.keySet().iterator(); running.hasNext(); ) {
+            String next = running.next();
+            if (inside) {
+                running.remove();
+            }
+            inside |= next.equals(step);
+        }
     }
 
     /** The loop the run is inside, where a pass that ends goes back to. */
     public LoopState getInnermostLoop() {
-        LoopState innermost = null;
-        for (LoopState state : loops.values()) {
-            innermost = state;
-        }
-        return innermost;
+        return loops.isEmpty() ? null : loops.lastEntry().getValue();
     }
 
     public long getLoopVisits() {
         return loopVisits;
+    }
+
+    /** Keeps the loops that are still running with the run, for a resume. */
+    public void keepRunningLoops() {
+        runningLoops = loops.isEmpty() ? null : JsonApi.INSTANCE.getMapper().writeValueAsString(loops.values());
+    }
+
+    /** Takes over the loops an earlier run was inside when it failed. They are stored, since the run may start on another thread. */
+    public void continueLoopsOf(TaskExecution earlierRun) {
+        runningLoops = earlierRun.runningLoops;
+    }
+
+    /** Picks up the stored loops when the run starts, so that a resumed run goes on with the rest of their items. */
+    public void restoreRunningLoops() {
+        if (runningLoops != null && loops.isEmpty()) {
+            List.of(JsonApi.INSTANCE.getMapper().readValue(runningLoops, LoopState[].class)).forEach(this::startLoop);
+        }
     }
 
     public WebhookReply getWebhookReply() {

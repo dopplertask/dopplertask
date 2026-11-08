@@ -10,9 +10,11 @@ import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.Lob
 import org.springframework.scheduling.support.CronExpression
+import java.time.DateTimeException
 import java.time.DayOfWeek
 import java.time.Duration
-import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.YearMonth
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
@@ -22,7 +24,8 @@ import java.util.Locale
 
 /**
  * Starts the task on the clock: every so many seconds up to months, at a time of day, on chosen weekdays, or by cron.
- * Times follow the clock, so every 15 minutes runs at :00, :15, :30 and :45, whenever the task was turned on.
+ * Times follow the clock, so every 15 minutes runs at :00, :15, :30 and :45, whenever the task was turned on, and every
+ * 90 minutes keeps 90 minutes apart, also across midnight.
  */
 @Entity
 class ScheduleTrigger : Trigger() {
@@ -58,12 +61,17 @@ class ScheduleTrigger : Trigger() {
     var timezone: String? = null
 
     override fun trigger(): TriggerResult {
-        val zone = zone()
         val schedule = Schedule.of(this)
-        val next = schedule.nextAfter(ZonedDateTime.now(zone))
-            ?: throw IllegalArgumentException("The schedule never comes round. Check the cron line.")
-        Thread.sleep(Duration.between(ZonedDateTime.now(zone), next).toMillis().coerceAtLeast(0))
+        val next = schedule.nextAfter(ZonedDateTime.now(schedule.zone))
+            ?: throw IllegalArgumentException(NEVER)
+        Thread.sleep(Duration.between(ZonedDateTime.now(schedule.zone), next).toMillis().coerceAtLeast(0))
         return TriggerResult(momentOf(next))
+    }
+
+    override fun problem(): String? = try {
+        if (Schedule.of(this).nextAfter(ZonedDateTime.now()) == null) NEVER else null
+    } catch (e: IllegalArgumentException) {
+        e.message
     }
 
     override fun run(
@@ -75,13 +83,11 @@ class ScheduleTrigger : Trigger() {
         val result = ActionResult()
         // A run started by hand has no tick, so it gets the moment it ran.
         val moment = OUTPUT_NAMES.associateWith { name -> execution.parameters["TRIGGER_$name"]?.toString() }
-        val values = if (moment.values.any { it == null }) momentOf(ZonedDateTime.now(zone())) else moment.mapValues { it.value!! }
+        val values = if (moment.values.any { it == null }) momentOf(ZonedDateTime.now(Schedule.zoneOf(timezone))) else moment.mapValues { it.value!! }
         result.outputVariables.putAll(values)
         result.output = "Started by the schedule at ${values["timestamp"]}"
         return result
     }
-
-    private fun zone(): ZoneId = if (timezone.isNullOrBlank()) ZoneId.systemDefault() else ZoneId.of(timezone!!.trim())
 
     override val description: String
         get() = "Starts the task on a schedule: every so often, at set times, or by cron"
@@ -114,11 +120,11 @@ class ScheduleTrigger : Trigger() {
                 PropertyInformation("MONTHS", "Every few months"),
                 PropertyInformation("CRON", "By cron")
             )))
-            info.add(PropertyInformation("every", "Every", PropertyInformationType.NUMBER, "1", "How many of the chosen unit lie between two starts.", mutableListOf(), PropertyInformation.PropertyInformationCategory.PROPERTY,
+            info.add(PropertyInformation("every", "Every", PropertyInformationType.NUMBER, "1", "How many of the chosen unit lie between two starts, up to ${Schedule.MAX_EVERY}.", mutableListOf(), PropertyInformation.PropertyInformationCategory.PROPERTY,
                 mapOf("rule" to arrayOf("SECONDS", "MINUTES", "HOURS", "DAYS", "WEEKS", "MONTHS"))))
             info.add(PropertyInformation("onDays", "On", PropertyInformationType.STRING, "MON", "Weekdays, such as MON,WED,FRI.", mutableListOf(), PropertyInformation.PropertyInformationCategory.PROPERTY,
                 mapOf("rule" to arrayOf("WEEKS"))))
-            info.add(PropertyInformation("onDayOfMonth", "On day", PropertyInformationType.NUMBER, "1", "Day of the month, from 1 to 31. 31 means the last day of every month.", mutableListOf(), PropertyInformation.PropertyInformationCategory.PROPERTY,
+            info.add(PropertyInformation("onDayOfMonth", "On day", PropertyInformationType.NUMBER, "1", "Day of the month, from 1 to 31. A day a month does not have means its last day.", mutableListOf(), PropertyInformation.PropertyInformationCategory.PROPERTY,
                 mapOf("rule" to arrayOf("MONTHS"))))
             info.add(PropertyInformation("atHour", "At hour", PropertyInformationType.NUMBER, "0", "From 0 to 23.", mutableListOf(), PropertyInformation.PropertyInformationCategory.PROPERTY,
                 mapOf("rule" to clock)))
@@ -133,44 +139,68 @@ class ScheduleTrigger : Trigger() {
             return info
         }
 
-    /** When the rules start the task. Every rule becomes cron lines, and a rule every few weeks also keeps to its weeks. */
-    class Schedule private constructor(private val lines: List<CronExpression>, private val everyWeeks: Long) {
+    /**
+     * When the rules start the task. A rule gives the moments it may start on, such as every minute, and every few of
+     * them keeps every so many, counted from a Monday in 1970. So every 90 minutes is exact, every second day goes on
+     * across the end of a month, and nothing has to be remembered between starts.
+     */
+    class Schedule private constructor(
+        val zone: ZoneId,
+        private val momentAfter: (ZonedDateTime) -> ZonedDateTime?,
+        private val unit: ChronoUnit,
+        private val every: Long
+    ) {
 
         fun nextAfter(after: ZonedDateTime): ZonedDateTime? {
-            var from = after
-            // Every few weeks: a tick in a week that is not one of them is passed over.
-            repeat(MAX_SKIPPED_TICKS) {
-                val next = lines.mapNotNull { it.next(from) }.minOrNull() ?: return null
-                if (everyWeeks <= 1 || weeksSinceFirstMonday(next) % everyWeeks == 0L) return next
+            var from = after.withZoneSameInstant(zone)
+            repeat(MAX_SKIPPED_MOMENTS) {
+                val next = momentAfter(from) ?: return null
+                if (unitsSinceStart(next) % every == 0L) return next
                 from = next
             }
             return null
         }
 
+        private fun unitsSinceStart(moment: ZonedDateTime): Long = if (unit == ChronoUnit.MONTHS) {
+            ChronoUnit.MONTHS.between(YearMonth.from(START), YearMonth.from(moment))
+        } else {
+            unit.between(START, moment.toLocalDateTime())
+        }
+
         companion object {
-            private const val MAX_SKIPPED_TICKS = 10_000
-            private val FIRST_MONDAY: LocalDate = LocalDate.of(1970, 1, 5)
+            const val MAX_EVERY = 10_000
+            private const val MAX_SKIPPED_MOMENTS = 100_000
+            private val START: LocalDateTime = LocalDateTime.of(1970, 1, 5, 0, 0)
             private val DAY_NAMES = DayOfWeek.entries.associateBy { it.getDisplayName(TextStyle.SHORT, Locale.ENGLISH).uppercase() } +
                 DayOfWeek.entries.associateBy { it.name }
 
-            private fun weeksSinceFirstMonday(moment: ZonedDateTime) = ChronoUnit.WEEKS.between(FIRST_MONDAY, moment.toLocalDate())
-
+            /** The schedule of a trigger, or why its settings do not make one. */
             fun of(trigger: ScheduleTrigger): Schedule {
-                val every = number(trigger.every, "Every", 1, Int.MAX_VALUE, 1)
+                val zone = zoneOf(trigger.timezone)
+                val every = number(trigger.every, "Every", 1, MAX_EVERY, 1).toLong()
                 val minute = number(trigger.atMinute, "At minute", 0, 59, 0)
                 val hour = number(trigger.atHour, "At hour", 0, 23, 0)
                 val weekdays = if (trigger.weekdaysOnly) "MON-FRI" else "*"
-                val lines = when (trigger.rule ?: "MINUTES") {
-                    "SECONDS" -> listOf("*/$every * * * * $weekdays")
-                    "MINUTES" -> listOf("0 */$every * * * $weekdays")
-                    "HOURS" -> listOf("0 $minute */$every * * $weekdays")
-                    "DAYS" -> listOf("0 $minute $hour */$every * $weekdays")
-                    "WEEKS" -> listOf("0 $minute $hour * * ${days(trigger.onDays)}")
-                    "MONTHS" -> listOf(monthly(number(trigger.onDayOfMonth, "On day", 1, 31, 1), hour, minute, every))
-                    "CRON" -> (trigger.cronExpression ?: "").lines().map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("#") }.map(::withSeconds)
+                return when (trigger.rule ?: "MINUTES") {
+                    "SECONDS" -> Schedule(zone, cron("* * * * * $weekdays"), ChronoUnit.SECONDS, every)
+                    "MINUTES" -> Schedule(zone, cron("0 * * * * $weekdays"), ChronoUnit.MINUTES, every)
+                    "HOURS" -> Schedule(zone, cron("0 $minute * * * $weekdays"), ChronoUnit.HOURS, every)
+                    "DAYS" -> Schedule(zone, cron("0 $minute $hour * * $weekdays"), ChronoUnit.DAYS, every)
+                    "WEEKS" -> Schedule(zone, cron("0 $minute $hour * * ${days(trigger.onDays)}"), ChronoUnit.WEEKS, every)
+                    "MONTHS" -> Schedule(zone, monthly(number(trigger.onDayOfMonth, "On day", 1, 31, 1), hour, minute), ChronoUnit.MONTHS, every)
+                    "CRON" -> Schedule(zone, cron(*cronLines(trigger.cronExpression)), ChronoUnit.SECONDS, 1)
                     else -> throw IllegalArgumentException("The schedule has an unknown rule: ${trigger.rule}.")
                 }
-                if (lines.isEmpty()) throw IllegalArgumentException("Add a cron line, such as 0 9 * * MON-FRI for nine on weekdays.")
+            }
+
+            fun zoneOf(timezone: String?): ZoneId = try {
+                if (timezone.isNullOrBlank()) ZoneId.systemDefault() else ZoneId.of(timezone.trim())
+            } catch (e: DateTimeException) {
+                throw IllegalArgumentException("\"$timezone\" is not a time zone. Use a name such as Europe/Stockholm, or leave it empty.")
+            }
+
+            /** The soonest moment of any of the lines. */
+            private fun cron(vararg lines: String): (ZonedDateTime) -> ZonedDateTime? {
                 val parsed = lines.map { line ->
                     try {
                         CronExpression.parse(line)
@@ -178,12 +208,21 @@ class ScheduleTrigger : Trigger() {
                         throw IllegalArgumentException("The cron line \"$line\" is not valid: ${e.message}")
                     }
                 }
-                return Schedule(parsed, if (trigger.rule == "WEEKS") every.toLong() else 1)
+                return { after -> parsed.mapNotNull { it.next(after) }.minOrNull() }
             }
 
-            /** The 31st stands for the last day, so a month-end task also runs in shorter months. */
-            private fun monthly(day: Int, hour: Int, minute: Int, every: Int) =
-                "0 $minute $hour ${if (day == 31) "L" else day.toString()} */$every *"
+            private fun cronLines(text: String?): Array<String> {
+                val lines = (text ?: "").lines().map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("#") }
+                if (lines.isEmpty()) throw IllegalArgumentException("Add a cron line, such as 0 9 * * MON-FRI for nine on weekdays.")
+                return lines.map(::withSeconds).toTypedArray()
+            }
+
+            /** A day the month does not have means its last day, so the 31st also runs in shorter months. */
+            private fun monthly(day: Int, hour: Int, minute: Int): (ZonedDateTime) -> ZonedDateTime? = { after ->
+                generateSequence(YearMonth.from(after)) { it.plusMonths(1) }.take(2)
+                    .map { month -> month.atDay(minOf(day, month.lengthOfMonth())).atTime(hour, minute).atZone(after.zone) }
+                    .firstOrNull { it.isAfter(after) }
+            }
 
             private fun withSeconds(line: String) =
                 if (line.startsWith("@") || line.split(Regex("\\s+")).size != 5) line else "0 $line"
@@ -207,6 +246,8 @@ class ScheduleTrigger : Trigger() {
     }
 
     companion object {
+        private const val NEVER = "The schedule never comes round. Check the cron line."
+
         private fun String.lowercaseMeridiem() = replace(" AM", " am").replace(" PM", " pm")
 
         private val OUTPUT_NAMES = listOf("timestamp", "readableDate", "readableTime", "dayOfWeek", "year", "month", "dayOfMonth", "hour", "minute", "second", "timezone")

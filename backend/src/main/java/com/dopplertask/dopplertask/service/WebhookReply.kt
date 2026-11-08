@@ -30,5 +30,13 @@ class WebhookReply(val mode: String) {
         const val AT_ONCE = "immediately"
         const val LAST_STEP = "lastStep"
         const val REPLY_STEP = "replyStep"
+
+        /** How each way of answering reads in the editor. */
+        val LABELS = linkedMapOf(
+            RUN_LOG to "The run log, when the task ends",
+            AT_ONCE to "At once, while the task runs on",
+            LAST_STEP to "What the last step gave, when the task ends",
+            REPLY_STEP to "What a Reply to webhook step sends"
+        )
     }
 }

@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -101,6 +102,49 @@ public class LoopTest {
     }
 
     @Test
+    public void testDoneRunsWhenEachItemIsUnconnectedSuccess() throws Exception {
+        String actions = "[" + START + "," + loop("[1,2]", "") + "," + print("after", "done after $lastLog.outputVariables.count") + "]";
+        String connections = "[{\"source\":{\"externalId\":\"start\"},\"target\":{\"externalId\":\"loop_in\"}},"
+                + "{\"source\":{\"externalId\":\"loop_1\"},\"target\":{\"externalId\":\"after_in\"}}]";
+        Assert.assertTrue(runTask("loop_no_body", actions, connections).contains("done after 2"));
+    }
+
+    @Test
+    public void testAWireBackToTheOuterLoopStartsTheInnerLoopAfreshSuccess() throws Exception {
+        String outer = "{\"@type\":\"LoopAction\",\"actionName\":\"rows\",\"items\":\"[1,2]\",\"ports\":[{\"externalId\":\"outer_in\",\"portType\":\"INPUT\"},{\"externalId\":\"outer_0\",\"portType\":\"OUTPUT\"},{\"externalId\":\"outer_1\",\"portType\":\"OUTPUT\"}]}";
+        String actions = "[" + START + "," + outer + "," + loop("[\\\"a\\\",\\\"b\\\"]", "") + "," + print("body", "cell $loops.rows.item$loop.item") + "," + print("after", "done") + "]";
+        String connections = "[{\"source\":{\"externalId\":\"start\"},\"target\":{\"externalId\":\"outer_in\"}},"
+                + "{\"source\":{\"externalId\":\"outer_0\"},\"target\":{\"externalId\":\"loop_in\"}},"
+                + "{\"source\":{\"externalId\":\"loop_0\"},\"target\":{\"externalId\":\"body_in\"}},"
+                + "{\"source\":{\"externalId\":\"body_out\"},\"target\":{\"externalId\":\"outer_in\"}},"
+                + "{\"source\":{\"externalId\":\"outer_1\"},\"target\":{\"externalId\":\"after_in\"}}]";
+        List<String> logs = runTask("loop_back_to_outer", actions, connections);
+        Assert.assertEquals(List.of("cell 1a", "cell 2a"), lines(logs, "cell "));
+        Assert.assertTrue(logs.contains("done"));
+    }
+
+    @Test
+    public void testResumeInsideAPassCarriesOnWithTheRestSuccess() throws Exception {
+        String name = "loop_resume";
+        String body = print("body", "item $loop.item").replace("\"message\"", "\"failOn\":\"#if($parameters.get('stop') == $loop.item.toString())stopped at $loop.item#end\",\"message\"");
+        String connections = "[{\"source\":{\"externalId\":\"start\"},\"target\":{\"externalId\":\"loop_in\"}},"
+                + "{\"source\":{\"externalId\":\"loop_0\"},\"target\":{\"externalId\":\"body_in\"}},"
+                + "{\"source\":{\"externalId\":\"loop_1\"},\"target\":{\"externalId\":\"after_in\"}}]";
+        String createJson = "{\"name\":\"" + name + "\",\"description\":\"\",\"active\":false,\"parameters\":[{\"name\":\"stop\",\"required\":false}],\"actions\":["
+                + START + "," + loop("[1,2,3]", "") + "," + body + "," + print("after", "all: $lastLog.outputVariables.results") + "],\"connections\":" + connections + "}";
+        this.mockMvc.perform(post("/task").content(createJson)).andExpect(status().isOk());
+
+        String failed = start("{\"taskName\":\"" + name + "\",\"parameters\":{\"stop\":\"2\"}}");
+        Assert.assertEquals("FAILED", JsonPath.read(failed, "$.status"));
+        int failedId = JsonPath.read(failed, "$.executionId");
+
+        // Through the queue, as the editor resumes a run, so that the run starts on another thread.
+        List<String> logs = queued("{\"taskName\":\"" + name + "\",\"parameters\":{\"stop\":\"none\"},\"resumeFromExecutionId\":" + failedId + "}");
+        Assert.assertEquals(List.of("item 2", "item 3"), lines(logs, "item "));
+        Assert.assertTrue(logs.toString(), logs.contains("all: [\"item 1\",\"item 2\",\"item 3\"]"));
+    }
+
+    @Test
     public void testBatchesSuccess() throws Exception {
         String batched = loop("[1,2,3,4,5]", "").replace("\"items\"", "\"batchSize\":\"2\",\"items\"");
         List<String> logs = run("loop_batches", batched, print("body", "batch $loop.batch"), print("after", "done"));
@@ -143,9 +187,26 @@ public class LoopTest {
     private List<String> runTask(String name, String actions, String connections) throws Exception {
         String createJson = "{\"name\":\"" + name + "\",\"description\":\"\",\"active\":false,\"actions\":" + actions + ",\"connections\":" + connections + "}";
         this.mockMvc.perform(post("/task").content(createJson)).andExpect(status().isOk());
-        String response = this.mockMvc.perform(post("/schedule/directtask").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"taskName\":\"" + name + "\",\"parameters\":{}}")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
-        return JsonPath.read(response, "$.logs");
+        return JsonPath.read(start("{\"taskName\":\"" + name + "\",\"parameters\":{}}"), "$.logs");
+    }
+
+    private String start(String request) throws Exception {
+        return this.mockMvc.perform(post("/schedule/directtask").contentType(MediaType.APPLICATION_JSON).content(request))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+    }
+
+    /** The output of a run started through the queue, once it has ended. */
+    private List<String> queued(String request) throws Exception {
+        String answer = this.mockMvc.perform(post("/schedule/task").contentType(MediaType.APPLICATION_JSON).content(request))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        Object executionId = JsonPath.read(answer, "$.id");
+        String run = "";
+        for (int attempt = 0; attempt < 100 && !run.contains("\"FINISHED\"") && !run.contains("\"FAILED\""); attempt++) {
+            Thread.sleep(100);
+            run = this.mockMvc.perform(get("/execution/" + executionId)).andReturn().getResponse().getContentAsString();
+        }
+        Assert.assertTrue(run, run.contains("\"status\":\"FINISHED\""));
+        return JsonPath.read(run, "$.output");
     }
 
     private static List<String> lines(List<String> logs, String prefix) {

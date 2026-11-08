@@ -522,31 +522,45 @@ export default function boot() {
         ${editing ? '' : '<div class="ui-field"><label class="ui-label" for="credential-name">Name</label><input class="ui-input" id="credential-name" autocomplete="off" spellcheck="false" placeholder="such as prod-slack"></div>'}
         ${ownFields.map(asField).join('')}
         ${account}
-        <footer class="ui-dialog-foot"><button type="button" class="ui-button" data-dialog-close>Cancel</button>${accountFields.length ? `<button type="submit" class="ui-button" data-connect>${connected ? 'Save and connect again' : 'Save and connect'}</button>` : ''}<button type="submit" class="ui-button is-primary">Save</button></footer>
+        <footer class="ui-dialog-foot"><button type="button" class="ui-button" data-dialog-close>Cancel</button>${accountFields.length ? `<button type="button" class="ui-button" data-connect>${connected ? 'Save and connect again' : 'Save and connect'}</button>` : ''}<button type="submit" class="ui-button is-primary">Save</button></footer>
       </form>`);
     dialog.querySelector('.ui-input')?.focus();
     dialog.addEventListener('click', (event) => {
       const reveal = event.target.closest('[data-reveal]');
       if (reveal) { const input = reveal.parentElement.querySelector('input'); input.type = input.type === 'password' ? 'text' : 'password'; }
     });
-    dialog.querySelector('form').addEventListener('submit', async (event) => {
-      event.preventDefault();
-      /* Opened at once, inside the click, so that the browser does not block it. */
-      const signInWindow = event.submitter?.dataset.connect !== undefined ? window.open('', 'dopplertask-connect', 'width=520,height=700') : null;
-      const name = editing ? editing.name : dialog.querySelector('#credential-name').value.trim();
-      const values = Object.fromEntries([...dialog.querySelectorAll('[data-field]')].map((input) => [input.dataset.field, input.value]));
-      const missing = field.fields.find((one) => one.required && !editing && !values[one.key]);
-      if (missing) { toast(`${missing.label} is required`, { tone: 'danger' }); return; }
+    const nameOf = () => (editing ? editing.name : dialog.querySelector('#credential-name').value.trim());
+    const valuesOf = () => Object.fromEntries([...dialog.querySelectorAll('[data-field]')].map((input) => [input.dataset.field, input.value]));
+
+    /* Saving comes first, so a credential is kept even when connecting its account fails, and the person is told which. */
+    async function save(signInWindow) {
+      const name = nameOf();
       try {
-        await store.saveCredential(name, field.credentialType, values, !!editing);
-        if (signInWindow) {
-          signInWindow.location = await store.connectCredential(name);
-          watchConnection(store, name);
-        }
-        dialog.close();
-        toast(editing ? `Saved ${name}` : `Created ${name}`);
-        onSaved?.(name);
-      } catch (error) { signInWindow?.close(); toast(error.message, { tone: 'danger' }); }
+        await store.saveCredential(name, field.credentialType, valuesOf(), !!editing);
+      } catch (error) { signInWindow?.close(); toast(error.message, { tone: 'danger' }); return; }
+      dialog.close();
+      onSaved?.(name);
+      if (!signInWindow) { toast(editing ? `Saved ${name}` : `Created ${name}`); return; }
+      try {
+        signInWindow.location = await store.connectCredential(name);
+        watchConnection(store, name);
+      } catch (error) { signInWindow.close(); toast(`Saved ${name}, but the account is not connected. ${error.message}`, { tone: 'danger' }); }
+    }
+
+    /* Checked before the sign-in window opens, so that a missing field leaves no empty window behind. */
+    const complete = () => {
+      const values = valuesOf();
+      const missing = nameOf() ? field.fields.find((one) => one.required && !editing && !values[one.key])?.label : 'Name';
+      if (missing) toast(`${missing} is required`, { tone: 'danger' });
+      return !missing;
+    };
+    dialog.querySelector('form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      if (complete()) save(null);
+    });
+    dialog.querySelector('[data-connect]')?.addEventListener('click', () => {
+      /* Opened at once, inside the click, so that the browser does not block it. */
+      if (complete()) save(window.open('', 'dopplertask-connect', 'width=520,height=700'));
     });
   }
 

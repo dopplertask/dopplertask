@@ -426,7 +426,12 @@ export default function boot() {
     if (event.target.matches('[data-wb-trigger]')) {
       const { checked } = event.target;
       store.updateTask({ active: checked });
-      store.save().then(() => DT.ui.toast(checked ? 'Trigger is on' : 'Trigger is off'), (error) => DT.ui.toast(error.message, { tone: 'danger' }));
+      store.save().then(() => DT.ui.toast(checked ? 'Trigger is on' : 'Trigger is off'), (error) => {
+        /* A refused save, such as a schedule that cannot start the task, leaves the trigger as it was. */
+        store.updateTask({ active: !checked });
+        event.target.checked = !checked;
+        DT.ui.toast(error.message, { tone: 'danger' });
+      });
     }
     if (event.target.matches('[data-wb-autosave]')) store.setAutoSave(event.target.checked);
   });

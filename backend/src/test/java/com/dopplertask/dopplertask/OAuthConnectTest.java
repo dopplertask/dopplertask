@@ -2,6 +2,9 @@ package com.dopplertask.dopplertask;
 
 import com.jayway.jsonpath.JsonPath;
 import com.sun.net.httpserver.HttpServer;
+import com.dopplertask.dopplertask.domain.action.connection.HttpAction;
+import com.dopplertask.dopplertask.domain.action.integration.OAuthSignIn;
+import com.dopplertask.dopplertask.service.CredentialService;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -22,7 +25,10 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
@@ -47,6 +53,10 @@ public class OAuthConnectTest {
     private HttpServer service;
     private String address;
     private final List<String> tokenRequests = new CopyOnWriteArrayList<>();
+    private final AtomicInteger rotations = new AtomicInteger(1);
+
+    @Autowired
+    private CredentialService credentials;
 
     @Before
     public void startService() throws IOException {
@@ -57,6 +67,10 @@ public class OAuthConnectTest {
             String answer;
             if (form.contains("grant_type=authorization_code")) {
                 answer = form.contains("code_verifier=") && form.contains("code=good-code") ? "{\"access_token\":\"first\",\"refresh_token\":\"refresh-1\",\"expires_in\":3600}" : "{\"error\":\"invalid_grant\"}";
+            } else if (form.contains("refresh_token=rotate-")) {
+                // A service that replaces the refresh token on every use and refuses the old one, with tokens too short to keep.
+                int used = Integer.parseInt(form.replaceAll(".*refresh_token=rotate-(\\d+).*", "$1"));
+                answer = used == rotations.get() ? "{\"access_token\":\"rotated-" + used + "\",\"refresh_token\":\"rotate-" + rotations.incrementAndGet() + "\",\"expires_in\":1}" : "{\"error\":\"invalid_grant\"}";
             } else if (form.contains("grant_type=refresh_token")) {
                 answer = form.contains("refresh_token=refresh-1") ? "{\"access_token\":\"fresh\",\"expires_in\":3600}" : "{\"error\":\"invalid_grant\"}";
             } else {
@@ -127,15 +141,63 @@ public class OAuthConnectTest {
         Assert.assertTrue(run, run.contains("FINISHED") && !run.contains("Bearer"));
     }
 
+    @Test
+    public void testNewRefreshTokenIsKeptWhenTheRunFailsSuccess() throws Exception {
+        createCredential("rotating-api", "\"oauthProvider\":\"CUSTOM\",\"oauthClientId\":\"app\",\"oauthTokenUrl\":\"" + address + "/token\",\"oauthRefreshToken\":\"rotate-1\"");
+        String run = runHttpStep("oauth_rotating", "rotating-api", "\"failOn\":\"stop\",");
+        Assert.assertTrue(run, run.contains("FAILED"));
+        Assert.assertEquals("rotate-2", credentials.valuesNamed("rotating-api").get("oauthRefreshToken"));
+    }
+
+    @Test
+    public void testARunHoldingAReplacedRefreshTokenGetsTheNewOneSuccess() throws Exception {
+        createCredential("rotating-twice", "\"oauthProvider\":\"CUSTOM\",\"oauthClientId\":\"app\",\"oauthTokenUrl\":\"" + address + "/token\"");
+        HttpAction startedEarly = stepHolding("rotating-twice", "rotate-1");
+        // Both runs hold rotate-1, which the first one uses up.
+        Assert.assertEquals("Bearer rotated-1", OAuthSignIn.INSTANCE.headersFor(startedEarly, "The step").getHeaders().get("Authorization"));
+        Assert.assertEquals("Bearer rotated-2", OAuthSignIn.INSTANCE.headersFor(startedEarly, "The step").getHeaders().get("Authorization"));
+    }
+
+    @Test
+    public void testAReconnectedAccountKeepsItsTokenSuccess() throws Exception {
+        createCredential("reconnected-api", "\"oauthProvider\":\"CUSTOM\",\"oauthClientId\":\"app\",\"oauthTokenUrl\":\"" + address + "/token\",\"oauthRefreshToken\":\"connected-again\"");
+        // A run that started before the person connected the account again still holds the old token.
+        Assert.assertEquals("Bearer rotated-1", OAuthSignIn.INSTANCE.headersFor(stepHolding("reconnected-api", "rotate-1"), "The step").getHeaders().get("Authorization"));
+        Assert.assertEquals("connected-again", credentials.valuesNamed("reconnected-api").get("oauthRefreshToken"));
+    }
+
+    @Test
+    public void testRunsRefreshingAtTheSameMomentEachSignInSuccess() throws Exception {
+        createCredential("busy-api", "\"oauthProvider\":\"CUSTOM\",\"oauthClientId\":\"app\",\"oauthTokenUrl\":\"" + address + "/token\",\"oauthRefreshToken\":\"rotate-1\"");
+        List<CompletableFuture<String>> runs = IntStream.range(0, 4).mapToObj(run -> CompletableFuture.supplyAsync(() ->
+                OAuthSignIn.INSTANCE.headersFor(stepHolding("busy-api", "rotate-1"), "The step").getHeaders().get("Authorization"))).toList();
+        Assert.assertEquals(List.of("Bearer rotated-1", "Bearer rotated-2", "Bearer rotated-3", "Bearer rotated-4"), runs.stream().map(CompletableFuture::join).sorted().toList());
+        Assert.assertEquals("rotate-5", credentials.valuesNamed("busy-api").get("oauthRefreshToken"));
+    }
+
+    private HttpAction stepHolding(String credential, String refreshToken) {
+        HttpAction step = new HttpAction();
+        step.setCredential(credential);
+        step.setOauthProvider("CUSTOM");
+        step.setOauthClientId("app");
+        step.setOauthTokenUrl(address + "/token");
+        step.setOauthRefreshToken(refreshToken);
+        return step;
+    }
+
     private void createCredential(String name, String values) throws Exception {
         this.mockMvc.perform(post("/credentials").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"name\":\"" + name + "\",\"type\":\"HttpAction\",\"values\":{" + values + "}}")).andExpect(status().isOk());
     }
 
     private String runHttpStep(String taskName, String credential) throws Exception {
+        return runHttpStep(taskName, credential, "");
+    }
+
+    private String runHttpStep(String taskName, String credential, String stepFields) throws Exception {
         String task = "{\"name\":\"" + taskName + "\",\"active\":false,\"parameters\":[],\"actions\":["
                 + "{\"@type\":\"StartAction\",\"ports\":[{\"externalId\":\"s\",\"portType\":\"OUTPUT\"}]},"
-                + "{\"@type\":\"HttpAction\",\"method\":\"GET\",\"url\":\"" + address + "/api\",\"credential\":\"" + credential + "\",\"ports\":[{\"externalId\":\"h\",\"portType\":\"INPUT\"}]}],"
+                + "{\"@type\":\"HttpAction\"," + stepFields + "\"method\":\"GET\",\"url\":\"" + address + "/api\",\"credential\":\"" + credential + "\",\"ports\":[{\"externalId\":\"h\",\"portType\":\"INPUT\"}]}],"
                 + "\"connections\":[{\"source\":{\"externalId\":\"s\"},\"target\":{\"externalId\":\"h\"}}]}";
         this.mockMvc.perform(post("/task").content(task)).andExpect(status().isOk());
         return this.mockMvc.perform(post("/schedule/directtask").contentType(MediaType.APPLICATION_JSON).content("{\"taskName\":\"" + taskName + "\",\"parameters\":{}}"))

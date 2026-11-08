@@ -282,6 +282,41 @@ Executes a MySQL statement, like a SELECT statement.
 
 The first OUTPUT port is the true path and the second OUTPUT port is the false path. If the chosen path is not connected, the run ends.
 
+## LoopAction
+Runs the steps on its first OUTPUT port once for every item of a list, then goes on along its second OUTPUT port, Done.
+### Variables
+* items: a JSON list, a JSON object with the list inside, or text with one item per line. Empty uses what the previous step gave.
+* path: where the list is inside JSON, such as `data.orders`.
+* batchSize: how many items each pass gets. Default is 1.
+
+A pass ends where its steps end, or where a connection leads back to the loop, and the loop then takes the next item. Each pass reads `$loop.item`, `$loop.index`, `$loop.number`, `$loop.count`, `$loop.isFirst`, `$loop.isLast`, `$loop.batch` and `$loop.results`. A loop inside a loop reads the outer one by its name, as `$loops.rows.item`. Done gives what every pass gave as `results`. A run that is resumed at a step inside a pass carries on with the rest of the items.
+
+## WebhookReplyAction
+Answers the caller of the webhook that started the task, then lets the task carry on. The webhook needs Reply set to `replyStep`, and the step fails otherwise.
+### Variables
+* replyWith: `JSON`, `TEXT`, `LAST_STEP`, `NO_DATA` or `REDIRECT`.
+* body: the answer for JSON and text.
+* redirectUrl: where a redirect sends the caller.
+* statusCode: empty gives 200, 204 for no content and 307 for a redirect.
+* headers: one per line, such as `Cache-Control: no-store`.
+
+## Webhook
+Starts the task when its address is called. `responseMode` decides what the caller gets back: `runLog`, the run log when the task ends, which is the default, `immediately` with `responseBody`, `lastStep` with what the last step gave, or `replyStep` with what a WebhookReplyAction sends. `responseCode` sets the status for `immediately` and `lastStep`. When a run fails, the caller gets its status and run id, and the reason stays in the editor. At most 40 runs with `immediately`, `lastStep` or `replyStep` go at once, and a call beyond them gets 503 with Retry-After at once.
+
+## ScheduleTrigger
+Starts the task on the clock.
+### Variables
+* rule: `SECONDS`, `MINUTES`, `HOURS`, `DAYS`, `WEEKS`, `MONTHS` or `CRON`.
+* every: how many of the unit lie between two starts, from 1 to 10000. Every 15 minutes runs at :00, :15, :30 and :45, and every 90 minutes keeps 90 minutes apart, also across midnight.
+* atHour, atMinute: the time of day for hours, days, weeks and months.
+* onDays: weekdays for a weekly rule, such as `MON,THU`.
+* onDayOfMonth: from 1 to 31. A day a month does not have means its last day.
+* weekdaysOnly: skips Saturdays and Sundays.
+* cronExpression: one or more cron lines with 5 or 6 fields.
+* timezone: such as `Europe/Stockholm`. Empty uses the server's time zone.
+
+A schedule that cannot start the task, such as a cron line or time zone that does not exist, is refused when the task is saved as active.
+
 ## TimedWait
 ### Variables
 * seconds: Amount of seconds to wait

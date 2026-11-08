@@ -16,6 +16,7 @@ import tools.jackson.databind.ObjectMapper;
 import org.springframework.beans.BeanWrapperImpl;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.Transient;
@@ -100,6 +101,18 @@ public class CredentialService {
         values.putAll(onlyFieldsOf(credential.getType(), changes));
         store(credential, values);
         return summaryOf(credential);
+    }
+
+    /**
+     * Keeps the refresh token a service gave in place of the used one. It has its own transaction, since the run that
+     * refreshed may still fail, and the service may already refuse the old token. A credential that holds another token
+     * meanwhile, because a person connected the account again, keeps that one.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void keepRefreshToken(String name, String usedToken, String newToken) {
+        if (usedToken.equals(valuesNamed(name).get("oauthRefreshToken"))) {
+            update(name, Map.of("oauthRefreshToken", newToken));
+        }
     }
 
     /** The values of a credential, for the server alone, such as to connect its account. They never leave it. */
