@@ -15,7 +15,7 @@ object Connectors {
     private val NAME = Regex("[a-z0-9][a-z0-9-]*")
     private val ACTION_NAME = Regex("[A-Za-z0-9][A-Za-z0-9_-]*")
     private val LOG = LoggerFactory.getLogger(Connectors::class.java)
-    private const val CREDENTIAL = "credential."
+    const val CREDENTIAL = "credential."
     private val PLACEHOLDER = Regex("\\{\\{\\s*([\\w.]+)\\s*}}")
 
     private val byName: Map<String, Connector> by lazy {
@@ -46,6 +46,9 @@ object Connectors {
 
     /** The inputs a list is read with, such as base for the tables of a base. */
     fun inputsOf(list: ConnectorList): List<String> = templatesOf(list.request).flatMap(::placeholdersIn).filter { !it.startsWith(CREDENTIAL) }.distinct()
+
+    /** The credential fields a request needs, such as user and password for {{credential.user}} and {{credential.password}}. */
+    fun credentialFieldsOf(request: ConnectorRequest) = templatesOf(request).flatMap(::placeholdersIn).filter { it.startsWith(CREDENTIAL) }.map { it.removePrefix(CREDENTIAL) }
 
     fun templatesOf(request: ConnectorRequest) = listOf(request.url) + request.headers.values + request.query.values + listOfNotNull(request.body?.toString())
 
@@ -78,7 +81,7 @@ object Connectors {
         credential?.session?.let { session ->
             problems += addressProblems("The credential's session", connector, session.request.url, sample)
             val needs = templatesOf(session.request).flatMap(::placeholdersIn)
-            needs.filter { it.startsWith(CREDENTIAL) && it.removePrefix(CREDENTIAL) !in fields }.forEach { problems += "The credential's session refers to {{$it}}, which is not one of the credential's fields." }
+            credentialFieldsOf(session.request).filter { it !in fields }.forEach { problems += "The credential's session refers to {{$CREDENTIAL$it}}, which is not one of the credential's fields." }
             (session.headers.values + session.query.values).flatMap(::placeholdersIn).filter { it != ConnectorRequests.SESSION && !it.startsWith(CREDENTIAL) }
                 .forEach { problems += "The credential's session sends {{$it}}; only {{session}} and credential values can go there." }
             val inputs = needs.filterNot { it.startsWith(CREDENTIAL) }
@@ -119,11 +122,11 @@ object Connectors {
             val requests = if (webhook == null) listOf(poll.request) else listOfNotNull(webhook.subscribe, webhook.unsubscribe)
             if (webhook != null && webhook.subscribe == null && webhook.unsubscribe != null) problems += "$where unsubscribes, but has no subscribe request: the person sets it up in the service."
             requests.forEach { problems += addressProblems(where, connector, it.url, sample) }
-            val known = poll.inputs.keys + fields.map { CREDENTIAL + it } + setOf("webhookUrl", "webhookId", ConnectorTrigger.LAST_POLL_TIME)
+            val known = poll.inputs.keys + fields.map { CREDENTIAL + it } + setOf("webhookUrl", "webhookId", ConnectorTrigger.LAST_POLL_TIME, ConnectorTrigger.LAST_ITEM)
             requests.flatMap(::templatesOf).flatMap(::placeholdersIn)
                 .filter { it !in known }.forEach { problems += "$where refers to {{$it}}, which is not one of its inputs." }
             if (webhook == null && poll.newBy !in setOf("time", "lastItem", "unseen")) problems += "$where should find new items by time, lastItem or unseen, not ${poll.newBy}."
-            listOf(poll.items, poll.key).filter { !it.startsWith("$") }.forEach { problems += "$where reads $it, which should start with $." }
+            listOf(poll.items, poll.key, poll.emit).filter { !it.startsWith("$") }.forEach { problems += "$where reads $it, which should start with $." }
         }
         return problems
     }

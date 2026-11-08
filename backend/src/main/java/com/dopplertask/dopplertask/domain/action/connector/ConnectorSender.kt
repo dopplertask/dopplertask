@@ -26,10 +26,9 @@ class ConnectorSender(private val step: Action, private val connector: Connector
      */
     fun openSession(values: Map<String, String>) {
         val opening = connector.credential?.session ?: return
-        val needed = Connectors.templatesOf(opening.request).flatMap(Connectors::placeholdersIn).filter { it.startsWith(CREDENTIAL) }.map { it.removePrefix(CREDENTIAL) }
-        if (needed.any { credential[it].isNullOrBlank() }) return
+        if (Connectors.credentialFieldsOf(opening.request).any { credential[it].isNullOrBlank() }) return
         val signIn = ConnectorOperation().also { it.request = opening.request }
-        val answer = send(ConnectorRequests.build(connector, signIn, values + credential.mapKeys { CREDENTIAL + it.key }, credential))
+        val answer = send(ConnectorRequests.build(connector, signIn, values + credential.mapKeys { Connectors.CREDENTIAL + it.key }, credential))
         require(answer.statusCode == StatusCode.SUCCESS) { "${connector.label} did not sign in: ${answer.errorMsg}" }
         session = JsonPaths.read(answerOf(answer), opening.token)?.asText()?.takeIf { it.isNotBlank() }
             ?: throw IllegalArgumentException("${connector.label} signed in, but gave no token at ${opening.token}.")
@@ -46,11 +45,12 @@ class ConnectorSender(private val step: Action, private val connector: Connector
         }
         val address = Connectors.localServerForTests?.let { request.url.replaceFirst(Regex("^https://[^/]+"), it) } ?: request.url
         // JSON, as most services and the originals send, unless the connector names another type, such as a form or JSON Patch.
-        val named = headers.entries.firstOrNull { it.key.equals(CONTENT_TYPE, ignoreCase = true) }?.value ?: "application/json"
+        val given = headers.entries.firstOrNull { it.key.equals(CONTENT_TYPE, ignoreCase = true) }?.value
+        val named = given ?: "application/json"
         val boundary = "dopplertask-" + UUID.randomUUID()
-        val whole = request.files[ConnectorRequests.WHOLE_BODY]
+        val whole = request.bodyFile
         val (contentType, body) = when {
-            whole != null -> (headers.entries.firstOrNull { it.key.equals(CONTENT_TYPE, ignoreCase = true) }?.value ?: whole.mimeType) to whole.bytes
+            whole != null -> (given ?: whole.mimeType) to whole.bytes
             named.startsWith(MULTIPART) -> "${named.substringBefore(';')}; boundary=$boundary" to multipartOf(request, boundary, named.startsWith(FORM_DATA))
             named.startsWith(FORM) -> named to request.body?.let(::formOf).orEmpty().toByteArray()
             // A body in another type, such as CSV, is sent as the text it is.
@@ -93,7 +93,6 @@ class ConnectorSender(private val step: Action, private val connector: Connector
 
     companion object {
         private const val CONTENT_TYPE = "Content-Type"
-        private const val CREDENTIAL = "credential."
         private const val FORM = "application/x-www-form-urlencoded"
         private const val MULTIPART = "multipart/"
         private const val FORM_DATA = "multipart/form-data"

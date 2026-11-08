@@ -146,7 +146,7 @@ public class ConnectorTriggerTest {
             trigger.subscribe(Connectors.INSTANCE.find("poll-test").getTriggers().get("new_task").getWebhook());
             answer.set("{\"id\": \"t9\", \"name\": \"Call Ada\"}");
             trigger.takeItemsOf(event("{\"task_id\": \"t9\"}"));
-            Assert.assertEquals("{\"id\":\"t9\",\"name\":\"Call Ada\"}", trigger.nextWaiting());
+            Assert.assertEquals("{\"id\":\"t9\",\"name\":\"Call Ada\"}", nextItem(trigger));
             Assert.assertEquals("GET /tasks/t9 ", asked.get(1));
             Assert.assertEquals("Bearer poll-key", signedInWith.get());
         } finally {
@@ -184,7 +184,7 @@ public class ConnectorTriggerTest {
             trigger.setTriggerSuffix("pasted-key");
             Assert.assertTrue(trigger.getActionInfo().stream().anyMatch(property -> property.getType() == Action.PropertyInformation.PropertyInformationType.ADDRESS));
             var started = java.util.concurrent.CompletableFuture.supplyAsync(trigger::trigger);
-            while (!ConnectorWebhooks.INSTANCE.isListening("pasted-key")) {
+            while (ConnectorWebhooks.INSTANCE.check("pasted-key", event("{}")) == null) {
                 Thread.sleep(20);
             }
             Assert.assertEquals("{\"challenge\":\"c1\"}", ConnectorWebhooks.INSTANCE.deliver("pasted-key", event("{\"challenge\": \"c1\"}")).toString());
@@ -239,8 +239,32 @@ public class ConnectorTriggerTest {
         Assert.assertNull(ConnectorTrigger.Companion.timeOf(JsonApi.INSTANCE.getMapper().getNodeFactory().textNode("soon")));
     }
 
+    @Test
+    public void testATriggerSavedBeforeItHadMemoryStillChecksSuccess() {
+        ConnectorTrigger trigger = trigger("new_change");
+        trigger.setMemory(null);
+        answer.set("{\"next\": \"c1\", \"changes\": []}");
+        Assert.assertEquals(List.of(), newItems(trigger));
+        Assert.assertEquals("{\"cursor\":\"c1\"}", trigger.getMemory());
+    }
+
+    @Test
+    public void testAnEntryGivesItsItemAndTheNextCheckAsksAfterTheLastSuccess() {
+        ConnectorTrigger trigger = trigger("new_entry");
+        trigger.setPollState("a");
+        answer.set("{\"entries\": [{\"id\": \"b\", \"data\": {\"name\": \"B\"}}, {\"id\": \"a\", \"data\": {\"name\": \"A\"}}]}");
+        trigger.lookForNewItems();
+        Assert.assertEquals("{\"name\":\"B\"}", nextItem(trigger));
+        Assert.assertEquals(List.of("after=a"), queries);
+    }
+
+    @Test
+    public void testAFileNeverTakesANameAlreadyUsedSuccess() {
+        Assert.assertEquals("scan-2.pdf", com.dopplertask.dopplertask.domain.RunFiles.INSTANCE.freeName("scan.pdf", java.util.Set.of("scan.pdf")::contains));
+    }
+
     private static ConnectorWebhooks.Event event(String json) {
-        return ConnectorWebhooks.INSTANCE.eventOf("application/json", json, Map.of(), Map.of());
+        return ConnectorWebhooks.INSTANCE.eventOf("application/json", json, Map.of(), null);
     }
 
     @Test
@@ -260,11 +284,16 @@ public class ConnectorTriggerTest {
         trigger.lookForNewItems();
         List<String> ids = new ArrayList<>();
         while (true) {
-            String item = trigger.nextWaiting();
+            String item = nextItem(trigger);
             if (item == null) {
                 return ids;
             }
             ids.add(JsonApi.INSTANCE.getMapper().readTree(item).path("id").asText());
         }
+    }
+
+    private static String nextItem(ConnectorTrigger trigger) {
+        ConnectorTrigger.Waiting waiting = trigger.takeWaiting();
+        return waiting == null ? null : waiting.getItem().toString();
     }
 }

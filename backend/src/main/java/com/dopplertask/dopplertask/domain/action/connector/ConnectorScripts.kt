@@ -26,7 +26,7 @@ object ConnectorScripts {
     @JvmOverloads
     fun run(script: String, inputs: Map<String, String>, request: JsonNode?, response: JsonNode?, send: (JsonNode) -> JsonNode,
             received: JsonNode? = null, memory: ObjectNode? = null, keepFile: ((String, String) -> String)? = null): JsonNode {
-        val source = "const call = (spec) => JSON.parse(sendRequest(JSON.stringify(spec)));\nconst keepFile = (name, base64) => keepRunFile(name, base64);\n" +
+        val source = "const call = (spec) => JSON.parse(sendRequest(JSON.stringify(spec)));\n" +
             "const readEmail = (raw) => JSON.parse(readEmailOf(raw));\n" +
             "const memory = ${json(memory ?: emptyMap<String, Any>())};\n" +
             "JSON.stringify([(function (inputs, request, response, received) {\n$script\n})(${json(inputs)}, ${json(request)}, ${json(response)}, ${json(received)}), memory])"
@@ -34,7 +34,7 @@ object ConnectorScripts {
             // Only text crosses into the script, so it holds no object of the server.
             context.getBindings("js").putMember("sendRequest", ProxyExecutable { arguments -> json(send(JsonApi.mapper.readTree(arguments[0].asString()))) })
             context.getBindings("js").putMember("readEmailOf", ProxyExecutable { arguments -> Emails.readEncodedOrPlain(arguments[0].asString()).toString() })
-            context.getBindings("js").putMember("keepRunFile", ProxyExecutable { arguments ->
+            context.getBindings("js").putMember("keepFile", ProxyExecutable { arguments ->
                 (keepFile ?: throw IllegalArgumentException("This script cannot keep files."))(arguments[0].asString(), arguments[1].asString())
             })
             try {

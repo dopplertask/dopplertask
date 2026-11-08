@@ -221,7 +221,11 @@ export default function boot() {
           : `<input class="ui-input is-mono" data-variables placeholder="${escapeHtml(column.label)}" aria-label="${escapeHtml(column.label)}" data-map-index="${index}" data-map-part="${column.key}" value="${escapeHtml(row[column.key] ?? '')}">`);
         return `<fieldset class="ui-field ui-list" data-map="${field.key}"><legend class="ui-label">${escapeHtml(field.label)}${field.required ? '' : '<span class="ui-optional">optional</span>'}</legend>${rows.map((row, index) => `<div class="ui-list-row">${field.columns.map((column) => cell(column, row, index)).join('')}<button type="button" class="ui-icon-button" data-map-remove="${index}" aria-label="Remove">${icon('x')}</button></div>`).join('')}<button type="button" class="ui-link-button" data-map-add>${icon('plus')}Add</button></fieldset>`;
       }
-      case 'address': return addressRow(field.label, `${window.location.origin}/hooks/${node.config.triggerSuffix}`, `${field.hint} Works once the task is saved with its trigger on.`);
+      case 'address': {
+        /* The server gives where services reach it, which a proxy can make differ from this page's address. */
+        const base = field.defaultValue?.startsWith('http') ? field.defaultValue : window.location.origin + (field.defaultValue || '/hooks/');
+        return addressRow(field.label, base + node.config.triggerSuffix, `${field.hint} Works once the task is saved with its trigger on.`);
+      }
       default: return wrap(`${label}<input class="ui-input ${field.mono ? 'is-mono' : ''}" autocomplete="off" spellcheck="false" ${common} ${placeholder} value="${escapeHtml(fieldValue ?? '')}">`);
     }
   }

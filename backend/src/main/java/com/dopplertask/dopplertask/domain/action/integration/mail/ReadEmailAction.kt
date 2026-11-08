@@ -101,7 +101,7 @@ class ReadEmailAction : Action() {
                     val found = if (read(onlyUnread) == "true") box.search(FlagTerm(Flags(Flags.Flag.SEEN), false)) else box.messages
                     val newestFirst = found.reversed().take(limit)
                     val messages = newestFirst.map { message ->
-                        val email = Emails.read(message as MimeMessage)
+                        val email = Emails.read(message as MimeMessage, withAttachments = false)
                         // A mail often holds both text and HTML, and the next step wants the text.
                         mapOf(
                             "from" to email.path("from").path("text").asText(null),

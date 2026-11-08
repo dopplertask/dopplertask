@@ -143,7 +143,7 @@ public class ConnectorCheck {
                 trigger.subscribe(webhook);
             }
             trigger.takeItemsOf(ConnectorWebhooks.INSTANCE.eventOf("application/json", fixture.path("event").toString(),
-                    fixture.has("eventHeaders") ? MAPPER.convertValue(fixture.path("eventHeaders"), Map.class) : Map.of(), Map.of()));
+                    fixture.has("eventHeaders") ? MAPPER.convertValue(fixture.path("eventHeaders"), Map.class) : Map.of(), null));
         } else {
             JsonNode place = fixture.path("store");
             trigger.setPollState(place.has("lastPoll") ? place.path("lastPoll").asText()
@@ -155,7 +155,7 @@ public class ConnectorCheck {
                     ? null : "memory differs. Original: " + memoryOf(fixture.path("storeAfter")) + ". Ours: " + trigger.getMemory() + ".";
         }
         List<JsonNode> items = new ArrayList<>();
-        for (String item = trigger.nextWaiting(); item != null; item = trigger.nextWaiting()) {
+        for (String item = nextItem(trigger); item != null; item = nextItem(trigger)) {
             items.add(parsed(item));
         }
         return new Outcome(sorted(items), "");
@@ -301,5 +301,10 @@ public class ConnectorCheck {
         } catch (Exception e) {
             return MAPPER.getNodeFactory().textNode(text);
         }
+    }
+
+    private static String nextItem(ConnectorTrigger trigger) {
+        ConnectorTrigger.Waiting waiting = trigger.takeWaiting();
+        return waiting == null ? null : waiting.getItem().toString();
     }
 }

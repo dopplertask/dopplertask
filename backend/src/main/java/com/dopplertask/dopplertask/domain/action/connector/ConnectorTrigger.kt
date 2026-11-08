@@ -1,6 +1,7 @@
 package com.dopplertask.dopplertask.domain.action.connector
 
 import com.dopplertask.dopplertask.domain.ActionResult
+import com.dopplertask.dopplertask.domain.RunFiles
 import com.dopplertask.dopplertask.domain.StatusCode
 import com.dopplertask.dopplertask.domain.TaskExecution
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
@@ -78,7 +79,8 @@ class ConnectorTrigger : Trigger() {
     @Lob
     @Column(columnDefinition = "TEXT")
     @JsonIgnore
-    var memory: String = "{}"
+    @Volatile
+    var memory: String? = null
 
     @Transient
     @JsonIgnore
@@ -94,7 +96,7 @@ class ConnectorTrigger : Trigger() {
     @JsonIgnore
     private val waiting = ArrayDeque<Waiting>()
 
-    private class Waiting(val item: JsonNode, val files: Map<String, ByteArray>)
+    class Waiting(val item: JsonNode, val files: Map<String, ByteArray>)
 
     // Files the trigger's scripts keep on a check, such as the attachments of new emails, until their items wait.
     @Transient
@@ -161,7 +163,7 @@ class ConnectorTrigger : Trigger() {
             // A webhook the person sets up shows the address to copy into the service.
             val copied = connector.triggers.filterValues { it.webhook != null && it.webhook!!.subscribe == null }.keys.toTypedArray()
             if (copied.isNotEmpty()) {
-                info.add(PropertyInformation("address", "Address", PropertyInformationType.ADDRESS, "", "Copy it into ${connector.label}, which sends its events there.",
+                info.add(PropertyInformation("hookAddress", "Address", PropertyInformationType.ADDRESS, ConnectorWebhooks.addressOf(""), "Copy it into ${connector.label}, which sends its events there.",
                     mutableListOf(), PropertyInformation.PropertyInformationCategory.PROPERTY, mapOf("operation" to copied)))
             }
             // Only a trigger that asks the service checks every few minutes; a webhook gets each event as it happens.
@@ -187,7 +189,7 @@ class ConnectorTrigger : Trigger() {
     override fun trigger(): TriggerResult {
         val webhook = spec?.triggers?.get(operation)?.webhook
         while (true) {
-            waiting.removeFirstOrNull()?.let { return TriggerResult(mutableMapOf("item" to it.item.toString()), it.files) }
+            takeWaiting()?.let { return TriggerResult(mutableMapOf("item" to it.item.toString()), it.files) }
             if (webhook != null) {
                 // Listening comes first, since a service may check the address while it subscribes it.
                 val events = ConnectorWebhooks.listen(addressKey(webhook), ::replyTo)
@@ -213,7 +215,7 @@ class ConnectorTrigger : Trigger() {
         val values = settingValues() + ("webhookUrl" to ConnectorWebhooks.addressOf(addressKey(webhook)))
         val sender = senderFor(values)
         val remembered = remembered()
-        val answer = JsonApi.parsed(send(sender, connector, webhook.subscribe!!, values, webhook.beforeRequest, remembered))
+        val answer = send(sender, webhook.subscribe!!, values, webhook.beforeRequest, remembered)
         pollState = (webhook.afterResponse?.let { ConnectorScripts.run(it, values, null, answer, sender::answerFor, memory = remembered) } ?: JsonPaths.read(answer, webhook.id))?.asText() ?: ""
         memory = remembered.toString()
         keepPlace()
@@ -222,8 +224,8 @@ class ConnectorTrigger : Trigger() {
     /** Ends the subscription when the task stops, so that the service no longer sends events. */
     override fun stop() {
         val webhook = spec?.triggers?.get(operation)?.webhook ?: return
-        ConnectorWebhooks.stopListening(addressKey(webhook))
-        webhook.unsubscribe?.takeIf { pollState != null }?.let { request -> (settingValues() + ("webhookId" to pollState!!)).let { send(senderFor(it), spec!!, request, it) } }
+        (if (webhook.subscribe == null) triggerSuffix else hookKey)?.let(ConnectorWebhooks::stopListening)
+        webhook.unsubscribe?.takeIf { pollState != null }?.let { request -> (settingValues() + ("webhookId" to pollState!!)).let { send(senderFor(it), request, it) } }
         pollState = null
         keepPlace()
     }
@@ -237,23 +239,26 @@ class ConnectorTrigger : Trigger() {
         val reply = poll.afterResponse?.let { ConnectorScripts.run(it, settingValues(), null, event.body, sender::answerFor, event.received, remembered, ::keepFile) } ?: event.body
         memory = remembered.toString()
         wait(JsonPaths.read(reply, poll.items)?.let { if (it.isArray) it.toList() else listOf(it) }.orEmpty().filterNot { it.isNull })
+        keepPlace()
     }
 
     /** Keeps a file for the run of the item that names it, under a name no other file of this check has. */
-    private fun keepFile(name: String, base64: String): String {
-        val extension = name.substringAfterLast('.', "").let { if (it.isEmpty()) "" else ".$it" }
-        val free = generateSequence(1) { it + 1 }.map { if (it == 1) name else name.removeSuffix(extension) + "-$it$extension" }.first { it !in keptFiles }
-        keptFiles[free] = Base64.getDecoder().decode(base64)
-        return free
-    }
+    private fun keepFile(name: String, base64: String): String =
+        RunFiles.freeName(name) { it in keptFiles || it.startsWith(TRIGGER_VALUES) }.also { keptFiles[it] = Base64.getDecoder().decode(base64) }
 
-    /** Lets new items wait, each with the kept files it names. */
+    /** Lets new items wait, each with the kept files that one of its values names. */
     private fun wait(items: List<JsonNode>) {
         items.take(MOST_ITEMS_PER_CHECK).forEach { item ->
-            val text = item.toString()
-            waiting.add(Waiting(item, keptFiles.filterKeys { "\"$it\"" in text }))
+            val named = textsIn(item)
+            waiting.add(Waiting(item, keptFiles.filterKeys { it in named }))
         }
         keptFiles.clear()
+    }
+
+    private fun textsIn(node: JsonNode): Set<String> = when {
+        node.isTextual -> setOf(node.asText())
+        node.isContainer -> node.values().asSequence().flatMap { textsIn(it) }.toSet()
+        else -> emptySet()
     }
 
     /** What the address answers to an event, such as the challenge back. It may not send requests, since the service waits. */
@@ -262,21 +267,21 @@ class ConnectorTrigger : Trigger() {
     }?.takeUnless { it.isNull }
 
     /** The memory of the trigger's scripts, as an object they may change. */
-    private fun remembered(): ObjectNode = JsonApi.mapper.readTree(memory) as ObjectNode
+    private fun remembered(): ObjectNode = JsonApi.mapper.readTree(memory ?: "{}") as ObjectNode
 
     /** A sender for this trigger, signed in with the credential's session when it has one. */
     private fun senderFor(values: Map<String, String>) = ConnectorSender(this, spec!!, credentialValues).also { it.openSession(values) }
 
-    private fun send(sender: ConnectorSender, connector: Connector, request: ConnectorRequest, values: Map<String, String>, beforeRequest: String? = null,
-                     remembered: ObjectNode? = null): ActionResult {
+    private fun send(sender: ConnectorSender, request: ConnectorRequest, values: Map<String, String>, beforeRequest: String? = null,
+                     remembered: ObjectNode? = null): JsonNode {
         val operation = ConnectorOperation().also { it.request = request; it.inputs = linkedMapOf(); it.beforeRequest = beforeRequest }
-        val answer = sender.send(ConnectorRequests.build(connector, operation, values, credentialValues, sender::answerFor, memory = remembered, session = sender.session))
+        val answer = sender.send(ConnectorRequests.build(spec!!, operation, values, credentialValues, sender::answerFor, memory = remembered, session = sender.session))
         check(answer.statusCode == StatusCode.SUCCESS) { answer.errorMsg }
-        return answer
+        return ConnectorSender.answerOf(answer)
     }
 
-    /** The next new item that has not started the task yet, as JSON. */
-    fun nextWaiting(): String? = waiting.removeFirstOrNull()?.item?.toString()
+    /** The next new item that has not started the task yet, with the files it names. */
+    fun takeWaiting(): Waiting? = waiting.removeFirstOrNull()
 
     /** Asks the service for its newest items, keeps the new ones, and notes where it left off. */
     fun lookForNewItems() {
@@ -284,8 +289,9 @@ class ConnectorTrigger : Trigger() {
         val poll = connector.triggers[operation] ?: throw IllegalStateException(problem())
         val asked = Instant.now()
         val lookup = ConnectorOperation().also { it.inputs = poll.inputs; it.request = poll.request; it.beforeRequest = poll.beforeRequest }
-        // A check by time may ask only for what changed since the last one, which is empty before the first.
-        val values = settingValues() + (LAST_POLL_TIME to if (poll.newBy == "lastItem") "" else pollState.orEmpty())
+        // A check may ask only for what came after its place: the time of the last check, or the last item seen.
+        val values = settingValues() + (LAST_POLL_TIME to if (poll.newBy == "time") pollState.orEmpty() else "") +
+            (LAST_ITEM to if (poll.newBy == "lastItem") pollState.orEmpty() else "")
         val sender = senderFor(values)
         val remembered = remembered()
         val answer = sender.send(ConnectorRequests.build(connector, lookup, values, credentialValues, sender::answerFor, memory = remembered, session = sender.session))
@@ -293,27 +299,28 @@ class ConnectorTrigger : Trigger() {
         val reply = poll.afterResponse?.let { ConnectorScripts.run(it, values, null, ConnectorSender.answerOf(answer), sender::answerFor, ConnectorSender.receivedOf(answer), remembered, ::keepFile) }
             ?: ConnectorSender.answerOf(answer)
         memory = remembered.toString()
-        val items = JsonPaths.read(reply, poll.items)?.toList().orEmpty()
+        val listed = JsonPaths.read(reply, poll.items)?.toList().orEmpty()
         val fresh = when (poll.newBy) {
             "lastItem" -> {
                 val seen = pollState
-                pollState = items.firstOrNull()?.let { JsonPaths.read(it, poll.key)?.asText() } ?: seen
-                if (seen == null) emptyList() else items.takeWhile { JsonPaths.read(it, poll.key)?.asText() != seen }.reversed()
+                pollState = listed.firstOrNull()?.let { JsonPaths.read(it, poll.key)?.asText() } ?: seen
+                if (seen == null) emptyList() else listed.takeWhile { JsonPaths.read(it, poll.key)?.asText() != seen }.reversed()
             }
             // For a list in no order, such as labels: what has a key not seen before is new.
             "unseen" -> {
                 val seen = pollState?.let { JsonApi.mapper.readValue(it, Array<String>::class.java).toSet() }
-                val keys = items.mapNotNull { JsonPaths.read(it, poll.key)?.asText() }
+                val keys = listed.mapNotNull { JsonPaths.read(it, poll.key)?.asText() }
                 pollState = JsonApi.mapper.writeValueAsString((keys + seen.orEmpty()).distinct().take(MOST_KEYS_SEEN))
-                if (seen == null) emptyList() else items.filter { JsonPaths.read(it, poll.key)?.asText() !in seen }
+                if (seen == null) emptyList() else listed.filter { JsonPaths.read(it, poll.key)?.asText() !in seen }
             }
             else -> {
                 val since = pollState?.toLongOrNull()
                 pollState = asked.toEpochMilli().toString()
-                if (since == null) emptyList() else items.filter { (timeOf(JsonPaths.read(it, poll.key)) ?: 0) > since }.sortedBy { timeOf(JsonPaths.read(it, poll.key)) }
+                if (since == null) emptyList() else listed.filter { (timeOf(JsonPaths.read(it, poll.key)) ?: 0) > since }.sortedBy { timeOf(JsonPaths.read(it, poll.key)) }
             }
         }
-        wait(fresh)
+        // An entry may hold the item beside its time, such as {epochMilliSeconds, data}: only the item starts the task.
+        wait(fresh.map { JsonPaths.read(it, poll.emit) ?: it })
         keepPlace()
     }
 
@@ -325,6 +332,12 @@ class ConnectorTrigger : Trigger() {
     companion object {
         /** When the previous check asked, in milliseconds since 1970, for a trigger that finds new items by time. */
         const val LAST_POLL_TIME = "lastPollTime"
+
+        /** The id of the newest item the last check saw, for a trigger that finds new items by lastItem. */
+        const val LAST_ITEM = "lastItem"
+
+        // The values a run gets from its trigger, whose names a file cannot take.
+        private const val TRIGGER_VALUES = "TRIGGER_"
 
         /** An empty step of a connector, which also describes the connector's kind of step. */
         @JvmStatic

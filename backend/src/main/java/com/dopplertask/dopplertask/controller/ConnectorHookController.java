@@ -8,20 +8,18 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.util.UriComponentsBuilder;
+import tools.jackson.databind.JsonNode;
 
 import java.io.IOException;
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * Where services send the events of connector triggers. The random key in the address finds the trigger, and the event
  * is only handed over as data: the trigger's task starts with it as its new item. A service may first check the address,
- * with a request without a body or with a challenge that the trigger's reply answers.
+ * with a request without a body or with a challenge, which the trigger's reply answers.
  */
 @RestController
 public class ConnectorHookController {
@@ -31,33 +29,21 @@ public class ConnectorHookController {
     }
 
     @RequestMapping(ConnectorWebhooks.PATH + "{key}")
-    public ResponseEntity<Object> event(@PathVariable String key, HttpServletRequest request) throws IOException {
-        String body = bodyOf(request);
-        if (body.isEmpty() && ("GET".equals(request.getMethod()) || "HEAD".equals(request.getMethod()))) {
-            return ConnectorWebhooks.INSTANCE.isListening(key) ? ResponseEntity.ok().build() : ResponseEntity.notFound().build();
-        }
+    public ResponseEntity<String> event(@PathVariable String key, HttpServletRequest request) throws IOException {
+        String body = new String(request.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
         Map<String, String> headers = new LinkedHashMap<>();
         Collections.list(request.getHeaderNames()).forEach(name -> headers.put(name.toLowerCase(), request.getHeader(name)));
-        Map<String, String> query = UriComponentsBuilder.newInstance().query(request.getQueryString()).build().getQueryParams().toSingleValueMap();
-        var reply = ConnectorWebhooks.INSTANCE.deliver(key, ConnectorWebhooks.INSTANCE.eventOf(request.getContentType(), body, headers, query));
+        var event = ConnectorWebhooks.INSTANCE.eventOf(request.getContentType(), body, headers, request.getQueryString());
+        boolean isCheck = body.isEmpty() && ("GET".equals(request.getMethod()) || "HEAD".equals(request.getMethod()));
+        JsonNode reply = isCheck ? ConnectorWebhooks.INSTANCE.check(key, event) : ConnectorWebhooks.INSTANCE.deliver(key, event);
         if (reply == null) {
             return ResponseEntity.notFound().build();
         }
-        return reply.isNull() ? ResponseEntity.ok().build() : ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(reply.toString());
-    }
-
-    /** The body as it was sent. A form that the server already read is written back from its fields. */
-    private static String bodyOf(HttpServletRequest request) throws IOException {
-        String body = new String(request.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-        if (!body.isEmpty() || !String.valueOf(request.getContentType()).startsWith(MediaType.APPLICATION_FORM_URLENCODED_VALUE)) {
-            return body;
+        if (reply.isNull()) {
+            return ResponseEntity.ok().build();
         }
-        return request.getParameterMap().entrySet().stream()
-                .flatMap(field -> java.util.Arrays.stream(field.getValue()).map(value -> encoded(field.getKey()) + "=" + encoded(value)))
-                .collect(Collectors.joining("&"));
-    }
-
-    private static String encoded(String text) {
-        return URLEncoder.encode(text, StandardCharsets.UTF_8);
+        // A reply in text, such as a token the service checks, goes back as that text.
+        return reply.isTextual() ? ResponseEntity.ok().contentType(MediaType.TEXT_PLAIN).body(reply.asText())
+                : ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(reply.toString());
     }
 }

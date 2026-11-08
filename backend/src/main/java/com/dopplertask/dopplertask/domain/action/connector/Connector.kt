@@ -131,6 +131,9 @@ class ConnectorPoll {
     var newBy: String = "time"
     var key: String = "$.id"
 
+    /** The part of each listed entry that is the new item, when the entry also holds what makes it new, such as $.data. */
+    var emit: String = "$"
+
     /**
      * Scripts as on an action, such as afterResponse asking for every page with call(...) and returning the items. They
      * also have memory, an object kept from one check or event to the next, such as the cursor a service gives.
@@ -159,8 +162,9 @@ class ConnectorWebhook {
     var afterResponse: String? = null
 
     /**
-     * What the address answers to a delivery, such as the challenge a service sends to check the address, which it
-     * expects back. The script reads the event as response and returns the body of the answer, or null for none.
+     * What the address answers to a delivery or a check, such as the challenge a service sends to check the address,
+     * which it expects back. The script reads the event as response and returns the body of the answer, as JSON or as
+     * text, or null for an empty answer. What it answers is a check, not an event. It reads memory but cannot change it.
      */
     var reply: String? = null
 }

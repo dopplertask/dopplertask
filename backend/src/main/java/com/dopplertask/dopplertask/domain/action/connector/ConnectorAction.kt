@@ -165,7 +165,9 @@ class ConnectorAction : Action() {
         }
         chosen.afterResponse?.let { script ->
             // A script may keep a file it finds in the answer, such as an attachment sent as base64, for later steps.
-            val keepFile = { name: String, base64: String -> name.also { RunFiles.keep(execution, it, Base64.getDecoder().decode(base64)) } }
+            val keepFile = { name: String, base64: String ->
+                RunFiles.freeName(name) { it in execution.parameters }.also { RunFiles.keep(execution, it, Base64.getDecoder().decode(base64)) }
+            }
             answer = ConnectorScripts.run(script, values, request.unsigned, answer, sender::answerFor, ConnectorSender.receivedOf(result), keepFile = keepFile)
             result.output = if (answer.isValueNode) answer.asText() else answer.toString()
         }
@@ -207,7 +209,7 @@ class ConnectorAction : Action() {
         val lookup = ConnectorOperation().also { it.inputs = LinkedHashMap(inputsOfOperation()); it.request = request }
         val answer = ConnectorSender(this, connector, credentialValues).send(ConnectorRequests.build(connector, lookup, settingValues(), credentialValues))
         require(answer.statusCode == StatusCode.SUCCESS) { answer.errorMsg }
-        return JsonPaths.read(JsonApi.parsed(answer), list)?.toList().orEmpty()
+        return JsonPaths.read(ConnectorSender.answerOf(answer), list)?.toList().orEmpty()
     }
 
     companion object {

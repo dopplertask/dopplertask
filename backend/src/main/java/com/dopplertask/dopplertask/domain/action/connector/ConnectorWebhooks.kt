@@ -39,19 +39,18 @@ object ConnectorWebhooks {
         listening.remove(key)
     }
 
-    fun isListening(key: String) = listening.containsKey(key)
-
     /**
      * An event as a service sent it: a JSON body as JSON, a form as the fields it holds, nested where a name has
      * brackets, such as contact[email], and any other body as text.
      */
-    fun eventOf(contentType: String?, text: String, headers: Map<String, String>, query: Map<String, String>): Event {
+    fun eventOf(contentType: String?, text: String, headers: Map<String, String>, query: String?): Event {
         val body = when {
             contentType.orEmpty().startsWith("application/x-www-form-urlencoded") -> formOf(text)
             text.isBlank() -> JsonApi.mapper.createObjectNode()
             else -> runCatching { JsonApi.mapper.readTree(text) }.getOrElse { JsonApi.mapper.getNodeFactory().textNode(text) }
         }
-        return Event(body, JsonApi.mapper.valueToTree(mapOf("headers" to headers, "query" to query, "text" to text)))
+        // The query is read as a form is, as the original's server reads both.
+        return Event(body, JsonApi.mapper.valueToTree(mapOf("headers" to headers, "query" to formOf(query.orEmpty()), "text" to text)))
     }
 
     private fun formOf(text: String): JsonNode {
@@ -75,7 +74,8 @@ object ConnectorWebhooks {
     private fun childOf(parent: JsonNode, part: String, isList: Boolean): JsonNode {
         val made = { if (isList) JsonApi.mapper.createArrayNode() else JsonApi.mapper.createObjectNode() }
         return when (parent) {
-            is ArrayNode -> made().also(parent::add)
+            // items[0][name] and items[0][qty] are one item; items[][name] adds one.
+            is ArrayNode -> part.toIntOrNull()?.let(parent::get) ?: made().also(parent::add)
             is ObjectNode -> parent.get(part) ?: made().also { parent.set(part, it) }
             else -> parent
         }
@@ -84,7 +84,10 @@ object ConnectorWebhooks {
     /** Hands over an event, and gives the answer for the service, or null when no trigger listens. */
     fun deliver(key: String, event: Event): JsonNode? {
         val listener = listening[key] ?: return null
-        listener.events.offer(event)
-        return listener.reply(event) ?: JsonApi.mapper.nullNode()
+        // What the reply answers, such as a challenge, is a check of the address, not an event.
+        return listener.reply(event) ?: JsonApi.mapper.nullNode().also { listener.events.offer(event) }
     }
+
+    /** Answers a check of the address, which a service sends without a body: by the trigger's reply, or with an empty answer. */
+    fun check(key: String, event: Event): JsonNode? = listening[key]?.let { it.reply(event) ?: JsonApi.mapper.nullNode() }
 }

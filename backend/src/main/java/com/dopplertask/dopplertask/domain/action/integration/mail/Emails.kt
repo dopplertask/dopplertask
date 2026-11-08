@@ -33,11 +33,12 @@ object Emails {
 
     fun read(raw: String): JsonNode = read(MimeMessage(Session.getInstance(Properties()), ByteArrayInputStream(raw.toByteArray(Charsets.UTF_8))))
 
-    /** An email as a mailbox gives it, such as one Read email fetched. */
-    fun read(message: MimeMessage): JsonNode {
-        val parts = Parts().also { it.collect(message) }
+    /** An email as a mailbox gives it, such as one Read email fetched, with its attachments' bytes when asked for. */
+    fun read(message: MimeMessage, withAttachments: Boolean = true): JsonNode {
+        val parts = Parts(withAttachments).also { it.collect(message) }
         val fields = linkedMapOf<String, Any?>(
             "attachments" to parts.attachments,
+            // mailparser keeps headers in a Map, which JSON writes as {}.
             "headers" to emptyMap<String, Any>(),
             "headerLines" to headerLinesOf(message),
             "html" to (parts.html ?: false),
@@ -62,7 +63,7 @@ object Emails {
         read(if (raw.contains(':')) raw else String(Base64.getUrlDecoder().decode(raw.trimEnd('=')), Charsets.UTF_8))
 
     /** The bodies and attachments of an email, found in its parts. */
-    private class Parts {
+    private class Parts(val withAttachments: Boolean) {
         var text: String? = null
         var html: String? = null
         val attachments = mutableListOf<Map<String, Any?>>()
@@ -70,7 +71,7 @@ object Emails {
         fun collect(part: Part) {
             when {
                 part.isMimeType("multipart/*") -> (part.content as Multipart).let { multipart -> (0 until multipart.count).forEach { collect(multipart.getBodyPart(it)) } }
-                Part.ATTACHMENT.equals(part.disposition, ignoreCase = true) || part.fileName != null -> {
+                Part.ATTACHMENT.equals(part.disposition, ignoreCase = true) || part.fileName != null -> if (withAttachments) {
                     val bytes = part.inputStream.readAllBytes()
                     attachments += mapOf("filename" to part.fileName?.let(MimeUtility::decodeText), "contentType" to part.contentType.substringBefore(';').trim().lowercase(),
                         "size" to bytes.size, "base64" to Base64.getEncoder().encodeToString(bytes))

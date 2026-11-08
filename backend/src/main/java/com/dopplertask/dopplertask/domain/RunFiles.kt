@@ -19,6 +19,12 @@ object RunFiles {
         execution.parameters[name] = ExecutionParameter(name, bytes, true)
     }
 
+    /** A name for a file that [isTaken] says is not used yet: the name itself, or with -2, -3 before its extension. */
+    fun freeName(name: String, isTaken: (String) -> Boolean): String {
+        val extension = name.substringAfterLast('.', "").let { if (it.isEmpty()) "" else ".$it" }
+        return generateSequence(1) { it + 1 }.map { if (it == 1) name else name.removeSuffix(extension) + "-$it$extension" }.first { !isTaken(it) }
+    }
+
     fun read(execution: TaskExecution, name: String): ByteArray? = execution.parameters[name]?.takeIf { it.isBinary }?.paramValue
 
     /** What kind of file it is, by its name or else by its first bytes. */

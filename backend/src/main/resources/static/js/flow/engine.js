@@ -232,6 +232,12 @@ function stepsMatching(query) {
 const portsOf = (node) => (ACTIONS[node.type].ports ? ACTIONS[node.type].ports(node) : [{ id: 'out', label: '' }]);
 const edgeFrom = (task, nodeId, portId) => task.edges.find((edge) => edge.from === nodeId && edge.port === portId);
 const nodeById = (task, nodeId) => task.nodes.find((node) => node.id === nodeId);
+/* A copy of a task gets triggers of its own: an address a service calls belongs to one task only. */
+function newTriggerAddresses(task) {
+  task.nodes.filter((node) => node.type === 'start' && node.config.triggerSuffix).forEach((node) => { node.config.triggerSuffix = crypto.randomUUID(); });
+  return task;
+}
+
 const rootNode = (task) => task.nodes.find((node) => node.type === 'start');
 const isEntry = (node) => node.type === 'start' || ACTIONS[node.type].trigger;
 
@@ -1005,6 +1011,7 @@ function createStore() {
     async saveAs(name, description) {
       task.name = name;
       task.description = description;
+      newTriggerAddresses(task);
       emit('meta');
       return store.save();
     },
@@ -1060,6 +1067,8 @@ function createStore() {
     },
     importTask(serialized) {
       const imported = fromBackend(JSON.parse(serialized));
+      /* A new task gets addresses of its own; restoring a saved one keeps the addresses its services know. */
+      if (!tasks.some((saved) => saved.name === imported.name)) newTriggerAddresses(imported);
       if (!mayLeaveTask()) return false;
       showingOlderVersion = false;
       review = null;
