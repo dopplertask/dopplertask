@@ -21,7 +21,9 @@ object ConnectorRequests {
 
     private const val CREDENTIAL = "credential."
 
-    fun build(connector: Connector, operation: ConnectorOperation, values: Map<String, String>, credential: Map<String, String>): Built {
+    @JvmOverloads
+    fun build(connector: Connector, operation: ConnectorOperation, values: Map<String, String>, credential: Map<String, String>,
+              send: (JsonNode) -> JsonNode = { throw IllegalArgumentException("This action cannot send more requests.") }): Built {
         val request = operation.request
         val draft = NODES.objectNode()
         draft.put("method", request.method)
@@ -29,8 +31,8 @@ object ConnectorRequests {
         draft.set("query", JsonApi.mapper.valueToTree(request.query.mapValues { Connectors.fill(it.value) { name -> values[name].orEmpty() } }.filterValues { it.isNotEmpty() }))
         draft.set("headers", JsonApi.mapper.valueToTree(request.headers.mapValues { Connectors.fill(it.value) { name -> values[name].orEmpty() } }))
         draft.set("body", request.body?.let { bodyOf(it, operation, values) } ?: NODES.nullNode())
-        val ready = operation.beforeRequest?.let { ConnectorScripts.run(it, values, draft, null) } ?: draft
-        return signed(connector, ready, credential)
+        val ready = operation.beforeRequest?.let { ConnectorScripts.run(it, values, draft, null, send) } ?: draft
+        return sign(connector, ready, credential)
     }
 
     /**
@@ -46,10 +48,13 @@ object ConnectorRequests {
         draft.set("query", json(values["query"]) ?: NODES.objectNode())
         draft.set("headers", json(values["headers"]) ?: NODES.objectNode())
         draft.set("body", json(values["body"]) ?: NODES.nullNode())
-        return signed(connector, draft, credential)
+        return sign(connector, draft, credential)
     }
 
-    private fun signed(connector: Connector, draft: JsonNode, credential: Map<String, String>): Built {
+    /** Adds the credential to a request, whose address may also be a path after the connector's base, such as /items. */
+    fun sign(connector: Connector, draft: JsonNode, credential: Map<String, String>): Built {
+        val target = draft.path("url").asText()
+        if (target.startsWith("/")) (draft as ObjectNode).put("url", address(connector.baseUrl, emptyMap(), credential).trimEnd('/') + target)
         val signIn = connector.credential
         val credentialValue = { name: String -> credential[name.removePrefix(CREDENTIAL)].orEmpty() }
         val query = textsOf(draft.path("query")) + signIn?.query.orEmpty().mapValues { Connectors.fill(it.value, credentialValue) }

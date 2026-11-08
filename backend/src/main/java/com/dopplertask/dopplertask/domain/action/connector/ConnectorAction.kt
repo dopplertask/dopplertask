@@ -21,6 +21,7 @@ import jakarta.persistence.Entity
 import jakarta.persistence.Lob
 import jakarta.persistence.Table
 import jakarta.persistence.Transient
+import tools.jackson.databind.JsonNode
 import java.net.URI
 
 /**
@@ -152,8 +153,31 @@ class ConnectorAction() : Action() {
     }
 
     private fun send(connector: Connector, chosen: ConnectorOperation, values: Map<String, String>): ActionResult {
+        // A script's own request goes out the same way, and a failed one stops the step with what the service said.
+        val scriptRequest = { spec: JsonNode ->
+            val answer = deliver(connector, ConnectorRequests.sign(connector, spec, credentialValues))
+            require(answer.statusCode == StatusCode.SUCCESS) { answer.errorMsg }
+            JsonApi.parsed(answer)
+        }
         val request = if (chosen === CUSTOM_CALL_OPERATION) ConnectorRequests.customCall(connector, values, credentialValues)
-        else ConnectorRequests.build(connector, chosen, values, credentialValues)
+        else ConnectorRequests.build(connector, chosen, values, credentialValues, scriptRequest)
+        val result = deliver(connector, request)
+        if (result.statusCode != StatusCode.SUCCESS) return result
+        var answer = JsonApi.parsed(result)
+        if (chosen.result.isNotEmpty()) {
+            answer = JsonPaths.read(answer, chosen.result) ?: JsonApi.mapper.nullNode()
+            result.output = if (answer.isValueNode) answer.asText() else answer.toString()
+        }
+        chosen.afterResponse?.let { script ->
+            answer = ConnectorScripts.run(script, values, null, answer, scriptRequest)
+            result.output = if (answer.isValueNode) answer.asText() else answer.toString()
+        }
+        chosen.outputs.forEach { (name, path) -> JsonPaths.read(answer, path)?.let { result.outputVariables[name] = if (it.isValueNode) it.asText() else it.toString() } }
+        return result
+    }
+
+    /** Sends a signed request, only to the connector's hosts. */
+    private fun deliver(connector: Connector, request: ConnectorRequests.Built): ActionResult {
         require(Connectors.allows(connector, URI.create(request.url).host, credentialValues)) { "${connector.label} may only send its credential to ${connector.hosts.joinToString(", ")}." }
         var headers = request.headers
         if (connector.credential?.oauth2 != null) {
@@ -162,19 +186,7 @@ class ConnectorAction() : Action() {
             headers = headers + signIn.headers
         }
         val address = Connectors.localServerForTests?.let { request.url.replaceFirst(Regex("^https://[^/]+"), it) } ?: request.url
-        val result = JsonApi.call(connector.label, request.method, address, headers, request.body)
-        if (result.statusCode != StatusCode.SUCCESS) return result
-        var answer = JsonApi.parsed(result)
-        if (chosen.result.isNotEmpty()) {
-            answer = JsonPaths.read(answer, chosen.result) ?: JsonApi.mapper.nullNode()
-            result.output = if (answer.isValueNode) answer.asText() else answer.toString()
-        }
-        chosen.afterResponse?.let { script ->
-            answer = ConnectorScripts.run(script, values, null, answer)
-            result.output = if (answer.isValueNode) answer.asText() else answer.toString()
-        }
-        chosen.outputs.forEach { (name, path) -> JsonPaths.read(answer, path)?.let { result.outputVariables[name] = if (it.isValueNode) it.asText() else it.toString() } }
-        return result
+        return JsonApi.call(connector.label, request.method, address, headers, request.body)
     }
 
     companion object {

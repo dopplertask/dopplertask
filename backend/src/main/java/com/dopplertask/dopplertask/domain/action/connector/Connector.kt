@@ -71,7 +71,10 @@ class ConnectorOperation {
     /** JavaScript that gets inputs and request, and returns the request to send, such as with a field left out. */
     var beforeRequest: String? = null
 
-    /** JavaScript that gets inputs, request and response, and returns what the step gives, such as one field of the answer. */
+    /**
+     * JavaScript that gets inputs, request and response, and returns what the step gives, such as one field of the answer.
+     * Both scripts can send more requests with call({method, url, query, headers, body}), such as for the next page.
+     */
     var afterResponse: String? = null
 }
 
