@@ -173,7 +173,7 @@ public class ConnectorCheck {
             check(differences, where + "query", sortedQuery(address.getRawQuery()), sortedQuery(ours.path("query").asText(null)));
             original.path("headers").properties().forEach(header ->
                     check(differences, where + "header " + header.getKey(), withoutBoundary(header.getValue().asText()), withoutBoundary(ours.path("headers").path(header.getKey()).asText(null))));
-            check(differences, where + "body", withoutBoundary(original.path("body")), withoutBoundary(ours.path("body")));
+            check(differences, where + "body", withoutBoundary(withoutRandomMailParts(original.path("body"))), withoutBoundary(withoutRandomMailParts(ours.path("body"))));
         }
         if (fixture.has("output") && !fixture.path("output").has("error")) {
             check(differences, name + ": output", fixture.has("trigger") ? sorted(fixture.path("output")) : fixture.path("output"), result.output());
@@ -198,6 +198,48 @@ public class ConnectorCheck {
         }
         String boundary = text.startsWith("--") ? text.substring(2, text.indexOf("\r\n") > 0 ? text.indexOf("\r\n") : text.length()) : null;
         return boundary == null ? value : text.replace(boundary, "BOUNDARY");
+    }
+
+    /**
+     * A body with the parts of an email that differ every time taken out: its Message-ID, its Date and the boundaries
+     * between its parts. An email is often sent base64url-encoded in a JSON field, as Gmail takes it, so such a field is
+     * compared as the email it holds.
+     */
+    private static JsonNode withoutRandomMailParts(JsonNode body) {
+        if (body.isObject()) {
+            Map<String, JsonNode> fields = new LinkedHashMap<>();
+            body.properties().forEach(field -> fields.put(field.getKey(), withoutRandomMailParts(field.getValue())));
+            return MAPPER.valueToTree(fields);
+        }
+        if (body.isArray()) {
+            List<JsonNode> items = new ArrayList<>();
+            body.forEach(item -> items.add(withoutRandomMailParts(item)));
+            return MAPPER.valueToTree(items);
+        }
+        if (!body.isTextual()) {
+            return body;
+        }
+        String text = body.asText();
+        String email = text.contains("MIME-Version:") ? text : decodedEmail(text);
+        return email == null ? body : MAPPER.getNodeFactory().textNode(sameEveryTime(email));
+    }
+
+    private static String decodedEmail(String text) {
+        try {
+            String decoded = new String(Base64.getUrlDecoder().decode(text.replace('+', '-').replace('/', '_').replace("=", "")), StandardCharsets.UTF_8);
+            return decoded.contains("MIME-Version:") ? decoded : null;
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    private static String sameEveryTime(String email) {
+        String text = email.replaceAll("(?im)^(Message-ID|Date): .*$", "$1: SAME");
+        java.util.regex.Matcher boundaries = java.util.regex.Pattern.compile("boundary=\"?([^\";\r\n]+)").matcher(email);
+        while (boundaries.find()) {
+            text = text.replace(boundaries.group(1), "BOUNDARY");
+        }
+        return text;
     }
 
     private static String sortedQuery(String query) {

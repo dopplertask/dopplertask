@@ -195,7 +195,9 @@ class ConnectorTrigger : Trigger() {
     /** The new items in an event a service sent, read as on a check. */
     fun takeItemsOf(event: JsonNode) {
         val poll = spec!!.triggers[operation]!!
-        val reply = poll.afterResponse?.let { ConnectorScripts.run(it, settingValues(), null, event) { throw IllegalArgumentException("A webhook event cannot send requests.") } } ?: event
+        // An event often names what changed, so its script may ask the service for the rest, as the original does.
+        val sender = ConnectorSender(this, spec!!, credentialValues)
+        val reply = poll.afterResponse?.let { ConnectorScripts.run(it, settingValues(), null, event, sender::answerFor) } ?: event
         waiting.addAll(JsonPaths.read(reply, poll.items)?.let { if (it.isArray) it.toList() else listOf(it) }.orEmpty().filterNot { it.isNull }.take(MOST_ITEMS_PER_CHECK))
     }
 
@@ -217,7 +219,8 @@ class ConnectorTrigger : Trigger() {
         val asked = Instant.now()
         val lookup = ConnectorOperation().also { it.inputs = poll.inputs; it.request = poll.request; it.beforeRequest = poll.beforeRequest }
         val sender = ConnectorSender(this, connector, credentialValues)
-        val values = settingValues()
+        // A check by time may ask only for what changed since the last one, which is empty before the first.
+        val values = settingValues() + (LAST_POLL_TIME to if (poll.newBy == "lastItem") "" else pollState.orEmpty())
         val answer = sender.send(ConnectorRequests.build(connector, lookup, values, credentialValues, sender::answerFor))
         check(answer.statusCode == StatusCode.SUCCESS) { answer.errorMsg }
         val reply = poll.afterResponse?.let { ConnectorScripts.run(it, values, null, JsonApi.parsed(answer), sender::answerFor) } ?: JsonApi.parsed(answer)
@@ -244,6 +247,9 @@ class ConnectorTrigger : Trigger() {
     }
 
     companion object {
+        /** When the previous check asked, in milliseconds since 1970, for a trigger that finds new items by time. */
+        const val LAST_POLL_TIME = "lastPollTime"
+
         /** An empty step of a connector, which also describes the connector's kind of step. */
         @JvmStatic
         fun of(connector: String) = ConnectorTrigger().also { it.connector = connector }

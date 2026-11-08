@@ -114,7 +114,8 @@ class HttpAction : Action() {
         when (method) {
             "POST" -> builder = builder.POST(HttpRequest.BodyPublishers.ofByteArray(body))
             "PUT" -> builder = builder.PUT(HttpRequest.BodyPublishers.ofByteArray(body))
-            "DELETE" -> builder = builder.DELETE()
+            // Some services read a body on DELETE, such as the reason for a ban.
+            "DELETE" -> builder = if (body.isEmpty()) builder.DELETE() else builder.method("DELETE", HttpRequest.BodyPublishers.ofByteArray(body))
             "GET" -> builder = builder.GET()
             "PATCH" -> builder = builder.method("PATCH", HttpRequest.BodyPublishers.ofByteArray(body))
             "HEAD" -> builder = builder.method("HEAD", HttpRequest.BodyPublishers.ofByteArray(body))

@@ -1,10 +1,13 @@
 package com.dopplertask.dopplertask;
 
+import com.dopplertask.dopplertask.domain.TaskExecution;
 import com.dopplertask.dopplertask.domain.action.Action;
+import com.dopplertask.dopplertask.domain.action.connector.ConnectorAction;
 import com.dopplertask.dopplertask.domain.action.connector.ConnectorTrigger;
 import com.dopplertask.dopplertask.domain.action.connector.ConnectorWebhooks;
 import com.dopplertask.dopplertask.domain.action.connector.Connectors;
 import com.dopplertask.dopplertask.domain.action.integration.JsonApi;
+import com.dopplertask.dopplertask.service.VariableExtractorUtil;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.After;
 import org.junit.Assert;
@@ -28,6 +31,7 @@ public class ConnectorTriggerTest {
     private final AtomicReference<String> answer = new AtomicReference<>("{}");
     private final AtomicReference<String> signedInWith = new AtomicReference<>();
     private final List<String> asked = new java.util.concurrent.CopyOnWriteArrayList<>();
+    private final List<String> queries = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     @Before
     public void startService() throws IOException {
@@ -35,6 +39,7 @@ public class ConnectorTriggerTest {
         service.createContext("/", exchange -> {
             signedInWith.set(exchange.getRequestHeaders().getFirst("Authorization"));
             asked.add(exchange.getRequestMethod() + " " + exchange.getRequestURI().getPath() + " " + new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            queries.add(exchange.getRequestURI().getRawQuery() == null ? "" : exchange.getRequestURI().getRawQuery());
             byte[] body = answer.get().getBytes(StandardCharsets.UTF_8);
             exchange.sendResponseHeaders(200, body.length);
             try (OutputStream out = exchange.getResponseBody()) {
@@ -118,6 +123,45 @@ public class ConnectorTriggerTest {
         } finally {
             ConnectorWebhooks.INSTANCE.setPublicUrl("");
         }
+    }
+
+    @Test
+    public void testACheckByTimeAsksOnlyForWhatChangedSinceTheLastSuccess() {
+        ConnectorTrigger trigger = trigger("changed_order");
+        answer.set("{\"orders\": []}");
+        newItems(trigger);
+        String last = trigger.getPollState();
+        newItems(trigger);
+        Assert.assertEquals(List.of("GET /orders ", "GET /orders "), asked);
+        Assert.assertEquals(List.of("", "since=" + last), queries);
+    }
+
+    @Test
+    public void testAWebhookEventCanAskTheServiceForTheRestSuccess() throws Exception {
+        ConnectorWebhooks.INSTANCE.setPublicUrl("https://tasks.example.com");
+        try {
+            ConnectorTrigger trigger = trigger("new_task");
+            trigger.setHookKey("k1");
+            answer.set("{\"hook\": {\"id\": \"h2\"}}");
+            trigger.subscribe(Connectors.INSTANCE.find("poll-test").getTriggers().get("new_task").getWebhook());
+            answer.set("{\"id\": \"t9\", \"name\": \"Call Ada\"}");
+            trigger.takeItemsOf(JsonApi.INSTANCE.getMapper().readTree("{\"task_id\": \"t9\"}"));
+            Assert.assertEquals("{\"id\":\"t9\",\"name\":\"Call Ada\"}", trigger.nextWaiting());
+            Assert.assertEquals("GET /tasks/t9 ", asked.get(1));
+            Assert.assertEquals("Bearer poll-key", signedInWith.get());
+        } finally {
+            ConnectorWebhooks.INSTANCE.setPublicUrl("");
+        }
+    }
+
+    @Test
+    public void testADeleteSendsItsBodySuccess() {
+        ConnectorAction step = ConnectorAction.of("poll-test");
+        step.setOperation("remove_ban");
+        step.setSetting("reason", "spam");
+        step.useCredentialValues(Map.of("key", "poll-key"));
+        step.perform(new TaskExecution(), new VariableExtractorUtil(Application.lockedTemplateEngine(-1)));
+        Assert.assertEquals(List.of("DELETE /bans/u1 {\"reason\":\"spam\"}"), asked);
     }
 
     @Test

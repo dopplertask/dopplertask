@@ -104,7 +104,7 @@ object Connectors {
             val webhook = poll.webhook
             val requests = if (webhook == null) listOf(poll.request) else listOfNotNull(webhook.subscribe, webhook.unsubscribe)
             requests.forEach { problems += addressProblems(where, connector, it.url, sample) }
-            val known = poll.inputs.keys + fields.map { CREDENTIAL + it } + setOf("webhookUrl", "webhookId")
+            val known = poll.inputs.keys + fields.map { CREDENTIAL + it } + setOf("webhookUrl", "webhookId", ConnectorTrigger.LAST_POLL_TIME)
             requests.flatMap(::templatesOf).flatMap(::placeholdersIn)
                 .filter { it !in known }.forEach { problems += "$where refers to {{$it}}, which is not one of its inputs." }
             if (webhook == null && poll.newBy !in setOf("time", "lastItem")) problems += "$where should find new items by time or lastItem, not ${poll.newBy}."
