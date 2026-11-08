@@ -167,6 +167,12 @@ class ConnectorWebhook {
      * text, or null for an empty answer. What it answers is a check, not an event. It reads memory but cannot change it.
      */
     var reply: String? = null
+
+    /**
+     * Hours after which the service ends a subscription, such as a Google Drive channel, so the trigger unsubscribes and
+     * subscribes again; also once after a restart, since the time left is not known. 0 for one that lasts.
+     */
+    var renewEvery: Int = 0
 }
 
 class ConnectorInput {

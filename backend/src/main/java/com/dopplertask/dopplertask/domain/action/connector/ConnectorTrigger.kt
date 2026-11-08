@@ -33,6 +33,7 @@ import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Base64
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 
 /**
  * Starts the task when something new appears in a connector's service. It asks the service every few minutes for its
@@ -193,8 +194,12 @@ class ConnectorTrigger : Trigger() {
             if (webhook != null) {
                 // Listening comes first, since a service may check the address while it subscribes it.
                 val events = ConnectorWebhooks.listen(addressKey(webhook), ::replyTo)
-                if (pollState == null && webhook.subscribe != null) subscribe(webhook)
-                takeItemsOf(events.take())
+                if (webhook.subscribe != null && (pollState == null || renewalIsDue(webhook))) {
+                    unsubscribe(webhook)
+                    subscribe(webhook)
+                }
+                val event = if (webhook.renewEvery > 0) events.poll(webhook.renewEvery.toLong(), TimeUnit.HOURS) else events.take()
+                event?.let(::takeItemsOf)
             } else {
                 if (pollState != null) Thread.sleep(Duration.ofMinutes(every!!.trim().toLong()).toMillis())
                 lookForNewItems()
@@ -209,8 +214,23 @@ class ConnectorTrigger : Trigger() {
     private fun addressKey(webhook: ConnectorWebhook): String =
         if (webhook.subscribe == null) triggerSuffix else hookKey ?: UUID.randomUUID().toString().also { hookKey = it }
 
+    // When the subscription was made, while the trigger runs; unknown after a restart, so it is then renewed.
+    @Transient
+    @JsonIgnore
+    private var subscribedAt: Instant? = null
+
+    private fun renewalIsDue(webhook: ConnectorWebhook) =
+        webhook.renewEvery > 0 && subscribedAt?.plus(Duration.ofHours(webhook.renewEvery.toLong()))?.isAfter(Instant.now()) != true
+
+    /** Ends the service's subscription, when there is one. */
+    private fun unsubscribe(webhook: ConnectorWebhook) {
+        webhook.unsubscribe?.takeIf { pollState != null }?.let { request -> (settingValues() + ("webhookId" to pollState!!)).let { send(senderFor(it), request, it) } }
+        pollState = null
+    }
+
     /** Asks the service to send this trigger's events here, and keeps the subscription's id. */
     fun subscribe(webhook: ConnectorWebhook) {
+        subscribedAt = Instant.now()
         val connector = spec!!
         val values = settingValues() + ("webhookUrl" to ConnectorWebhooks.addressOf(addressKey(webhook)))
         val sender = senderFor(values)
@@ -225,8 +245,7 @@ class ConnectorTrigger : Trigger() {
     override fun stop() {
         val webhook = spec?.triggers?.get(operation)?.webhook ?: return
         (if (webhook.subscribe == null) triggerSuffix else hookKey)?.let(ConnectorWebhooks::stopListening)
-        webhook.unsubscribe?.takeIf { pollState != null }?.let { request -> (settingValues() + ("webhookId" to pollState!!)).let { send(senderFor(it), request, it) } }
-        pollState = null
+        unsubscribe(webhook)
         keepPlace()
     }
 

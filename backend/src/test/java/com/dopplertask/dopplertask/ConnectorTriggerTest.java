@@ -263,6 +263,26 @@ public class ConnectorTriggerTest {
         Assert.assertEquals("scan-2.pdf", com.dopplertask.dopplertask.domain.RunFiles.INSTANCE.freeName("scan.pdf", java.util.Set.of("scan.pdf")::contains));
     }
 
+    @Test
+    public void testASubscriptionThatEndsIsRenewedAfterARestartSuccess() throws Exception {
+        ConnectorWebhooks.INSTANCE.setPublicUrl("https://tasks.example.com");
+        try {
+            ConnectorTrigger trigger = trigger("renewed");
+            trigger.setHookKey("renew-key");
+            trigger.setPollState("old-channel");
+            answer.set("{\"id\": \"new-channel\"}");
+            var started = java.util.concurrent.CompletableFuture.supplyAsync(trigger::trigger);
+            while (!"new-channel".equals(trigger.getPollState())) {
+                Thread.sleep(20);
+            }
+            Assert.assertEquals(List.of("DELETE /channels/old-channel ", "POST /channels {\"address\":\"https://tasks.example.com/hooks/renew-key\"}"), asked);
+            ConnectorWebhooks.INSTANCE.deliver("renew-key", event("{\"id\": \"e1\"}"));
+            Assert.assertEquals("{\"id\":\"e1\"}", started.get(5, java.util.concurrent.TimeUnit.SECONDS).getResultMap().get("item"));
+        } finally {
+            ConnectorWebhooks.INSTANCE.setPublicUrl("");
+        }
+    }
+
     private static ConnectorWebhooks.Event event(String json) {
         return ConnectorWebhooks.INSTANCE.eventOf("application/json", json, Map.of(), null);
     }

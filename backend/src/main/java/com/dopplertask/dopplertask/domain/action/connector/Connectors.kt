@@ -121,6 +121,7 @@ object Connectors {
             val webhook = poll.webhook
             val requests = if (webhook == null) listOf(poll.request) else listOfNotNull(webhook.subscribe, webhook.unsubscribe)
             if (webhook != null && webhook.subscribe == null && webhook.unsubscribe != null) problems += "$where unsubscribes, but has no subscribe request: the person sets it up in the service."
+            if (webhook != null && webhook.subscribe == null && webhook.renewEvery > 0) problems += "$where renews, but has no subscribe request to renew."
             requests.forEach { problems += addressProblems(where, connector, it.url, sample) }
             val known = poll.inputs.keys + fields.map { CREDENTIAL + it } + setOf("webhookUrl", "webhookId", ConnectorTrigger.LAST_POLL_TIME, ConnectorTrigger.LAST_ITEM)
             requests.flatMap(::templatesOf).flatMap(::placeholdersIn)
