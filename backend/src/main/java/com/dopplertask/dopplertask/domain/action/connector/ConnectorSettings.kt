@@ -11,7 +11,8 @@ object ConnectorSettings {
 
     private val TYPES = mapOf(
         "string" to PropertyInformationType.STRING, "multiline" to PropertyInformationType.MULTILINE, "json" to PropertyInformationType.MULTILINE,
-        "number" to PropertyInformationType.NUMBER, "boolean" to PropertyInformationType.BOOLEAN, "select" to PropertyInformationType.DROPDOWN
+        "number" to PropertyInformationType.NUMBER, "boolean" to PropertyInformationType.BOOLEAN, "select" to PropertyInformationType.DROPDOWN,
+        "file" to PropertyInformationType.FILE
     )
 
     // The connector's file names the service's sign-in addresses, so a person only gives the client.

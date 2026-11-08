@@ -15,6 +15,7 @@ import java.io.IOException
 import java.net.ConnectException
 import java.net.URI
 import java.net.http.HttpClient
+import java.nio.charset.StandardCharsets
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.net.http.HttpTimeoutException
@@ -91,7 +92,12 @@ class HttpAction : Action() {
     /**
      * Sends a request with values that are final, so that text coming from a service or a step is never evaluated.
      */
-    fun send(urlVariable: String, bodyVariable: String, headerVariables: Map<String, String>, sslContext: SSLContext? = SSLContext.getDefault(), timeout: Duration = Duration.ofMinutes(1)): ActionResult {
+    fun send(urlVariable: String, bodyVariable: String, headerVariables: Map<String, String>, sslContext: SSLContext? = SSLContext.getDefault(), timeout: Duration = Duration.ofMinutes(1)): ActionResult =
+        send(urlVariable, bodyVariable.toByteArray(), headerVariables, sslContext, timeout) {}
+
+    /** The same with a body of bytes, such as a file, and the answer's bytes handed to [answer], such as for a download. */
+    fun send(urlVariable: String, body: ByteArray, headerVariables: Map<String, String>, sslContext: SSLContext? = SSLContext.getDefault(),
+             timeout: Duration = Duration.ofMinutes(1), answer: (ByteArray) -> Unit): ActionResult {
         val actionResult = ActionResult()
         var builder = try {
             HttpRequest.newBuilder().uri(URI.create(urlVariable.trim())).timeout(timeout)
@@ -106,13 +112,13 @@ class HttpAction : Action() {
             return actionResult
         }
         when (method) {
-            "POST" -> builder = builder.POST(HttpRequest.BodyPublishers.ofString(bodyVariable))
-            "PUT" -> builder = builder.PUT(HttpRequest.BodyPublishers.ofString(bodyVariable))
+            "POST" -> builder = builder.POST(HttpRequest.BodyPublishers.ofByteArray(body))
+            "PUT" -> builder = builder.PUT(HttpRequest.BodyPublishers.ofByteArray(body))
             "DELETE" -> builder = builder.DELETE()
             "GET" -> builder = builder.GET()
-            "PATCH" -> builder = builder.method("PATCH", HttpRequest.BodyPublishers.ofString(bodyVariable))
-            "HEAD" -> builder = builder.method("HEAD", HttpRequest.BodyPublishers.ofString(bodyVariable))
-            "OPTIONS" -> builder = builder.method("OPTIONS", HttpRequest.BodyPublishers.ofString(bodyVariable))
+            "PATCH" -> builder = builder.method("PATCH", HttpRequest.BodyPublishers.ofByteArray(body))
+            "HEAD" -> builder = builder.method("HEAD", HttpRequest.BodyPublishers.ofByteArray(body))
+            "OPTIONS" -> builder = builder.method("OPTIONS", HttpRequest.BodyPublishers.ofByteArray(body))
             else -> {
                 actionResult.errorMsg = "HTTP method is not supported! [method=$method]"
                 actionResult.statusCode = StatusCode.FAILURE
@@ -123,11 +129,10 @@ class HttpAction : Action() {
         val client = HttpClient.newBuilder().sslContext(sslContext).build();
         val request = builder.build()
 
-        var response: HttpResponse<String>?
         try {
-
-            response = client.send(request, HttpResponse.BodyHandlers.ofString())
-            actionResult.output = response.body()
+            val response = client.send(request, HttpResponse.BodyHandlers.ofByteArray())
+            answer(response.body())
+            actionResult.output = String(response.body(), StandardCharsets.UTF_8)
             actionResult.outputVariables["statusCode"] = response.statusCode()
             response.headers().map().forEach { (key, value) ->
                 actionResult.outputVariables[key] = value

@@ -505,7 +505,10 @@ abstract class Action {
             CHOICES,
 
             /** A form whose fields the server fetches from the step's service, kept as one JSON object. */
-            FIELDS
+            FIELDS,
+
+            /** The name of a file the run keeps, such as one Read file read, with the run's files as suggestions. */
+            FILE
         }
 
         enum class PropertyInformationCategory {

@@ -188,7 +188,8 @@ export default function boot() {
         const savedTasks = node.type === 'linkedTask' && field.key === 'name'
           ? DT.canvas.store.tasks.filter((task) => task.name !== DT.canvas.store.task.name).map((task) => `<option value="${escapeHtml(task.name)}">`).join('')
           : null;
-        const suggestions = field.suggestions?.map((choice) => `<option value="${escapeHtml(choice.value)}" label="${escapeHtml(choice.label)}">`).join('');
+        const suggestions = (field.files ? DT.canvas.store.filesBefore(node.id).map((name) => ({ value: name, label: name })) : field.suggestions)
+          ?.map((choice) => `<option value="${escapeHtml(choice.value)}" label="${escapeHtml(choice.label)}">`).join('');
         const choices = savedTasks ?? suggestions ?? (field.choices ? '' : null);
         const list = choices === null ? '' : `<datalist id="${inputId}-choices">${choices}</datalist>`;
         const control = field.multiline

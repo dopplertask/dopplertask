@@ -4,6 +4,7 @@ import com.dopplertask.dopplertask.domain.action.integration.JsonApi
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.node.JsonNodeFactory
 import tools.jackson.databind.node.ObjectNode
+import com.dopplertask.dopplertask.domain.RunFiles.RunFile
 import java.util.Base64
 
 /**
@@ -12,7 +13,8 @@ import java.util.Base64
  */
 object ConnectorRequests {
 
-    class Built(val method: String, val url: String, val headers: Map<String, String>, val body: JsonNode?)
+    /** A request ready to send, with the files of a multipart body by the part they go in. */
+    class Built(val method: String, val url: String, val headers: Map<String, String>, val body: JsonNode?, val files: Map<String, RunFile> = emptyMap())
 
     private val NODES = JsonNodeFactory.instance
 
@@ -23,16 +25,21 @@ object ConnectorRequests {
 
     @JvmOverloads
     fun build(connector: Connector, operation: ConnectorOperation, values: Map<String, String>, credential: Map<String, String>,
-              send: (JsonNode) -> JsonNode = { throw IllegalArgumentException("This action cannot send more requests.") }): Built {
+              send: (JsonNode) -> JsonNode = { throw IllegalArgumentException("This action cannot send more requests.") },
+              files: Map<String, RunFile> = emptyMap()): Built {
         val request = operation.request
         val draft = NODES.objectNode()
         draft.put("method", request.method)
         draft.put("url", address(request.url, values, credential))
         draft.set("query", JsonApi.mapper.valueToTree(request.query.mapValues { Connectors.fill(it.value) { name -> values[name].orEmpty() } }.filterValues { it.isNotEmpty() }))
         draft.set("headers", JsonApi.mapper.valueToTree(request.headers.mapValues { Connectors.fill(it.value) { name -> values[name].orEmpty() } }))
-        draft.set("body", request.body?.let { bodyOf(it, operation, values) } ?: NODES.nullNode())
+        draft.set("body", request.body?.let { bodyOf(it, operation, values, files) } ?: NODES.nullNode())
         val ready = operation.beforeRequest?.let { ConnectorScripts.run(it, values, draft, null, send) } ?: draft
-        return sign(connector, ready, credential)
+        // In a multipart body a file goes in its own part, so the part is named by the body's field.
+        val parts = request.body?.properties()?.filter { it.value.isTextual }?.mapNotNull { (part, template) ->
+            Connectors.placeholdersIn(template.asText()).singleOrNull()?.let { files[it] }?.let { part to it }
+        }?.toMap().orEmpty()
+        return sign(connector, ready, credential, parts)
     }
 
     /**
@@ -52,7 +59,7 @@ object ConnectorRequests {
     }
 
     /** Adds the credential to a request, whose address may also be a path after the connector's base, such as /items. */
-    fun sign(connector: Connector, draft: JsonNode, credential: Map<String, String>): Built {
+    fun sign(connector: Connector, draft: JsonNode, credential: Map<String, String>, files: Map<String, RunFile> = emptyMap()): Built {
         val target = draft.path("url").asText()
         if (target.startsWith("/")) (draft as ObjectNode).put("url", address(connector.baseUrl, emptyMap(), credential).trimEnd('/') + target)
         val signIn = connector.credential
@@ -71,7 +78,7 @@ object ConnectorRequests {
             val fields = signIn?.body.orEmpty().mapValues { Connectors.fill(it.value, credentialValue) }
             if (fields.isEmpty()) body else ((body as? ObjectNode)?.deepCopy() ?: NODES.objectNode()).also { filled -> fields.forEach { (key, value) -> filled.put(key, value) } }
         }
-        return Built(draft.path("method").asText("GET"), url, headers, body)
+        return Built(draft.path("method").asText("GET"), url, headers, body, files)
     }
 
     /** The address with its host from the credential, checked as a host name, and every other value percent-encoded. */
@@ -108,16 +115,16 @@ object ConnectorRequests {
      * The body with each placeholder replaced. A value that is only a placeholder takes the input's type, such as a
      * number or JSON, and is left out when the person left it empty, as the services expect of optional fields.
      */
-    private fun bodyOf(template: JsonNode, operation: ConnectorOperation, values: Map<String, String>): JsonNode? = when {
+    private fun bodyOf(template: JsonNode, operation: ConnectorOperation, values: Map<String, String>, files: Map<String, RunFile>): JsonNode? = when {
         template.isObject -> NODES.objectNode().also { filled ->
-            template.properties().forEach { (key, value) -> bodyOf(value, operation, values)?.let { filled.set(key, it) } }
+            template.properties().forEach { (key, value) -> bodyOf(value, operation, values, files)?.let { filled.set(key, it) } }
         }
-        template.isArray -> NODES.arrayNode().also { filled -> template.forEach { item -> bodyOf(item, operation, values)?.let(filled::add) } }
+        template.isArray -> NODES.arrayNode().also { filled -> template.forEach { item -> bodyOf(item, operation, values, files)?.let(filled::add) } }
         template.isTextual -> {
             val text = template.asText()
             val whole = Connectors.placeholdersIn(text).singleOrNull()?.takeIf { text.trim() == "{{$it}}" }
             if (whole == null) NODES.textNode(Connectors.fill(text) { values[it].orEmpty() })
-            else typed(values[whole].orEmpty(), operation.inputs[whole]?.type)
+            else files[whole]?.let { NODES.textNode(Base64.getEncoder().encodeToString(it.bytes)) } ?: typed(values[whole].orEmpty(), operation.inputs[whole]?.type)
         }
         else -> template
     }

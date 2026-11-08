@@ -34,7 +34,7 @@ const PRESENTATION = {
   SecureCopyAction: ['secureCopy', 'Copy file over SCP', 'connection', 'send', ['hostname', 'sourceFilename', 'destinationFilename']],
   MySQLAction: ['mysql', 'MySQL query', 'connection', 'mySql', ['hostname', 'command']],
   ExecuteCommandAction: ['command', 'Run command', 'system', 'terminal', ['command']],
-  ReadFileAction: ['readFile', 'Read file', 'system', 'fileText', ['filename', 'parameterName']],
+  ReadFileAction: ['readFile', 'Read file', 'system', 'fileText', ['filename']],
   WriteFileAction: ['writeFile', 'Write file', 'system', 'filePen', ['filename']],
   BrowseWebAction: ['browseWeb', 'Browse the web', 'browser', 'appWindow', ['url']],
   MouseAction: ['mouse', 'Use the mouse', 'browser', 'pointer'],
@@ -146,6 +146,7 @@ function toField(information) {
     case 'MULTILINE': return [{ ...common, type: 'code' }];
     case 'CHOICES': return [{ ...common, type: 'expression', choices: true }];
     case 'FIELDS': return [{ ...common, type: 'form' }];
+    case 'FILE': return [{ ...common, type: 'expression', files: true }];
     case 'MAP': return [{ ...common, type: 'map', columns: information.options.map((option) => ({ key: option.name, label: option.displayName || option.name, options: option.type === 'DROPDOWN' ? option.options.map((choice) => choice.name) : null })) }];
     case 'DROPDOWN': {
       const select = { ...common, type: 'select', options: information.options.map((option) => ({ value: option.name, label: option.displayName || option.name })) };
@@ -827,6 +828,14 @@ function createStore() {
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     loadTaskList,
 
+    /* The files the run keeps before this step: what each earlier Read file keeps, by the name later steps choose it by. */
+    filesBefore(nodeId) {
+      const earlier = new Set();
+      const visit = (id) => task.edges.filter((edge) => edge.to === id).forEach((edge) => { if (!earlier.has(edge.from)) { earlier.add(edge.from); visit(edge.from); } });
+      visit(nodeId);
+      return [...earlier].map((id) => nodeById(task, id)).filter((node) => node.type === 'readFile' && node.config.filename)
+        .map((node) => node.config.keepAs || node.config.filename.split(/[\\/]/).pop());
+    },
     /* What the steps just before this one give, by name, for $lastLog.outputVariables. */
     outputsBefore(nodeId) { return Object.assign({}, ...task.edges.filter((edge) => edge.to === nodeId).map((edge) => ACTIONS[nodeById(task, edge.from).type]?.outputs)); },
     select(nodeId) { if (nodeId === selectedId) return; selectedId = nodeId; emit('selection'); },

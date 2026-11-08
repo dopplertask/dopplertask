@@ -71,6 +71,9 @@ class ConnectorOperation {
     /** What a later step reads, by name, as a path in the answer such as $.channel.id. */
     var outputs: LinkedHashMap<String, String> = linkedMapOf()
 
+    /** For an answer that is a file: the name the run keeps it by, such as {{fileName}} or invoice.pdf. */
+    var download: String? = null
+
     /** The part of the answer the step gives, such as $.data. Empty gives the whole answer. */
     var result: String = ""
 
@@ -130,7 +133,7 @@ class ConnectorInput {
     var label: String = ""
     var description: String = ""
 
-    /** string, multiline, number, boolean, select or json. */
+    /** string, multiline, number, boolean, select, json, or file: the name of a file the run keeps, sent as base64 or as a file part. */
     var type: String = "string"
     var required: Boolean = false
     var secret: Boolean = false

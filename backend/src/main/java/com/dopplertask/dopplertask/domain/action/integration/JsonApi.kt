@@ -40,10 +40,14 @@ object JsonApi {
         null
     }
 
-    fun send(service: String, method: String, url: String, headers: Map<String, String>, body: String, timeout: Duration = Duration.ofMinutes(1)): ActionResult {
+    fun send(service: String, method: String, url: String, headers: Map<String, String>, body: String, timeout: Duration = Duration.ofMinutes(1)): ActionResult =
+        send(service, method, url, headers, body.toByteArray(), timeout) {}
+
+    /** The same with a body of bytes, such as a form with a file, and the answer's bytes handed to [answer]. */
+    fun send(service: String, method: String, url: String, headers: Map<String, String>, body: ByteArray, timeout: Duration = Duration.ofMinutes(1), answer: (ByteArray) -> Unit): ActionResult {
         val request = HttpAction()
         request.method = method
-        val result = request.send(url, body, headers + mapOf("Accept" to "application/json"), timeout = timeout)
+        val result = request.send(url, body, mapOf("Accept" to "application/json") + headers, timeout = timeout, answer = answer)
         if (result.statusCode == StatusCode.FAILURE && result.outputVariables.containsKey("statusCode")) {
             val reason = reasonIn(result.output)
             result.errorMsg = "$service answered with status ${result.outputVariables["statusCode"]}" + (if (reason.isEmpty()) "." else ": ${reason.trimEnd('.')}.")
