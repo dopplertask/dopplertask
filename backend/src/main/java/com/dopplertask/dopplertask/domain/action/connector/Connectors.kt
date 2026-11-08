@@ -12,6 +12,7 @@ object Connectors {
 
     private const val FILES = "classpath*:connectors/*.json"
     private val NAME = Regex("[a-z0-9][a-z0-9-]*")
+    private const val CREDENTIAL = "credential."
     private val PLACEHOLDER = Regex("\\{\\{\\s*([\\w.]+)\\s*}}")
 
     private val byName: Map<String, Connector> by lazy {
@@ -36,8 +37,12 @@ object Connectors {
 
     fun fill(template: String, value: (String) -> String): String = PLACEHOLDER.replace(template) { value(it.groupValues[1]) }
 
-    /** Whether a host is one of the connector's hosts, where *.example.com stands for any subdomain of it. */
-    fun allows(connector: Connector, host: String?): Boolean = host != null && connector.hosts.any { allowed ->
+    /**
+     * Whether a host is one of the connector's hosts. *.example.com stands for any subdomain of it, and a host may name a
+     * credential value, such as {{credential.subdomain}}.zendesk.com, which only the person who made the credential sets.
+     */
+    fun allows(connector: Connector, host: String?, credential: Map<String, String> = emptyMap()): Boolean = host != null && connector.hosts.any { template ->
+        val allowed = fill(template) { credential[it.removePrefix(CREDENTIAL)].orEmpty() }
         if (allowed.startsWith("*.")) host.endsWith(allowed.substring(1)) && host.length > allowed.length - 1 else host.equals(allowed, ignoreCase = true)
     }
 
@@ -48,36 +53,44 @@ object Connectors {
         if (connector.label.isBlank()) problems += "It needs a label."
         if (connector.hosts.isEmpty()) problems += "It needs the hosts its requests may go to."
         connector.hosts.filter { it.contains("/") || it.contains(":") }.forEach { problems += "The host \"$it\" should be a name only, such as api.example.com." }
-        val credentialFields = connector.credential?.fields?.keys.orEmpty()
-        connector.credential?.let { credential ->
-            (credential.headers.values + credential.query.values).flatMap(::placeholdersIn)
-                .filter { it.removePrefix("credential.") !in credentialFields || !it.startsWith("credential.") }
-                .forEach { problems += "The credential refers to {{$it}}, which is not one of its fields." }
-        }
+        val credential = connector.credential
+        val fields = credential?.fields?.keys.orEmpty()
+        val sample = fields.associateWith { "example" }
+        val signIn = listOfNotNull(credential?.basic?.username, credential?.basic?.password) + credential?.headers?.values.orEmpty() + credential?.query?.values.orEmpty() + connector.hosts + connector.baseUrl
+        signIn.flatMap(::placeholdersIn).filter { !it.startsWith(CREDENTIAL) || it.removePrefix(CREDENTIAL) !in fields }
+            .forEach { problems += "The credential part refers to {{$it}}, which is not one of the credential's fields." }
+        if (connector.baseUrl.isNotEmpty()) problems += addressProblems("The base address", connector, connector.baseUrl, sample)
         if (connector.actions.isEmpty()) problems += "It needs at least one action."
         connector.actions.forEach { (key, operation) ->
             val where = "The action $key"
             if (!NAME.matches(key.replace('_', '-'))) problems += "$where should be named with lowercase letters, numbers and underscores."
             if (operation.label.isBlank()) problems += "$where needs a label."
             val request = operation.request
-            val address = try {
-                URI.create(fill(request.url) { "x" })
-            } catch (e: IllegalArgumentException) {
-                null
-            }
-            when {
-                address == null -> problems += "$where has an address that is not valid: ${request.url}."
-                address.scheme != "https" -> problems += "$where should use https."
-                // An input may never decide the host, since the credential goes wherever the request goes.
-                request.url.substringAfter("://").substringBefore('/').contains("{{") -> problems += "$where has a placeholder in its host."
-                !allows(connector, address.host) -> problems += "$where goes to ${address.host}, which is not in the connector's hosts."
-            }
-            val known = operation.inputs.keys
+            problems += addressProblems(where, connector, request.url, sample)
+            val known = operation.inputs.keys + fields.map { CREDENTIAL + it }
             val templates = listOf(request.url) + request.headers.values + request.query.values + listOfNotNull(request.body?.toString())
             templates.flatMap(::placeholdersIn).filter { it !in known }
                 .forEach { problems += "$where refers to {{$it}}, which is not one of its inputs." }
+            templates.drop(1).flatMap(::placeholdersIn).filter { it.startsWith(CREDENTIAL) }
+                .forEach { problems += "$where puts {{$it}} in the request. Credential values belong in the credential's headers or query." }
             operation.outputs.filter { !it.value.startsWith("$") }.forEach { problems += "$where gives ${it.key} from ${it.value}, which should start with $." }
         }
         return problems
+    }
+
+    private fun addressProblems(where: String, connector: Connector, template: String, sample: Map<String, String>): List<String> {
+        val host = template.substringAfter("://").substringBefore('/')
+        // An input may never decide the host, since the credential goes wherever the request goes.
+        if (placeholdersIn(host).any { !it.startsWith(CREDENTIAL) }) return listOf("$where has an input in its host.")
+        val address = try {
+            URI.create(fill(template) { if (it.startsWith(CREDENTIAL)) sample[it.removePrefix(CREDENTIAL)].orEmpty() else "x" })
+        } catch (e: IllegalArgumentException) {
+            return listOf("$where has an address that is not valid: $template.")
+        }
+        return when {
+            address.scheme != "https" -> listOf("$where should use https.")
+            !allows(connector, address.host, sample) -> listOf("$where goes to ${address.host}, which is not in the connector's hosts.")
+            else -> emptyList()
+        }
     }
 }

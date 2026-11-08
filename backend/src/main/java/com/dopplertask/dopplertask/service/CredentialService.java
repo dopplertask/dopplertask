@@ -111,6 +111,11 @@ public class CredentialService {
         }
     }
 
+    @Transactional(readOnly = true)
+    public String typeNamed(String name) {
+        return credentialDao.findByName(name).orElseThrow(() -> new CredentialProblemException("There is no credential called \"" + name + "\".")).getType();
+    }
+
     /** The values of a credential, for the server alone, such as to connect its account. They never leave it. */
     @Transactional(readOnly = true)
     public Map<String, String> valuesNamed(String name) {

@@ -3,6 +3,7 @@ package com.dopplertask.dopplertask.domain.action.integration
 import com.dopplertask.dopplertask.domain.ActionResult
 import com.dopplertask.dopplertask.domain.StatusCode
 import com.dopplertask.dopplertask.domain.action.Action
+import com.dopplertask.dopplertask.domain.action.connector.Connectors
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationCategory
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
@@ -36,7 +37,14 @@ object OAuthSignIn {
     )
 
     /** The scope a person typed, or what the known service needs when they left it empty. */
-    fun scopeOf(values: Map<String, String?>): String = values["oauthScope"].orEmpty().ifBlank { PROVIDERS[values["oauthProvider"]]?.scope.orEmpty() }
+    fun scopeOf(values: Map<String, String?>): String = values["oauthScope"].orEmpty().ifBlank { providerOf(values)?.scope.orEmpty() }
+
+    /** A service known here, or a connector whose file says how its accounts sign in. */
+    fun providerOf(values: Map<String, String?>): Provider? = values["oauthProvider"].let { name ->
+        PROVIDERS[name] ?: Connectors.find(name)?.let { connector ->
+            connector.credential?.oauth2?.let { Provider(connector.label, it.authUrl, it.tokenUrl, it.authParameters, it.scope) }
+        }
+    }
 
     class SignIn(val headers: Map<String, String>, val failure: ActionResult?)
 
@@ -58,9 +66,9 @@ object OAuthSignIn {
         PropertyInformation("oauthAccessToken", "Access token", PropertyInformationType.STRING, "", "Filled in for services whose tokens do not expire.", mutableListOf(), PropertyInformationCategory.SECRET)
     )
 
-    fun authUrlOf(values: Map<String, String?>): String = values["oauthAuthUrl"].orEmpty().ifBlank { PROVIDERS[values["oauthProvider"]]?.authUrl.orEmpty() }
+    fun authUrlOf(values: Map<String, String?>): String = values["oauthAuthUrl"].orEmpty().ifBlank { providerOf(values)?.authUrl.orEmpty() }
 
-    fun tokenUrlOf(values: Map<String, String?>): String = values["oauthTokenUrl"].orEmpty().ifBlank { PROVIDERS[values["oauthProvider"]]?.tokenUrl.orEmpty() }
+    fun tokenUrlOf(values: Map<String, String?>): String = values["oauthTokenUrl"].orEmpty().ifBlank { providerOf(values)?.tokenUrl.orEmpty() }
 
     /** Whether the step's credential signs in with an account, rather than in the step's own way. */
     fun isUsedBy(step: Action): Boolean =

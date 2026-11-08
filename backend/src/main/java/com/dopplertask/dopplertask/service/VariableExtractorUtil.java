@@ -148,9 +148,9 @@ public class VariableExtractorUtil {
         return Value.asValue("");
     }
 
-    /** Scripts get copies of plain values, so there is no object to climb from into Java or the machine. */
-    private Value evaluateRestricted(String fieldValue, TaskExecution execution, ActionResult result) throws IOException {
-        Context context = Context.newBuilder("js")
+    /** A script engine with no way into Java, files, the network, threads or processes, and a limit on its statements. */
+    public static Context restrictedContext() {
+        return Context.newBuilder("js")
                 .allowHostAccess(HostAccess.NONE)
                 .allowHostClassLookup(className -> false)
                 .allowIO(IOAccess.NONE)
@@ -161,6 +161,11 @@ public class VariableExtractorUtil {
                 .allowPolyglotAccess(PolyglotAccess.NONE)
                 .resourceLimits(ResourceLimits.newBuilder().statementLimit(RESTRICTED_SCRIPT_STATEMENTS, null).build())
                 .build();
+    }
+
+    /** Scripts get copies of plain values, so there is no object to climb from into Java or the machine. */
+    private Value evaluateRestricted(String fieldValue, TaskExecution execution, ActionResult result) throws IOException {
+        Context context = restrictedContext();
         Map<String, Object> parameters = new HashMap<>();
         if (execution.getParameters() != null) {
             execution.getParameters().forEach((name, value) -> parameters.put(name, String.valueOf(value)));
