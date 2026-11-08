@@ -31,6 +31,8 @@ object ConnectorSettings {
     fun read(settings: String): Map<String, String> =
         JsonApi.mapper.readValue(settings, LinkedHashMap::class.java).entries.associate { it.key.toString() to it.value.toString() }
 
+    fun without(settings: String, names: Set<String>): String = JsonApi.mapper.writeValueAsString(read(settings) - names)
+
     fun with(settings: String, name: String, value: Any?): String {
         val text = if (value is String) value else JsonApi.mapper.writeValueAsString(value)
         return JsonApi.mapper.writeValueAsString(read(settings) + (name to text))

@@ -68,7 +68,7 @@ class ConnectorAction : Action() {
 
     override fun forgetCredentialValues(fields: Set<String>) {
         credentialValues = emptyMap()
-        settings = JsonApi.mapper.writeValueAsString(settingValues() - fields)
+        settings = ConnectorSettings.without(settings, fields)
         spec?.let { super.forgetCredentialValues(ConnectorSender.accountFields(it, fields.associateWith { "" }).keys) }
     }
 

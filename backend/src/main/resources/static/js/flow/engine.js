@@ -108,6 +108,10 @@ const PRESENTATION = {
 /* Triggers are shown as one Start tile with a choice of how it starts. */
 const TRIGGER_ACTIONS = { webhook: 'Webhook', schedule: 'ScheduleTrigger', interval: 'IntervalTrigger', activemq: 'ActiveMQTrigger' };
 const TRIGGER_KINDS = Object.fromEntries(Object.entries(TRIGGER_ACTIONS).map(([kind, backend]) => [backend, kind]));
+/* A connector's trigger is one more way to start, chosen by app, since there is one for every service. */
+const APP_TRIGGER = 'app';
+const isAppTrigger = (backend) => backend?.endsWith('.trigger');
+const triggerBackend = (config) => (config.trigger === APP_TRIGGER ? config.app : TRIGGER_ACTIONS[config.trigger]);
 const TRIGGER_DEFAULTS = { webhook: { method: 'POST', authentication: 'none' }, schedule: { rule: 'DAYS', every: '1', atHour: '9', atMinute: '0' }, interval: { time: '1', timeUnit: 'MINUTES' }, activemq: {} };
 const STEP_ACTION_NAME = 'actionName';
 const FAILURE_FIELD_NAMES = ['continueOnFailure', 'retries', 'retryWait', 'failOn'];
@@ -193,6 +197,7 @@ function loadCatalogue(actions) {
   ACTIONS.switch.ports = (node) => [...(node.config.switchCases || []).map((switchCase, index) => ({ id: `case:${index}`, label: switchCase.currentCase || `Case ${index + 1}` })), { id: 'default', label: 'Default' }];
   ACTIONS.if.ports = () => [{ id: 'true', label: 'Yes' }, { id: 'false', label: 'No' }];
   ACTIONS.loop.ports = () => [{ id: 'each', label: 'Each item' }, { id: 'done', label: 'Done' }];
+  const appTriggers = actions.filter((action) => action.trigger && isAppTrigger(action.name)).map(({ name, label }) => ({ name, label: label || name }));
   ACTIONS.start.fields = [
     { key: 'trigger', label: 'Starts', type: 'select', options: [
       { value: 'manual', label: 'Only when I run it' },
@@ -201,8 +206,12 @@ function loadCatalogue(actions) {
       { value: 'interval', label: 'After a fixed pause (older)' },
       { value: 'activemq', label: 'When a queue message arrives' },
     // A server can leave out kinds of trigger that it does not offer.
-    ].filter((option) => !TRIGGER_ACTIONS[option.value] || triggers[TRIGGER_ACTIONS[option.value]]) },
+      { value: APP_TRIGGER, label: 'When something new appears in an app' },
+    // A server can leave out kinds of trigger that it does not offer.
+    ].filter((option) => (option.value === APP_TRIGGER ? appTriggers.length : !TRIGGER_ACTIONS[option.value] || triggers[TRIGGER_ACTIONS[option.value]])) },
+    { key: 'app', label: 'App', type: 'expression', required: true, suggestions: appTriggers.map(({ name, label }) => ({ value: name, label })), showWhen: { trigger: [APP_TRIGGER] } },
     ...Object.entries(TRIGGER_ACTIONS).flatMap(([kind, backend]) => (triggers[backend] || []).map((field) => ({ ...field, showWhen: { ...field.showWhen, trigger: [kind] } }))),
+    ...appTriggers.flatMap(({ name }) => triggers[name].map((field) => ({ ...field, showWhen: { ...field.showWhen, trigger: [APP_TRIGGER], app: [name] } }))),
   ];
 }
 
@@ -306,6 +315,7 @@ function describeNode(node) {
         schedule: ['Starts ', { value: scheduleText(config) }],
         interval: ['Starts every ', { value: intervalText(config) }],
         activemq: ['Starts on messages from ', value(config.queue, 'no queue')],
+        app: ['Starts on new ', value(ACTIONS[config.app]?.label, 'items in an app')],
       })[config.trigger] || ['Starts'];
     case 'if': return ['If ', value(readableExpression(config.condition), 'a condition')];
     case 'switch': return ['Check ', value(readableExpression(config.value), 'a value')];
@@ -404,8 +414,8 @@ function createNode(id, type, name, config) {
   return { id, type, name: name || ACTIONS[type].label, config: { ...(type === 'start' ? { trigger: 'manual' } : defaults), ...(type === 'script' ? { scriptLanguage: 'JAVASCRIPT' } : {}), ...(type === 'switch' ? { switchCases: [{ currentCase: 'first' }, { currentCase: 'second' }] } : {}), ...config }, position: { x: 0, y: 0 } };
 }
 
-function triggerConfigKeys(kind) {
-  return (ACTIONS[TYPE_BY_BACKEND[TRIGGER_ACTIONS[kind]]]?.fields || []).map((field) => field.key);
+function triggerConfigKeys(backend) {
+  return (ACTIONS[TYPE_BY_BACKEND[backend]]?.fields || []).map((field) => field.key);
 }
 
 /* Start and its trigger are one tile here, and two actions that lead to the same step in the saved
@@ -419,11 +429,10 @@ function toBackend(task) {
     const outputs = portsOf(node).map((port) => ({ externalId: portId(node.id, port.id), portType: 'OUTPUT' }));
     if (node.type === 'start') {
       actions.push({ '@type': ACTIONS.start.backend, ports: outputs, ...position });
-      const kind = node.config.trigger;
-      if (TRIGGER_ACTIONS[kind]) {
-        const keys = triggerConfigKeys(kind);
-        const settings = Object.fromEntries([...keys, 'triggerSuffix'].filter((key) => key in node.config).map((key) => [key, node.config[key]]));
-        actions.push({ '@type': TRIGGER_ACTIONS[kind], ...withoutEmptyValues(settings), ports: [{ externalId: portId(node.id, TRIGGER_PORT), portType: 'OUTPUT' }], ...position });
+      const backend = triggerBackend(node.config);
+      if (backend) {
+        const settings = Object.fromEntries([...triggerConfigKeys(backend), 'triggerSuffix'].filter((key) => key in node.config).map((key) => [key, node.config[key]]));
+        actions.push({ '@type': backend, ...withoutEmptyValues(settings), ports: [{ externalId: portId(node.id, TRIGGER_PORT), portType: 'OUTPUT' }], ...position });
       }
     } else {
       actions.push({ '@type': ACTIONS[node.type].backend, [STEP_ACTION_NAME]: node.name, ...withoutEmptyValues(node.config), ports: [...inputs, ...outputs], ...position });
@@ -432,7 +441,7 @@ function toBackend(task) {
   task.edges.forEach((edge) => {
     const target = { externalId: portId(edge.to, INPUT_PORT) };
     connections.push({ source: { externalId: portId(edge.from, edge.port) }, target });
-    if (edge.from === rootNode(task).id && TRIGGER_ACTIONS[rootNode(task).config.trigger]) connections.push({ source: { externalId: portId(edge.from, TRIGGER_PORT) }, target });
+    if (edge.from === rootNode(task).id && triggerBackend(rootNode(task).config)) connections.push({ source: { externalId: portId(edge.from, TRIGGER_PORT) }, target });
   });
   return { name: task.name, active: !!task.active, description: task.description || '', parameters: task.parameters, actions, connections };
 }
@@ -476,7 +485,8 @@ function fromBackend(saved) {
   const triggerEdge = triggers.length === 1 && task.edges.find((edge) => edge.from === triggers[0].id);
   if (triggers.length === 1 && (!startEdge || !triggerEdge || startEdge.to === triggerEdge.to)) {
     const trigger = triggers[0];
-    Object.assign(start.config, trigger.config, { trigger: TRIGGER_KINDS[trigger.backendAction['@type']] });
+    const backend = trigger.backendAction['@type'];
+    Object.assign(start.config, trigger.config, isAppTrigger(backend) ? { trigger: APP_TRIGGER, app: backend } : { trigger: TRIGGER_KINDS[backend] });
     outputPortsOf(trigger.backendAction).forEach((port) => { portOwners[port.externalId] = start.id; });
     task.nodes = nodes.filter((node) => node !== trigger);
     task.edges = task.edges.filter((edge) => edge.from !== trigger.id && edge.from !== start.id);
@@ -690,7 +700,7 @@ function createStore() {
     const owner = task.portOwners?.[externalId] || externalId?.split(':')[0];
     if (owner && nodeById(task, owner)) return nodeById(task, owner);
     const type = TYPE_BY_BACKEND[actionType];
-    if (TRIGGER_KINDS[actionType]) return rootNode(task);
+    if (TRIGGER_KINDS[actionType] || isAppTrigger(actionType)) return rootNode(task);
     return task.nodes.find((node) => node.type === type) || null;
   };
 
@@ -817,8 +827,8 @@ function createStore() {
       remember(`${nodeId}.${key}`);
       const node = nodeById(task, nodeId);
       node.config[key] = value;
-      if (node.type === 'start' && key === 'trigger' && TRIGGER_ACTIONS[value]) {
-        Object.entries(TRIGGER_DEFAULTS[value]).forEach(([name, preset]) => { if (node.config[name] === undefined) node.config[name] = preset; });
+      if (node.type === 'start' && key === 'trigger' && (TRIGGER_ACTIONS[value] || value === APP_TRIGGER)) {
+        Object.entries(TRIGGER_DEFAULTS[value] || {}).forEach(([name, preset]) => { if (node.config[name] === undefined) node.config[name] = preset; });
         if (value === 'webhook') node.config.triggerSuffix ??= uniqueId();
         task.active = true;
       }

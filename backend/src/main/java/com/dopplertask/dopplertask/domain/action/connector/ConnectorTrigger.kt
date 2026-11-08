@@ -35,7 +35,9 @@ import java.time.OffsetDateTime
 @DiscriminatorValue("connector_trigger")
 class ConnectorTrigger : Trigger() {
 
+    /** Read from and written as the kind, such as slack.trigger. */
     @Column
+    @get:JsonIgnore
     var connector: String? = null
 
     /** The connector's trigger, such as new_contact. */
@@ -83,8 +85,12 @@ class ConnectorTrigger : Trigger() {
         spec?.let { super.useCredentialValues(ConnectorSender.accountFields(it, values)) }
     }
 
+    override fun inlineCredentialValues(fields: Set<String>): Map<String, String> =
+        settingValues().filter { it.key in fields && it.value.isNotBlank() }
+
     override fun forgetCredentialValues(fields: Set<String>) {
         credentialValues = emptyMap()
+        settings = ConnectorSettings.without(settings, fields)
         spec?.let { super.forgetCredentialValues(ConnectorSender.accountFields(it, fields.associateWith { "" }).keys) }
     }
 

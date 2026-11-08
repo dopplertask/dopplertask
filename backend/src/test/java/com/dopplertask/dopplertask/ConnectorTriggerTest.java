@@ -82,6 +82,15 @@ public class ConnectorTriggerTest {
         Assert.assertTrue(((ConnectorTrigger) read).problem().contains("from 1"));
     }
 
+    @Test
+    public void testASecretTypedIntoATriggerMovesToACredentialSuccess() {
+        ConnectorTrigger trigger = ConnectorTrigger.of("poll-test");
+        trigger.setSetting("key", "typed-secret");
+        Assert.assertEquals(Map.of("key", "typed-secret"), trigger.inlineCredentialValues(java.util.Set.of("key")));
+        trigger.forgetCredentialValues(java.util.Set.of("key"));
+        Assert.assertEquals(Map.of(), trigger.settingValues());
+    }
+
     private static ConnectorTrigger trigger(String operation) {
         ConnectorTrigger trigger = ConnectorTrigger.of("poll-test");
         trigger.setOperation(operation);
