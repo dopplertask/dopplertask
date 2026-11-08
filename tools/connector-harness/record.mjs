@@ -44,6 +44,8 @@ const files = Object.fromEntries(Object.entries(fixture.files || {}).map(([input
 }));
 const context = createMockActionContext({ propsValue: { ...(fixture.inputs || {}), ...files } });
 context.auth = fixture.auth;
+// A stored file is named by its own name, as DopplerTask names the files of a run.
+context.files = { write: async ({ fileName }) => fileName };
 const memory = new Map(Object.entries(fixture.store || {}));
 context.store = { put: async (key, value) => (memory.set(key, value), value), get: async (key) => memory.get(key) ?? null, delete: async (key) => { memory.delete(key); } };
 // A webhook trigger subscribes with a fixed address, then reads the fixture's event as a service would send it.

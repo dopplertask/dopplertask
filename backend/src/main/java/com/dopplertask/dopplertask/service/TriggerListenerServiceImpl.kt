@@ -132,7 +132,7 @@ open class TriggerListenerServiceImpl {
         val triggerResult = trigger.trigger()
 
         val taskRequest = TaskRequest()
-        taskRequest.triggerInfo = TriggerInfo(trigger.stepTypeName, trigger.triggerSuffix, triggerResult.resultMap)
+        taskRequest.triggerInfo = TriggerInfo(trigger.stepTypeName, trigger.triggerSuffix, triggerResult.resultMap).also { it.files = triggerResult.files }
         taskRequest.taskName = trigger.task?.name
         taskRequest.parameters = mutableMapOf()
 

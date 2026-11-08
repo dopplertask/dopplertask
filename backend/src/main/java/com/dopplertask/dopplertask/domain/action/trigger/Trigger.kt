@@ -32,4 +32,5 @@ abstract class Trigger : Action() {
         }
 }
 
-data class TriggerResult(val resultMap: MutableMap<String, String>)
+/** What starts a run: the values it gets as TRIGGER_ parameters, and files it gets as files of the run. */
+data class TriggerResult(val resultMap: MutableMap<String, String>, val files: Map<String, ByteArray> = emptyMap())

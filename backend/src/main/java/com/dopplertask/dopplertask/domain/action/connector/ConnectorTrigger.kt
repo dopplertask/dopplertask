@@ -25,6 +25,7 @@ import tools.jackson.databind.node.ObjectNode
 import java.time.Duration
 import java.time.Instant
 import java.time.OffsetDateTime
+import java.util.Base64
 import java.util.UUID
 
 /**
@@ -83,10 +84,17 @@ class ConnectorTrigger : Trigger() {
     @JsonIgnore
     var keepPlace: () -> Unit = {}
 
-    // New items wait here when one check finds several, since each starts the task on its own.
+    // New items wait here when one check finds several, since each starts the task on its own, with the files it names.
     @Transient
     @JsonIgnore
-    private val waiting = ArrayDeque<JsonNode>()
+    private val waiting = ArrayDeque<Waiting>()
+
+    private class Waiting(val item: JsonNode, val files: Map<String, ByteArray>)
+
+    // Files the trigger's scripts keep on a check, such as the attachments of new emails, until their items wait.
+    @Transient
+    @JsonIgnore
+    private val keptFiles = linkedMapOf<String, ByteArray>()
 
     @JsonProperty(value = "@type", access = JsonProperty.Access.WRITE_ONLY)
     fun setKind(kind: String) {
@@ -174,7 +182,7 @@ class ConnectorTrigger : Trigger() {
     override fun trigger(): TriggerResult {
         val webhook = spec?.triggers?.get(operation)?.webhook
         while (true) {
-            nextWaiting()?.let { return TriggerResult(mutableMapOf("item" to it)) }
+            waiting.removeFirstOrNull()?.let { return TriggerResult(mutableMapOf("item" to it.item.toString()), it.files) }
             if (webhook != null) {
                 // Listening comes first, since a service may check the address while it subscribes it.
                 val events = ConnectorWebhooks.listen(addressKey(webhook), ::replyTo)
@@ -221,9 +229,26 @@ class ConnectorTrigger : Trigger() {
         // An event often names what changed, so its script may ask the service for the rest, as the original does.
         val sender = ConnectorSender(this, spec!!, credentialValues)
         val remembered = remembered()
-        val reply = poll.afterResponse?.let { ConnectorScripts.run(it, settingValues(), null, event.body, sender::answerFor, event.received, remembered) } ?: event.body
+        val reply = poll.afterResponse?.let { ConnectorScripts.run(it, settingValues(), null, event.body, sender::answerFor, event.received, remembered, ::keepFile) } ?: event.body
         memory = remembered.toString()
-        waiting.addAll(JsonPaths.read(reply, poll.items)?.let { if (it.isArray) it.toList() else listOf(it) }.orEmpty().filterNot { it.isNull }.take(MOST_ITEMS_PER_CHECK))
+        wait(JsonPaths.read(reply, poll.items)?.let { if (it.isArray) it.toList() else listOf(it) }.orEmpty().filterNot { it.isNull })
+    }
+
+    /** Keeps a file for the run of the item that names it, under a name no other file of this check has. */
+    private fun keepFile(name: String, base64: String): String {
+        val extension = name.substringAfterLast('.', "").let { if (it.isEmpty()) "" else ".$it" }
+        val free = generateSequence(1) { it + 1 }.map { if (it == 1) name else name.removeSuffix(extension) + "-$it$extension" }.first { it !in keptFiles }
+        keptFiles[free] = Base64.getDecoder().decode(base64)
+        return free
+    }
+
+    /** Lets new items wait, each with the kept files it names. */
+    private fun wait(items: List<JsonNode>) {
+        items.take(MOST_ITEMS_PER_CHECK).forEach { item ->
+            val text = item.toString()
+            waiting.add(Waiting(item, keptFiles.filterKeys { "\"$it\"" in text }))
+        }
+        keptFiles.clear()
     }
 
     /** What the address answers to an event, such as the challenge back. It may not send requests, since the service waits. */
@@ -244,7 +269,7 @@ class ConnectorTrigger : Trigger() {
     }
 
     /** The next new item that has not started the task yet, as JSON. */
-    fun nextWaiting(): String? = waiting.removeFirstOrNull()?.toString()
+    fun nextWaiting(): String? = waiting.removeFirstOrNull()?.item?.toString()
 
     /** Asks the service for its newest items, keeps the new ones, and notes where it left off. */
     fun lookForNewItems() {
@@ -258,7 +283,7 @@ class ConnectorTrigger : Trigger() {
         val remembered = remembered()
         val answer = sender.send(ConnectorRequests.build(connector, lookup, values, credentialValues, sender::answerFor, memory = remembered))
         check(answer.statusCode == StatusCode.SUCCESS) { answer.errorMsg }
-        val reply = poll.afterResponse?.let { ConnectorScripts.run(it, values, null, ConnectorSender.answerOf(answer), sender::answerFor, ConnectorSender.receivedOf(answer), remembered) }
+        val reply = poll.afterResponse?.let { ConnectorScripts.run(it, values, null, ConnectorSender.answerOf(answer), sender::answerFor, ConnectorSender.receivedOf(answer), remembered, ::keepFile) }
             ?: ConnectorSender.answerOf(answer)
         memory = remembered.toString()
         val items = JsonPaths.read(reply, poll.items)?.toList().orEmpty()
@@ -281,7 +306,7 @@ class ConnectorTrigger : Trigger() {
                 if (since == null) emptyList() else items.filter { (timeOf(JsonPaths.read(it, poll.key)) ?: 0) > since }.sortedBy { timeOf(JsonPaths.read(it, poll.key)) }
             }
         }
-        waiting.addAll(fresh.take(MOST_ITEMS_PER_CHECK))
+        wait(fresh)
         keepPlace()
     }
 

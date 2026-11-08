@@ -209,6 +209,7 @@ public class ExecutionServiceImpl implements ExecutionService {
             if (triggerInfo.getTriggerParameters() != null) {
                 triggerInfo.getTriggerParameters().forEach((key, value) -> execution.getParameters().put(TRIGGER_PARAMETER_PREFIX + "_" + key, new ExecutionParameter(TRIGGER_PARAMETER_PREFIX + "_" + key, value != null ? value.getBytes(StandardCharsets.UTF_8) : new byte[0], false)));
             }
+            triggerInfo.getFiles().forEach((name, bytes) -> RunFiles.INSTANCE.keep(execution, name, bytes));
 
             execution.setCurrentAction(action);
 

@@ -216,6 +216,17 @@ public class ConnectorTriggerTest {
         Assert.assertEquals("{\"cursor\":\"c2\"}", trigger.getMemory());
     }
 
+    @Test
+    public void testFilesATriggerKeepsGoWithTheItemIntoTheRunSuccess() {
+        ConnectorTrigger trigger = trigger("with_file");
+        trigger.setPollState("x0");
+        answer.set("{\"data\": [{\"id\": \"x1\"}, {\"id\": \"x0\"}]}");
+        trigger.lookForNewItems();
+        var started = trigger.trigger();
+        Assert.assertEquals("{\"id\":\"x1\",\"file\":\"note.txt\"}", started.getResultMap().get("item"));
+        Assert.assertEquals("hi", new String(started.getFiles().get("note.txt"), StandardCharsets.UTF_8));
+    }
+
     private static ConnectorWebhooks.Event event(String json) {
         return ConnectorWebhooks.INSTANCE.eventOf("application/json", json, Map.of(), Map.of());
     }

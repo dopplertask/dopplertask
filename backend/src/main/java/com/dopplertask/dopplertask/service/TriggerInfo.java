@@ -9,11 +9,21 @@ public class TriggerInfo {
     private String triggerName;
     private String triggerSuffix;
     private Map<String, String> triggerParameters;
+    private Map<String, byte[]> files = Map.of();
 
     public TriggerInfo(String triggerName, String triggerSuffix, Map<String, String> triggerParameters) {
         this.triggerName = triggerName;
         this.triggerSuffix = triggerSuffix;
         this.triggerParameters = triggerParameters;
+    }
+
+    /** The files the trigger found, such as the attachments of a new email, which the run keeps as its files. */
+    public Map<String, byte[]> getFiles() {
+        return files;
+    }
+
+    public void setFiles(Map<String, byte[]> files) {
+        this.files = files;
     }
 
     public String getTriggerName() {
