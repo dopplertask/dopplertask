@@ -1,5 +1,6 @@
 package com.dopplertask.dopplertask;
 
+import org.springframework.transaction.support.TransactionOperations;
 import com.dopplertask.dopplertask.dao.TaskExecutionDao;
 import com.dopplertask.dopplertask.domain.TaskExecution;
 import com.dopplertask.dopplertask.domain.TaskExecutionStatus;
@@ -24,7 +25,7 @@ public class StuckRunsTest {
     private final ExecutionService service = Mockito.mock(ExecutionService.class);
 
     private RunHousekeeping housekeeping(long maxRunMinutes) {
-        return new RunHousekeeping(executions, 0, maxRunMinutes, service, new StaticListableBeanFactory().getBeanProvider(CustomerScope.class));
+        return new RunHousekeeping(executions, 0, maxRunMinutes, service, new StaticListableBeanFactory().getBeanProvider(CustomerScope.class), TransactionOperations.withoutTransaction());
     }
 
     private TaskExecution going(long id) {
@@ -93,7 +94,7 @@ public class StuckRunsTest {
                 return customer[0];
             }
         });
-        RunHousekeeping housekeeping = new RunHousekeeping(executions, 0, 60, service, beans.getBeanProvider(CustomerScope.class));
+        RunHousekeeping housekeeping = new RunHousekeeping(executions, 0, 60, service, beans.getBeanProvider(CustomerScope.class), TransactionOperations.withoutTransaction());
         Thread firstStep = new Thread(() -> {
         });
         Thread secondStep = Mockito.spy(new Thread(() -> {
