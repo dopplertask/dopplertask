@@ -1,0 +1,246 @@
+{
+  "name": "jira-data-center",
+  "label": "Jira Data Center",
+  "description": "Issue tracking and project management for Jira Data Center and Server",
+  "icon": "jira",
+  "hosts": [
+    "{{credential.instanceUrl}}"
+  ],
+  "baseUrl": "https://{{credential.instanceUrl}}/rest/api/2",
+  "upstream": {
+    "package": "@activepieces/piece-jira-data-center",
+    "version": "0.1.2"
+  },
+  "credential": {
+    "fields": {
+      "instanceUrl": {
+        "label": "Instance URL",
+        "description": "The address of your Jira Data Center, such as jira.yourcompany.com. It must use https on the standard port, without a path such as /jira.",
+        "required": true
+      },
+      "personalAccessToken": {
+        "label": "Personal Access Token",
+        "description": "Your Jira Data Center Personal Access Token (PAT)",
+        "secret": true,
+        "required": true
+      }
+    },
+    "headers": {
+      "authorization": "Bearer {{credential.personalAccessToken}}"
+    }
+  },
+  "lists": {
+    "projects": {
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.instanceUrl}}/rest/api/2/project"
+      },
+      "value": "$.key"
+    },
+    "issueTypes": {
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.instanceUrl}}/rest/api/2/issue/createmeta/{{projectIdOrKey}}/issuetypes",
+        "query": {
+          "startAt": "0",
+          "maxResults": "100"
+        }
+      },
+      "items": "$.values"
+    },
+    "issues": {
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.instanceUrl}}/rest/api/2/search",
+        "body": {
+          "fields": [
+            "summary"
+          ],
+          "jql": "project={{projectIdOrKey}}",
+          "startAt": 0,
+          "maxResults": 100
+        }
+      },
+      "items": "$.issues",
+      "label": "$.key"
+    },
+    "transitions": {
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.instanceUrl}}/rest/api/2/issue/{{issueIdOrKey}}/transitions"
+      },
+      "items": "$.transitions"
+    }
+  },
+  "actions": {
+    "create_issue": {
+      "label": "Create Issue",
+      "description": "Creates an issue from a project, issue type, summary and optional fields.",
+      "inputs": {
+        "projectIdOrKey": {
+          "label": "Project",
+          "description": "The project key, such as PROJ.",
+          "required": true,
+          "list": "projects"
+        },
+        "issueTypeId": {
+          "label": "Issue Type",
+          "description": "The numeric issue type ID, such as 10002.",
+          "required": true,
+          "list": "issueTypes"
+        },
+        "summary": {
+          "label": "Summary",
+          "required": true
+        },
+        "description": {
+          "label": "Description",
+          "type": "multiline"
+        },
+        "fields": {
+          "label": "Other Fields",
+          "description": "JSON object of other field IDs to values, e.g. {\"priority\": \"2\", \"labels\": [\"web\"], \"customfield_10100\": 5}. Options, versions and components take their ID, users and groups their name. Field IDs come from the fields Jira shows for the project and issue type.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.instanceUrl}}/rest/api/2/issue/createmeta/{{projectIdOrKey}}/issuetypes/{{issueTypeId}}",
+        "query": {
+          "startAt": "0",
+          "maxResults": "100"
+        }
+      },
+      "afterResponse": "const listOf = (value) => { if (Array.isArray(value)) return value; try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed : []; } catch (e) { return []; } };\nconst formatted = (metadata, values) => {\n  const out = {};\n  metadata.forEach((field) => {\n    const value = values[field.key];\n    if (value === undefined || value === null || value === '') return;\n    const type = field.schema.type;\n    if (type === 'array') {\n      const list = listOf(value);\n      if (list.length > 0) out[field.key] = field.schema.items === 'string' ? list : list.map((item) => (field.schema.items === 'group' ? { name: item } : { id: item }));\n    } else if (type === 'user' || type === 'group') out[field.key] = { name: value };\n    else if (['version', 'option', 'priority', 'issuetype', 'component'].includes(type)) out[field.key] = { id: value };\n    else if (type === 'issuelink' || type === 'project') out[field.key] = { key: value };\n    else if (type === 'date') out[field.key] = new Date(value).toISOString().slice(0, 10);\n    else if (type === 'datetime') out[field.key] = new Date(value).toISOString();\n    else if (type === 'number') out[field.key] = Number(value);\n    else if (type === 'string') out[field.key] = value;\n  });\n  return out;\n};\nconst named = (metadata, fields) => {\n  const names = {};\n  metadata.forEach((field) => { names[field.key] = field.name; });\n  const out = {};\n  Object.entries(fields).forEach(([key, value]) => { out[key.startsWith('customfield_') ? names[key] ?? key : key] = value; });\n  return out;\n};\nconst values = { ...JSON.parse(String(inputs.fields ?? '').trim() || '{}'), ...(inputs.summary ? { summary: inputs.summary } : {}), ...(inputs.description ? { description: inputs.description } : {}) };\nconst metadataPath = '/issue/createmeta/' + encodeURIComponent(inputs.projectIdOrKey) + '/issuetypes/' + encodeURIComponent(inputs.issueTypeId);\nconst metadata = [];\nlet page = response;\nfor (let startAt = 100; page && page.values != null; startAt += 100) {\n  if (Array.isArray(page.values)) metadata.push(...page.values.map((field) => ({ ...field, key: field.key ?? field.fieldId })));\n  const more = page.isLast === undefined ? page.startAt + page.maxResults < page.total : !page.isLast;\n  if (!more) break;\n  page = call({ method: 'GET', url: metadataPath, query: { startAt: String(startAt), maxResults: '100' } });\n}\nconst created = call({ method: 'POST', url: '/issue', body: { fields: { issuetype: { id: inputs.issueTypeId }, project: { key: inputs.projectIdOrKey }, ...formatted(metadata, values) } } });\nconst issue = call({ method: 'GET', url: '/issue/' + created.id });\nreturn { ...issue, fields: named(metadata, issue.fields) };"
+    },
+    "update_issue": {
+      "label": "Update Issue",
+      "description": "Moves an issue to a new status and updates only the given fields.",
+      "inputs": {
+        "issueIdOrKey": {
+          "label": "Issue",
+          "required": true,
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues."
+        },
+        "statusId": {
+          "label": "Status",
+          "description": "The ID of the transition to the new status. Leave it empty to keep the status.",
+          "list": "transitions"
+        },
+        "summary": {
+          "label": "Summary"
+        },
+        "description": {
+          "label": "Description",
+          "type": "multiline"
+        },
+        "fields": {
+          "label": "Other Fields",
+          "description": "JSON object of other field IDs to values, e.g. {\"priority\": \"2\", \"labels\": [\"web\"], \"customfield_10100\": 5}. Options, versions and components take their ID, users and groups their name. Field IDs come from the fields Jira lets you edit on the issue.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.instanceUrl}}/rest/api/2/issue/{{issueIdOrKey}}/editmeta"
+      },
+      "beforeRequest": "if (!inputs.statusId) return request;\nreturn { ...request, method: 'POST', url: '/issue/' + encodeURIComponent(inputs.issueIdOrKey) + '/transitions', body: { transition: { id: inputs.statusId } } };",
+      "afterResponse": "const listOf = (value) => { if (Array.isArray(value)) return value; try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed : []; } catch (e) { return []; } };\nconst formatted = (metadata, values) => {\n  const out = {};\n  metadata.forEach((field) => {\n    const value = values[field.key];\n    if (value === undefined || value === null || value === '') return;\n    const type = field.schema.type;\n    if (type === 'array') {\n      const list = listOf(value);\n      if (list.length > 0) out[field.key] = field.schema.items === 'string' ? list : list.map((item) => (field.schema.items === 'group' ? { name: item } : { id: item }));\n    } else if (type === 'user' || type === 'group') out[field.key] = { name: value };\n    else if (['version', 'option', 'priority', 'issuetype', 'component'].includes(type)) out[field.key] = { id: value };\n    else if (type === 'issuelink' || type === 'project') out[field.key] = { key: value };\n    else if (type === 'date') out[field.key] = new Date(value).toISOString().slice(0, 10);\n    else if (type === 'datetime') out[field.key] = new Date(value).toISOString();\n    else if (type === 'number') out[field.key] = Number(value);\n    else if (type === 'string') out[field.key] = value;\n  });\n  return out;\n};\nconst named = (metadata, fields) => {\n  const names = {};\n  metadata.forEach((field) => { names[field.key] = field.name; });\n  const out = {};\n  Object.entries(fields).forEach(([key, value]) => { out[key.startsWith('customfield_') ? names[key] ?? key : key] = value; });\n  return out;\n};\nconst values = { ...JSON.parse(String(inputs.fields ?? '').trim() || '{}'), ...(inputs.summary ? { summary: inputs.summary } : {}), ...(inputs.description ? { description: inputs.description } : {}) };\nconst issuePath = '/issue/' + encodeURIComponent(inputs.issueIdOrKey);\nconst editable = inputs.statusId ? call({ method: 'GET', url: issuePath + '/editmeta' }) : response;\nconst metadata = Object.entries(editable.fields ?? {}).map(([key, field]) => ({ ...field, key }));\ncall({ method: 'PUT', url: issuePath, body: { fields: formatted(metadata, values) } });\nconst issue = call({ method: 'GET', url: issuePath });\nreturn { ...issue, fields: named(metadata, issue.fields) };"
+    },
+    "add_issue_comment": {
+      "label": "Add Comment",
+      "description": "Adds a comment to an issue.",
+      "inputs": {
+        "projectIdOrKey": {
+          "label": "Project",
+          "description": "Narrows the issues to choose from. It is not sent.",
+          "list": "projects"
+        },
+        "issueIdOrKey": {
+          "label": "Issue",
+          "required": true,
+          "list": "issues",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues."
+        },
+        "comment": {
+          "label": "Comment Body",
+          "type": "multiline",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.instanceUrl}}/rest/api/2/issue/{{issueIdOrKey}}/comment",
+        "body": {
+          "body": "{{comment}}"
+        }
+      }
+    },
+    "search_issues": {
+      "label": "Search Issues",
+      "description": "Finds issues that match a JQL query, with all their fields.",
+      "inputs": {
+        "jql": {
+          "label": "JQL",
+          "description": "Put text and dates in single quotes.",
+          "type": "multiline",
+          "required": true,
+          "defaultValue": "type = story and created > '2023-12-13 14:00'"
+        },
+        "maxResults": {
+          "label": "Max Results",
+          "description": "Most issues to return, up to 100.",
+          "type": "number",
+          "required": true,
+          "defaultValue": "50"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.instanceUrl}}/rest/api/2/search"
+      },
+      "beforeRequest": "const max = Number(inputs.maxResults);\nif (!(max >= 1 && max <= 100)) throw new Error('Max Results must be between 1 and 100.');\nrequest.body = { jql: inputs.jql, maxResults: max, fields: ['*all'] };\nreturn request;",
+      "afterResponse": "return response?.issues ?? [];"
+    },
+    "get_issue": {
+      "label": "Get Issue",
+      "description": "Gets an issue's fields and details.",
+      "inputs": {
+        "projectIdOrKey": {
+          "label": "Project",
+          "description": "Narrows the issues to choose from. It is not sent.",
+          "list": "projects"
+        },
+        "issueIdOrKey": {
+          "label": "Issue",
+          "required": true,
+          "list": "issues",
+          "description": "The issue key (e.g. PROJ-123) or numeric issue ID. Find it with Search Issues."
+        },
+        "expand": {
+          "label": "Extra Data",
+          "description": "More sections to include in the output. A JSON list of: renderedFields, names, schema, transitions, editmeta, changelog.",
+          "type": "json"
+        },
+        "mapNames": {
+          "label": "Map Field Names",
+          "description": "Key fields by their name instead of their ID.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "mapTransitions": {
+          "label": "Map Transition Names",
+          "description": "Adds the issue's transitions, keyed by name.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.instanceUrl}}/rest/api/2/issue/{{issueIdOrKey}}"
+      },
+      "beforeRequest": "const expand = String(inputs.expand ?? '').trim() === '' ? undefined : JSON.parse(inputs.expand);\nconst list = inputs.mapNames === 'true' ? [...new Set(expand).add('names')] : expand;\nif (list) request.query = { ...request.query, expand: list.join(',') };\nreturn request;",
+      "afterResponse": "const mapNames = (fields, names) => { const out = {}; Object.entries(fields).forEach(([id, value]) => { out[names?.[id] || id] = value; }); return out; };\nconst data = response;\nif (inputs.mapNames === 'true') {\n  const names = data.names || {};\n  data.fields = mapNames(data.fields, names);\n  if (data.renderedFields) data.renderedFields = mapNames(data.renderedFields, names);\n  if (data.schema) data.schema = mapNames(data.schema, names);\n  if (data.editmeta?.fields) data.editmeta.fields = mapNames(data.editmeta.fields, names);\n}\nif (inputs.mapTransitions === 'true' && data.transitions) data.transitions = data.transitions.reduce((all, transition) => { all[transition.name] = transition; return all; }, {});\nreturn data;"
+    }
+  }
+}
