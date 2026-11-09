@@ -19,14 +19,6 @@ A connector is a service that steps can work with, described in one file in `bac
 
 `beforeRequest` and `afterResponse` are short JavaScript functions of `inputs`, `request` and `response`. They run with no way into Java, files or the network, and never see the credential: a secret credential value in an address, such as a bot token in `baseUrl`, shows as its name, `{{credential.botSecret}}`, and only the part of the address the script was given, also in a `call()`, gets the value back; a `call()` to a path such as `/getMe` gets the connector's base with its value, as every request does. Nothing a script adds gets a credential, and no message about a request shows a secret. A secret value may stand in a path only in `baseUrl`, and never in a host. `call({method, url, query, headers, body})` sends another request through the connector, such as for the next page.
 
-## Starting a port
-
-`tools/connector-harness/scaffold.mjs` starts a new connector from a piece in the MIT part of Activepieces, and refuses any other. It maps the sign-in and the inputs, records each action with sample values, turns an action that sends one request into a request template, and lists what is left to finish by hand, such as lists, scripts and triggers:
-
-```bash
-cd tools/connector-harness && node scaffold.mjs @activepieces/piece-resend 0.6.2
-```
-
 ## Proving a connector
 
 Every action and trigger has a fixture in `backend/src/test/resources/connector-fixtures/<connector>/`. `tools/connector-harness/record.mjs` runs the original with the fixture's inputs and records what it sends, without leaving the machine, and `ConnectorCheck` runs ours with the same inputs and compares:
