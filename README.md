@@ -187,6 +187,4 @@ A new step is one file and one line where steps are registered, which makes it a
 
 [MIT](LICENSE). Made by [Feras Wilson](https://github.com/feraswilson) and contributors.
 
-The connectors are ported from the pieces of Activepieces, which are MIT licensed. See [their notice](backend/src/main/resources/connectors/NOTICE.md).
-
 Logos of other services belong to their owners, and only show which service a step connects to. See [where they come from](docs/development.md#logos).
