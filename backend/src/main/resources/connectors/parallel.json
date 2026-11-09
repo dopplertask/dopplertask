@@ -1,0 +1,311 @@
+{
+  "name": "parallel",
+  "label": "Parallel",
+  "description": "Web research APIs for AI: search, extract, multi-hop research tasks, entity discovery (FindAll), and web monitoring.",
+  "icon": "",
+  "hosts": [
+    "api.parallel.ai"
+  ],
+  "upstream": {
+    "package": "@activepieces/piece-parallel",
+    "version": "0.1.3"
+  },
+  "credential": {
+    "fields": {
+      "token": {
+        "label": "API Key",
+        "description": "\n**Get your Parallel API key:**\n\n1. Sign in at https://platform.parallel.ai\n2. Navigate to **API Keys**\n3. Create a new key and paste it here.\n  ",
+        "secret": true,
+        "required": true
+      }
+    },
+    "headers": {
+      "x-api-key": "{{credential.token}}"
+    }
+  },
+  "actions": {
+    "create_task_run": {
+      "label": "Create Task Run",
+      "description": "Initiate a Parallel research task. Returns immediately with a queued run; use Get Task Run Result to wait for completion.",
+      "inputs": {
+        "input": {
+          "label": "Input",
+          "description": "Input to the task (free text or a JSON string). Example: \"What was the GDP of France in 2023?\"",
+          "required": true,
+          "type": "multiline"
+        },
+        "processor": {
+          "label": "Processor",
+          "description": "Speed/depth tier for the task.",
+          "required": true,
+          "type": "select",
+          "options": [
+            {
+              "value": "lite",
+              "label": "Lite"
+            },
+            {
+              "value": "base",
+              "label": "Base"
+            },
+            {
+              "value": "core",
+              "label": "Core"
+            },
+            {
+              "value": "pro",
+              "label": "Pro"
+            },
+            {
+              "value": "ultra",
+              "label": "Ultra"
+            }
+          ],
+          "defaultValue": "base"
+        },
+        "output_schema_type": {
+          "label": "Output Schema Type",
+          "description": "How the task should structure its output.",
+          "type": "select",
+          "options": [
+            {
+              "value": "auto",
+              "label": "Auto"
+            },
+            {
+              "value": "text",
+              "label": "Text"
+            },
+            {
+              "value": "json",
+              "label": "JSON Schema"
+            }
+          ],
+          "defaultValue": "auto"
+        },
+        "output_text_description": {
+          "label": "Output Description (Text)",
+          "description": "Used when Output Schema Type is \"Text\". Plain-language description of the desired output.",
+          "type": "multiline"
+        },
+        "output_json_schema": {
+          "label": "Output JSON Schema",
+          "description": "Used when Output Schema Type is \"JSON Schema\". A JSON Schema object describing the desired structured output.",
+          "type": "json"
+        },
+        "include_domains": {
+          "label": "Include Domains",
+          "description": "Optional source policy: only return results from these domains.",
+          "type": "json"
+        },
+        "exclude_domains": {
+          "label": "Exclude Domains",
+          "description": "Optional source policy: exclude results from these domains.",
+          "type": "json"
+        },
+        "metadata": {
+          "label": "Metadata",
+          "description": "Optional key/value metadata stored with the run (keys ≤16 chars, values ≤512 chars).",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.parallel.ai/v1/tasks/runs",
+        "body": {
+          "input": "{{input}}"
+        }
+      }
+    },
+    "get_task_run": {
+      "label": "Get Task Run Status",
+      "description": "Retrieve the current status of a task run by its ID.",
+      "inputs": {
+        "run_id": {
+          "label": "Run ID",
+          "description": "The task run ID, e.g. `trun_e0083b6aac0544eb8686e8d2a76533d2`.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.parallel.ai/v1/tasks/runs/{{run_id}}"
+      }
+    },
+    "get_task_run_result": {
+      "label": "Get Task Run Result",
+      "description": "Retrieve a task run result by run ID. Blocks until the run completes (or until the timeout is reached).",
+      "inputs": {
+        "run_id": {
+          "label": "Run ID",
+          "description": "The task run ID returned from Create Task Run.",
+          "required": true
+        },
+        "timeout": {
+          "label": "Timeout (seconds)",
+          "description": "How long to wait for the run to complete. Defaults to 600 seconds.",
+          "type": "number",
+          "defaultValue": "600"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.parallel.ai/v1/tasks/runs/{{run_id}}/result",
+        "query": {
+          "timeout": "{{timeout}}"
+        }
+      }
+    },
+    "create_findall_run": {
+      "label": "Create FindAll Run",
+      "description": "Discover and verify entities matching plain-language criteria. Match conditions can be supplied directly or auto-generated from the objective.",
+      "inputs": {
+        "objective": {
+          "label": "Objective",
+          "description": "Natural-language description of the target entities. e.g. \"AI companies that raised Series A funding in 2024\".",
+          "required": true,
+          "type": "multiline"
+        },
+        "entity_type": {
+          "label": "Entity Type",
+          "description": "Type of entities to find (e.g. \"company\", \"people\").",
+          "required": true
+        },
+        "match_conditions": {
+          "label": "Match Conditions",
+          "description": "Array of `{ \"name\": \"...\", \"description\": \"...\" }` objects describing the criteria each match must satisfy. Leave empty to auto-generate from the objective.",
+          "type": "json"
+        },
+        "generator": {
+          "label": "Generator",
+          "description": "Generator tier — higher tiers use deeper search at higher cost.",
+          "required": true,
+          "type": "select",
+          "options": [
+            {
+              "value": "base",
+              "label": "Base"
+            },
+            {
+              "value": "core",
+              "label": "Core"
+            },
+            {
+              "value": "pro",
+              "label": "Pro"
+            },
+            {
+              "value": "preview",
+              "label": "Preview"
+            }
+          ],
+          "defaultValue": "core"
+        },
+        "match_limit": {
+          "label": "Match Limit",
+          "description": "Maximum number of matches to find (5–1000). Defaults to 100.",
+          "required": true,
+          "type": "number",
+          "defaultValue": "100"
+        },
+        "metadata": {
+          "label": "Metadata",
+          "description": "Optional key/value metadata stored with the run.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.parallel.ai/v1beta/findall/ingest",
+        "body": {
+          "objective": "{{objective}}"
+        }
+      }
+    },
+    "get_findall_result": {
+      "label": "Get FindAll Result",
+      "description": "Return the current snapshot of matched candidates for a FindAll run, including any enrichment fields.",
+      "inputs": {
+        "findall_id": {
+          "label": "FindAll ID",
+          "description": "The FindAll run ID returned from Create FindAll Run.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.parallel.ai/v1beta/findall/runs/{{findall_id}}/result"
+      }
+    },
+    "chat_completion": {
+      "label": "Chat Completion",
+      "description": "Get a chat completion using a Parallel processor. OpenAI-compatible interface; processor names like 'speed', 'base', 'core', 'pro', 'ultra' map to Parallel tiers.",
+      "inputs": {
+        "model": {
+          "label": "Model / Processor",
+          "description": "Model name to use (e.g. `speed`, `base`, `core`, `pro`, `ultra`).",
+          "required": true,
+          "defaultValue": "speed"
+        },
+        "system": {
+          "label": "System Message",
+          "description": "Optional system message to set the assistant behaviour.",
+          "type": "multiline"
+        },
+        "user_message": {
+          "label": "User Message",
+          "description": "The user prompt to send.",
+          "required": true,
+          "type": "multiline"
+        },
+        "response_format": {
+          "label": "Response Format",
+          "description": "Whether the model should return free text or a JSON object.",
+          "type": "select",
+          "options": [
+            {
+              "value": "text",
+              "label": "Text"
+            },
+            {
+              "value": "json_object",
+              "label": "JSON Object"
+            },
+            {
+              "value": "json_schema",
+              "label": "JSON Schema"
+            }
+          ],
+          "defaultValue": "text"
+        },
+        "json_schema": {
+          "label": "JSON Schema",
+          "description": "Used when Response Format is \"JSON Schema\". Provide a JSON Schema object.",
+          "type": "json"
+        },
+        "json_schema_name": {
+          "label": "JSON Schema Name",
+          "description": "Name for the JSON schema (required when Response Format is JSON Schema)."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.parallel.ai/v1beta/chat/completions",
+        "body": {
+          "model": "{{model}}",
+          "messages": [
+            {
+              "role": "system",
+              "content": "{{system}}"
+            },
+            {
+              "role": "user",
+              "content": "{{user_message}}"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "triggers": {}
+}

@@ -1,0 +1,1268 @@
+{
+  "name": "simplyprint",
+  "label": "SimplyPrint",
+  "description": "3D printer fleet management: monitor printers, manage the print queue, track filament, and automate print jobs.",
+  "icon": "",
+  "hosts": [
+    "simplyprint.io"
+  ],
+  "upstream": {
+    "package": "@activepieces/piece-simplyprint",
+    "version": "0.6.7"
+  },
+  "credential": {
+    "oauth2": {
+      "authUrl": "https://simplyprint.io/panel/oauth2/authorize",
+      "tokenUrl": "https://simplyprint.io/api/0/oauth2/Token",
+      "scope": "user.read printers.read printers.write printers.actions queue.read queue.write files.read files.write files.temp_upload spools.read spools.write print_history.read print_history.write statistics.read custom_fields.read custom_fields.write tags.read tags.write webhooks.read webhooks.write"
+    }
+  },
+  "actions": {
+    "list_printers": {
+      "label": "List Printers",
+      "description": "List every printer in your SimplyPrint account with current status.",
+      "inputs": {
+        "page": {
+          "label": "Page (optional)",
+          "description": "Specific page number (1-based). Leave empty to walk all pages and return every printer.",
+          "type": "number"
+        },
+        "pageSize": {
+          "label": "Page size (optional)",
+          "description": "Items per page (max 100). Defaults to 100 when paging is requested.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "get_farm_overview": {
+      "label": "Get Farm Overview",
+      "description": "One-shot fleet summary: total printer count plus per-bucket lists (online/offline, printing/paused, awaiting bed clear, in maintenance, requires-attention, AI failure detections, …). Use this instead of paginating \"List Printers\" when you just need counts and the printers in each state.",
+      "inputs": {},
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "get_printer": {
+      "label": "Get Printer",
+      "description": "Get detailed information about a specific printer.",
+      "inputs": {
+        "printerId": {
+          "label": "Printer ID",
+          "description": "Numeric printer ID. Typically piped in from an upstream step.",
+          "required": true,
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "pause_print": {
+      "label": "Pause Print",
+      "description": "Pause the current print on a printer.",
+      "inputs": {
+        "printerId": {
+          "label": "Printer ID",
+          "description": "Numeric printer ID. Typically piped in from an upstream step.",
+          "required": true,
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "resume_print": {
+      "label": "Resume Print",
+      "description": "Resume a paused print on a printer.",
+      "inputs": {
+        "printerId": {
+          "label": "Printer ID",
+          "description": "Numeric printer ID. Typically piped in from an upstream step.",
+          "required": true,
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "cancel_print": {
+      "label": "Cancel Print",
+      "description": "Cancel the current print on a printer. This is destructive — the job cannot be resumed.",
+      "inputs": {
+        "printerId": {
+          "label": "Printer ID",
+          "description": "Numeric printer ID. Typically piped in from an upstream step.",
+          "required": true,
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "send_gcode": {
+      "label": "Send G-code",
+      "description": "Send raw G-code commands to an operational printer (requires Print Farm plan).",
+      "inputs": {
+        "printerId": {
+          "label": "Printer ID",
+          "description": "Numeric printer ID. Typically piped in from an upstream step.",
+          "required": true,
+          "type": "number"
+        },
+        "gcode": {
+          "label": "G-code",
+          "description": "One G-code command per line, e.g. \"G28\" then \"M104 S200\". Up to 200 lines per request.",
+          "required": true,
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "resolve_printer_notification": {
+      "label": "Resolve Printer Notification",
+      "description": "Mark a printer notification as resolved (or dismissed). For notifications with multiple actions, pass `action` to pick one or `force: true` to resolve without choosing.",
+      "inputs": {
+        "printerId": {
+          "label": "Printer ID",
+          "description": "Numeric printer ID the notification belongs to.",
+          "required": true,
+          "type": "number"
+        },
+        "notificationId": {
+          "label": "Notification ID",
+          "description": "Numeric notification event ID. Use \"Get Printer Notifications\" to look it up.",
+          "required": true,
+          "type": "number"
+        },
+        "action": {
+          "label": "Action key (optional)",
+          "description": "For multi-action notifications, the action key to invoke. Leave empty for single-action or dismiss-only notifications."
+        },
+        "force": {
+          "label": "Force resolve",
+          "description": "Resolve immediately even if multiple actions are available (skips picking one).",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "dismiss": {
+          "label": "Dismiss",
+          "description": "Mark as dismissed rather than resolved.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "list_queue": {
+      "label": "List Queue Items",
+      "description": "List items in the print queue, optionally filtered to a single queue group.",
+      "inputs": {
+        "groupId": {
+          "label": "Queue group ID (optional)",
+          "description": "Numeric queue group ID to filter by. Leave empty for the whole queue.",
+          "type": "number"
+        },
+        "includeDone": {
+          "label": "Include completed items",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "page": {
+          "label": "Page (optional)",
+          "description": "Page number (1-based). Only applies to the active-queue path; ignored when \"Include completed items\" is on.",
+          "type": "number"
+        },
+        "pageSize": {
+          "label": "Page size (optional)",
+          "description": "Items per page (max 100). Defaults to 100.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "get_queue_item": {
+      "label": "Get Queue Item",
+      "description": "Fetch a single queue item by numeric ID — returns the formatted record (file metadata, assignments, custom fields, …).",
+      "inputs": {
+        "queueItemId": {
+          "label": "Queue item ID",
+          "description": "Numeric queue item ID. Typically piped in from an upstream step.",
+          "required": true,
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "list_queue_groups": {
+      "label": "List Queue Groups",
+      "description": "List every queue group on your account.",
+      "inputs": {},
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "save_queue_group": {
+      "label": "Save Queue Group",
+      "description": "Create or update a queue group. Pass an existing group ID to edit it; omit it to create a new one. Requires the Queue Groups feature on the account.",
+      "inputs": {
+        "groupId": {
+          "label": "Group ID (edit existing)",
+          "description": "Numeric ID of the group to edit. Omit to create a new group.",
+          "type": "number"
+        },
+        "name": {
+          "label": "Group name",
+          "description": "Display name for the group (max 64 chars).",
+          "required": true
+        },
+        "acceptedExtensions": {
+          "label": "Accepted file extensions",
+          "description": "File extensions allowed in this group (without the dot, e.g. `gcode`, `bgcode`). Leave empty for \"any\".",
+          "type": "json"
+        },
+        "virtualOnly": {
+          "label": "Virtual only",
+          "description": "When true, no real queue items can be added — used for placeholder/grouping-only groups.",
+          "required": true,
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "forPrinters": {
+          "label": "For printers (IDs)",
+          "description": "Optional. Restrict this group to specific printers.",
+          "type": "json"
+        },
+        "forModels": {
+          "label": "For printer models (IDs)",
+          "description": "Optional. Restrict this group to specific printer models.",
+          "type": "json"
+        },
+        "forGroups": {
+          "label": "For printer groups (IDs)",
+          "description": "Optional. Restrict this group to specific printer groups.",
+          "type": "json"
+        },
+        "visibilityUserRanks": {
+          "label": "Visibility user rank IDs",
+          "description": "Optional. Limit who can see the group based on user rank IDs.",
+          "type": "json"
+        },
+        "approvalRequiredRanks": {
+          "label": "Approval-required user rank IDs",
+          "description": "Optional. User ranks whose submissions need approval.",
+          "type": "json"
+        },
+        "approvalExemptRanks": {
+          "label": "Approval-exempt user rank IDs",
+          "description": "Optional. User ranks whose submissions skip approval.",
+          "type": "json"
+        },
+        "requiresApproval": {
+          "label": "Requires approval",
+          "description": "Master toggle for approval workflow on this group.",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "delete_queue_group": {
+      "label": "Delete Queue Group",
+      "description": "Delete a queue group. Items in the group are moved to \"Move to\" group, or to the first remaining group if not specified, or set to ungrouped if it was the last group.",
+      "inputs": {
+        "groupId": {
+          "label": "Group ID",
+          "description": "Numeric ID of the queue group to delete.",
+          "required": true,
+          "type": "number"
+        },
+        "moveTo": {
+          "label": "Move items to (optional)",
+          "description": "Optional target group ID for orphaned items. If omitted, items go to the first remaining group (or become ungrouped if this is the last).",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "update_queue_item": {
+      "label": "Update Queue Item",
+      "description": "Update a queue item (amount, note, etc.).",
+      "inputs": {
+        "queueItemId": {
+          "label": "Queue item ID",
+          "description": "Numeric queue item ID. Typically piped in from an upstream step.",
+          "required": true,
+          "type": "number"
+        },
+        "amount": {
+          "label": "Quantity",
+          "type": "number"
+        },
+        "note": {
+          "label": "Note",
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "move_queue_item": {
+      "label": "Move Queue Item",
+      "description": "Move a queue item to a different queue group.",
+      "inputs": {
+        "queueItemId": {
+          "label": "Queue item ID",
+          "description": "Numeric queue item ID. Typically piped in from an upstream step.",
+          "required": true,
+          "type": "number"
+        },
+        "targetGroupId": {
+          "label": "Target queue group ID",
+          "description": "Numeric ID of the destination queue group.",
+          "required": true,
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "remove_from_queue": {
+      "label": "Remove Queue Item",
+      "description": "Remove an item from the print queue. Destructive — the item is gone.",
+      "inputs": {
+        "queueItemId": {
+          "label": "Queue item ID",
+          "description": "Numeric queue item ID. Typically piped in from an upstream step.",
+          "required": true,
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "revive_queue_item": {
+      "label": "Revive Queue Item",
+      "description": "Bring a completed (done) queue item back to the active queue.",
+      "inputs": {
+        "queueItemId": {
+          "label": "Queue item ID",
+          "description": "Numeric queue item ID. Typically piped in from an upstream step.",
+          "required": true,
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "empty_queue": {
+      "label": "Empty Queue",
+      "description": "Delete every item from the print queue (optionally filtered to a group or done-only). Destructive.",
+      "inputs": {
+        "groupId": {
+          "label": "Queue group",
+          "description": "Which queue group to add the item to. Required if your account has queue groups configured. Leave empty only if no queue groups exist."
+        },
+        "doneOnly": {
+          "label": "Only remove completed items",
+          "description": "When checked, only done items are removed. Pending / printing / failed items stay.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "list_pending_queue_items": {
+      "label": "List Pending Queue Items",
+      "description": "List queue items awaiting approval, denied, or sent back for revision.",
+      "inputs": {
+        "status": {
+          "label": "Status filter",
+          "description": "Restrict to a single approval status. Defaults to all (pending + denied + revision).",
+          "type": "select",
+          "options": [
+            {
+              "value": "all",
+              "label": "All (pending + denied + revision)"
+            },
+            {
+              "value": "pending",
+              "label": "Pending"
+            },
+            {
+              "value": "denied",
+              "label": "Denied"
+            },
+            {
+              "value": "revision",
+              "label": "Revision"
+            }
+          ],
+          "defaultValue": "all"
+        },
+        "page": {
+          "label": "Page (optional)",
+          "description": "Page number (1-based). Defaults to 1.",
+          "type": "number"
+        },
+        "perPage": {
+          "label": "Per page (optional)",
+          "description": "Items per page (max 100). Defaults to 50 (backend default).",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "deny_queue_item": {
+      "label": "Deny Queue Item",
+      "description": "Deny a pending queue item (remove or send back for revision).",
+      "inputs": {
+        "queueItemId": {
+          "label": "Queue item ID",
+          "required": true,
+          "type": "number"
+        },
+        "comment": {
+          "label": "Comment",
+          "description": "Explain why the item is being denied. Shown to the submitter.",
+          "required": true,
+          "type": "multiline"
+        },
+        "requestRevision": {
+          "label": "Request revision",
+          "description": "When checked, the submitter can edit and resubmit. Otherwise the item is removed.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "list_files": {
+      "label": "List Files",
+      "description": "List files in your SimplyPrint account, optionally within a folder and/or filtered by a search term.",
+      "inputs": {
+        "folderId": {
+          "label": "Folder ID",
+          "description": "Leave empty (or 0) to list root-level files. Use -1 for the \"all files\" flat view.",
+          "type": "number"
+        },
+        "search": {
+          "label": "Search",
+          "description": "Optional filter by filename (substring match)."
+        },
+        "globalSearch": {
+          "label": "Search all folders",
+          "description": "When a search term is provided, search across every folder instead of just the current one.",
+          "type": "boolean",
+          "defaultValue": "true"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "move_file": {
+      "label": "Move File",
+      "description": "Move one or more user files to a different folder.",
+      "inputs": {
+        "fileUids": {
+          "label": "File UID(s)",
+          "description": "User-file UID string. Comma-separate to move several files at once. Use \"List Files\" to look up UIDs.",
+          "required": true
+        },
+        "targetFolderId": {
+          "label": "Target folder ID",
+          "description": "Destination folder. Use 0 for the root folder.",
+          "required": true,
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "create_folder": {
+      "label": "Create or Update Folder",
+      "description": "Create a new folder in the user file system, or update an existing one (pass the folder ID to edit). Optionally an \"organization\" / shared folder with per-rank view/upload/modify permissions.",
+      "inputs": {
+        "folderId": {
+          "label": "Folder ID (edit existing)",
+          "description": "Numeric ID of the folder to edit. Omit to create a new folder.",
+          "type": "number"
+        },
+        "name": {
+          "label": "Folder name",
+          "description": "Display name (max 128 chars).",
+          "required": true
+        },
+        "parentFolder": {
+          "label": "Parent folder ID",
+          "description": "Numeric ID of the parent folder. Use 0 for root.",
+          "required": true,
+          "type": "number",
+          "defaultValue": "0"
+        },
+        "org": {
+          "label": "Shared (organization) folder",
+          "description": "When true, the folder is shared across the company per the rank-based permissions below. Requires the Shared Folders feature.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "viewRanks": {
+          "label": "View — user rank IDs",
+          "description": "Only used when \"Shared folder\" is true. Numeric user rank IDs allowed to view the folder.",
+          "type": "json"
+        },
+        "uploadRanks": {
+          "label": "Upload — user rank IDs",
+          "description": "Only used when \"Shared folder\" is true. Numeric user rank IDs allowed to upload to the folder.",
+          "type": "json"
+        },
+        "modifyRanks": {
+          "label": "Modify — user rank IDs",
+          "description": "Only used when \"Shared folder\" is true. Numeric user rank IDs allowed to modify / delete contents.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "update_file": {
+      "label": "Update File",
+      "description": "Rename a user file and / or update its compatible-printer assignments. (Thumbnail upload is not exposed here — multipart isn't supported on this endpoint over OAuth via the AP HTTP client.)",
+      "inputs": {
+        "fileUid": {
+          "label": "File UID",
+          "description": "UID string of the file to update (10-36 chars). Look up via \"List Files\".",
+          "required": true
+        },
+        "name": {
+          "label": "New name",
+          "description": "New display name (max 256 chars). Keep the existing extension — backend infers file type from it."
+        },
+        "printerIds": {
+          "label": "Restrict to printer IDs",
+          "description": "Numeric printer IDs the file is allowed to print on. Leave empty to clear printer-restriction.",
+          "type": "json"
+        },
+        "printerModelIds": {
+          "label": "Restrict to printer model IDs",
+          "description": "Numeric model IDs the file is allowed to print on. Leave empty to clear model-restriction.",
+          "type": "json"
+        },
+        "removeThumbnail": {
+          "label": "Remove existing thumbnail",
+          "description": "When true, deletes any thumbnail currently stored on the file.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "download_file": {
+      "label": "Download File",
+      "description": "Download a file from SimplyPrint by user-file UID, queue-item ID, or print-job UID. Returns the file as an Activepieces file reference plus content-type / size metadata.",
+      "inputs": {
+        "source": {
+          "label": "Source",
+          "description": "Which kind of file to fetch.",
+          "required": true,
+          "type": "select",
+          "options": [
+            {
+              "value": "userFile",
+              "label": "User file (UID)"
+            },
+            {
+              "value": "queueItem",
+              "label": "Queue item (numeric ID)"
+            },
+            {
+              "value": "printJob",
+              "label": "Print job (UID)"
+            }
+          ],
+          "defaultValue": "userFile"
+        },
+        "identifier": {
+          "label": "Identifier",
+          "description": "UID for \"User file\" / \"Print job\", numeric ID for \"Queue item\". Look these up via \"List Files\" / \"List Print History\" / \"List Queue Items\".",
+          "required": true
+        },
+        "filename": {
+          "label": "Filename override (optional)",
+          "description": "Name to store the downloaded file under in AP. Defaults to the Content-Disposition value or the identifier."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "list_filaments": {
+      "label": "List Filaments",
+      "description": "List filament spools in your SimplyPrint account, with optional filters and sort.",
+      "inputs": {
+        "materialType": {
+          "label": "Material type filter",
+          "description": "Substring match against material type, e.g. `PLA`, `PETG`. Leave empty for no filter."
+        },
+        "brand": {
+          "label": "Brand filter",
+          "description": "Substring match against brand name. Leave empty for no filter."
+        },
+        "color": {
+          "label": "Color filter",
+          "description": "Substring match against color name, hex, or group. Leave empty for no filter."
+        },
+        "assigned": {
+          "label": "Assignment filter",
+          "description": "Whether to include only assigned spools, only unassigned, or both.",
+          "type": "select",
+          "options": [
+            {
+              "value": "any",
+              "label": "Any (no filter)"
+            },
+            {
+              "value": "true",
+              "label": "Assigned to a printer only"
+            },
+            {
+              "value": "false",
+              "label": "Unassigned only"
+            }
+          ],
+          "defaultValue": "any"
+        },
+        "empty": {
+          "label": "Empty filter",
+          "description": "Filter by empty / non-empty status. \"Empty\" means filament left ≤ 0 or marked as emptied.",
+          "type": "select",
+          "options": [
+            {
+              "value": "any",
+              "label": "Any (no filter)"
+            },
+            {
+              "value": "true",
+              "label": "Only empty"
+            },
+            {
+              "value": "false",
+              "label": "Only non-empty"
+            }
+          ],
+          "defaultValue": "any"
+        },
+        "printerId": {
+          "label": "Printer ID filter",
+          "description": "Only return spools currently assigned to this printer (numeric ID).",
+          "type": "number"
+        },
+        "sortBy": {
+          "label": "Sort by",
+          "description": "Field to sort the result list by. Leave empty to use backend default ordering.",
+          "type": "select",
+          "options": [
+            {
+              "value": "created",
+              "label": "Created date"
+            },
+            {
+              "value": "last_used",
+              "label": "Last used date"
+            },
+            {
+              "value": "left",
+              "label": "Filament left"
+            },
+            {
+              "value": "brand",
+              "label": "Brand"
+            },
+            {
+              "value": "color",
+              "label": "Color"
+            }
+          ]
+        },
+        "sortDir": {
+          "label": "Sort direction",
+          "description": "Only applied when \"Sort by\" is set.",
+          "type": "select",
+          "options": [
+            {
+              "value": "desc",
+              "label": "Descending"
+            },
+            {
+              "value": "asc",
+              "label": "Ascending"
+            }
+          ],
+          "defaultValue": "desc"
+        },
+        "limit": {
+          "label": "Max results (limit)",
+          "description": "Cap on returned spools (1–100). Leave empty for no cap. Backend has no offset-pagination on this endpoint, so this is the only cap available.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "get_filament": {
+      "label": "Get Filament",
+      "description": "Get detailed information about a specific filament spool by numeric ID or 4-character short ID (uid).",
+      "inputs": {
+        "filamentId": {
+          "label": "Filament",
+          "description": "Numeric spool ID, OR the 4-character short ID (`uid`) printed on the QR sticker / NFC tag. In automation flows this typically comes from a previous step (trigger payload, MCP response, etc.).",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "create_filament": {
+      "label": "Create Filament",
+      "description": "Add a new filament spool to your inventory. Use the free-text brand/color fields for ad-hoc spools or the catalog ids for known SKUs.",
+      "inputs": {
+        "brand": {
+          "label": "Brand",
+          "description": "Free-text brand name (always required, even when catalog ids are set).",
+          "required": true
+        },
+        "colorName": {
+          "label": "Color name",
+          "required": true
+        },
+        "colorHex": {
+          "label": "Color hex",
+          "description": "Hex color (e.g. `#FF8800`). For multi-color spools, comma-separate (e.g. `#FF8800,#0044CC`).",
+          "required": true
+        },
+        "width": {
+          "label": "Filament diameter (mm)",
+          "required": true,
+          "type": "select",
+          "options": [
+            {
+              "value": "1.75",
+              "label": "1.75 mm"
+            },
+            {
+              "value": "2.85",
+              "label": "2.85 mm"
+            },
+            {
+              "value": "3.00",
+              "label": "3.00 mm"
+            }
+          ],
+          "defaultValue": "1.75"
+        },
+        "totalLength": {
+          "label": "Total length / weight",
+          "description": "Spool size — interpretation depends on \"Length type\" below. Required when creating a new spool.",
+          "required": true,
+          "type": "number"
+        },
+        "totalLengthType": {
+          "label": "Length type",
+          "description": "Unit for \"Total length / weight\" and \"Length used\".",
+          "required": true,
+          "type": "select",
+          "options": [
+            {
+              "value": "g",
+              "label": "Grams"
+            },
+            {
+              "value": "kg",
+              "label": "Kilograms"
+            },
+            {
+              "value": "m",
+              "label": "Meters"
+            },
+            {
+              "value": "mm",
+              "label": "Millimeters"
+            }
+          ],
+          "defaultValue": "g"
+        },
+        "lengthRemaining": {
+          "label": "Length remaining",
+          "description": "Amount of filament still on the spool. For a brand-new untouched spool, set this equal to \"Total length / weight\". For a partially-used spool, set this lower. Same unit as \"Length type\". (Backend's `length_used` POST param is, despite its name, semantically \"remaining\" — see Create.php math.)",
+          "type": "number"
+        },
+        "amount": {
+          "label": "Number of spools",
+          "description": "Create N identical spools at once (capped at 500). Defaults to 1.",
+          "type": "number",
+          "defaultValue": "1"
+        },
+        "filamentType": {
+          "label": "Material type ID",
+          "description": "Numeric id of the material type / profile (look up via \"List Filaments\" results — `type.id` on each spool — or via your filament management page). EITHER this OR a \"Catalog filament ID\" (+ optional \"Catalog variant ID\") pair is required when creating a new spool — the backend uses the catalog chain to auto-resolve / auto-import a profile. Throws \"The Filament type is required\" if neither is set.",
+          "type": "number"
+        },
+        "cost": {
+          "label": "Cost (per spool)",
+          "description": "Optional. Spool cost in account currency (cents/whole-units depending on your currency).",
+          "type": "number"
+        },
+        "locationId": {
+          "label": "Location ID",
+          "description": "Optional. Numeric id of the storage location.",
+          "type": "number"
+        },
+        "nfcId": {
+          "label": "NFC ID",
+          "description": "Optional. NFC tag identifier for app tracking."
+        },
+        "qrId": {
+          "label": "QR ID (short ID)",
+          "description": "Optional. 4-character short id printed on the spool QR sticker. Auto-generated if omitted."
+        },
+        "brandId": {
+          "label": "Catalog brand ID",
+          "type": "number"
+        },
+        "brandFilamentId": {
+          "label": "Catalog filament ID",
+          "type": "number"
+        },
+        "brandColorId": {
+          "label": "Catalog color ID",
+          "type": "number"
+        },
+        "brandVariantId": {
+          "label": "Catalog variant ID",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "adjust_filament_weight": {
+      "label": "Adjust Filament Weight",
+      "description": "Update the remaining filament on a spool. Provide ONE of \"grams remaining\" / \"percent remaining\" / \"weighed gross\" — the other two derive from it.",
+      "inputs": {
+        "filamentId": {
+          "label": "Filament",
+          "description": "Numeric spool ID, OR the 4-character short ID (`uid`) printed on the QR sticker / NFC tag.",
+          "required": true
+        },
+        "gramsRemaining": {
+          "label": "Grams remaining",
+          "description": "Net grams of filament left on the spool.",
+          "type": "number"
+        },
+        "percentRemaining": {
+          "label": "Percent remaining (0-100)",
+          "description": "Alternative to grams — share of the spool still on the reel.",
+          "type": "number"
+        },
+        "weighedGross": {
+          "label": "Weighed gross (grams)",
+          "description": "Total weight including the empty spool. Combine with \"subtract empty spool\" to compute net.",
+          "type": "number"
+        },
+        "emptySpoolWeight": {
+          "label": "Empty spool weight (g)",
+          "description": "Override the empty spool weight used for the gross calculation.",
+          "type": "number"
+        },
+        "subtractEmptySpool": {
+          "label": "Subtract empty spool from gross",
+          "type": "boolean",
+          "defaultValue": "true"
+        },
+        "saveEmptySpoolWeight": {
+          "label": "Persist empty spool weight on spool record",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "get_filament_history": {
+      "label": "Get Filament History",
+      "description": "Paginated usage history for a specific spool — print jobs, weight adjustments, drying cycles, etc.",
+      "inputs": {
+        "filamentId": {
+          "label": "Filament",
+          "description": "Numeric spool ID, OR the 4-character short ID (`uid`) printed on the QR sticker / NFC tag.",
+          "required": true
+        },
+        "page": {
+          "label": "Page (optional)",
+          "description": "Page number (1-based). Defaults to 1.",
+          "type": "number"
+        },
+        "perPage": {
+          "label": "Per page (optional)",
+          "description": "Items per page (max 100). Defaults to backend default.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "assign_filament": {
+      "label": "Assign Filament to Printer",
+      "description": "Assign a filament spool to a printer at a specific nozzle + extruder slot. Defaults to nozzle 0 / extruder 0 (single-nozzle single-extruder printers); set the indices for multi-nozzle (e.g. IDEX, toolchanger) or multi-material (MMS, MMU) printers.",
+      "inputs": {
+        "printerId": {
+          "label": "Printer ID",
+          "description": "Numeric printer ID. In automation flows this typically flows in from a trigger or upstream step.",
+          "required": true,
+          "type": "number"
+        },
+        "filamentId": {
+          "label": "Filament",
+          "description": "Numeric spool ID, OR the 4-character short ID (`uid`) printed on the QR sticker / NFC tag.",
+          "required": true
+        },
+        "nozzleIndex": {
+          "label": "Nozzle index",
+          "description": "Which nozzle on the printer (0-based). Use 0 for single-nozzle printers. Multi-nozzle printers (IDEX, toolchanger) use 1+ for the additional nozzles. Backend rejects with \"Nozzle out of range\" if the printer doesn't have this many nozzles.",
+          "type": "number",
+          "defaultValue": "0"
+        },
+        "extruderIndex": {
+          "label": "Extruder index",
+          "description": "Which extruder on the chosen nozzle (0-based). Use 0 for single-extruder nozzles. Multi-material setups (MMS, MMU, AMS) use 1+ for the additional extruders feeding the same nozzle. Backend rejects with \"Extruder out of range\" if the nozzle doesn't have this many extruders.",
+          "type": "number",
+          "defaultValue": "0"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "unassign_filament": {
+      "label": "Unassign Filament",
+      "description": "Detach a specific filament spool from whichever printer it is currently assigned to.",
+      "inputs": {
+        "filamentId": {
+          "label": "Filament",
+          "description": "Numeric spool ID, OR the 4-character short ID (`uid`) printed on the QR sticker / NFC tag.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "list_print_history": {
+      "label": "List Print History",
+      "description": "List completed print jobs, optionally filtered to a single printer.",
+      "inputs": {
+        "printerId": {
+          "label": "Printer ID (optional)",
+          "description": "Restrict to jobs from a specific printer. Leave empty for all printers.",
+          "type": "number"
+        },
+        "page": {
+          "label": "Page (optional)",
+          "description": "Page number (1-based). Defaults to 1.",
+          "type": "number"
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of jobs to return per page (default 25, max 100).",
+          "type": "number",
+          "defaultValue": "25"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "get_print_job": {
+      "label": "Get Print Job",
+      "description": "Fetch a single print job's full record by its UID — timeline, pictures, spools used, gcode analysis, filament data, cost, AI inference, custom fields, etc.",
+      "inputs": {
+        "jobUid": {
+          "label": "Job UID",
+          "description": "Print job UID string (typically 10+ characters). Comes from \"List Print History\" results or webhook payloads.",
+          "required": true
+        },
+        "includeCustomFieldDefinitions": {
+          "label": "Include custom field definitions",
+          "description": "When true, also returns the schema for the custom fields attached to the job (vs just values).",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "list_tags": {
+      "label": "List Tags",
+      "description": "List all custom tags configured on your account.",
+      "inputs": {},
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "create_tag": {
+      "label": "Create or Update Tag",
+      "description": "Create a new custom tag, or rename / re-style an existing one (pass the tag ID to edit).",
+      "inputs": {
+        "tagId": {
+          "label": "Tag ID (edit existing)",
+          "description": "Numeric tag ID to edit. Omit to create a new tag.",
+          "type": "number"
+        },
+        "name": {
+          "label": "Tag name",
+          "description": "Display name (max 32 chars).",
+          "required": true
+        },
+        "badge": {
+          "label": "Badge style",
+          "description": "Bootstrap badge color used to render the tag.",
+          "required": true,
+          "type": "select",
+          "options": [
+            {
+              "value": "primary",
+              "label": "Primary (blue)"
+            },
+            {
+              "value": "secondary",
+              "label": "Secondary (gray)"
+            },
+            {
+              "value": "success",
+              "label": "Success (green)"
+            },
+            {
+              "value": "danger",
+              "label": "Danger (red)"
+            },
+            {
+              "value": "warning",
+              "label": "Warning (yellow)"
+            },
+            {
+              "value": "info",
+              "label": "Info (cyan)"
+            },
+            {
+              "value": "light",
+              "label": "Light"
+            },
+            {
+              "value": "dark",
+              "label": "Dark"
+            }
+          ],
+          "defaultValue": "primary"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "delete_tag": {
+      "label": "Delete Tag",
+      "description": "Delete a custom tag from the account. The tag is removed from every printer/file/queue item it was attached to.",
+      "inputs": {
+        "tagId": {
+          "label": "Tag ID",
+          "description": "Numeric custom tag ID to delete.",
+          "required": true,
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "get_current_user": {
+      "label": "Get Current User",
+      "description": "Return information about the SimplyPrint account connected to this flow.",
+      "inputs": {},
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "list_custom_fields": {
+      "label": "List Custom Fields",
+      "description": "List all custom field definitions on your account.",
+      "inputs": {
+        "entity": {
+          "label": "Entity filter",
+          "description": "Optional — e.g. PRINT_QUEUE, FILE, USER. Leave empty to list all."
+        },
+        "page": {
+          "label": "Page (optional)",
+          "description": "Specific page number (1-based). Leave empty to walk all pages and return every field.",
+          "type": "number"
+        },
+        "pageSize": {
+          "label": "Page size (optional)",
+          "description": "Items per page (max 100). Defaults to 100 when paging is requested.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "get_statistics": {
+      "label": "Get Account Statistics",
+      "description": "Fetch high-level printing statistics (total prints, materials used, hours, etc.).",
+      "inputs": {},
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    },
+    "custom_api_call": {
+      "label": "Custom API Call",
+      "description": "Call any SimplyPrint REST endpoint the piece does not wrap directly. Useful for admin / partner / school-dashboard endpoints and anything else behind OAuth scopes.",
+      "inputs": {
+        "method": {
+          "label": "Method",
+          "required": true,
+          "type": "select",
+          "options": [
+            {
+              "value": "GET",
+              "label": "GET"
+            },
+            {
+              "value": "POST",
+              "label": "POST"
+            },
+            {
+              "value": "PUT",
+              "label": "PUT"
+            },
+            {
+              "value": "PATCH",
+              "label": "PATCH"
+            },
+            {
+              "value": "DELETE",
+              "label": "DELETE"
+            }
+          ],
+          "defaultValue": "GET"
+        },
+        "path": {
+          "label": "Path",
+          "description": "Endpoint path relative to the account, e.g. \"printers/Get\" or \"queue/AddItem\". Do not include the host or the account ID segment.",
+          "required": true
+        },
+        "queryParams": {
+          "label": "Query params",
+          "type": "json"
+        },
+        "body": {
+          "label": "JSON body",
+          "description": "Only used for POST/PUT/PATCH.",
+          "type": "json"
+        },
+        "timeoutMs": {
+          "label": "Timeout (ms)",
+          "description": "Optional request timeout in milliseconds.",
+          "type": "number"
+        },
+        "includeResponseHeaders": {
+          "label": "Include response headers",
+          "description": "Return `{ body, headers, status }` instead of just the body.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://simplyprint.io/api/0/account/GetUser"
+      }
+    }
+  },
+  "triggers": {}
+}

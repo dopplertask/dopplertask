@@ -1,0 +1,426 @@
+{
+  "name": "google-slides",
+  "label": "Google Slides",
+  "description": "",
+  "icon": "",
+  "hosts": [
+    "slides.googleapis.com",
+    "www.googleapis.com"
+  ],
+  "upstream": {
+    "package": "@activepieces/piece-google-slides",
+    "version": "0.4.4"
+  },
+  "credential": {
+    "oauth2": {
+      "authUrl": "https://accounts.google.com/o/oauth2/auth",
+      "tokenUrl": "https://oauth2.googleapis.com/token",
+      "scope": "https://www.googleapis.com/auth/presentations https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/spreadsheets email"
+    }
+  },
+  "actions": {
+    "get_presentation": {
+      "label": "Get Presentation",
+      "description": "Get all slides from a presentation",
+      "inputs": {
+        "presentation_id": {
+          "label": "Presentation ID",
+          "description": "The presentation ID (between /d/ and /edit in its URL), or the full URL.",
+          "required": true
+        },
+        "fields": {
+          "label": "Fields",
+          "description": "Optional Google field mask to return only part of the presentation, e.g. presentationId,title,slides(objectId). Leave empty for the full presentation."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://slides.googleapis.com/v1/presentations/{{presentation_id}}",
+        "query": {
+          "fields": "{{fields}}"
+        }
+      }
+    },
+    "generate_from_template": {
+      "label": "Generate from template",
+      "description": "Generate a new slide from a template",
+      "inputs": {
+        "template_presentation_id": {
+          "label": "Template presentation ID",
+          "description": "The template presentation ID (between /d/ and /edit in its URL), or the full URL.",
+          "required": true
+        },
+        "placeholder_format": {
+          "label": "Placeholder Format",
+          "description": "Choose the format of placeholders in your template",
+          "required": true,
+          "type": "select",
+          "options": [
+            {
+              "value": "{{}}",
+              "label": "Curly Braces {{}}"
+            },
+            {
+              "value": "[[]]",
+              "label": "Square Brackets [[]]"
+            }
+          ],
+          "defaultValue": "{{}}"
+        },
+        "folder_id": {
+          "label": "Folder",
+          "description": "Optional Drive folder for the new presentation: its ID or URL (https://drive.google.com/drive/folders/<id>). Leave empty to use the default location. A service account needs a folder in a Shared Drive here."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://www.googleapis.com/drive/v3/files/{{template_presentation_id}}/copy",
+        "query": {
+          "supportsAllDrives": "true",
+          "fields": "id"
+        },
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.13.0"
+        },
+        "body": {
+          "name": "New Presentation",
+          "parents": [
+            "{{folder_id}}"
+          ]
+        }
+      }
+    },
+    "create_presentation": {
+      "label": "Create Presentation",
+      "description": "Create a new, empty Google Slides presentation, optionally in a Drive folder.",
+      "inputs": {
+        "title": {
+          "label": "Title",
+          "description": "Name of the new presentation, e.g. \"Q3 Business Review\".",
+          "required": true
+        },
+        "folder_id": {
+          "label": "Folder",
+          "description": "Optional Drive folder: its ID or URL (https://drive.google.com/drive/folders/<id>). Leave empty for My Drive. A service account needs a folder in a Shared Drive here."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://www.googleapis.com/drive/v3/files",
+        "query": {
+          "supportsAllDrives": "true",
+          "fields": "id,name,createdTime"
+        },
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.13.0"
+        },
+        "body": {
+          "name": "{{title}}",
+          "mimeType": "application/vnd.google-apps.presentation",
+          "parents": [
+            "{{folder_id}}"
+          ]
+        }
+      }
+    },
+    "copy_presentation": {
+      "label": "Copy Presentation",
+      "description": "Make a copy of a presentation, optionally with a new name and folder.",
+      "inputs": {
+        "presentation_id": {
+          "label": "Presentation to Copy",
+          "description": "The presentation ID or its full URL, e.g. https://docs.google.com/presentation/d/1AbC...xyz/edit or just 1AbC...xyz.",
+          "required": true
+        },
+        "name": {
+          "label": "New Name",
+          "description": "Name of the copy. Leave empty for Google's default (\"Copy of <name>\")."
+        },
+        "folder_id": {
+          "label": "Folder",
+          "description": "Optional Drive folder for the copy: its ID or URL (https://drive.google.com/drive/folders/<id>). Leave empty to use the default location. A service account needs a folder in a Shared Drive here."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://www.googleapis.com/drive/v3/files/{{presentation_id}}/copy",
+        "query": {
+          "supportsAllDrives": "true",
+          "fields": "id,name,createdTime"
+        },
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.13.0"
+        },
+        "body": {
+          "name": "{{name}}",
+          "parents": [
+            "{{folder_id}}"
+          ]
+        }
+      }
+    },
+    "insert_text": {
+      "label": "Insert Text",
+      "description": "Insert text into a shape, text box or table cell (appends by default).",
+      "inputs": {
+        "presentation_id": {
+          "label": "Presentation",
+          "description": "The presentation ID or its full URL, e.g. https://docs.google.com/presentation/d/1AbC...xyz/edit or just 1AbC...xyz.",
+          "required": true
+        },
+        "object_id": {
+          "label": "Element Object ID",
+          "description": "Object ID of the shape, text box, placeholder or table, e.g. \"g2c8d1e5a7f_0_3\". Get it from List Slide Elements, Get Presentation Outline (elements[].objectId), or the output of Create Shape / Create Table. For a table also set Row and Column.",
+          "required": true
+        },
+        "row": {
+          "label": "Row",
+          "description": "Table cells only: row number, starting at 1. Leave empty for shapes and text boxes.",
+          "type": "number"
+        },
+        "column": {
+          "label": "Column",
+          "description": "Table cells only: column number, starting at 1. Leave empty for shapes and text boxes.",
+          "type": "number"
+        },
+        "text": {
+          "label": "Text",
+          "description": "The text to insert. Start it with \\n to begin a new paragraph after the existing text.",
+          "required": true,
+          "type": "multiline"
+        },
+        "insertion_index": {
+          "label": "Insertion Index",
+          "description": "Optional 0-based character position (0 = start). Leave empty to append at the end.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://slides.googleapis.com/v1/presentations/{{presentation_id}}",
+        "query": {
+          "fields": "presentationId,revisionId,pageSize,slides(objectId,pageElements)"
+        }
+      }
+    },
+    "set_element_text": {
+      "label": "Set Element Text",
+      "description": "Replace all text in a shape, text box, placeholder or table cell.",
+      "inputs": {
+        "presentation_id": {
+          "label": "Presentation",
+          "description": "The presentation ID or its full URL, e.g. https://docs.google.com/presentation/d/1AbC...xyz/edit or just 1AbC...xyz.",
+          "required": true
+        },
+        "object_id": {
+          "label": "Element Object ID",
+          "description": "Object ID of the shape, text box, placeholder or table, e.g. \"g2c8d1e5a7f_0_3\". Get it from List Slide Elements, Get Presentation Outline (elements[].objectId), or the output of Create Shape / Create Table. For a table also set Row and Column.",
+          "required": true
+        },
+        "row": {
+          "label": "Row",
+          "description": "Table cells only: row number, starting at 1. Leave empty for shapes and text boxes.",
+          "type": "number"
+        },
+        "column": {
+          "label": "Column",
+          "description": "Table cells only: column number, starting at 1. Leave empty for shapes and text boxes.",
+          "type": "number"
+        },
+        "text": {
+          "label": "Text",
+          "description": "The new text. Use \\n for a new paragraph. Leave empty only together with Clear Text.",
+          "type": "multiline"
+        },
+        "clear_text": {
+          "label": "Clear Text",
+          "description": "Turn on to remove all text from the element. Leave Text empty when using this.",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://slides.googleapis.com/v1/presentations/{{presentation_id}}",
+        "query": {
+          "fields": "presentationId,revisionId,pageSize,slides(objectId,pageElements)"
+        }
+      }
+    },
+    "update_paragraph_style": {
+      "label": "Update Paragraph Style",
+      "description": "Set alignment, line spacing, paragraph spacing and bullets in a shape or table cell.",
+      "inputs": {
+        "presentation_id": {
+          "label": "Presentation",
+          "description": "The presentation ID or its full URL, e.g. https://docs.google.com/presentation/d/1AbC...xyz/edit or just 1AbC...xyz.",
+          "required": true
+        },
+        "object_id": {
+          "label": "Element Object ID",
+          "description": "Object ID of the shape, text box, placeholder or table, e.g. \"g2c8d1e5a7f_0_3\". Get it from List Slide Elements, Get Presentation Outline (elements[].objectId), or the output of Create Shape / Create Table. For a table also set Row and Column.",
+          "required": true
+        },
+        "row": {
+          "label": "Row",
+          "description": "Table cells only: row number, starting at 1. Leave empty for shapes and text boxes.",
+          "type": "number"
+        },
+        "column": {
+          "label": "Column",
+          "description": "Table cells only: column number, starting at 1. Leave empty for shapes and text boxes.",
+          "type": "number"
+        },
+        "match_text": {
+          "label": "Match Text",
+          "description": "Optional: only change every occurrence of this exact text (case-sensitive) inside the element. Leave empty (and Start/End Index empty) for all of its text."
+        },
+        "start_index": {
+          "label": "Start Index",
+          "description": "Optional 0-based start of a character range (instead of Match Text).",
+          "type": "number"
+        },
+        "end_index": {
+          "label": "End Index",
+          "description": "Optional 0-based end of the range, exclusive (instead of Match Text).",
+          "type": "number"
+        },
+        "alignment": {
+          "label": "Alignment",
+          "description": "START (left in left-to-right text), CENTER, END or JUSTIFIED.",
+          "type": "select",
+          "options": [
+            {
+              "value": "START",
+              "label": "START"
+            },
+            {
+              "value": "CENTER",
+              "label": "CENTER"
+            },
+            {
+              "value": "END",
+              "label": "END"
+            },
+            {
+              "value": "JUSTIFIED",
+              "label": "JUSTIFIED"
+            }
+          ]
+        },
+        "line_spacing": {
+          "label": "Line Spacing (%)",
+          "description": "Line spacing as a percentage of normal: 100 = single, 150 = one and a half.",
+          "type": "number"
+        },
+        "space_above": {
+          "label": "Space Above (pt)",
+          "description": "Space before each paragraph, in points.",
+          "type": "number"
+        },
+        "space_below": {
+          "label": "Space Below (pt)",
+          "description": "Space after each paragraph, in points.",
+          "type": "number"
+        },
+        "bullets": {
+          "label": "Bullets",
+          "description": "Bullet or numbering preset for the paragraphs, or NONE to remove bullets.",
+          "type": "select",
+          "options": [
+            {
+              "value": "BULLET_DISC_CIRCLE_SQUARE",
+              "label": "BULLET_DISC_CIRCLE_SQUARE"
+            },
+            {
+              "value": "BULLET_ARROW_DIAMOND_DISC",
+              "label": "BULLET_ARROW_DIAMOND_DISC"
+            },
+            {
+              "value": "BULLET_CHECKBOX",
+              "label": "BULLET_CHECKBOX"
+            },
+            {
+              "value": "BULLET_STAR_CIRCLE_SQUARE",
+              "label": "BULLET_STAR_CIRCLE_SQUARE"
+            },
+            {
+              "value": "NUMBERED_DIGIT_ALPHA_ROMAN",
+              "label": "NUMBERED_DIGIT_ALPHA_ROMAN"
+            },
+            {
+              "value": "NUMBERED_DIGIT_ALPHA_ROMAN_PARENS",
+              "label": "NUMBERED_DIGIT_ALPHA_ROMAN_PARENS"
+            },
+            {
+              "value": "NUMBERED_DIGIT_NESTED",
+              "label": "NUMBERED_DIGIT_NESTED"
+            },
+            {
+              "value": "NUMBERED_UPPERALPHA_ALPHA_ROMAN",
+              "label": "NUMBERED_UPPERALPHA_ALPHA_ROMAN"
+            },
+            {
+              "value": "NUMBERED_UPPERROMAN_UPPERALPHA_DIGIT",
+              "label": "NUMBERED_UPPERROMAN_UPPERALPHA_DIGIT"
+            },
+            {
+              "value": "NONE",
+              "label": "NONE"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://slides.googleapis.com/v1/presentations/{{presentation_id}}",
+        "query": {
+          "fields": "presentationId,revisionId,pageSize,slides(objectId,pageElements)"
+        }
+      }
+    },
+    "move_resize_element": {
+      "label": "Move or Resize Element",
+      "description": "Set the position and/or size of an element on a slide, in points.",
+      "inputs": {
+        "presentation_id": {
+          "label": "Presentation",
+          "description": "The presentation ID or its full URL, e.g. https://docs.google.com/presentation/d/1AbC...xyz/edit or just 1AbC...xyz.",
+          "required": true
+        },
+        "object_id": {
+          "label": "Element Object ID",
+          "description": "Object ID of the element to move or resize (from List Slide Elements or Get Presentation Outline).",
+          "required": true
+        },
+        "x": {
+          "label": "X (pt)",
+          "description": "New distance from the left edge of the slide, in points.",
+          "type": "number"
+        },
+        "y": {
+          "label": "Y (pt)",
+          "description": "New distance from the top edge of the slide, in points.",
+          "type": "number"
+        },
+        "width": {
+          "label": "Width (pt)",
+          "description": "New width in points.",
+          "type": "number"
+        },
+        "height": {
+          "label": "Height (pt)",
+          "description": "New height in points.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://slides.googleapis.com/v1/presentations/{{presentation_id}}",
+        "query": {
+          "fields": "presentationId,revisionId,pageSize,slides(objectId,pageElements)"
+        }
+      }
+    }
+  },
+  "triggers": {}
+}

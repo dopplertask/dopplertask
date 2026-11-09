@@ -1,0 +1,180 @@
+{
+  "name": "buffer",
+  "label": "Buffer",
+  "description": "Schedule, publish and analyze social media posts across multiple channels with Buffer.",
+  "icon": "buffer",
+  "hosts": [
+    "api.buffer.com"
+  ],
+  "upstream": {
+    "package": "@activepieces/piece-buffer",
+    "version": "0.1.5"
+  },
+  "credential": {
+    "fields": {
+      "token": {
+        "label": "Access Token",
+        "description": "\n**How to get your Buffer access token:**\n\n1. Sign in to Buffer at https://buffer.com and open the [Developer Apps](https://publish.buffer.com/developers/apps) page.\n2. Click **Create New App** and fill in the basic details (callback URL can be any placeholder).\n3. After the app is created, copy the **Access Token** shown on the app's page.\n4. Paste it below.\n\nThe token is sent as a Bearer token to the Buffer GraphQL API (https://api.buffer.com).",
+        "secret": true,
+        "required": true
+      }
+    },
+    "headers": {
+      "authorization": "Bearer {{credential.token}}"
+    }
+  },
+  "actions": {
+    "create_post": {
+      "label": "Create Post",
+      "description": "Create a post in Buffer and add it to the queue, share it next, share it now, or schedule it for a custom time.",
+      "inputs": {
+        "organizationId": {
+          "label": "Organization",
+          "description": "The Buffer organization to use.",
+          "required": true
+        },
+        "channelIds": {
+          "label": "Channels",
+          "description": "The Buffer channels to publish to.",
+          "required": true,
+          "type": "json"
+        },
+        "text": {
+          "label": "Text",
+          "description": "The text content of the post.",
+          "required": true,
+          "type": "multiline"
+        },
+        "mode": {
+          "label": "Share Mode",
+          "description": "When and how the post should be published.",
+          "required": true,
+          "type": "select",
+          "options": [
+            {
+              "value": "addToQueue",
+              "label": "Add to Queue"
+            },
+            {
+              "value": "shareNext",
+              "label": "Share Next (skip the queue)"
+            },
+            {
+              "value": "shareNow",
+              "label": "Share Now"
+            },
+            {
+              "value": "customScheduled",
+              "label": "Schedule for Custom Time"
+            }
+          ],
+          "defaultValue": "addToQueue"
+        },
+        "dueAt": {
+          "label": "Scheduled Time",
+          "description": "When to publish the post. Required when Share Mode is \"Schedule for Custom Time\". ISO 8601 (UTC)."
+        },
+        "schedulingType": {
+          "label": "Scheduling Type",
+          "description": "Use \"Automatic\" for channels Buffer can publish to directly. Use \"Notification\" for channels that require manual publishing via the Buffer mobile app (e.g. Instagram personal accounts).",
+          "required": true,
+          "type": "select",
+          "options": [
+            {
+              "value": "automatic",
+              "label": "Automatic"
+            },
+            {
+              "value": "notification",
+              "label": "Notification (manual publish)"
+            }
+          ],
+          "defaultValue": "automatic"
+        },
+        "saveToDraft": {
+          "label": "Save as Draft",
+          "description": "Save the post as a draft instead of scheduling it. Drafts are not published until explicitly scheduled.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "imageUrls": {
+          "label": "Image URLs",
+          "description": "Public URLs of images to attach to the post.",
+          "type": "json"
+        },
+        "linkUrl": {
+          "label": "Link URL",
+          "description": "A link to attach to the post (used as a link preview)."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.buffer.com/",
+        "body": {
+          "query": "\n  mutation CreatePost($input: CreatePostInput!) {\n    createPost(input: $input) {\n      __typename\n      ... on PostActionSuccess {\n        post {\n          id\n          text\n          status\n          dueAt\n          sentAt\n          channelId\n        }\n      }\n      ... on MutationError {\n        message\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "channelId": "s",
+              "text": "{{text}}",
+              "assets": [
+                {
+                  "link": {
+                    "url": "{{linkUrl}}"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "create_idea": {
+      "label": "Create Idea",
+      "description": "Save a new idea to your Buffer Idea Bank.",
+      "inputs": {
+        "organizationId": {
+          "label": "Organization",
+          "description": "The Buffer organization to use.",
+          "required": true
+        },
+        "title": {
+          "label": "Title",
+          "description": "A short title or headline for the idea."
+        },
+        "text": {
+          "label": "Text",
+          "description": "The main body of the idea.",
+          "type": "multiline"
+        },
+        "imageUrls": {
+          "label": "Image URLs",
+          "description": "Public URLs of images to attach to the idea.",
+          "type": "json"
+        },
+        "aiAssisted": {
+          "label": "AI Assisted",
+          "description": "Mark this idea as created with AI assistance.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.buffer.com/",
+        "body": {
+          "query": "\n  mutation CreateIdea($input: CreateIdeaInput!) {\n    createIdea(input: $input) {\n      __typename\n      ... on IdeaResponse {\n        idea {\n          id\n          organizationId\n          groupId\n          createdAt\n          updatedAt\n          content {\n            title\n            text\n            media { url type alt }\n            tags { id name color }\n          }\n        }\n        refreshIdeas\n      }\n      ... on MutationError {\n        message\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "organizationId": "{{organizationId}}",
+              "content": {
+                "title": "{{title}}",
+                "text": "{{text}}"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "triggers": {}
+}
