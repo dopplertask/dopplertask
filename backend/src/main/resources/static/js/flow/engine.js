@@ -1162,9 +1162,11 @@ function createStore() {
       }
       runner.load(run);
     },
-    /* The run ends as stopped once the server has stopped it, which following it shows. */
+    /* The run ends as stopped once the server has stopped it, which following it shows. Nothing follows a waiting run
+       while it waits, so a stop starts following it. */
     async stopRun(run) {
       await request(`/execution/${run.id}/stop`, { method: 'POST' });
+      if (!run.live) followRun(run);
     },
     /* Runs one step on its own with the values given, without touching the run history. */
     async testStep(nodeId, { parameters, lastOutput, lastOutputVariables }) {

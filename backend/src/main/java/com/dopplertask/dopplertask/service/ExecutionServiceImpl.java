@@ -89,24 +89,17 @@ public class ExecutionServiceImpl implements ExecutionService {
             execution.setStartdate(new Date());
             execution.setStartedByAgent(taskExecutionRequest.isStartedByAgent());
 
-            String cannotResume = taskExecutionRequest.getResumeFromExecutionId() == null ? null : prepareResume(execution, task, taskExecutionRequest);
+            Long resumedFrom = execution.getResumedFrom();
+            TaskExecution earlierRun = resumedFrom == null ? null : taskExecutionDao.findById(resumedFrom).orElse(null);
+            String cannotResume = resumedFrom == null ? null : prepareResume(execution, task, resumedFrom, earlierRun, taskExecutionRequest.getParameters());
             if (cannotResume != null) {
-                execution.setStatus(TaskExecutionStatus.FAILED);
-                TaskExecutionLog resumeFailed = new TaskExecutionLog();
-                resumeFailed.setTaskExecution(execution);
-                resumeFailed.setOutput(cannotResume);
-                resumeFailed.setBroadcasted(true);
-                execution.addLog(resumeFailed);
-                execution.setSuccess(false);
-                execution.setFailureReason(cannotResume);
+                execution.fail(cannotResume);
                 return execution;
             }
 
             // Check if task is started by trigger when the active is set to false, if so, fail.
             if (startedByTrigger && !task.isActive()) {
-                execution.setSuccess(false);
-                execution.setStatus(TaskExecutionStatus.FAILED);
-                addLog(execution, "Task is not active. Please set task to active to respond to webhooks", OutputType.STRING, Map.of(), true, false);
+                execution.fail("Task is not active. Please set task to active to respond to webhooks");
                 return execution;
             }
 
@@ -122,18 +115,25 @@ public class ExecutionServiceImpl implements ExecutionService {
             }
 
             if (!missingParameters.isEmpty()) {
-                execution.setStatus(TaskExecutionStatus.FAILED);
                 String missingParametersAsString = Arrays.toString(missingParameters.toArray());
-                TaskExecutionLog executionFailed = new TaskExecutionLog();
-                executionFailed.setTaskExecution(execution);
-                executionFailed.setOutput("Task execution failed, missing parameters: " + missingParametersAsString + " [taskId=" + task.getId() + ", executionId=" + execution.getId() + "]");
-                executionFailed.setBroadcasted(true);
-                execution.addLog(executionFailed);
-                execution.setSuccess(false);
-                execution.setFailureReason(executionFailed.getOutput());
+                execution.fail("Task execution failed, missing parameters: " + missingParametersAsString + " [taskId=" + task.getId() + ", executionId=" + execution.getId() + "]");
                 LOG.info("Task execution failed, missing parameters: {} [taskId={}, executionId={}]", missingParametersAsString, task.getId(), execution.getId());
 
                 return execution;
+            }
+
+            // The earlier run's steps, and a waiting run's answer, go to this run only when it starts, so that a run that
+            // cannot start leaves the answer there and is not one that can be resumed itself.
+            if (earlierRun != null && earlierRun.isAnswered()) {
+                String arrived = earlierRun.getResumeEvent();
+                if (taskExecutionDao.takeAnswer(earlierRun.getId(), TaskExecutionStatus.FINISHED, new Date()) == 0) {
+                    execution.fail("Could not resume. Execution " + earlierRun.getId() + " has already continued or was stopped.");
+                    return execution;
+                }
+                execution.setResumeEvent(arrived);
+            }
+            if (earlierRun != null) {
+                continueSteps(execution, earlierRun);
             }
 
             execution.setStatus(TaskExecutionStatus.STARTED);
@@ -336,19 +336,25 @@ public class ExecutionServiceImpl implements ExecutionService {
     }
 
     /**
-     * Sets up the execution to continue an earlier run with its values and its finished steps, at the step where it
-     * failed, or at the step where it waits, which then reads what arrived.
+     * Sets up the execution to continue an earlier run with its values, at the step where it failed or was stopped, or
+     * at the step where it waits, which then reads what arrived. Its finished steps follow when the run starts.
      *
      * @return why the run cannot be resumed, or null when it can.
      */
-    private String prepareResume(TaskExecution execution, Task task, TaskExecutionRequest request) {
-        Long resumeFromExecutionId = request.getResumeFromExecutionId();
-        TaskExecution earlierRun = taskExecutionDao.findById(resumeFromExecutionId).orElse(null);
+    private String prepareResume(TaskExecution execution, Task task, Long resumeFromExecutionId, TaskExecution earlierRun, Map<String, ExecutionParameter> given) {
         if (earlierRun == null || earlierRun.getTask() == null || !earlierRun.getTask().getName().equals(task.getName())) {
             return "Could not resume. Execution " + resumeFromExecutionId + " is not a run of " + task.getName() + ".";
         }
-        // A waiting run continues only with what arrived at its address, which took its key.
-        boolean answered = earlierRun.getStatus() == TaskExecutionStatus.WAITING && earlierRun.getWaitKey() == null && request.getResumeWith() != null;
+        // A waiting run continues only when its address was called. It, and every run that goes on after a person's
+        // answer, continues with the values the person saw who answered and with the current version of the task.
+        boolean answered = earlierRun.isAnswered();
+        boolean keepsValues = answered || earlierRun.isAfterAnswer();
+        if (keepsValues && changesParameters(task, earlierRun, given)) {
+            return "Could not resume. Execution " + resumeFromExecutionId + " goes on after an answer, so it continues with the values it had. Leave the parameters out or give the same values.";
+        }
+        if (keepsValues && !taskDao.findFirstByNameAndProposedFalseOrderByCreatedDesc(task.getName()).map(current -> current.getId().equals(task.getId())).orElse(false)) {
+            return "Could not resume. Execution " + resumeFromExecutionId + " goes on after an answer, so it continues with the current version of " + task.getName() + ".";
+        }
         List<TaskExecutionStep> steps = earlierRun.getSteps();
         // A run that a person stopped ends at the step that was going, in the same way as one that failed there.
         boolean endedAtAStep = earlierRun.getStatus() == TaskExecutionStatus.FAILED || earlierRun.getStatus() == TaskExecutionStatus.ABORTED;
@@ -357,23 +363,42 @@ public class ExecutionServiceImpl implements ExecutionService {
         }
         String resumePort = steps.get(steps.size() - 1).getPortId();
         if (resumePort == null || task.getActionByPort(resumePort) == null) {
-            // Its key is taken, so a waiting run that cannot continue ends here.
-            if (answered) {
-                earlierRun.setStatus(TaskExecutionStatus.FAILED);
+            String removed = "Could not resume. The step to continue at is no longer in this task, so run the whole task instead.";
+            // Its key is taken, so a waiting run that cannot continue ends here, and what arrived is not kept.
+            if (answered && taskExecutionDao.takeAnswer(earlierRun.getId(), TaskExecutionStatus.FAILED, new Date()) == 1) {
+                earlierRun.setResumeEvent(null);
+                earlierRun.fail(removed);
             }
-            return "Could not resume. The step to continue at is no longer in this task, so run the whole task instead.";
+            return removed;
         }
 
+        // A run that goes on after an answer has exactly its own values, with its files and what its trigger gave, and
+        // none that the resume brings. Other runs keep their values unless the resume gives new ones.
+        if (keepsValues) {
+            execution.getParameters().clear();
+        }
         earlierRun.getParameters().forEach((name, parameter) -> execution.getParameters().putIfAbsent(name, new ExecutionParameter(name, parameter.getParamValue(), parameter.isBinary())));
+        execution.setAfterAnswer(keepsValues);
+        execution.setResumePortId(resumePort);
+        return null;
+    }
+
+    /**
+     * Whether a resume gives one of the task's parameters another value than the earlier run had. The editor sends the
+     * same values again, with the run's files as text, which is no change, and a file is not a value a person gives.
+     */
+    private static boolean changesParameters(Task task, TaskExecution earlierRun, Map<String, ExecutionParameter> given) {
+        return task.getTaskParameterList().stream().map(TaskParameter::getName).filter(given::containsKey).anyMatch(name -> {
+            ExecutionParameter had = earlierRun.getParameters().get(name);
+            return had == null || !had.isBinary() && !Arrays.equals(had.getParamValue(), given.get(name).getParamValue());
+        });
+    }
+
+    /** Takes over the finished steps and the loops of the earlier run, once the run continuing it starts. */
+    private static void continueSteps(TaskExecution execution, TaskExecution earlierRun) {
+        List<TaskExecutionStep> steps = earlierRun.getSteps();
         steps.subList(0, steps.size() - 1).forEach(step -> execution.addStep(step.copyTo(execution)));
         execution.continueLoopsOf(earlierRun);
-        execution.setResumePortId(resumePort);
-        if (answered) {
-            execution.setResumeEvent(request.getResumeWith());
-            earlierRun.setStatus(TaskExecutionStatus.FINISHED);
-            earlierRun.setEnddate(new Date());
-        }
-        return null;
     }
 
     private static Action stepOnFirstOutput(Action action) {

@@ -16,6 +16,7 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -129,21 +130,31 @@ public class RunHousekeeping {
 
     /**
      * A person stops a run. One that is going stops before its next step, or during a step that listens, and one that
-     * still waits ends before it starts.
+     * still waits ends before it starts. A run that waits for an answer ends with its address, and one that would
+     * continue an answered run ends that run too, so that nothing goes on after the stop.
      */
     public void stop(long executionId, String reason) throws InterruptedException {
         RunOfCustomer key = new RunOfCustomer(customerScope.current(), executionId);
         GoingRun run = going.get(key);
         if (run == null) {
             // Locked, so that a run starting at the same moment either sees the stop or is seen as started.
-            TaskExecutionStatus status = transactions.execute(transaction -> taskExecutionDao.findForUpdate(executionId)
-                    .map(execution -> {
-                        if (execution.getStatus() == TaskExecutionStatus.CREATED) {
-                            execution.abort(reason);
-                        }
-                        return execution.getStatus();
-                    })
-                    .orElse(null));
+            // Every queued continuation is locked by id before the run it continues, the same order as stopping that
+            // run and as a continuation that starts.
+            TaskExecutionStatus status = transactions.execute(transaction -> {
+                Optional<Long> continues = taskExecutionDao.resumedFromOfQueuedRun(executionId);
+                if (continues.isPresent()) {
+                    return stopQueuedContinuation(executionId, continues.get(), reason);
+                }
+                List<TaskExecution> continuations = lockedContinuationsOf(executionId);
+                return taskExecutionDao.findForUpdate(executionId).map(execution -> {
+                    if (execution.getStatus() == TaskExecutionStatus.WAITING) {
+                        endWaiting(execution, continuations, reason);
+                    } else if (execution.getStatus() == TaskExecutionStatus.CREATED) {
+                        execution.abort(reason);
+                    }
+                    return execution.getStatus();
+                }).orElse(null);
+            });
             if (status == TaskExecutionStatus.ABORTED) {
                 return;
             }
@@ -157,6 +168,45 @@ public class RunHousekeeping {
             }
         }
         run.askToStop(new Stop(reason, true, Instant.now()));
+    }
+
+    /**
+     * Ends one queued continuation. Its siblings are locked by id before the run they continue, so this cannot
+     * deadlock with a stop of that run or with another continuation starting.
+     */
+    private TaskExecutionStatus stopQueuedContinuation(long executionId, long waitingId, String reason) {
+        List<TaskExecution> continuations = lockedContinuationsOf(waitingId);
+        Optional<TaskExecution> waiting = taskExecutionDao.findForUpdate(waitingId);
+        Optional<TaskExecution> target = continuations.stream()
+                .filter(continuation -> continuation.getId() == executionId)
+                .findFirst();
+        if (target.isEmpty()) {
+            // It started while the stop waited for the lock, so the caller asks the running thread.
+            return TaskExecutionStatus.STARTED;
+        }
+        if (waiting.isPresent() && waiting.get().isAnswered()) {
+            endWaiting(waiting.get(), continuations, reason);
+        } else {
+            target.get().abort(reason);
+        }
+        return TaskExecutionStatus.ABORTED;
+    }
+
+    /**
+     * The runs still queued to continue a run, locked, by id, so that two stops lock them in the same order.
+     * The ids are read first. The lock is the first read of each run, so one that started while this waited is seen
+     * as started and is not saved as stopped.
+     */
+    private List<TaskExecution> lockedContinuationsOf(long executionId) {
+        return taskExecutionDao.queuedContinuationIds(executionId).stream()
+                .sorted().flatMap(id -> taskExecutionDao.findForUpdate(id).stream())
+                .filter(continuation -> continuation.getStatus() == TaskExecutionStatus.CREATED).toList();
+    }
+
+    /** A waiting run ends with its address and its answer, and so does every run still queued to continue it. */
+    private static void endWaiting(TaskExecution waiting, List<TaskExecution> continuations, String reason) {
+        waiting.stopWaiting(reason);
+        continuations.forEach(continuation -> continuation.abort(reason));
     }
 
     private String tooLong() {

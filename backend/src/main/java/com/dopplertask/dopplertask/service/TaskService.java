@@ -55,6 +55,9 @@ public interface TaskService {
      */
     TaskExecution resumeWaiting(String waitKey, String resumeEvent);
 
+    /** Continues each run whose answer arrived before the server stopped, once the server starts again. */
+    void continueAnsweredRuns();
+
     /**
      * Get all tasks
      *

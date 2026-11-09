@@ -56,12 +56,16 @@ public class TaskServiceImpl implements TaskService {
     @Autowired
     private TriggerListenerServiceImpl triggerListenerService;
 
+    @Autowired
+    private ObjectProvider<CustomerScope> customerScope;
+
 
     @Override
     public TaskExecution delegate(TaskRequest request) {
         LOG.info("Delegating action");
 
         TaskExecution execution = new TaskExecution();
+        execution.setResumedFrom(request.getResumeFromExecutionId());
         // Create execution record
         taskExecutionDao.save(execution);
 
@@ -72,8 +76,6 @@ public class TaskServiceImpl implements TaskService {
         taskExecutionRequest.setChecksum(request.getChecksum());
         taskExecutionRequest.setRemoveTaskAfterExecution(request.isRemoveTaskAfterExecution());
         taskExecutionRequest.setTriggerInfo(request.getTriggerInfo());
-        taskExecutionRequest.setResumeFromExecutionId(request.getResumeFromExecutionId());
-        taskExecutionRequest.setResumeWith(request.getResumeWith());
         taskExecutionRequest.setStartedByAgent(request.isStartedByAgent());
 
         RunQueue queue = runQueue.getIfAvailable();
@@ -101,12 +103,38 @@ public class TaskServiceImpl implements TaskService {
     @Override
     public TaskExecution resumeWaiting(String waitKey, String resumeEvent) {
         TaskExecution waiting = waitingRun(waitKey);
-        if (waiting == null || taskExecutionDao.takeWaitKey(waiting.getId(), waitKey) == 0) {
+        if (waiting == null || taskExecutionDao.answerWaiting(waiting.getId(), waitKey, resumeEvent) == 0) {
             return null;
         }
+        return continueAnswered(waiting);
+    }
+
+    @Override
+    public void continueAnsweredRuns() {
+        // Not in one transaction per customer, as housekeeping is: each continuation is saved before the queue reads it.
+        // A problem with one run or customer leaves the others to continue, and is tried again at the next start.
+        customerScope.getIfAvailable(() -> CustomerScope.ONE_CUSTOMER).forEachCustomer(() -> {
+            try {
+                taskExecutionDao.answeredRunsToContinue().forEach(run -> {
+                    if (run.getTask() == null) {
+                        LOG.warn("The answered run {} cannot continue, since it has no task. Stop it to end it.", run.getId());
+                        return;
+                    }
+                    try {
+                        continueAnswered(run);
+                    } catch (RuntimeException e) {
+                        LOG.error("The answered run {} could not continue", run.getId(), e);
+                    }
+                });
+            } catch (RuntimeException e) {
+                LOG.error("The answered runs could not be continued", e);
+            }
+        });
+    }
+
+    private TaskExecution continueAnswered(TaskExecution waiting) {
         TaskRequest request = new TaskRequest(waiting.getTask().getName(), new HashMap<>());
         request.setResumeFromExecutionId(waiting.getId());
-        request.setResumeWith(resumeEvent);
         return delegate(request);
     }
 
@@ -443,6 +471,7 @@ public class TaskServiceImpl implements TaskService {
     public TaskExecution runRequest(TaskRequest request) {
         TaskExecution execution = new TaskExecution();
         execution.setDepth(request.getDepth());
+        execution.setResumedFrom(request.getResumeFromExecutionId());
         // Create execution record
         // Always save to allow consumer to get a message
         taskExecutionDao.save(execution);
@@ -454,8 +483,6 @@ public class TaskServiceImpl implements TaskService {
         taskExecutionRequest.setDepth(request.getDepth());
         taskExecutionRequest.setChecksum(request.getChecksum());
         taskExecutionRequest.setTriggerInfo(request.getTriggerInfo());
-        taskExecutionRequest.setResumeFromExecutionId(request.getResumeFromExecutionId());
-        taskExecutionRequest.setResumeWith(request.getResumeWith());
         taskExecutionRequest.setStartedByAgent(request.isStartedByAgent());
 
         return this.runRequest(taskExecutionRequest);

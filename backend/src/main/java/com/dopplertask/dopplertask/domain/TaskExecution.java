@@ -60,7 +60,15 @@ public class TaskExecution {
     @Column(unique = true)
     private String waitKey;
 
-    // What arrived for the waiting step this run continues at, which that step reads.
+    // The run this run continues, so that a person who stops it before it starts also stops what it would continue.
+    @Column
+    private Long resumedFrom;
+
+    // Whether this run goes on after a person answered a waiting run, so that a resume keeps the values they saw.
+    @Column(columnDefinition = "boolean default false")
+    private boolean afterAnswer = false;
+
+    // What arrived at the address of a waiting run, kept until the run that continues it hands it to that step.
     @Column(columnDefinition = "TEXT")
     private String resumeEvent;
 
@@ -263,6 +271,34 @@ public class TaskExecution {
 
     public void setWaitKey(String waitKey) {
         this.waitKey = waitKey;
+    }
+
+    public Long getResumedFrom() {
+        return resumedFrom;
+    }
+
+    public void setResumedFrom(Long resumedFrom) {
+        this.resumedFrom = resumedFrom;
+    }
+
+    /** A person stops a waiting run: its address answers nothing more, and an answer it got is dropped. */
+    public void stopWaiting(String reason) {
+        waitKey = null;
+        resumeEvent = null;
+        abort(reason);
+    }
+
+    public boolean isAfterAnswer() {
+        return afterAnswer;
+    }
+
+    public void setAfterAnswer(boolean afterAnswer) {
+        this.afterAnswer = afterAnswer;
+    }
+
+    /** Whether the address of this waiting run was called, so that a run may continue it with what arrived. */
+    public boolean isAnswered() {
+        return status == TaskExecutionStatus.WAITING && waitKey == null && resumeEvent != null;
     }
 
     public String getResumeEvent() {

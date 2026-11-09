@@ -346,7 +346,7 @@ export default function boot() {
     toggle.title = runner.playing ? 'Pause this run' : runner.finished ? 'Watch this run again' : 'Continue this run';
     const failed = failedStepOf(run);
     byId('stripActions').innerHTML = `${runner.finished ? restartActionsHtml(failed) : ''}
-      ${run.live ? `<button type="button" class="labelled-button" data-wb="stop" title="Stop this run. The step that is going is asked to stop, and no further step starts.">${icon('stop')}<span>Stop</span></button>` : ''}
+      ${run.live || run.status === 'waiting' ? `<button type="button" class="labelled-button" data-wb="stop" title="Stop this run. The step that is going is asked to stop, and no further step starts. A run that waits for an answer ends.">${icon('stop')}<span>Stop</span></button>` : ''}
       ${historyToggle()}
       <button type="button" class="labelled-button" data-run-action="close" title="Close this run and go back to editing (esc)">${icon('x')}<span>Close</span></button>`;
   }
