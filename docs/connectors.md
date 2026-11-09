@@ -28,4 +28,4 @@ cd tools/connector-harness && node record.mjs ../../backend/src/test/resources/c
 cd backend && ./gradlew connectorCheckClasspath && java -cp "$(cat build/connector-check-classpath.txt)" com.dopplertask.dopplertask.ConnectorCheck resend
 ```
 
-The recorder needs Node 22 or later. The check reads the files from the source folders, so a new or changed connector needs no build.
+The recorder needs Node 22 or later. The recorder and the check both run in UTC, so that a time is written the same on every machine. The check reads the files from the source folders, so a new or changed connector needs no build.

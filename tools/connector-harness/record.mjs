@@ -15,6 +15,9 @@ import { createMockActionContext } from '@activepieces/pieces-framework';
 // Headers that differ between HTTP clients without changing what a service receives.
 const NOISE = new Set(['user-agent', 'accept-encoding', 'accept', 'content-length', 'host', 'connection', 'accept-language', 'sec-fetch-mode']);
 
+// In UTC, as the check runs ours, so that a time is written the same on every machine.
+process.env.TZ = 'UTC';
+
 if (Number(process.versions.node.split('.')[0]) < 22) throw new Error(`The recorder needs Node 22 or later, and this is ${process.version}.`);
 
 const fixturePath = process.argv[2];

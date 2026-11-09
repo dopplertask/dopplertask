@@ -31,6 +31,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TimeZone;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 
@@ -69,9 +70,13 @@ public class ConnectorCheck {
         server.createContext("/", this::answer);
         server.start();
         Connectors.INSTANCE.setLocalServerForTests("http://127.0.0.1:" + server.getAddress().getPort());
+        // In UTC, as the recorder runs the original, so that a time is written the same on every machine.
+        TimeZone zone = TimeZone.getDefault();
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
         try {
             return check(only);
         } finally {
+            TimeZone.setDefault(zone);
             Connectors.INSTANCE.setLocalServerForTests(null);
             server.stop(0);
         }
@@ -103,6 +108,7 @@ public class ConnectorCheck {
 
     private Outcome run(String connector, JsonNode fixture) throws IOException {
         sent.clear();
+        memoryDifference = null;
         List<JsonNode> replies = new ArrayList<>();
         fixture.path("answers").forEach(replies::add);
         answers = replies.iterator();
@@ -146,7 +152,6 @@ public class ConnectorCheck {
         ConnectorTrigger trigger = ConnectorTrigger.of(connector);
         trigger.setOperation(fixture.path("trigger").asText());
         trigger.setMemory(memoryOf(fixture.path("store")).toString());
-        memoryDifference = null;
         settings.properties().forEach(setting -> trigger.setSetting(setting.getKey(), setting.getValue().isString() ? setting.getValue().asString() : setting.getValue()));
         trigger.useCredentialValues(credential);
         if (fixture.path("webhook").asBoolean()) {
