@@ -72,7 +72,7 @@ class GoogleDriveAction : Action() {
 
         val signIn = GoogleAccount.signIn("Google Drive", this, keyText, SCOPE)
         if (signIn.failure != null) return signIn.failure
-        val base = read(baseUrl).trim().trimEnd('/')
+        val base = JsonApi.baseAddress(read(baseUrl))
         val files = "$base/drive/v3/files"
         val file = "$files/${JsonApi.encoded(fileValue)}"
         return when (operationValue) {

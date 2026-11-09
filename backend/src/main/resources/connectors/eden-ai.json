@@ -1,0 +1,6182 @@
+{
+  "name": "eden-ai",
+  "label": "Eden AI",
+  "description": "Eden AI is a platform that provides a range of AI services, including text generation, summarization, translation, and more.",
+  "icon": "",
+  "hosts": [
+    "api.edenai.run"
+  ],
+  "baseUrl": "https://api.edenai.run/v2",
+  "upstream": {
+    "package": "@activepieces/piece-eden-ai",
+    "version": "0.2.5"
+  },
+  "credential": {
+    "fields": {
+      "apiKey": {
+        "label": "Eden AI API Key",
+        "description": "You can obtain your API key from your [Eden AI dashboard](https://app.edenai.run/admin/api-settings/features-preferences).",
+        "secret": true,
+        "required": true
+      }
+    },
+    "headers": {
+      "Authorization": "Bearer {{credential.apiKey}}"
+    }
+  },
+  "actions": {
+    "generate_text": {
+      "label": "Generate Text",
+      "description": "Generate text completions using various AI providers through Eden AI chat endpoint.",
+      "inputs": {
+        "provider": {
+          "label": "Provider",
+          "description": "The AI provider to use for text generation.",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "openai",
+              "label": "OpenAI GPT-4o"
+            },
+            {
+              "value": "anthropic",
+              "label": "Anthropic Claude"
+            },
+            {
+              "value": "google",
+              "label": "Google Gemini"
+            },
+            {
+              "value": "meta",
+              "label": "Meta Llama"
+            },
+            {
+              "value": "mistral",
+              "label": "Mistral"
+            },
+            {
+              "value": "cohere",
+              "label": "Cohere"
+            },
+            {
+              "value": "xai",
+              "label": "XAI Grok"
+            },
+            {
+              "value": "amazon",
+              "label": "Amazon Nova"
+            },
+            {
+              "value": "microsoft",
+              "label": "Microsoft"
+            },
+            {
+              "value": "deepseek",
+              "label": "DeepSeek"
+            },
+            {
+              "value": "groq",
+              "label": "Groq"
+            }
+          ]
+        },
+        "prompt": {
+          "label": "Prompt",
+          "description": "The main prompt or question you want the AI to respond to.",
+          "type": "multiline",
+          "required": true
+        },
+        "system_prompt": {
+          "label": "System Prompt",
+          "description": "System message to set the behavior and context for the AI assistant (e.g., \"You are a helpful coding assistant\").",
+          "type": "multiline"
+        },
+        "model": {
+          "label": "Model",
+          "description": "Specific model to use (e.g., gpt-4o, claude-3-sonnet-latest, gemini-2.0-flash). Leave empty for provider-specific defaults."
+        },
+        "temperature": {
+          "label": "Temperature",
+          "description": "Controls randomness (0.0-2.0). Higher values make output more creative.",
+          "type": "number",
+          "defaultValue": "0.7"
+        },
+        "max_completion_tokens": {
+          "label": "Max Completion Tokens",
+          "description": "Maximum number of tokens to generate in the response.",
+          "type": "number",
+          "defaultValue": "1000"
+        },
+        "reasoning_effort": {
+          "label": "Reasoning Effort",
+          "description": "Level of reasoning depth for the response.",
+          "type": "select",
+          "options": [
+            {
+              "value": "low",
+              "label": "Low - Quick responses"
+            },
+            {
+              "value": "medium",
+              "label": "Medium - Balanced approach"
+            },
+            {
+              "value": "high",
+              "label": "High - In-depth reasoning"
+            }
+          ]
+        },
+        "fallback_providers": {
+          "label": "Fallback Providers",
+          "description": "Alternative providers to try if the main provider fails. A JSON list of: openai, anthropic, google, meta, mistral, cohere, xai, amazon, microsoft, deepseek, groq.",
+          "type": "json"
+        },
+        "include_image": {
+          "label": "Include Image",
+          "description": "Include an image in your prompt (for vision-capable models).",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "image_url": {
+          "label": "Image URL",
+          "description": "URL of the image to include in the prompt (only used if \"Include Image\" is enabled)."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.edenai.run/v2/llm/chat",
+        "body": {
+          "providers": "{{provider}}",
+          "temperature": "{{temperature}}",
+          "max_completion_tokens": "{{max_completion_tokens}}",
+          "reasoning_effort": "{{reasoning_effort}}",
+          "fallback_providers": "{{fallback_providers}}"
+        }
+      },
+      "beforeRequest": "const b = request.body, messages = [];\nconst validUrl = u => { const m = /^([A-Za-z][A-Za-z0-9+.-]*):([\\s\\S]*)$/.exec(String(u).trim()); if (!m) return false; if (!['http', 'https', 'ws', 'wss', 'ftp'].includes(m[1].toLowerCase())) return true; let host = m[2].replace(/^[\\/\\\\]+/, '').split(/[\\/\\\\?#]/)[0].replace(/^.*@/, ''); if (!host.startsWith('[')) { const i = host.lastIndexOf(':'); if (i >= 0) { const port = host.slice(i + 1); if (!/^\\d*$/.test(port) || (port && Number(port) > 65535)) return false; host = host.slice(0, i); } } return host.length > 0 && !/[\\s<>^|]/.test(host); };\nif (b.temperature !== undefined && (b.temperature < 0 || b.temperature > 2)) throw new Error('temperature is out of range.');\nif (b.max_completion_tokens !== undefined && (b.max_completion_tokens < 1)) throw new Error('max_completion_tokens is out of range.');\nif (inputs.image_url && !validUrl(inputs.image_url)) throw new Error('Image URL should be a valid URL.');\nif (inputs.system_prompt) messages.push({role: 'system', content: [{type: 'text', text: inputs.system_prompt}]});\nconst content = [{type: 'text', text: inputs.prompt}];\nif (inputs.include_image === 'true' && inputs.image_url) content.push({type: 'image_url', image_url: {url: inputs.image_url}});\nmessages.push({role: 'user', content});\nb.messages = messages;\nconst models = {openai: 'gpt-4o', anthropic: 'claude-3-sonnet-latest', google: 'gemini-2.0-flash', meta: 'llama-3.1-70b-instruct', mistral: 'mistral-large-latest', cohere: 'command-r-plus', xai: 'grok-2-latest', amazon: 'nova-pro-v1:0', microsoft: 'gpt-4o', deepseek: 'deepseek-chat', groq: 'llama-3.1-70b-versatile'};\nb.model = inputs.model || models[inputs.provider] || 'gpt-4o';\nif (!(b.fallback_providers && b.fallback_providers.length)) delete b.fallback_providers;\nreturn request;",
+      "afterResponse": "const p = inputs.provider, r = response[p];\nif (!r) return {provider: p, content: '', usage: null, raw: response};\nconst c = (r.choices || [])[0], m = c && c.message;\nreturn {provider: p, content: (m && m.content) || '', role: (m && m.role) || 'assistant', finish_reason: (c && c.finish_reason) || '', usage: r.usage || null, model: r.model || '', raw: response};"
+    },
+    "summarize_text": {
+      "label": "Summarize Text",
+      "description": "Extract key sentences and create summaries from long text passages using various AI providers.",
+      "inputs": {
+        "provider": {
+          "label": "Provider",
+          "description": "The AI provider to use for text summarization.",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "openai",
+              "label": "OpenAI GPT-4"
+            },
+            {
+              "value": "microsoft",
+              "label": "Microsoft"
+            },
+            {
+              "value": "cohere",
+              "label": "Cohere"
+            },
+            {
+              "value": "xai",
+              "label": "XAI Grok"
+            },
+            {
+              "value": "anthropic",
+              "label": "Anthropic Claude"
+            },
+            {
+              "value": "alephalpha",
+              "label": "Aleph Alpha"
+            },
+            {
+              "value": "writesonic",
+              "label": "Writesonic"
+            },
+            {
+              "value": "meaningcloud",
+              "label": "MeaningCloud"
+            },
+            {
+              "value": "emvista",
+              "label": "Emvista"
+            },
+            {
+              "value": "oneai",
+              "label": "OneAI"
+            }
+          ]
+        },
+        "text": {
+          "label": "Text to Summarize",
+          "description": "The text content you want to summarize. Can be articles, documents, or any long-form text.",
+          "type": "multiline",
+          "required": true
+        },
+        "output_sentences": {
+          "label": "Number of Summary Sentences",
+          "description": "How many sentences should the summary contain (1-20).",
+          "type": "number",
+          "defaultValue": "3"
+        },
+        "language": {
+          "label": "Language",
+          "description": "The language of the input text. Choose \"Auto Detection\" if unsure.",
+          "type": "select",
+          "defaultValue": "auto-detect",
+          "options": [
+            {
+              "value": "auto-detect",
+              "label": "Auto Detection"
+            },
+            {
+              "value": "bg",
+              "label": "Bulgarian"
+            },
+            {
+              "value": "zh",
+              "label": "Chinese"
+            },
+            {
+              "value": "zh-Hans",
+              "label": "Chinese (Simplified)"
+            },
+            {
+              "value": "cs",
+              "label": "Czech"
+            },
+            {
+              "value": "da",
+              "label": "Danish"
+            },
+            {
+              "value": "nl",
+              "label": "Dutch"
+            },
+            {
+              "value": "en",
+              "label": "English"
+            },
+            {
+              "value": "et",
+              "label": "Estonian"
+            },
+            {
+              "value": "fi",
+              "label": "Finnish"
+            },
+            {
+              "value": "fr",
+              "label": "French"
+            },
+            {
+              "value": "de",
+              "label": "German"
+            },
+            {
+              "value": "el",
+              "label": "Modern Greek"
+            },
+            {
+              "value": "hu",
+              "label": "Hungarian"
+            },
+            {
+              "value": "it",
+              "label": "Italian"
+            },
+            {
+              "value": "ja",
+              "label": "Japanese"
+            },
+            {
+              "value": "ko",
+              "label": "Korean"
+            },
+            {
+              "value": "lv",
+              "label": "Latvian"
+            },
+            {
+              "value": "pl",
+              "label": "Polish"
+            },
+            {
+              "value": "pt",
+              "label": "Portuguese"
+            },
+            {
+              "value": "pt-BR",
+              "label": "Portuguese (Brazil)"
+            },
+            {
+              "value": "pt-PT",
+              "label": "Portuguese (Portugal)"
+            },
+            {
+              "value": "ro",
+              "label": "Romanian"
+            },
+            {
+              "value": "ru",
+              "label": "Russian"
+            },
+            {
+              "value": "sk",
+              "label": "Slovak"
+            },
+            {
+              "value": "sl",
+              "label": "Slovenian"
+            },
+            {
+              "value": "es",
+              "label": "Spanish"
+            },
+            {
+              "value": "sv",
+              "label": "Swedish"
+            }
+          ]
+        },
+        "model": {
+          "label": "Model",
+          "description": "Specific model to use (e.g., gpt-4, gpt-4o, summarize-xlarge). Leave empty for default."
+        },
+        "fallback_providers": {
+          "label": "Fallback Providers",
+          "description": "Alternative providers to try if the main provider fails (up to 5). A JSON list of: openai, microsoft, cohere, xai, anthropic, alephalpha, writesonic, meaningcloud, emvista, oneai.",
+          "type": "json"
+        },
+        "show_original_response": {
+          "label": "Include Original Response",
+          "description": "Include the raw provider response in the output for debugging.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.edenai.run/v2/text/summarize",
+        "body": {
+          "providers": "{{provider}}",
+          "text": "{{text}}",
+          "output_sentences": "{{output_sentences}}",
+          "language": "{{language}}",
+          "show_original_response": "{{show_original_response}}",
+          "fallback_providers": "{{fallback_providers}}"
+        }
+      },
+      "beforeRequest": "const b = request.body;\nif (b.output_sentences !== undefined && (b.output_sentences < 1 || b.output_sentences > 20)) throw new Error('output_sentences is out of range.');\nif (b.fallback_providers !== undefined && (!Array.isArray(b.fallback_providers) || b.fallback_providers.length > 5 || b.fallback_providers.some(p => typeof p !== 'string'))) throw new Error('Fallback providers should be a list of at most 5 providers.');\nif (b.language === 'auto-detect') delete b.language;\nif (b.show_original_response !== true) delete b.show_original_response;\nif (!(b.fallback_providers && b.fallback_providers.length)) delete b.fallback_providers;\nif (inputs.model) b.settings = {[inputs.provider]: inputs.model};\nreturn request;",
+      "afterResponse": "const p = inputs.provider, r = response[p];\nif (!r) return Object.assign({provider: p}, {summary: ''}, {status: 'fail', raw: response});\nreturn Object.assign({provider: p}, {summary: r.result || ''}, {status: r.status || 'success', original_response: r.original_response || null, raw: response});"
+    },
+    "extract_keywords": {
+      "label": "Extract Keywords in Text",
+      "description": "Identify important terms in a text using Eden AI. Supports multiple providers, languages, and models.",
+      "inputs": {
+        "provider": {
+          "label": "Provider",
+          "description": "The AI provider to use for keyword extraction.",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "amazon",
+              "label": "Amazon"
+            },
+            {
+              "value": "microsoft",
+              "label": "Microsoft"
+            },
+            {
+              "value": "openai",
+              "label": "OpenAI"
+            },
+            {
+              "value": "tenstorrent",
+              "label": "Tenstorrent"
+            },
+            {
+              "value": "xai",
+              "label": "XAI Grok"
+            },
+            {
+              "value": "emvista",
+              "label": "Emvista"
+            },
+            {
+              "value": "corticalio",
+              "label": "Cortical.io"
+            },
+            {
+              "value": "oneai",
+              "label": "OneAI"
+            }
+          ]
+        },
+        "text": {
+          "label": "Text to Analyze",
+          "description": "The text to extract keywords from.",
+          "type": "multiline",
+          "required": true
+        },
+        "language": {
+          "label": "Language",
+          "description": "The language of the input text. Choose \"Auto Detection\" if unsure.",
+          "type": "select",
+          "defaultValue": "auto-detect",
+          "options": [
+            {
+              "value": "auto-detect",
+              "label": "Auto Detection"
+            },
+            {
+              "value": "af",
+              "label": "Afrikaans"
+            },
+            {
+              "value": "ar",
+              "label": "Arabic"
+            },
+            {
+              "value": "bg",
+              "label": "Bulgarian"
+            },
+            {
+              "value": "ca",
+              "label": "Catalan"
+            },
+            {
+              "value": "zh",
+              "label": "Chinese"
+            },
+            {
+              "value": "zh-Hans",
+              "label": "Chinese (Simplified)"
+            },
+            {
+              "value": "zh-TW",
+              "label": "Chinese (Taiwan)"
+            },
+            {
+              "value": "hr",
+              "label": "Croatian"
+            },
+            {
+              "value": "da",
+              "label": "Danish"
+            },
+            {
+              "value": "nl",
+              "label": "Dutch"
+            },
+            {
+              "value": "en",
+              "label": "English"
+            },
+            {
+              "value": "et",
+              "label": "Estonian"
+            },
+            {
+              "value": "fi",
+              "label": "Finnish"
+            },
+            {
+              "value": "fr",
+              "label": "French"
+            },
+            {
+              "value": "de",
+              "label": "German"
+            },
+            {
+              "value": "el",
+              "label": "Modern Greek"
+            },
+            {
+              "value": "hi",
+              "label": "Hindi"
+            },
+            {
+              "value": "hu",
+              "label": "Hungarian"
+            },
+            {
+              "value": "id",
+              "label": "Indonesian"
+            },
+            {
+              "value": "it",
+              "label": "Italian"
+            },
+            {
+              "value": "ja",
+              "label": "Japanese"
+            },
+            {
+              "value": "ko",
+              "label": "Korean"
+            },
+            {
+              "value": "lv",
+              "label": "Latvian"
+            },
+            {
+              "value": "no",
+              "label": "Norwegian"
+            },
+            {
+              "value": "nb",
+              "label": "Norwegian Bokmål"
+            },
+            {
+              "value": "pl",
+              "label": "Polish"
+            },
+            {
+              "value": "pt",
+              "label": "Portuguese"
+            },
+            {
+              "value": "pt-BR",
+              "label": "Portuguese (Brazil)"
+            },
+            {
+              "value": "pt-PT",
+              "label": "Portuguese (Portugal)"
+            },
+            {
+              "value": "ro",
+              "label": "Romanian"
+            },
+            {
+              "value": "ru",
+              "label": "Russian"
+            },
+            {
+              "value": "sk",
+              "label": "Slovak"
+            },
+            {
+              "value": "sl",
+              "label": "Slovenian"
+            },
+            {
+              "value": "es",
+              "label": "Spanish"
+            },
+            {
+              "value": "sv",
+              "label": "Swedish"
+            },
+            {
+              "value": "tr",
+              "label": "Turkish"
+            }
+          ]
+        },
+        "model": {
+          "label": "Model",
+          "description": "Specific model to use (e.g., gpt-4o, gpt-4, grok-2-latest). Leave empty for default."
+        },
+        "fallback_providers": {
+          "label": "Fallback Providers",
+          "description": "Alternative providers to try if the main provider fails (up to 5). A JSON list of: amazon, microsoft, openai, tenstorrent, xai, emvista, corticalio, oneai.",
+          "type": "json"
+        },
+        "show_original_response": {
+          "label": "Include Original Response",
+          "description": "Include the raw provider response in the output for debugging.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.edenai.run/v2/text/keyword_extraction",
+        "body": {
+          "providers": "{{provider}}",
+          "text": "{{text}}",
+          "language": "{{language}}",
+          "show_original_response": "{{show_original_response}}",
+          "fallback_providers": "{{fallback_providers}}"
+        }
+      },
+      "beforeRequest": "const b = request.body;\nif (b.fallback_providers !== undefined && (!Array.isArray(b.fallback_providers) || b.fallback_providers.length > 5 || b.fallback_providers.some(p => typeof p !== 'string'))) throw new Error('Fallback providers should be a list of at most 5 providers.');\nif (b.language === 'auto-detect') delete b.language;\nif (b.show_original_response !== true) delete b.show_original_response;\nif (!(b.fallback_providers && b.fallback_providers.length)) delete b.fallback_providers;\nif (inputs.model) b.settings = {[inputs.provider]: inputs.model};\nreturn request;",
+      "afterResponse": "const p = inputs.provider, r = response[p];\nif (!r) return Object.assign({provider: p}, {keywords: []}, {status: 'fail', raw: response});\nreturn Object.assign({provider: p}, {keywords: (r.items || []).map(i => ({keyword: i.keyword || '', importance: i.importance || 0}))}, {status: r.status || 'success', original_response: r.original_response || null, raw: response});"
+    },
+    "detect_language": {
+      "label": "Detect Language of Text",
+      "description": "Detect the language used in a text using Eden AI. Supports multiple providers and models.",
+      "inputs": {
+        "provider": {
+          "label": "Provider",
+          "description": "The AI provider to use for language detection.",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "amazon",
+              "label": "Amazon"
+            },
+            {
+              "value": "google",
+              "label": "Google"
+            },
+            {
+              "value": "microsoft",
+              "label": "Microsoft"
+            },
+            {
+              "value": "modernmt",
+              "label": "ModernMT"
+            },
+            {
+              "value": "openai",
+              "label": "OpenAI"
+            },
+            {
+              "value": "xai",
+              "label": "XAI Grok"
+            },
+            {
+              "value": "oneai",
+              "label": "OneAI"
+            }
+          ]
+        },
+        "text": {
+          "label": "Text to Analyze",
+          "description": "The text to detect language for.",
+          "type": "multiline",
+          "required": true
+        },
+        "model": {
+          "label": "Model",
+          "description": "Specific model to use (e.g., gpt-4o, grok-2-latest). Leave empty for default."
+        },
+        "fallback_providers": {
+          "label": "Fallback Providers",
+          "description": "Alternative providers to try if the main provider fails (up to 5). A JSON list of: amazon, google, microsoft, modernmt, openai, xai, oneai.",
+          "type": "json"
+        },
+        "show_original_response": {
+          "label": "Include Original Response",
+          "description": "Include the raw provider response in the output for debugging.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.edenai.run/v2/translation/language_detection",
+        "body": {
+          "providers": "{{provider}}",
+          "text": "{{text}}",
+          "show_original_response": "{{show_original_response}}",
+          "fallback_providers": "{{fallback_providers}}"
+        }
+      },
+      "beforeRequest": "const b = request.body;\nif (b.fallback_providers !== undefined && (!Array.isArray(b.fallback_providers) || b.fallback_providers.length > 5 || b.fallback_providers.some(p => typeof p !== 'string'))) throw new Error('Fallback providers should be a list of at most 5 providers.');\nif (b.show_original_response !== true) delete b.show_original_response;\nif (!(b.fallback_providers && b.fallback_providers.length)) delete b.fallback_providers;\nif (inputs.model) b.settings = {[inputs.provider]: inputs.model};\nreturn request;",
+      "afterResponse": "const p = inputs.provider, r = response[p];\nif (!r) return Object.assign({provider: p}, {languages: []}, {status: 'fail', raw: response});\nreturn Object.assign({provider: p}, {languages: (r.items || []).map(i => ({language: i.language || '', display_name: i.display_name || '', confidence: i.confidence || 0}))}, {status: r.status || 'success', original_response: r.original_response || null, raw: response});"
+    },
+    "extract_entities": {
+      "label": "Extract Named Entities in Text",
+      "description": "Identify entities (names, places) in text using Eden AI. Supports multiple providers, languages, and models.",
+      "inputs": {
+        "provider": {
+          "label": "Provider",
+          "description": "The AI provider to use for named entity recognition.",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "amazon",
+              "label": "Amazon"
+            },
+            {
+              "value": "google",
+              "label": "Google"
+            },
+            {
+              "value": "microsoft",
+              "label": "Microsoft"
+            },
+            {
+              "value": "openai",
+              "label": "OpenAI"
+            },
+            {
+              "value": "tenstorrent",
+              "label": "Tenstorrent"
+            },
+            {
+              "value": "xai",
+              "label": "XAI Grok"
+            },
+            {
+              "value": "oneai",
+              "label": "OneAI"
+            }
+          ]
+        },
+        "text": {
+          "label": "Text to Analyze",
+          "description": "The text to extract entities from.",
+          "type": "multiline",
+          "required": true
+        },
+        "language": {
+          "label": "Language",
+          "description": "The language of the input text. Choose \"Auto Detection\" if unsure.",
+          "type": "select",
+          "defaultValue": "auto-detect",
+          "options": [
+            {
+              "value": "auto-detect",
+              "label": "Auto Detection"
+            },
+            {
+              "value": "ar",
+              "label": "Arabic"
+            },
+            {
+              "value": "zh",
+              "label": "Chinese"
+            },
+            {
+              "value": "zh-Hans",
+              "label": "Chinese (Simplified)"
+            },
+            {
+              "value": "zh-TW",
+              "label": "Chinese (Taiwan)"
+            },
+            {
+              "value": "zh-Hant",
+              "label": "Chinese (Traditional)"
+            },
+            {
+              "value": "cs",
+              "label": "Czech"
+            },
+            {
+              "value": "da",
+              "label": "Danish"
+            },
+            {
+              "value": "nl",
+              "label": "Dutch"
+            },
+            {
+              "value": "en",
+              "label": "English"
+            },
+            {
+              "value": "fi",
+              "label": "Finnish"
+            },
+            {
+              "value": "fr",
+              "label": "French"
+            },
+            {
+              "value": "de",
+              "label": "German"
+            },
+            {
+              "value": "hi",
+              "label": "Hindi"
+            },
+            {
+              "value": "hu",
+              "label": "Hungarian"
+            },
+            {
+              "value": "it",
+              "label": "Italian"
+            },
+            {
+              "value": "ja",
+              "label": "Japanese"
+            },
+            {
+              "value": "ko",
+              "label": "Korean"
+            },
+            {
+              "value": "no",
+              "label": "Norwegian"
+            },
+            {
+              "value": "nb",
+              "label": "Norwegian Bokmål"
+            },
+            {
+              "value": "pl",
+              "label": "Polish"
+            },
+            {
+              "value": "pt",
+              "label": "Portuguese"
+            },
+            {
+              "value": "pt-BR",
+              "label": "Portuguese (Brazil)"
+            },
+            {
+              "value": "pt-PT",
+              "label": "Portuguese (Portugal)"
+            },
+            {
+              "value": "ru",
+              "label": "Russian"
+            },
+            {
+              "value": "es",
+              "label": "Spanish"
+            },
+            {
+              "value": "sv",
+              "label": "Swedish"
+            },
+            {
+              "value": "tr",
+              "label": "Turkish"
+            }
+          ]
+        },
+        "model": {
+          "label": "Model",
+          "description": "Specific model to use (e.g., gpt-4o, gemini-1.5-flash, grok-2-latest). Leave empty for default."
+        },
+        "fallback_providers": {
+          "label": "Fallback Providers",
+          "description": "Alternative providers to try if the main provider fails (up to 5). A JSON list of: amazon, google, microsoft, openai, tenstorrent, xai, oneai.",
+          "type": "json"
+        },
+        "show_original_response": {
+          "label": "Include Original Response",
+          "description": "Include the raw provider response in the output for debugging.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.edenai.run/v2/text/named_entity_recognition",
+        "body": {
+          "providers": "{{provider}}",
+          "text": "{{text}}",
+          "language": "{{language}}",
+          "show_original_response": "{{show_original_response}}",
+          "fallback_providers": "{{fallback_providers}}"
+        }
+      },
+      "beforeRequest": "const b = request.body;\nif (b.fallback_providers !== undefined && (!Array.isArray(b.fallback_providers) || b.fallback_providers.length > 5 || b.fallback_providers.some(p => typeof p !== 'string'))) throw new Error('Fallback providers should be a list of at most 5 providers.');\nif (b.language === 'auto-detect') delete b.language;\nif (b.show_original_response !== true) delete b.show_original_response;\nif (!(b.fallback_providers && b.fallback_providers.length)) delete b.fallback_providers;\nif (inputs.model) b.settings = {[inputs.provider]: inputs.model};\nreturn request;",
+      "afterResponse": "const p = inputs.provider, r = response[p];\nif (!r) return Object.assign({provider: p}, {entities: []}, {status: 'fail', raw: response});\nreturn Object.assign({provider: p}, {entities: (r.items || []).map(i => ({entity: i.entity || '', category: i.category || '', importance: i.importance || 0}))}, {status: r.status || 'success', original_response: r.original_response || null, raw: response});"
+    },
+    "moderate_text": {
+      "label": "Moderate Text",
+      "description": "Detect explicit or policy-violating text using Eden AI. Supports multiple providers, languages, and models.",
+      "inputs": {
+        "provider": {
+          "label": "Provider",
+          "description": "The AI provider to use for text moderation.",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "microsoft",
+              "label": "Microsoft"
+            },
+            {
+              "value": "openai",
+              "label": "OpenAI"
+            },
+            {
+              "value": "google",
+              "label": "Google"
+            }
+          ]
+        },
+        "text": {
+          "label": "Text to Moderate",
+          "description": "The text to analyze for explicit or policy-violating content.",
+          "type": "multiline",
+          "required": true
+        },
+        "language": {
+          "label": "Language",
+          "description": "The language of the input text. Choose \"Auto Detection\" if unsure.",
+          "type": "select",
+          "defaultValue": "auto-detect",
+          "options": [
+            {
+              "value": "auto-detect",
+              "label": "Auto Detection"
+            },
+            {
+              "value": "af",
+              "label": "Afrikaans"
+            },
+            {
+              "value": "sq",
+              "label": "Albanian"
+            },
+            {
+              "value": "am",
+              "label": "Amharic"
+            },
+            {
+              "value": "ar",
+              "label": "Arabic"
+            },
+            {
+              "value": "hy",
+              "label": "Armenian"
+            },
+            {
+              "value": "as",
+              "label": "Assamese"
+            },
+            {
+              "value": "az",
+              "label": "Azerbaijani"
+            },
+            {
+              "value": "eu",
+              "label": "Basque"
+            },
+            {
+              "value": "be",
+              "label": "Belarusian"
+            },
+            {
+              "value": "bn",
+              "label": "Bengali"
+            },
+            {
+              "value": "bs",
+              "label": "Bosnian"
+            },
+            {
+              "value": "br",
+              "label": "Breton"
+            },
+            {
+              "value": "bg",
+              "label": "Bulgarian"
+            },
+            {
+              "value": "ca",
+              "label": "Catalan"
+            },
+            {
+              "value": "ckb",
+              "label": "Central Kurdish"
+            },
+            {
+              "value": "chr",
+              "label": "Cherokee"
+            },
+            {
+              "value": "zh",
+              "label": "Chinese"
+            },
+            {
+              "value": "hr",
+              "label": "Croatian"
+            },
+            {
+              "value": "cs",
+              "label": "Czech"
+            },
+            {
+              "value": "da",
+              "label": "Danish"
+            },
+            {
+              "value": "nl",
+              "label": "Dutch"
+            },
+            {
+              "value": "en",
+              "label": "English"
+            },
+            {
+              "value": "et",
+              "label": "Estonian"
+            },
+            {
+              "value": "fil",
+              "label": "Filipino"
+            },
+            {
+              "value": "fi",
+              "label": "Finnish"
+            },
+            {
+              "value": "fr",
+              "label": "French"
+            },
+            {
+              "value": "ff",
+              "label": "Fulah"
+            },
+            {
+              "value": "gl",
+              "label": "Galician"
+            },
+            {
+              "value": "ka",
+              "label": "Georgian"
+            },
+            {
+              "value": "de",
+              "label": "German"
+            },
+            {
+              "value": "gu",
+              "label": "Gujarati"
+            },
+            {
+              "value": "ha",
+              "label": "Hausa"
+            },
+            {
+              "value": "he",
+              "label": "Hebrew"
+            },
+            {
+              "value": "hi",
+              "label": "Hindi"
+            },
+            {
+              "value": "hu",
+              "label": "Hungarian"
+            },
+            {
+              "value": "is",
+              "label": "Icelandic"
+            },
+            {
+              "value": "ig",
+              "label": "Igbo"
+            },
+            {
+              "value": "id",
+              "label": "Indonesian"
+            },
+            {
+              "value": "iu",
+              "label": "Inuktitut"
+            },
+            {
+              "value": "ga",
+              "label": "Irish"
+            },
+            {
+              "value": "it",
+              "label": "Italian"
+            },
+            {
+              "value": "ja",
+              "label": "Japanese"
+            },
+            {
+              "value": "kn",
+              "label": "Kannada"
+            },
+            {
+              "value": "kk",
+              "label": "Kazakh"
+            },
+            {
+              "value": "km",
+              "label": "Khmer"
+            },
+            {
+              "value": "rw",
+              "label": "Kinyarwanda"
+            },
+            {
+              "value": "ky",
+              "label": "Kirghiz"
+            },
+            {
+              "value": "kok",
+              "label": "Konkani"
+            },
+            {
+              "value": "ko",
+              "label": "Korean"
+            },
+            {
+              "value": "lo",
+              "label": "Lao"
+            },
+            {
+              "value": "lv",
+              "label": "Latvian"
+            },
+            {
+              "value": "lt",
+              "label": "Lithuanian"
+            },
+            {
+              "value": "lb",
+              "label": "Luxembourgish"
+            },
+            {
+              "value": "mk",
+              "label": "Macedonian"
+            },
+            {
+              "value": "ms",
+              "label": "Malay"
+            },
+            {
+              "value": "ml",
+              "label": "Malayalam"
+            },
+            {
+              "value": "mt",
+              "label": "Maltese"
+            },
+            {
+              "value": "mi",
+              "label": "Maori"
+            },
+            {
+              "value": "mr",
+              "label": "Marathi"
+            },
+            {
+              "value": "el",
+              "label": "Modern Greek"
+            },
+            {
+              "value": "mn",
+              "label": "Mongolian"
+            },
+            {
+              "value": "ne",
+              "label": "Nepali"
+            },
+            {
+              "value": "nb",
+              "label": "Norwegian Bokmål"
+            },
+            {
+              "value": "nn",
+              "label": "Norwegian Nynorsk"
+            },
+            {
+              "value": "or",
+              "label": "Oriya"
+            },
+            {
+              "value": "pa",
+              "label": "Panjabi"
+            },
+            {
+              "value": "nso",
+              "label": "Pedi"
+            },
+            {
+              "value": "fa",
+              "label": "Persian"
+            },
+            {
+              "value": "pl",
+              "label": "Polish"
+            },
+            {
+              "value": "pt",
+              "label": "Portuguese"
+            },
+            {
+              "value": "ps",
+              "label": "Pushto"
+            },
+            {
+              "value": "qu",
+              "label": "Quechua"
+            },
+            {
+              "value": "ro",
+              "label": "Romanian"
+            },
+            {
+              "value": "ru",
+              "label": "Russian"
+            },
+            {
+              "value": "gd",
+              "label": "Scottish Gaelic"
+            },
+            {
+              "value": "sr",
+              "label": "Serbian"
+            },
+            {
+              "value": "sd",
+              "label": "Sindhi"
+            },
+            {
+              "value": "si",
+              "label": "Sinhala"
+            },
+            {
+              "value": "sk",
+              "label": "Slovak"
+            },
+            {
+              "value": "sl",
+              "label": "Slovenian"
+            },
+            {
+              "value": "st",
+              "label": "Southern Sotho"
+            },
+            {
+              "value": "es",
+              "label": "Spanish"
+            },
+            {
+              "value": "sw",
+              "label": "Swahili"
+            },
+            {
+              "value": "sv",
+              "label": "Swedish"
+            },
+            {
+              "value": "tg",
+              "label": "Tajik"
+            },
+            {
+              "value": "ta",
+              "label": "Tamil"
+            },
+            {
+              "value": "tt",
+              "label": "Tatar"
+            },
+            {
+              "value": "te",
+              "label": "Telugu"
+            },
+            {
+              "value": "th",
+              "label": "Thai"
+            },
+            {
+              "value": "ti",
+              "label": "Tigrinya"
+            },
+            {
+              "value": "tn",
+              "label": "Tswana"
+            },
+            {
+              "value": "tr",
+              "label": "Turkish"
+            },
+            {
+              "value": "tk",
+              "label": "Turkmen"
+            },
+            {
+              "value": "ug",
+              "label": "Uighur"
+            },
+            {
+              "value": "uk",
+              "label": "Ukrainian"
+            },
+            {
+              "value": "ur",
+              "label": "Urdu"
+            },
+            {
+              "value": "uz",
+              "label": "Uzbek"
+            },
+            {
+              "value": "vi",
+              "label": "Vietnamese"
+            },
+            {
+              "value": "cy",
+              "label": "Welsh"
+            },
+            {
+              "value": "wo",
+              "label": "Wolof"
+            },
+            {
+              "value": "xh",
+              "label": "Xhosa"
+            },
+            {
+              "value": "yo",
+              "label": "Yoruba"
+            },
+            {
+              "value": "zu",
+              "label": "Zulu"
+            }
+          ]
+        },
+        "model": {
+          "label": "Model",
+          "description": "Specific model to use (e.g., text-moderation-latest, text-moderation-stable). Leave empty for default."
+        },
+        "fallback_providers": {
+          "label": "Fallback Providers",
+          "description": "Alternative providers to try if the main provider fails (up to 5). A JSON list of: microsoft, openai, google.",
+          "type": "json"
+        },
+        "show_original_response": {
+          "label": "Include Original Response",
+          "description": "Include the raw provider response in the output for debugging.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.edenai.run/v2/text/moderation",
+        "body": {
+          "providers": "{{provider}}",
+          "text": "{{text}}",
+          "language": "{{language}}",
+          "show_original_response": "{{show_original_response}}",
+          "fallback_providers": "{{fallback_providers}}"
+        }
+      },
+      "beforeRequest": "const b = request.body;\nif (b.fallback_providers !== undefined && (!Array.isArray(b.fallback_providers) || b.fallback_providers.length > 5 || b.fallback_providers.some(p => typeof p !== 'string'))) throw new Error('Fallback providers should be a list of at most 5 providers.');\nif (b.language === 'auto-detect') delete b.language;\nif (b.show_original_response !== true) delete b.show_original_response;\nif (!(b.fallback_providers && b.fallback_providers.length)) delete b.fallback_providers;\nif (inputs.model) b.settings = {[inputs.provider]: inputs.model};\nreturn request;",
+      "afterResponse": "const p = inputs.provider, r = response[p];\nif (!r) return Object.assign({provider: p}, {nsfw_likelihood: 0, items: []}, {status: 'fail', raw: response});\nreturn Object.assign({provider: p}, {nsfw_likelihood: r.nsfw_likelihood || 0, nsfw_likelihood_score: r.nsfw_likelihood_score || 0, items: (r.items || []).map(i => ({label: i.label || '', likelihood: i.likelihood || 0, category: i.category || '', subcategory: i.subcategory || '', likelihood_score: i.likelihood_score || 0}))}, {status: r.status || 'success', original_response: r.original_response || null, raw: response});"
+    },
+    "spell_check": {
+      "label": "Spell Check",
+      "description": "Identify and correct spelling or grammar errors using Eden AI. Supports multiple providers, languages, and models.",
+      "inputs": {
+        "provider": {
+          "label": "Provider",
+          "description": "The AI provider to use for spell checking and grammar correction.",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "microsoft",
+              "label": "Microsoft"
+            },
+            {
+              "value": "openai",
+              "label": "OpenAI"
+            },
+            {
+              "value": "prowritingaid",
+              "label": "ProWritingAid"
+            },
+            {
+              "value": "cohere",
+              "label": "Cohere"
+            },
+            {
+              "value": "sapling",
+              "label": "Sapling"
+            },
+            {
+              "value": "xai",
+              "label": "XAI Grok"
+            }
+          ]
+        },
+        "text": {
+          "label": "Text to Check",
+          "description": "The text to check for spelling or grammar errors.",
+          "type": "multiline",
+          "required": true
+        },
+        "language": {
+          "label": "Language",
+          "description": "The language of the input text. Choose \"Auto Detection\" if unsure.",
+          "type": "select",
+          "defaultValue": "auto-detect",
+          "options": [
+            {
+              "value": "auto-detect",
+              "label": "Auto Detection"
+            },
+            {
+              "value": "af",
+              "label": "Afrikaans"
+            },
+            {
+              "value": "sq",
+              "label": "Albanian"
+            },
+            {
+              "value": "am",
+              "label": "Amharic"
+            },
+            {
+              "value": "ar",
+              "label": "Arabic"
+            },
+            {
+              "value": "hy",
+              "label": "Armenian"
+            },
+            {
+              "value": "az",
+              "label": "Azerbaijani"
+            },
+            {
+              "value": "eu",
+              "label": "Basque"
+            },
+            {
+              "value": "be",
+              "label": "Belarusian"
+            },
+            {
+              "value": "bn",
+              "label": "Bengali"
+            },
+            {
+              "value": "bs",
+              "label": "Bosnian"
+            },
+            {
+              "value": "bg",
+              "label": "Bulgarian"
+            },
+            {
+              "value": "my",
+              "label": "Burmese"
+            },
+            {
+              "value": "ca",
+              "label": "Catalan"
+            },
+            {
+              "value": "ceb",
+              "label": "Cebuano"
+            },
+            {
+              "value": "zh",
+              "label": "Chinese"
+            },
+            {
+              "value": "zh-CN",
+              "label": "Chinese (China)"
+            },
+            {
+              "value": "zh-hans",
+              "label": "Chinese (Simplified)"
+            },
+            {
+              "value": "zh-TW",
+              "label": "Chinese (Taiwan)"
+            },
+            {
+              "value": "zh-hant",
+              "label": "Chinese (Traditional)"
+            },
+            {
+              "value": "co",
+              "label": "Corsican"
+            },
+            {
+              "value": "hr",
+              "label": "Croatian"
+            },
+            {
+              "value": "cs",
+              "label": "Czech"
+            },
+            {
+              "value": "da",
+              "label": "Danish"
+            },
+            {
+              "value": "nl",
+              "label": "Dutch"
+            },
+            {
+              "value": "en",
+              "label": "English"
+            },
+            {
+              "value": "en-gb",
+              "label": "English (United Kingdom)"
+            },
+            {
+              "value": "eo",
+              "label": "Esperanto"
+            },
+            {
+              "value": "et",
+              "label": "Estonian"
+            },
+            {
+              "value": "fi",
+              "label": "Finnish"
+            },
+            {
+              "value": "fr",
+              "label": "French"
+            },
+            {
+              "value": "gl",
+              "label": "Galician"
+            },
+            {
+              "value": "ka",
+              "label": "Georgian"
+            },
+            {
+              "value": "de",
+              "label": "German"
+            },
+            {
+              "value": "el",
+              "label": "Modern Greek"
+            },
+            {
+              "value": "gu",
+              "label": "Gujarati"
+            },
+            {
+              "value": "ht",
+              "label": "Haitian"
+            },
+            {
+              "value": "ha",
+              "label": "Hausa"
+            },
+            {
+              "value": "haw",
+              "label": "Hawaiian"
+            },
+            {
+              "value": "he",
+              "label": "Hebrew"
+            },
+            {
+              "value": "hi",
+              "label": "Hindi"
+            },
+            {
+              "value": "hmn",
+              "label": "Hmong"
+            },
+            {
+              "value": "hu",
+              "label": "Hungarian"
+            },
+            {
+              "value": "is",
+              "label": "Icelandic"
+            },
+            {
+              "value": "ig",
+              "label": "Igbo"
+            },
+            {
+              "value": "id",
+              "label": "Indonesian"
+            },
+            {
+              "value": "ga",
+              "label": "Irish"
+            },
+            {
+              "value": "it",
+              "label": "Italian"
+            },
+            {
+              "value": "ja",
+              "label": "Japanese"
+            },
+            {
+              "value": "jp",
+              "label": "Japanese (JP)"
+            },
+            {
+              "value": "jv",
+              "label": "Javanese"
+            },
+            {
+              "value": "kn",
+              "label": "Kannada"
+            },
+            {
+              "value": "kk",
+              "label": "Kazakh"
+            },
+            {
+              "value": "km",
+              "label": "Khmer"
+            },
+            {
+              "value": "rw",
+              "label": "Kinyarwanda"
+            },
+            {
+              "value": "ky",
+              "label": "Kirghiz"
+            },
+            {
+              "value": "ko",
+              "label": "Korean"
+            },
+            {
+              "value": "ku",
+              "label": "Kurdish"
+            },
+            {
+              "value": "lo",
+              "label": "Lao"
+            },
+            {
+              "value": "la",
+              "label": "Latin"
+            },
+            {
+              "value": "lv",
+              "label": "Latvian"
+            },
+            {
+              "value": "lt",
+              "label": "Lithuanian"
+            },
+            {
+              "value": "lb",
+              "label": "Luxembourgish"
+            },
+            {
+              "value": "mk",
+              "label": "Macedonian"
+            },
+            {
+              "value": "mg",
+              "label": "Malagasy"
+            },
+            {
+              "value": "ms",
+              "label": "Malay"
+            },
+            {
+              "value": "ml",
+              "label": "Malayalam"
+            },
+            {
+              "value": "mt",
+              "label": "Maltese"
+            },
+            {
+              "value": "mi",
+              "label": "Maori"
+            },
+            {
+              "value": "mr",
+              "label": "Marathi"
+            },
+            {
+              "value": "mn",
+              "label": "Mongolian"
+            },
+            {
+              "value": "ne",
+              "label": "Nepali"
+            },
+            {
+              "value": "no",
+              "label": "Norwegian"
+            },
+            {
+              "value": "nb",
+              "label": "Norwegian Bokmål"
+            },
+            {
+              "value": "ny",
+              "label": "Nyanja"
+            },
+            {
+              "value": "or",
+              "label": "Oriya"
+            },
+            {
+              "value": "pa",
+              "label": "Panjabi"
+            },
+            {
+              "value": "fa",
+              "label": "Persian"
+            },
+            {
+              "value": "pl",
+              "label": "Polish"
+            },
+            {
+              "value": "pt",
+              "label": "Portuguese"
+            },
+            {
+              "value": "pt-br",
+              "label": "Portuguese (Brazil)"
+            },
+            {
+              "value": "pt-pt",
+              "label": "Portuguese (Portugal)"
+            },
+            {
+              "value": "ps",
+              "label": "Pushto"
+            },
+            {
+              "value": "ro",
+              "label": "Romanian"
+            },
+            {
+              "value": "ru",
+              "label": "Russian"
+            },
+            {
+              "value": "sm",
+              "label": "Samoan"
+            },
+            {
+              "value": "gd",
+              "label": "Scottish Gaelic"
+            },
+            {
+              "value": "sr",
+              "label": "Serbian"
+            },
+            {
+              "value": "sn",
+              "label": "Shona"
+            },
+            {
+              "value": "sd",
+              "label": "Sindhi"
+            },
+            {
+              "value": "si",
+              "label": "Sinhala"
+            },
+            {
+              "value": "sk",
+              "label": "Slovak"
+            },
+            {
+              "value": "sl",
+              "label": "Slovenian"
+            },
+            {
+              "value": "so",
+              "label": "Somali"
+            },
+            {
+              "value": "st",
+              "label": "Southern Sotho"
+            },
+            {
+              "value": "es",
+              "label": "Spanish"
+            },
+            {
+              "value": "su",
+              "label": "Sundanese"
+            },
+            {
+              "value": "sw",
+              "label": "Swahili"
+            },
+            {
+              "value": "sv",
+              "label": "Swedish"
+            },
+            {
+              "value": "tl",
+              "label": "Tagalog"
+            },
+            {
+              "value": "tg",
+              "label": "Tajik"
+            },
+            {
+              "value": "ta",
+              "label": "Tamil"
+            },
+            {
+              "value": "tt",
+              "label": "Tatar"
+            },
+            {
+              "value": "te",
+              "label": "Telugu"
+            },
+            {
+              "value": "th",
+              "label": "Thai"
+            },
+            {
+              "value": "tr",
+              "label": "Turkish"
+            },
+            {
+              "value": "tk",
+              "label": "Turkmen"
+            },
+            {
+              "value": "ug",
+              "label": "Uighur"
+            },
+            {
+              "value": "uk",
+              "label": "Ukrainian"
+            },
+            {
+              "value": "ur",
+              "label": "Urdu"
+            },
+            {
+              "value": "uz",
+              "label": "Uzbek"
+            },
+            {
+              "value": "vi",
+              "label": "Vietnamese"
+            },
+            {
+              "value": "cy",
+              "label": "Welsh"
+            },
+            {
+              "value": "fy",
+              "label": "Western Frisian"
+            },
+            {
+              "value": "xh",
+              "label": "Xhosa"
+            },
+            {
+              "value": "yi",
+              "label": "Yiddish"
+            },
+            {
+              "value": "yo",
+              "label": "Yoruba"
+            },
+            {
+              "value": "zu",
+              "label": "Zulu"
+            }
+          ]
+        },
+        "model": {
+          "label": "Model",
+          "description": "Specific model to use (e.g., gpt-4o, gpt-4, grok-2-latest, command). Leave empty for default."
+        },
+        "fallback_providers": {
+          "label": "Fallback Providers",
+          "description": "Alternative providers to try if the main provider fails (up to 5). A JSON list of: microsoft, openai, prowritingaid, cohere, sapling, xai.",
+          "type": "json"
+        },
+        "show_original_response": {
+          "label": "Include Original Response",
+          "description": "Include the raw provider response in the output for debugging.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.edenai.run/v2/text/spell_check",
+        "body": {
+          "providers": "{{provider}}",
+          "text": "{{text}}",
+          "language": "{{language}}",
+          "show_original_response": "{{show_original_response}}",
+          "fallback_providers": "{{fallback_providers}}"
+        }
+      },
+      "beforeRequest": "const b = request.body;\nif (b.fallback_providers !== undefined && (!Array.isArray(b.fallback_providers) || b.fallback_providers.length > 5 || b.fallback_providers.some(p => typeof p !== 'string'))) throw new Error('Fallback providers should be a list of at most 5 providers.');\nif (b.language === 'auto-detect') delete b.language;\nif (b.show_original_response !== true) delete b.show_original_response;\nif (!(b.fallback_providers && b.fallback_providers.length)) delete b.fallback_providers;\nif (inputs.model) b.settings = {[inputs.provider]: inputs.model};\nreturn request;",
+      "afterResponse": "const p = inputs.provider, r = response[p];\nif (!r) return Object.assign({provider: p}, {text: '', items: []}, {status: 'fail', raw: response});\nreturn Object.assign({provider: p}, {text: r.text || '', items: (r.items || []).map(i => ({text: i.text || '', type: i.type || '', offset: i.offset || 0, length: i.length || 0, suggestions: (i.suggestions || []).map(s => ({suggestion: s.suggestion || '', score: s.score || 0}))}))}, {status: r.status || 'success', original_response: r.original_response || null, raw: response});"
+    },
+    "translate_text": {
+      "label": "Translate Text",
+      "description": "Translate text into different languages using Eden AI. Supports multiple providers, languages, and models.",
+      "inputs": {
+        "provider": {
+          "label": "Provider",
+          "description": "The AI provider to use for text translation.",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "amazon",
+              "label": "Amazon"
+            },
+            {
+              "value": "google",
+              "label": "Google"
+            },
+            {
+              "value": "microsoft",
+              "label": "Microsoft"
+            },
+            {
+              "value": "deepl",
+              "label": "DeepL"
+            },
+            {
+              "value": "modernmt",
+              "label": "ModernMT"
+            },
+            {
+              "value": "openai",
+              "label": "OpenAI"
+            },
+            {
+              "value": "xai",
+              "label": "XAI Grok"
+            }
+          ]
+        },
+        "text": {
+          "label": "Text to Translate",
+          "description": "The text to translate.",
+          "type": "multiline",
+          "required": true
+        },
+        "source_language": {
+          "label": "Source Language",
+          "description": "The language of the input text. Choose \"Auto Detection\" to automatically detect the language.",
+          "type": "select",
+          "defaultValue": "auto-detect",
+          "options": [
+            {
+              "value": "auto-detect",
+              "label": "Auto Detection"
+            },
+            {
+              "value": "af",
+              "label": "Afrikaans"
+            },
+            {
+              "value": "sq",
+              "label": "Albanian"
+            },
+            {
+              "value": "am",
+              "label": "Amharic"
+            },
+            {
+              "value": "ar",
+              "label": "Arabic"
+            },
+            {
+              "value": "hy",
+              "label": "Armenian"
+            },
+            {
+              "value": "as",
+              "label": "Assamese"
+            },
+            {
+              "value": "az",
+              "label": "Azerbaijani"
+            },
+            {
+              "value": "ba",
+              "label": "Bashkir"
+            },
+            {
+              "value": "eu",
+              "label": "Basque"
+            },
+            {
+              "value": "be",
+              "label": "Belarusian"
+            },
+            {
+              "value": "bn",
+              "label": "Bengali"
+            },
+            {
+              "value": "bs",
+              "label": "Bosnian"
+            },
+            {
+              "value": "bg",
+              "label": "Bulgarian"
+            },
+            {
+              "value": "my",
+              "label": "Burmese"
+            },
+            {
+              "value": "ca",
+              "label": "Catalan"
+            },
+            {
+              "value": "ceb",
+              "label": "Cebuano"
+            },
+            {
+              "value": "zh",
+              "label": "Chinese"
+            },
+            {
+              "value": "zh-CN",
+              "label": "Chinese (China)"
+            },
+            {
+              "value": "zh-Hans",
+              "label": "Chinese (Simplified)"
+            },
+            {
+              "value": "zh-TW",
+              "label": "Chinese (Taiwan)"
+            },
+            {
+              "value": "zh-Hant",
+              "label": "Chinese (Traditional)"
+            },
+            {
+              "value": "co",
+              "label": "Corsican"
+            },
+            {
+              "value": "hr",
+              "label": "Croatian"
+            },
+            {
+              "value": "cs",
+              "label": "Czech"
+            },
+            {
+              "value": "da",
+              "label": "Danish"
+            },
+            {
+              "value": "prs",
+              "label": "Dari"
+            },
+            {
+              "value": "dv",
+              "label": "Dhivehi"
+            },
+            {
+              "value": "nl",
+              "label": "Dutch"
+            },
+            {
+              "value": "en",
+              "label": "English"
+            },
+            {
+              "value": "en-GB",
+              "label": "English (United Kingdom)"
+            },
+            {
+              "value": "en-US",
+              "label": "English (United States)"
+            },
+            {
+              "value": "eo",
+              "label": "Esperanto"
+            },
+            {
+              "value": "et",
+              "label": "Estonian"
+            },
+            {
+              "value": "fo",
+              "label": "Faroese"
+            },
+            {
+              "value": "fj",
+              "label": "Fijian"
+            },
+            {
+              "value": "fil",
+              "label": "Filipino"
+            },
+            {
+              "value": "fi",
+              "label": "Finnish"
+            },
+            {
+              "value": "fr",
+              "label": "French"
+            },
+            {
+              "value": "fr-CA",
+              "label": "French (Canada)"
+            },
+            {
+              "value": "gl",
+              "label": "Galician"
+            },
+            {
+              "value": "ka",
+              "label": "Georgian"
+            },
+            {
+              "value": "de",
+              "label": "German"
+            },
+            {
+              "value": "el",
+              "label": "Modern Greek"
+            },
+            {
+              "value": "gu",
+              "label": "Gujarati"
+            },
+            {
+              "value": "ht",
+              "label": "Haitian"
+            },
+            {
+              "value": "ha",
+              "label": "Hausa"
+            },
+            {
+              "value": "haw",
+              "label": "Hawaiian"
+            },
+            {
+              "value": "he",
+              "label": "Hebrew"
+            },
+            {
+              "value": "hi",
+              "label": "Hindi"
+            },
+            {
+              "value": "hmn",
+              "label": "Hmong"
+            },
+            {
+              "value": "mww",
+              "label": "Hmong Daw"
+            },
+            {
+              "value": "hu",
+              "label": "Hungarian"
+            },
+            {
+              "value": "is",
+              "label": "Icelandic"
+            },
+            {
+              "value": "ig",
+              "label": "Igbo"
+            },
+            {
+              "value": "id",
+              "label": "Indonesian"
+            },
+            {
+              "value": "ikt",
+              "label": "Inuinnaqtun"
+            },
+            {
+              "value": "iu",
+              "label": "Inuktitut"
+            },
+            {
+              "value": "iu-Latn",
+              "label": "Inuktitut (Latin)"
+            },
+            {
+              "value": "ga",
+              "label": "Irish"
+            },
+            {
+              "value": "it",
+              "label": "Italian"
+            },
+            {
+              "value": "ja",
+              "label": "Japanese"
+            },
+            {
+              "value": "jv",
+              "label": "Javanese"
+            },
+            {
+              "value": "kn",
+              "label": "Kannada"
+            },
+            {
+              "value": "kk",
+              "label": "Kazakh"
+            },
+            {
+              "value": "km",
+              "label": "Khmer"
+            },
+            {
+              "value": "rw",
+              "label": "Kinyarwanda"
+            },
+            {
+              "value": "ky",
+              "label": "Kirghiz"
+            },
+            {
+              "value": "tlh",
+              "label": "Klingon"
+            },
+            {
+              "value": "tlh-Piqd",
+              "label": "Klingon (Klingon)"
+            },
+            {
+              "value": "tlh-Latn",
+              "label": "Klingon (Latin)"
+            },
+            {
+              "value": "ko",
+              "label": "Korean"
+            },
+            {
+              "value": "ku",
+              "label": "Kurdish"
+            },
+            {
+              "value": "kmr",
+              "label": "Northern Kurdish"
+            },
+            {
+              "value": "lo",
+              "label": "Lao"
+            },
+            {
+              "value": "la",
+              "label": "Latin"
+            },
+            {
+              "value": "lv",
+              "label": "Latvian"
+            },
+            {
+              "value": "lzh",
+              "label": "Literary Chinese"
+            },
+            {
+              "value": "lt",
+              "label": "Lithuanian"
+            },
+            {
+              "value": "lb",
+              "label": "Luxembourgish"
+            },
+            {
+              "value": "mk",
+              "label": "Macedonian"
+            },
+            {
+              "value": "mg",
+              "label": "Malagasy"
+            },
+            {
+              "value": "ms",
+              "label": "Malay"
+            },
+            {
+              "value": "ml",
+              "label": "Malayalam"
+            },
+            {
+              "value": "mt",
+              "label": "Maltese"
+            },
+            {
+              "value": "mi",
+              "label": "Maori"
+            },
+            {
+              "value": "mr",
+              "label": "Marathi"
+            },
+            {
+              "value": "mn",
+              "label": "Mongolian"
+            },
+            {
+              "value": "mn-Cyrl",
+              "label": "Mongolian (Cyrillic)"
+            },
+            {
+              "value": "mn-Mong",
+              "label": "Mongolian (Mongolian)"
+            },
+            {
+              "value": "ne",
+              "label": "Nepali"
+            },
+            {
+              "value": "no",
+              "label": "Norwegian"
+            },
+            {
+              "value": "nb",
+              "label": "Norwegian Bokmål"
+            },
+            {
+              "value": "nn",
+              "label": "Norwegian Nynorsk"
+            },
+            {
+              "value": "ny",
+              "label": "Nyanja"
+            },
+            {
+              "value": "or",
+              "label": "Oriya"
+            },
+            {
+              "value": "pa",
+              "label": "Panjabi"
+            },
+            {
+              "value": "fa",
+              "label": "Persian"
+            },
+            {
+              "value": "fa-AF",
+              "label": "Persian (Afghanistan)"
+            },
+            {
+              "value": "pl",
+              "label": "Polish"
+            },
+            {
+              "value": "pt",
+              "label": "Portuguese"
+            },
+            {
+              "value": "pt-BR",
+              "label": "Portuguese (Brazil)"
+            },
+            {
+              "value": "pt-PT",
+              "label": "Portuguese (Portugal)"
+            },
+            {
+              "value": "ps",
+              "label": "Pushto"
+            },
+            {
+              "value": "otq",
+              "label": "Querétaro Otomi"
+            },
+            {
+              "value": "ro",
+              "label": "Romanian"
+            },
+            {
+              "value": "ru",
+              "label": "Russian"
+            },
+            {
+              "value": "sm",
+              "label": "Samoan"
+            },
+            {
+              "value": "gd",
+              "label": "Scottish Gaelic"
+            },
+            {
+              "value": "sr",
+              "label": "Serbian"
+            },
+            {
+              "value": "sr-Cyrl",
+              "label": "Serbian (Cyrillic)"
+            },
+            {
+              "value": "sr-Latn",
+              "label": "Serbian (Latin)"
+            },
+            {
+              "value": "sn",
+              "label": "Shona"
+            },
+            {
+              "value": "sd",
+              "label": "Sindhi"
+            },
+            {
+              "value": "si",
+              "label": "Sinhala"
+            },
+            {
+              "value": "sk",
+              "label": "Slovak"
+            },
+            {
+              "value": "sl",
+              "label": "Slovenian"
+            },
+            {
+              "value": "so",
+              "label": "Somali"
+            },
+            {
+              "value": "st",
+              "label": "Southern Sotho"
+            },
+            {
+              "value": "es",
+              "label": "Spanish"
+            },
+            {
+              "value": "es-419",
+              "label": "Spanish (Latin America)"
+            },
+            {
+              "value": "es-MX",
+              "label": "Spanish (Mexico)"
+            },
+            {
+              "value": "es-ES",
+              "label": "Spanish (Spain)"
+            },
+            {
+              "value": "su",
+              "label": "Sundanese"
+            },
+            {
+              "value": "sw",
+              "label": "Swahili"
+            },
+            {
+              "value": "sv",
+              "label": "Swedish"
+            },
+            {
+              "value": "tl",
+              "label": "Tagalog"
+            },
+            {
+              "value": "ty",
+              "label": "Tahitian"
+            },
+            {
+              "value": "tg",
+              "label": "Tajik"
+            },
+            {
+              "value": "ta",
+              "label": "Tamil"
+            },
+            {
+              "value": "tt",
+              "label": "Tatar"
+            },
+            {
+              "value": "te",
+              "label": "Telugu"
+            },
+            {
+              "value": "th",
+              "label": "Thai"
+            },
+            {
+              "value": "bo",
+              "label": "Tibetan"
+            },
+            {
+              "value": "ti",
+              "label": "Tigrinya"
+            },
+            {
+              "value": "to",
+              "label": "Tonga"
+            },
+            {
+              "value": "tr",
+              "label": "Turkish"
+            },
+            {
+              "value": "tk",
+              "label": "Turkmen"
+            },
+            {
+              "value": "ug",
+              "label": "Uighur"
+            },
+            {
+              "value": "uk",
+              "label": "Ukrainian"
+            },
+            {
+              "value": "hsb",
+              "label": "Upper Sorbian"
+            },
+            {
+              "value": "ur",
+              "label": "Urdu"
+            },
+            {
+              "value": "uz",
+              "label": "Uzbek"
+            },
+            {
+              "value": "vi",
+              "label": "Vietnamese"
+            },
+            {
+              "value": "cy",
+              "label": "Welsh"
+            },
+            {
+              "value": "fy",
+              "label": "Western Frisian"
+            },
+            {
+              "value": "xh",
+              "label": "Xhosa"
+            },
+            {
+              "value": "yi",
+              "label": "Yiddish"
+            },
+            {
+              "value": "yo",
+              "label": "Yoruba"
+            },
+            {
+              "value": "yua",
+              "label": "Yucateco"
+            },
+            {
+              "value": "yue",
+              "label": "Yue Chinese"
+            },
+            {
+              "value": "zu",
+              "label": "Zulu"
+            }
+          ]
+        },
+        "target_language": {
+          "label": "Target Language",
+          "description": "The language to translate the text into.",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "af",
+              "label": "Afrikaans"
+            },
+            {
+              "value": "sq",
+              "label": "Albanian"
+            },
+            {
+              "value": "am",
+              "label": "Amharic"
+            },
+            {
+              "value": "ar",
+              "label": "Arabic"
+            },
+            {
+              "value": "hy",
+              "label": "Armenian"
+            },
+            {
+              "value": "as",
+              "label": "Assamese"
+            },
+            {
+              "value": "az",
+              "label": "Azerbaijani"
+            },
+            {
+              "value": "ba",
+              "label": "Bashkir"
+            },
+            {
+              "value": "eu",
+              "label": "Basque"
+            },
+            {
+              "value": "be",
+              "label": "Belarusian"
+            },
+            {
+              "value": "bn",
+              "label": "Bengali"
+            },
+            {
+              "value": "bs",
+              "label": "Bosnian"
+            },
+            {
+              "value": "bg",
+              "label": "Bulgarian"
+            },
+            {
+              "value": "my",
+              "label": "Burmese"
+            },
+            {
+              "value": "ca",
+              "label": "Catalan"
+            },
+            {
+              "value": "ceb",
+              "label": "Cebuano"
+            },
+            {
+              "value": "zh",
+              "label": "Chinese"
+            },
+            {
+              "value": "zh-CN",
+              "label": "Chinese (China)"
+            },
+            {
+              "value": "zh-Hans",
+              "label": "Chinese (Simplified)"
+            },
+            {
+              "value": "zh-TW",
+              "label": "Chinese (Taiwan)"
+            },
+            {
+              "value": "zh-Hant",
+              "label": "Chinese (Traditional)"
+            },
+            {
+              "value": "co",
+              "label": "Corsican"
+            },
+            {
+              "value": "hr",
+              "label": "Croatian"
+            },
+            {
+              "value": "cs",
+              "label": "Czech"
+            },
+            {
+              "value": "da",
+              "label": "Danish"
+            },
+            {
+              "value": "prs",
+              "label": "Dari"
+            },
+            {
+              "value": "dv",
+              "label": "Dhivehi"
+            },
+            {
+              "value": "nl",
+              "label": "Dutch"
+            },
+            {
+              "value": "en",
+              "label": "English"
+            },
+            {
+              "value": "en-GB",
+              "label": "English (United Kingdom)"
+            },
+            {
+              "value": "en-US",
+              "label": "English (United States)"
+            },
+            {
+              "value": "eo",
+              "label": "Esperanto"
+            },
+            {
+              "value": "et",
+              "label": "Estonian"
+            },
+            {
+              "value": "fo",
+              "label": "Faroese"
+            },
+            {
+              "value": "fj",
+              "label": "Fijian"
+            },
+            {
+              "value": "fil",
+              "label": "Filipino"
+            },
+            {
+              "value": "fi",
+              "label": "Finnish"
+            },
+            {
+              "value": "fr",
+              "label": "French"
+            },
+            {
+              "value": "fr-CA",
+              "label": "French (Canada)"
+            },
+            {
+              "value": "gl",
+              "label": "Galician"
+            },
+            {
+              "value": "ka",
+              "label": "Georgian"
+            },
+            {
+              "value": "de",
+              "label": "German"
+            },
+            {
+              "value": "el",
+              "label": "Modern Greek"
+            },
+            {
+              "value": "gu",
+              "label": "Gujarati"
+            },
+            {
+              "value": "ht",
+              "label": "Haitian"
+            },
+            {
+              "value": "ha",
+              "label": "Hausa"
+            },
+            {
+              "value": "haw",
+              "label": "Hawaiian"
+            },
+            {
+              "value": "he",
+              "label": "Hebrew"
+            },
+            {
+              "value": "hi",
+              "label": "Hindi"
+            },
+            {
+              "value": "hmn",
+              "label": "Hmong"
+            },
+            {
+              "value": "mww",
+              "label": "Hmong Daw"
+            },
+            {
+              "value": "hu",
+              "label": "Hungarian"
+            },
+            {
+              "value": "is",
+              "label": "Icelandic"
+            },
+            {
+              "value": "ig",
+              "label": "Igbo"
+            },
+            {
+              "value": "id",
+              "label": "Indonesian"
+            },
+            {
+              "value": "ikt",
+              "label": "Inuinnaqtun"
+            },
+            {
+              "value": "iu",
+              "label": "Inuktitut"
+            },
+            {
+              "value": "iu-Latn",
+              "label": "Inuktitut (Latin)"
+            },
+            {
+              "value": "ga",
+              "label": "Irish"
+            },
+            {
+              "value": "it",
+              "label": "Italian"
+            },
+            {
+              "value": "ja",
+              "label": "Japanese"
+            },
+            {
+              "value": "jv",
+              "label": "Javanese"
+            },
+            {
+              "value": "kn",
+              "label": "Kannada"
+            },
+            {
+              "value": "kk",
+              "label": "Kazakh"
+            },
+            {
+              "value": "km",
+              "label": "Khmer"
+            },
+            {
+              "value": "rw",
+              "label": "Kinyarwanda"
+            },
+            {
+              "value": "ky",
+              "label": "Kirghiz"
+            },
+            {
+              "value": "tlh",
+              "label": "Klingon"
+            },
+            {
+              "value": "tlh-Piqd",
+              "label": "Klingon (Klingon)"
+            },
+            {
+              "value": "tlh-Latn",
+              "label": "Klingon (Latin)"
+            },
+            {
+              "value": "ko",
+              "label": "Korean"
+            },
+            {
+              "value": "ku",
+              "label": "Kurdish"
+            },
+            {
+              "value": "kmr",
+              "label": "Northern Kurdish"
+            },
+            {
+              "value": "lo",
+              "label": "Lao"
+            },
+            {
+              "value": "la",
+              "label": "Latin"
+            },
+            {
+              "value": "lv",
+              "label": "Latvian"
+            },
+            {
+              "value": "lzh",
+              "label": "Literary Chinese"
+            },
+            {
+              "value": "lt",
+              "label": "Lithuanian"
+            },
+            {
+              "value": "lb",
+              "label": "Luxembourgish"
+            },
+            {
+              "value": "mk",
+              "label": "Macedonian"
+            },
+            {
+              "value": "mg",
+              "label": "Malagasy"
+            },
+            {
+              "value": "ms",
+              "label": "Malay"
+            },
+            {
+              "value": "ml",
+              "label": "Malayalam"
+            },
+            {
+              "value": "mt",
+              "label": "Maltese"
+            },
+            {
+              "value": "mi",
+              "label": "Maori"
+            },
+            {
+              "value": "mr",
+              "label": "Marathi"
+            },
+            {
+              "value": "mn",
+              "label": "Mongolian"
+            },
+            {
+              "value": "mn-Cyrl",
+              "label": "Mongolian (Cyrillic)"
+            },
+            {
+              "value": "mn-Mong",
+              "label": "Mongolian (Mongolian)"
+            },
+            {
+              "value": "ne",
+              "label": "Nepali"
+            },
+            {
+              "value": "no",
+              "label": "Norwegian"
+            },
+            {
+              "value": "nb",
+              "label": "Norwegian Bokmål"
+            },
+            {
+              "value": "nn",
+              "label": "Norwegian Nynorsk"
+            },
+            {
+              "value": "ny",
+              "label": "Nyanja"
+            },
+            {
+              "value": "or",
+              "label": "Oriya"
+            },
+            {
+              "value": "pa",
+              "label": "Panjabi"
+            },
+            {
+              "value": "fa",
+              "label": "Persian"
+            },
+            {
+              "value": "fa-AF",
+              "label": "Persian (Afghanistan)"
+            },
+            {
+              "value": "pl",
+              "label": "Polish"
+            },
+            {
+              "value": "pt",
+              "label": "Portuguese"
+            },
+            {
+              "value": "pt-BR",
+              "label": "Portuguese (Brazil)"
+            },
+            {
+              "value": "pt-PT",
+              "label": "Portuguese (Portugal)"
+            },
+            {
+              "value": "ps",
+              "label": "Pushto"
+            },
+            {
+              "value": "otq",
+              "label": "Querétaro Otomi"
+            },
+            {
+              "value": "ro",
+              "label": "Romanian"
+            },
+            {
+              "value": "ru",
+              "label": "Russian"
+            },
+            {
+              "value": "sm",
+              "label": "Samoan"
+            },
+            {
+              "value": "gd",
+              "label": "Scottish Gaelic"
+            },
+            {
+              "value": "sr",
+              "label": "Serbian"
+            },
+            {
+              "value": "sr-Cyrl",
+              "label": "Serbian (Cyrillic)"
+            },
+            {
+              "value": "sr-Latn",
+              "label": "Serbian (Latin)"
+            },
+            {
+              "value": "sn",
+              "label": "Shona"
+            },
+            {
+              "value": "sd",
+              "label": "Sindhi"
+            },
+            {
+              "value": "si",
+              "label": "Sinhala"
+            },
+            {
+              "value": "sk",
+              "label": "Slovak"
+            },
+            {
+              "value": "sl",
+              "label": "Slovenian"
+            },
+            {
+              "value": "so",
+              "label": "Somali"
+            },
+            {
+              "value": "st",
+              "label": "Southern Sotho"
+            },
+            {
+              "value": "es",
+              "label": "Spanish"
+            },
+            {
+              "value": "es-419",
+              "label": "Spanish (Latin America)"
+            },
+            {
+              "value": "es-MX",
+              "label": "Spanish (Mexico)"
+            },
+            {
+              "value": "es-ES",
+              "label": "Spanish (Spain)"
+            },
+            {
+              "value": "su",
+              "label": "Sundanese"
+            },
+            {
+              "value": "sw",
+              "label": "Swahili"
+            },
+            {
+              "value": "sv",
+              "label": "Swedish"
+            },
+            {
+              "value": "tl",
+              "label": "Tagalog"
+            },
+            {
+              "value": "ty",
+              "label": "Tahitian"
+            },
+            {
+              "value": "tg",
+              "label": "Tajik"
+            },
+            {
+              "value": "ta",
+              "label": "Tamil"
+            },
+            {
+              "value": "tt",
+              "label": "Tatar"
+            },
+            {
+              "value": "te",
+              "label": "Telugu"
+            },
+            {
+              "value": "th",
+              "label": "Thai"
+            },
+            {
+              "value": "bo",
+              "label": "Tibetan"
+            },
+            {
+              "value": "ti",
+              "label": "Tigrinya"
+            },
+            {
+              "value": "to",
+              "label": "Tonga"
+            },
+            {
+              "value": "tr",
+              "label": "Turkish"
+            },
+            {
+              "value": "tk",
+              "label": "Turkmen"
+            },
+            {
+              "value": "ug",
+              "label": "Uighur"
+            },
+            {
+              "value": "uk",
+              "label": "Ukrainian"
+            },
+            {
+              "value": "hsb",
+              "label": "Upper Sorbian"
+            },
+            {
+              "value": "ur",
+              "label": "Urdu"
+            },
+            {
+              "value": "uz",
+              "label": "Uzbek"
+            },
+            {
+              "value": "vi",
+              "label": "Vietnamese"
+            },
+            {
+              "value": "cy",
+              "label": "Welsh"
+            },
+            {
+              "value": "fy",
+              "label": "Western Frisian"
+            },
+            {
+              "value": "xh",
+              "label": "Xhosa"
+            },
+            {
+              "value": "yi",
+              "label": "Yiddish"
+            },
+            {
+              "value": "yo",
+              "label": "Yoruba"
+            },
+            {
+              "value": "yua",
+              "label": "Yucateco"
+            },
+            {
+              "value": "yue",
+              "label": "Yue Chinese"
+            },
+            {
+              "value": "zu",
+              "label": "Zulu"
+            }
+          ]
+        },
+        "model": {
+          "label": "Model",
+          "description": "Specific model to use (e.g., gpt-4o, grok-2-latest). Leave empty for default."
+        },
+        "fallback_providers": {
+          "label": "Fallback Providers",
+          "description": "Alternative providers to try if the main provider fails (up to 5). A JSON list of: amazon, google, microsoft, deepl, modernmt, openai, xai.",
+          "type": "json"
+        },
+        "show_original_response": {
+          "label": "Include Original Response",
+          "description": "Include the raw provider response in the output for debugging.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.edenai.run/v2/translation/automatic_translation",
+        "body": {
+          "providers": "{{provider}}",
+          "text": "{{text}}",
+          "target_language": "{{target_language}}",
+          "source_language": "{{source_language}}",
+          "show_original_response": "{{show_original_response}}",
+          "fallback_providers": "{{fallback_providers}}"
+        }
+      },
+      "beforeRequest": "const b = request.body;\nif (b.fallback_providers !== undefined && (!Array.isArray(b.fallback_providers) || b.fallback_providers.length > 5 || b.fallback_providers.some(p => typeof p !== 'string'))) throw new Error('Fallback providers should be a list of at most 5 providers.');\nif (b.source_language === 'auto-detect') delete b.source_language;\nif (b.show_original_response !== true) delete b.show_original_response;\nif (!(b.fallback_providers && b.fallback_providers.length)) delete b.fallback_providers;\nif (inputs.model) b.settings = {[inputs.provider]: inputs.model};\nreturn request;",
+      "afterResponse": "const p = inputs.provider, r = response[p];\nif (!r) return Object.assign({provider: p}, {text: ''}, {status: 'fail', raw: response});\nreturn Object.assign({provider: p}, {text: r.text || ''}, {status: r.status || 'success', original_response: r.original_response || null, raw: response});"
+    },
+    "invoice_parser": {
+      "label": "Invoice Parser",
+      "description": "Extract structured invoice data from files using Eden AI. Supports multiple providers, languages, and document types.",
+      "inputs": {
+        "provider": {
+          "label": "Provider",
+          "description": "The AI provider to use for financial document parsing.",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "affinda",
+              "label": "Affinda"
+            },
+            {
+              "value": "amazon",
+              "label": "Amazon"
+            },
+            {
+              "value": "base64",
+              "label": "Base64"
+            },
+            {
+              "value": "google",
+              "label": "Google"
+            },
+            {
+              "value": "klippa",
+              "label": "Klippa"
+            },
+            {
+              "value": "microsoft",
+              "label": "Microsoft"
+            },
+            {
+              "value": "mindee",
+              "label": "Mindee"
+            },
+            {
+              "value": "tabscanner",
+              "label": "Tabscanner"
+            },
+            {
+              "value": "veryfi",
+              "label": "Veryfi"
+            },
+            {
+              "value": "eagledoc",
+              "label": "EagleDoc"
+            },
+            {
+              "value": "extracta",
+              "label": "Extracta"
+            },
+            {
+              "value": "openai",
+              "label": "OpenAI"
+            }
+          ]
+        },
+        "file": {
+          "label": "File",
+          "description": "Provide the financial document file (PDF, image, etc).",
+          "type": "file",
+          "required": true
+        },
+        "document_type": {
+          "label": "Document Type",
+          "description": "The type of financial document to parse.",
+          "type": "select",
+          "defaultValue": "invoice",
+          "options": [
+            {
+              "value": "auto-detect",
+              "label": "Auto Detection"
+            },
+            {
+              "value": "invoice",
+              "label": "Invoice"
+            },
+            {
+              "value": "receipt",
+              "label": "Receipt"
+            }
+          ]
+        },
+        "language": {
+          "label": "Language",
+          "description": "The language of the document. Choose \"Auto Detection\" if unsure.",
+          "type": "select",
+          "defaultValue": "auto-detect",
+          "options": [
+            {
+              "value": "auto-detect",
+              "label": "Auto Detection"
+            },
+            {
+              "value": "af",
+              "label": "Afrikaans"
+            },
+            {
+              "value": "sq",
+              "label": "Albanian"
+            },
+            {
+              "value": "am",
+              "label": "Amharic"
+            },
+            {
+              "value": "ar",
+              "label": "Arabic"
+            },
+            {
+              "value": "hy",
+              "label": "Armenian"
+            },
+            {
+              "value": "az",
+              "label": "Azerbaijani"
+            },
+            {
+              "value": "eu",
+              "label": "Basque"
+            },
+            {
+              "value": "be",
+              "label": "Belarusian"
+            },
+            {
+              "value": "bn",
+              "label": "Bengali"
+            },
+            {
+              "value": "bs",
+              "label": "Bosnian"
+            },
+            {
+              "value": "bg",
+              "label": "Bulgarian"
+            },
+            {
+              "value": "my",
+              "label": "Burmese"
+            },
+            {
+              "value": "ca",
+              "label": "Catalan"
+            },
+            {
+              "value": "ca-ES",
+              "label": "Catalan (Spain)"
+            },
+            {
+              "value": "ceb",
+              "label": "Cebuano"
+            },
+            {
+              "value": "zh",
+              "label": "Chinese"
+            },
+            {
+              "value": "zh-CN",
+              "label": "Chinese (China)"
+            },
+            {
+              "value": "zh-TW",
+              "label": "Chinese (Taiwan)"
+            },
+            {
+              "value": "co",
+              "label": "Corsican"
+            },
+            {
+              "value": "hr",
+              "label": "Croatian"
+            },
+            {
+              "value": "cs",
+              "label": "Czech"
+            },
+            {
+              "value": "da",
+              "label": "Danish"
+            },
+            {
+              "value": "da-DK",
+              "label": "Danish (Denmark)"
+            },
+            {
+              "value": "nl",
+              "label": "Dutch"
+            },
+            {
+              "value": "nl-NL",
+              "label": "Dutch (Netherlands)"
+            },
+            {
+              "value": "en",
+              "label": "English"
+            },
+            {
+              "value": "en-GB",
+              "label": "English (United Kingdom)"
+            },
+            {
+              "value": "en-US",
+              "label": "English (United States)"
+            },
+            {
+              "value": "eo",
+              "label": "Esperanto"
+            },
+            {
+              "value": "et",
+              "label": "Estonian"
+            },
+            {
+              "value": "fi",
+              "label": "Finnish"
+            },
+            {
+              "value": "fr",
+              "label": "French"
+            },
+            {
+              "value": "fr-CA",
+              "label": "French (Canada)"
+            },
+            {
+              "value": "fr-FR",
+              "label": "French (France)"
+            },
+            {
+              "value": "fr-CH",
+              "label": "French (Switzerland)"
+            },
+            {
+              "value": "gl",
+              "label": "Galician"
+            },
+            {
+              "value": "ka",
+              "label": "Georgian"
+            },
+            {
+              "value": "de",
+              "label": "German"
+            },
+            {
+              "value": "de-DE",
+              "label": "German (Germany)"
+            },
+            {
+              "value": "de-CH",
+              "label": "German (Switzerland)"
+            },
+            {
+              "value": "el",
+              "label": "Modern Greek"
+            },
+            {
+              "value": "gu",
+              "label": "Gujarati"
+            },
+            {
+              "value": "ht",
+              "label": "Haitian"
+            },
+            {
+              "value": "ha",
+              "label": "Hausa"
+            },
+            {
+              "value": "haw",
+              "label": "Hawaiian"
+            },
+            {
+              "value": "he",
+              "label": "Hebrew"
+            },
+            {
+              "value": "hi",
+              "label": "Hindi"
+            },
+            {
+              "value": "hmn",
+              "label": "Hmong"
+            },
+            {
+              "value": "hu",
+              "label": "Hungarian"
+            },
+            {
+              "value": "is",
+              "label": "Icelandic"
+            },
+            {
+              "value": "ig",
+              "label": "Igbo"
+            },
+            {
+              "value": "id",
+              "label": "Indonesian"
+            },
+            {
+              "value": "ga",
+              "label": "Irish"
+            },
+            {
+              "value": "it",
+              "label": "Italian"
+            },
+            {
+              "value": "it-IT",
+              "label": "Italian (Italy)"
+            },
+            {
+              "value": "it-CH",
+              "label": "Italian (Switzerland)"
+            },
+            {
+              "value": "ja",
+              "label": "Japanese"
+            },
+            {
+              "value": "jv",
+              "label": "Javanese"
+            },
+            {
+              "value": "kn",
+              "label": "Kannada"
+            },
+            {
+              "value": "kk",
+              "label": "Kazakh"
+            },
+            {
+              "value": "km",
+              "label": "Khmer"
+            },
+            {
+              "value": "rw",
+              "label": "Kinyarwanda"
+            },
+            {
+              "value": "ky",
+              "label": "Kirghiz"
+            },
+            {
+              "value": "ko",
+              "label": "Korean"
+            },
+            {
+              "value": "ku",
+              "label": "Kurdish"
+            },
+            {
+              "value": "lo",
+              "label": "Lao"
+            },
+            {
+              "value": "la",
+              "label": "Latin"
+            },
+            {
+              "value": "lv",
+              "label": "Latvian"
+            },
+            {
+              "value": "lt",
+              "label": "Lithuanian"
+            },
+            {
+              "value": "lb",
+              "label": "Luxembourgish"
+            },
+            {
+              "value": "mk",
+              "label": "Macedonian"
+            },
+            {
+              "value": "mg",
+              "label": "Malagasy"
+            },
+            {
+              "value": "ms",
+              "label": "Malay"
+            },
+            {
+              "value": "ml",
+              "label": "Malayalam"
+            },
+            {
+              "value": "mt",
+              "label": "Maltese"
+            },
+            {
+              "value": "mi",
+              "label": "Maori"
+            },
+            {
+              "value": "mr",
+              "label": "Marathi"
+            },
+            {
+              "value": "mn",
+              "label": "Mongolian"
+            },
+            {
+              "value": "ne",
+              "label": "Nepali"
+            },
+            {
+              "value": "no",
+              "label": "Norwegian"
+            },
+            {
+              "value": "ny",
+              "label": "Nyanja"
+            },
+            {
+              "value": "or",
+              "label": "Oriya"
+            },
+            {
+              "value": "pa",
+              "label": "Panjabi"
+            },
+            {
+              "value": "fa",
+              "label": "Persian"
+            },
+            {
+              "value": "pl",
+              "label": "Polish"
+            },
+            {
+              "value": "pt",
+              "label": "Portuguese"
+            },
+            {
+              "value": "pt-PT",
+              "label": "Portuguese (Portugal)"
+            },
+            {
+              "value": "ps",
+              "label": "Pushto"
+            },
+            {
+              "value": "ro",
+              "label": "Romanian"
+            },
+            {
+              "value": "ru",
+              "label": "Russian"
+            },
+            {
+              "value": "sm",
+              "label": "Samoan"
+            },
+            {
+              "value": "gd",
+              "label": "Scottish Gaelic"
+            },
+            {
+              "value": "sr",
+              "label": "Serbian"
+            },
+            {
+              "value": "sn",
+              "label": "Shona"
+            },
+            {
+              "value": "sd",
+              "label": "Sindhi"
+            },
+            {
+              "value": "si",
+              "label": "Sinhala"
+            },
+            {
+              "value": "sk",
+              "label": "Slovak"
+            },
+            {
+              "value": "sl",
+              "label": "Slovenian"
+            },
+            {
+              "value": "so",
+              "label": "Somali"
+            },
+            {
+              "value": "st",
+              "label": "Southern Sotho"
+            },
+            {
+              "value": "es",
+              "label": "Spanish"
+            },
+            {
+              "value": "es-ES",
+              "label": "Spanish (Spain)"
+            },
+            {
+              "value": "su",
+              "label": "Sundanese"
+            },
+            {
+              "value": "sw",
+              "label": "Swahili"
+            },
+            {
+              "value": "sv",
+              "label": "Swedish"
+            },
+            {
+              "value": "tl",
+              "label": "Tagalog"
+            },
+            {
+              "value": "tg",
+              "label": "Tajik"
+            },
+            {
+              "value": "ta",
+              "label": "Tamil"
+            },
+            {
+              "value": "tt",
+              "label": "Tatar"
+            },
+            {
+              "value": "te",
+              "label": "Telugu"
+            },
+            {
+              "value": "th",
+              "label": "Thai"
+            },
+            {
+              "value": "tr",
+              "label": "Turkish"
+            },
+            {
+              "value": "tk",
+              "label": "Turkmen"
+            },
+            {
+              "value": "ug",
+              "label": "Uighur"
+            },
+            {
+              "value": "uk",
+              "label": "Ukrainian"
+            },
+            {
+              "value": "ur",
+              "label": "Urdu"
+            },
+            {
+              "value": "uz",
+              "label": "Uzbek"
+            },
+            {
+              "value": "vi",
+              "label": "Vietnamese"
+            },
+            {
+              "value": "cy",
+              "label": "Welsh"
+            },
+            {
+              "value": "fy",
+              "label": "Western Frisian"
+            },
+            {
+              "value": "xh",
+              "label": "Xhosa"
+            },
+            {
+              "value": "yi",
+              "label": "Yiddish"
+            },
+            {
+              "value": "yo",
+              "label": "Yoruba"
+            },
+            {
+              "value": "zu",
+              "label": "Zulu"
+            }
+          ]
+        },
+        "model": {
+          "label": "Model",
+          "description": "Specific model to use (e.g., gpt-4o, gpt-4o-mini, gpt-4-turbo). Leave empty for default."
+        },
+        "file_password": {
+          "label": "PDF Password",
+          "description": "Password for protected PDF files (if applicable)."
+        },
+        "convert_to_pdf": {
+          "label": "Convert to PDF",
+          "description": "Convert DOC/DOCX files to PDF format for better compatibility.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "fallback_providers": {
+          "label": "Fallback Providers",
+          "description": "Alternative providers to try if the main provider fails (up to 5). A JSON list of: affinda, amazon, base64, google, klippa, microsoft, mindee, tabscanner, veryfi, eagledoc, extracta, openai.",
+          "type": "json"
+        },
+        "show_original_response": {
+          "label": "Include Original Response",
+          "description": "Include the raw provider response in the output for debugging.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.edenai.run/v2/ocr/financial_parser",
+        "headers": {
+          "Content-Type": "multipart/form-data"
+        },
+        "body": {
+          "providers": "{{provider}}",
+          "file": "{{file}}",
+          "document_type": "{{document_type}}",
+          "language": "{{language}}",
+          "file_password": "{{file_password}}",
+          "convert_to_pdf": "{{convert_to_pdf}}",
+          "show_original_response": "{{show_original_response}}",
+          "fallback_providers": "{{fallback_providers}}"
+        }
+      },
+      "beforeRequest": "const b = request.body;\nif (b.fallback_providers !== undefined && (!Array.isArray(b.fallback_providers) || b.fallback_providers.length > 5 || b.fallback_providers.some(p => typeof p !== 'string'))) throw new Error('Fallback providers should be a list of at most 5 providers.');\nif (b.document_type !== 'invoice' && b.document_type !== 'receipt') b.document_type = 'invoice';\nif (b.language === 'auto-detect') delete b.language;\nfor (const k of ['convert_to_pdf', 'show_original_response']) if (b[k] !== true) delete b[k];\nif (!(b.fallback_providers && b.fallback_providers.length)) delete b.fallback_providers;\nif (b.fallback_providers) b.fallback_providers = b.fallback_providers.join(',');\nif (inputs.model) b.settings = JSON.stringify({[inputs.provider]: inputs.model});\nreturn request;",
+      "afterResponse": "const p = inputs.provider, r = response[p];\nif (!r) return {provider: p, extracted_data: [], status: 'fail', raw: response};\nreturn {provider: p, extracted_data: r.extracted_data || [], status: r.status || 'success', original_response: r.original_response || null, raw: response};"
+    },
+    "receipt_parser": {
+      "label": "Receipt Parser",
+      "description": "Extract structured data from receipts and documents using Eden AI. Supports general data extraction with bounding boxes.",
+      "inputs": {
+        "provider": {
+          "label": "Provider",
+          "description": "The AI provider to use for data extraction.",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "amazon",
+              "label": "Amazon"
+            },
+            {
+              "value": "base64",
+              "label": "Base64"
+            }
+          ]
+        },
+        "file_url": {
+          "label": "File URL",
+          "description": "Public URL to the document file (PDF, image, etc).",
+          "required": true
+        },
+        "file_password": {
+          "label": "PDF Password",
+          "description": "Password for protected PDF files (if applicable)."
+        },
+        "convert_to_pdf": {
+          "label": "Convert to PDF",
+          "description": "Convert DOC/DOCX files to PDF format for better compatibility.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "attributes_as_list": {
+          "label": "Attributes as List",
+          "description": "Return extracted data with each attribute as a list instead of list of objects.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "fallback_providers": {
+          "label": "Fallback Providers",
+          "description": "Alternative providers to try if the main provider fails (up to 5). A JSON list of: amazon, base64.",
+          "type": "json"
+        },
+        "show_original_response": {
+          "label": "Include Original Response",
+          "description": "Include the raw provider response in the output for debugging.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.edenai.run/v2/ocr/data_extraction",
+        "body": {
+          "providers": "{{provider}}",
+          "file_url": "{{file_url}}",
+          "file_password": "{{file_password}}",
+          "convert_to_pdf": "{{convert_to_pdf}}",
+          "attributes_as_list": "{{attributes_as_list}}",
+          "show_original_response": "{{show_original_response}}",
+          "fallback_providers": "{{fallback_providers}}"
+        }
+      },
+      "beforeRequest": "const b = request.body;\nconst validUrl = u => { const m = /^([A-Za-z][A-Za-z0-9+.-]*):([\\s\\S]*)$/.exec(String(u).trim()); if (!m) return false; if (!['http', 'https', 'ws', 'wss', 'ftp'].includes(m[1].toLowerCase())) return true; let host = m[2].replace(/^[\\/\\\\]+/, '').split(/[\\/\\\\?#]/)[0].replace(/^.*@/, ''); if (!host.startsWith('[')) { const i = host.lastIndexOf(':'); if (i >= 0) { const port = host.slice(i + 1); if (!/^\\d*$/.test(port) || (port && Number(port) > 65535)) return false; host = host.slice(0, i); } } return host.length > 0 && !/[\\s<>^|]/.test(host); };\nif (!validUrl(inputs.file_url)) throw new Error('Valid file URL is required');\nif (b.fallback_providers !== undefined && (!Array.isArray(b.fallback_providers) || b.fallback_providers.length > 5 || b.fallback_providers.some(p => typeof p !== 'string'))) throw new Error('Fallback providers should be a list of at most 5 providers.');\nfor (const k of ['show_original_response', 'convert_to_pdf', 'attributes_as_list']) if (b[k] !== true) delete b[k];\nif (!(b.fallback_providers && b.fallback_providers.length)) delete b.fallback_providers;\nreturn request;",
+      "afterResponse": "const p = inputs.provider, r = response[p];\nif (!r) return Object.assign({provider: p}, {fields: []}, {status: 'fail', raw: response});\nreturn Object.assign({provider: p}, {fields: r.fields || [], confidence_score: r.confidence_score || 0}, {status: r.status || 'success', original_response: r.original_response || null, raw: response});"
+    },
+    "ocr_image": {
+      "label": "Extract Text in Image (OCR)",
+      "description": "Extract text from images (OCR) using Eden AI. Supports multiple providers, languages, and bounding box coordinates.",
+      "inputs": {
+        "provider": {
+          "label": "Provider",
+          "description": "The AI provider to use for text extraction.",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "amazon",
+              "label": "Amazon"
+            },
+            {
+              "value": "clarifai",
+              "label": "Clarifai"
+            },
+            {
+              "value": "google",
+              "label": "Google"
+            },
+            {
+              "value": "microsoft",
+              "label": "Microsoft"
+            },
+            {
+              "value": "sentisight",
+              "label": "SentiSight"
+            },
+            {
+              "value": "api4ai",
+              "label": "API4AI"
+            },
+            {
+              "value": "mistral",
+              "label": "Mistral"
+            }
+          ]
+        },
+        "file_url": {
+          "label": "File URL",
+          "description": "Public URL to the image or document file.",
+          "required": true
+        },
+        "language": {
+          "label": "Language",
+          "description": "The language of the text in the image. Choose \"Auto Detection\" if unsure.",
+          "type": "select",
+          "defaultValue": "auto-detect",
+          "options": [
+            {
+              "value": "auto-detect",
+              "label": "Auto Detection"
+            },
+            {
+              "value": "abq",
+              "label": "Abaza"
+            },
+            {
+              "value": "ady",
+              "label": "Adyghe"
+            },
+            {
+              "value": "af",
+              "label": "Afrikaans"
+            },
+            {
+              "value": "sq",
+              "label": "Albanian"
+            },
+            {
+              "value": "anp",
+              "label": "Angika"
+            },
+            {
+              "value": "ar",
+              "label": "Arabic"
+            },
+            {
+              "value": "ar-XA",
+              "label": "Arabic (Pseudo-Accents)"
+            },
+            {
+              "value": "as",
+              "label": "Assamese"
+            },
+            {
+              "value": "ast",
+              "label": "Asturian"
+            },
+            {
+              "value": "av",
+              "label": "Avaric"
+            },
+            {
+              "value": "awa",
+              "label": "Awadhi"
+            },
+            {
+              "value": "az",
+              "label": "Azerbaijani"
+            },
+            {
+              "value": "bfy",
+              "label": "Bagheli"
+            },
+            {
+              "value": "eu",
+              "label": "Basque"
+            },
+            {
+              "value": "be",
+              "label": "Belarusian"
+            },
+            {
+              "value": "be-cyrl",
+              "label": "Belarusian (Cyrillic)"
+            },
+            {
+              "value": "be-latn",
+              "label": "Belarusian (Latin)"
+            },
+            {
+              "value": "bn",
+              "label": "Bengali"
+            },
+            {
+              "value": "bho",
+              "label": "Bhojpuri"
+            },
+            {
+              "value": "bh",
+              "label": "Bihari languages"
+            },
+            {
+              "value": "bi",
+              "label": "Bislama"
+            },
+            {
+              "value": "brx",
+              "label": "Bodo (India)"
+            },
+            {
+              "value": "bs",
+              "label": "Bosnian"
+            },
+            {
+              "value": "bra",
+              "label": "Braj"
+            },
+            {
+              "value": "br",
+              "label": "Breton"
+            },
+            {
+              "value": "bg",
+              "label": "Bulgarian"
+            },
+            {
+              "value": "bns",
+              "label": "Bundeli"
+            },
+            {
+              "value": "bua",
+              "label": "Buriat"
+            },
+            {
+              "value": "rab",
+              "label": "Camling"
+            },
+            {
+              "value": "ca",
+              "label": "Catalan"
+            },
+            {
+              "value": "ceb",
+              "label": "Cebuano"
+            },
+            {
+              "value": "ch",
+              "label": "Chamorro"
+            },
+            {
+              "value": "ce",
+              "label": "Chechen"
+            },
+            {
+              "value": "hne",
+              "label": "Chhattisgarhi"
+            },
+            {
+              "value": "zh",
+              "label": "Chinese"
+            },
+            {
+              "value": "zh-CN",
+              "label": "Chinese (China)"
+            },
+            {
+              "value": "zh-Hans",
+              "label": "Chinese (Simplified)"
+            },
+            {
+              "value": "zh-TW",
+              "label": "Chinese (Taiwan)"
+            },
+            {
+              "value": "zh-Hant",
+              "label": "Chinese (Traditional)"
+            },
+            {
+              "value": "kw",
+              "label": "Cornish"
+            },
+            {
+              "value": "co",
+              "label": "Corsican"
+            },
+            {
+              "value": "crh",
+              "label": "Crimean Tatar"
+            },
+            {
+              "value": "hr",
+              "label": "Croatian"
+            },
+            {
+              "value": "cs",
+              "label": "Czech"
+            },
+            {
+              "value": "da",
+              "label": "Danish"
+            },
+            {
+              "value": "da-DK",
+              "label": "Danish (Denmark)"
+            },
+            {
+              "value": "dar",
+              "label": "Dargwa"
+            },
+            {
+              "value": "prs",
+              "label": "Dari"
+            },
+            {
+              "value": "dhi",
+              "label": "Dhimal"
+            },
+            {
+              "value": "doi",
+              "label": "Dogri"
+            },
+            {
+              "value": "nl",
+              "label": "Dutch"
+            },
+            {
+              "value": "nl-NL",
+              "label": "Dutch (Netherlands)"
+            },
+            {
+              "value": "en",
+              "label": "English"
+            },
+            {
+              "value": "en-US",
+              "label": "English (United States)"
+            },
+            {
+              "value": "myv",
+              "label": "Erzya"
+            },
+            {
+              "value": "et",
+              "label": "Estonian"
+            },
+            {
+              "value": "fo",
+              "label": "Faroese"
+            },
+            {
+              "value": "fj",
+              "label": "Fijian"
+            },
+            {
+              "value": "fil",
+              "label": "Filipino"
+            },
+            {
+              "value": "fi",
+              "label": "Finnish"
+            },
+            {
+              "value": "fi-FI",
+              "label": "Finnish (Finland)"
+            },
+            {
+              "value": "fr",
+              "label": "French"
+            },
+            {
+              "value": "fr-FR",
+              "label": "French (France)"
+            },
+            {
+              "value": "fur",
+              "label": "Friulian"
+            },
+            {
+              "value": "gag",
+              "label": "Gagauz"
+            },
+            {
+              "value": "gl",
+              "label": "Galician"
+            },
+            {
+              "value": "de",
+              "label": "German"
+            },
+            {
+              "value": "de-DE",
+              "label": "German (Germany)"
+            },
+            {
+              "value": "gil",
+              "label": "Gilbertese"
+            },
+            {
+              "value": "gom",
+              "label": "Goan Konkani"
+            },
+            {
+              "value": "gon",
+              "label": "Gondi"
+            },
+            {
+              "value": "gvr",
+              "label": "Gurung"
+            },
+            {
+              "value": "ht",
+              "label": "Haitian"
+            },
+            {
+              "value": "hlb",
+              "label": "Halbi"
+            },
+            {
+              "value": "hni",
+              "label": "Hani"
+            },
+            {
+              "value": "bgc",
+              "label": "Haryanvi"
+            },
+            {
+              "value": "haw",
+              "label": "Hawaiian"
+            },
+            {
+              "value": "hi",
+              "label": "Hindi"
+            },
+            {
+              "value": "mww",
+              "label": "Hmong Daw"
+            },
+            {
+              "value": "hoc",
+              "label": "Ho"
+            },
+            {
+              "value": "hu",
+              "label": "Hungarian"
+            },
+            {
+              "value": "hu-HU",
+              "label": "Hungarian (Hungary)"
+            },
+            {
+              "value": "is",
+              "label": "Icelandic"
+            },
+            {
+              "value": "smn",
+              "label": "Inari Sami"
+            },
+            {
+              "value": "id",
+              "label": "Indonesian"
+            },
+            {
+              "value": "inh",
+              "label": "Ingush"
+            },
+            {
+              "value": "ia",
+              "label": "Interlingua"
+            },
+            {
+              "value": "iu",
+              "label": "Inuktitut"
+            },
+            {
+              "value": "ga",
+              "label": "Irish"
+            },
+            {
+              "value": "it",
+              "label": "Italian"
+            },
+            {
+              "value": "it-IT",
+              "label": "Italian (Italy)"
+            },
+            {
+              "value": "ja",
+              "label": "Japanese"
+            },
+            {
+              "value": "ja-JP",
+              "label": "Japanese (Japan)"
+            },
+            {
+              "value": "jns",
+              "label": "Jaunsari"
+            },
+            {
+              "value": "jv",
+              "label": "Javanese"
+            },
+            {
+              "value": "quc",
+              "label": "K'iche'"
+            },
+            {
+              "value": "kbd",
+              "label": "Kabardian"
+            },
+            {
+              "value": "kea",
+              "label": "Kabuverdianu"
+            },
+            {
+              "value": "kac",
+              "label": "Kachin"
+            },
+            {
+              "value": "kl",
+              "label": "Kalaallisut"
+            },
+            {
+              "value": "xnr",
+              "label": "Kangri"
+            },
+            {
+              "value": "kaa",
+              "label": "Kara-Kalpak"
+            },
+            {
+              "value": "kaa-Cyrl",
+              "label": "Kara-Kalpak (Cyrillic)"
+            },
+            {
+              "value": "krc",
+              "label": "Karachay-Balkar"
+            },
+            {
+              "value": "csb",
+              "label": "Kashubian"
+            },
+            {
+              "value": "kk",
+              "label": "Kazakh"
+            },
+            {
+              "value": "kk-cyrl",
+              "label": "Kazakh (Cyrillic)"
+            },
+            {
+              "value": "kk-latn",
+              "label": "Kazakh (Latin)"
+            },
+            {
+              "value": "klr",
+              "label": "Khaling"
+            },
+            {
+              "value": "kha",
+              "label": "Khasi"
+            },
+            {
+              "value": "ky",
+              "label": "Kirghiz"
+            },
+            {
+              "value": "ko",
+              "label": "Korean"
+            },
+            {
+              "value": "ko-KR",
+              "label": "Korean (South Korea)"
+            },
+            {
+              "value": "kfq",
+              "label": "Korku"
+            },
+            {
+              "value": "kpy",
+              "label": "Koryak"
+            },
+            {
+              "value": "kos",
+              "label": "Kosraean"
+            },
+            {
+              "value": "kmj",
+              "label": "Kumarbhag Paharia"
+            },
+            {
+              "value": "kum",
+              "label": "Kumyk"
+            },
+            {
+              "value": "ku",
+              "label": "Kurdish"
+            },
+            {
+              "value": "ku-arab",
+              "label": "Kurdish (Arabic)"
+            },
+            {
+              "value": "ku-latn",
+              "label": "Kurdish (Latin)"
+            },
+            {
+              "value": "kru",
+              "label": "Kurukh"
+            },
+            {
+              "value": "ksh",
+              "label": "Kölsch"
+            },
+            {
+              "value": "lbe",
+              "label": "Lak"
+            },
+            {
+              "value": "lkt",
+              "label": "Lakota"
+            },
+            {
+              "value": "la",
+              "label": "Latin"
+            },
+            {
+              "value": "lv",
+              "label": "Latvian"
+            },
+            {
+              "value": "lez",
+              "label": "Lezghian"
+            },
+            {
+              "value": "lt",
+              "label": "Lithuanian"
+            },
+            {
+              "value": "dsb",
+              "label": "Lower Sorbian"
+            },
+            {
+              "value": "smj",
+              "label": "Lule Sami"
+            },
+            {
+              "value": "lb",
+              "label": "Luxembourgish"
+            },
+            {
+              "value": "bfz",
+              "label": "Mahasu Pahari"
+            },
+            {
+              "value": "mai",
+              "label": "Maithili"
+            },
+            {
+              "value": "ms",
+              "label": "Malay"
+            },
+            {
+              "value": "mt",
+              "label": "Maltese"
+            },
+            {
+              "value": "gv",
+              "label": "Manx"
+            },
+            {
+              "value": "mi",
+              "label": "Maori"
+            },
+            {
+              "value": "mr",
+              "label": "Marathi"
+            },
+            {
+              "value": "mh",
+              "label": "Marshallese"
+            },
+            {
+              "value": "mn",
+              "label": "Mongolian"
+            },
+            {
+              "value": "cnr",
+              "label": "Montenegrin"
+            },
+            {
+              "value": "nap",
+              "label": "Neapolitan"
+            },
+            {
+              "value": "ne",
+              "label": "Nepali"
+            },
+            {
+              "value": "new",
+              "label": "Newari"
+            },
+            {
+              "value": "niu",
+              "label": "Niuean"
+            },
+            {
+              "value": "nog",
+              "label": "Nogai"
+            },
+            {
+              "value": "se",
+              "label": "Northern Sami"
+            },
+            {
+              "value": "no",
+              "label": "Norwegian"
+            },
+            {
+              "value": "oc",
+              "label": "Occitan"
+            },
+            {
+              "value": "ang",
+              "label": "Old English"
+            },
+            {
+              "value": "os",
+              "label": "Ossetian"
+            },
+            {
+              "value": "pi",
+              "label": "Pali"
+            },
+            {
+              "value": "pa",
+              "label": "Panjabi"
+            },
+            {
+              "value": "fa",
+              "label": "Persian"
+            },
+            {
+              "value": "pl",
+              "label": "Polish"
+            },
+            {
+              "value": "pl-PO",
+              "label": "Polish (Poland)"
+            },
+            {
+              "value": "pt",
+              "label": "Portuguese"
+            },
+            {
+              "value": "pt-PT",
+              "label": "Portuguese (Portugal)"
+            },
+            {
+              "value": "ps",
+              "label": "Pushto"
+            },
+            {
+              "value": "ro",
+              "label": "Romanian"
+            },
+            {
+              "value": "rm",
+              "label": "Romansh"
+            },
+            {
+              "value": "ru",
+              "label": "Russian"
+            },
+            {
+              "value": "ru-RU",
+              "label": "Russian (Russia)"
+            },
+            {
+              "value": "sck",
+              "label": "Sadri"
+            },
+            {
+              "value": "sm",
+              "label": "Samoan"
+            },
+            {
+              "value": "sa",
+              "label": "Sanskrit"
+            },
+            {
+              "value": "sat",
+              "label": "Santali"
+            },
+            {
+              "value": "sco",
+              "label": "Scots"
+            },
+            {
+              "value": "gd",
+              "label": "Scottish Gaelic"
+            },
+            {
+              "value": "sr",
+              "label": "Serbian"
+            },
+            {
+              "value": "sr-Cyrl-ME",
+              "label": "Serbian (Cyrillic, Montenegro)"
+            },
+            {
+              "value": "sr-latn",
+              "label": "Serbian (Latin)"
+            },
+            {
+              "value": "sr-Latn-ME",
+              "label": "Serbian (Latin, Montenegro)"
+            },
+            {
+              "value": "xsr",
+              "label": "Sherpa"
+            },
+            {
+              "value": "srx",
+              "label": "Sirmauri"
+            },
+            {
+              "value": "sms",
+              "label": "Skolt Sami"
+            },
+            {
+              "value": "sk",
+              "label": "Slovak"
+            },
+            {
+              "value": "sl",
+              "label": "Slovenian"
+            },
+            {
+              "value": "so",
+              "label": "Somali"
+            },
+            {
+              "value": "sma",
+              "label": "Southern Sami"
+            },
+            {
+              "value": "es",
+              "label": "Spanish"
+            },
+            {
+              "value": "es-ES",
+              "label": "Spanish (Spain)"
+            },
+            {
+              "value": "sw",
+              "label": "Swahili"
+            },
+            {
+              "value": "sv",
+              "label": "Swedish"
+            },
+            {
+              "value": "sv-SE",
+              "label": "Swedish (Sweden)"
+            },
+            {
+              "value": "tab",
+              "label": "Tabassaran"
+            },
+            {
+              "value": "tl",
+              "label": "Tagalog"
+            },
+            {
+              "value": "tg",
+              "label": "Tajik"
+            },
+            {
+              "value": "tt",
+              "label": "Tatar"
+            },
+            {
+              "value": "tet",
+              "label": "Tetum"
+            },
+            {
+              "value": "thf",
+              "label": "Thangmi"
+            },
+            {
+              "value": "to",
+              "label": "Tonga"
+            },
+            {
+              "value": "tr",
+              "label": "Turkish"
+            },
+            {
+              "value": "tr-TR",
+              "label": "Turkish (Türkiye)"
+            },
+            {
+              "value": "tk",
+              "label": "Turkmen"
+            },
+            {
+              "value": "tyv",
+              "label": "Tuvinian"
+            },
+            {
+              "value": "ug",
+              "label": "Uighur"
+            },
+            {
+              "value": "uk",
+              "label": "Ukrainian"
+            },
+            {
+              "value": "hsb",
+              "label": "Upper Sorbian"
+            },
+            {
+              "value": "ur",
+              "label": "Urdu"
+            },
+            {
+              "value": "uz",
+              "label": "Uzbek"
+            },
+            {
+              "value": "uz-arab",
+              "label": "Uzbek (Arabic)"
+            },
+            {
+              "value": "uz-cyrl",
+              "label": "Uzbek (Cyrillic)"
+            },
+            {
+              "value": "vi",
+              "label": "Vietnamese"
+            },
+            {
+              "value": "vo",
+              "label": "Volapük"
+            },
+            {
+              "value": "wae",
+              "label": "Walser"
+            },
+            {
+              "value": "cy",
+              "label": "Welsh"
+            },
+            {
+              "value": "fy",
+              "label": "Western Frisian"
+            },
+            {
+              "value": "yua",
+              "label": "Yucateco"
+            },
+            {
+              "value": "za",
+              "label": "Zhuang"
+            },
+            {
+              "value": "zu",
+              "label": "Zulu"
+            },
+            {
+              "value": "cz-CZ",
+              "label": "Czechia"
+            },
+            {
+              "value": "gr-GR",
+              "label": "Greece"
+            }
+          ]
+        },
+        "file_password": {
+          "label": "PDF Password",
+          "description": "Password for protected PDF files (if applicable)."
+        },
+        "attributes_as_list": {
+          "label": "Attributes as List",
+          "description": "Return extracted data with each attribute as a list instead of list of objects.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "fallback_providers": {
+          "label": "Fallback Providers",
+          "description": "Alternative providers to try if the main provider fails (up to 5). A JSON list of: amazon, clarifai, google, microsoft, sentisight, api4ai, mistral.",
+          "type": "json"
+        },
+        "show_original_response": {
+          "label": "Include Original Response",
+          "description": "Include the raw provider response in the output for debugging.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.edenai.run/v2/ocr/ocr",
+        "body": {
+          "providers": "{{provider}}",
+          "file_url": "{{file_url}}",
+          "language": "{{language}}",
+          "file_password": "{{file_password}}",
+          "attributes_as_list": "{{attributes_as_list}}",
+          "show_original_response": "{{show_original_response}}",
+          "fallback_providers": "{{fallback_providers}}"
+        }
+      },
+      "beforeRequest": "const b = request.body;\nconst validUrl = u => { const m = /^([A-Za-z][A-Za-z0-9+.-]*):([\\s\\S]*)$/.exec(String(u).trim()); if (!m) return false; if (!['http', 'https', 'ws', 'wss', 'ftp'].includes(m[1].toLowerCase())) return true; let host = m[2].replace(/^[\\/\\\\]+/, '').split(/[\\/\\\\?#]/)[0].replace(/^.*@/, ''); if (!host.startsWith('[')) { const i = host.lastIndexOf(':'); if (i >= 0) { const port = host.slice(i + 1); if (!/^\\d*$/.test(port) || (port && Number(port) > 65535)) return false; host = host.slice(0, i); } } return host.length > 0 && !/[\\s<>^|]/.test(host); };\nif (!validUrl(inputs.file_url)) throw new Error('Valid file URL is required');\nif (b.fallback_providers !== undefined && (!Array.isArray(b.fallback_providers) || b.fallback_providers.length > 5 || b.fallback_providers.some(p => typeof p !== 'string'))) throw new Error('Fallback providers should be a list of at most 5 providers.');\nif (b.language === 'auto-detect') delete b.language;\nfor (const k of ['show_original_response', 'attributes_as_list']) if (b[k] !== true) delete b[k];\nif (!(b.fallback_providers && b.fallback_providers.length)) delete b.fallback_providers;\nreturn request;",
+      "afterResponse": "const p = inputs.provider, r = response[p];\nif (!r) return Object.assign({provider: p}, {text: '', bounding_boxes: []}, {status: 'fail', raw: response});\nreturn Object.assign({provider: p}, {text: r.text || '', bounding_boxes: r.bounding_boxes || []}, {status: r.status || 'success', original_response: r.original_response || null, raw: response});"
+    },
+    "image_generation": {
+      "label": "Image Generation",
+      "description": "Create images from text prompts using Eden AI. Supports multiple providers, models, and resolutions.",
+      "inputs": {
+        "provider": {
+          "label": "Provider",
+          "description": "The AI provider to use for image generation.",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "openai",
+              "label": "OpenAI"
+            },
+            {
+              "value": "stabilityai",
+              "label": "StabilityAI"
+            },
+            {
+              "value": "replicate",
+              "label": "Replicate"
+            },
+            {
+              "value": "amazon",
+              "label": "Amazon"
+            },
+            {
+              "value": "leonardo",
+              "label": "Leonardo"
+            },
+            {
+              "value": "minimax",
+              "label": "MiniMax"
+            },
+            {
+              "value": "bytedance",
+              "label": "ByteDance"
+            }
+          ]
+        },
+        "text": {
+          "label": "Prompt",
+          "description": "Description of the desired image(s). Be specific and descriptive for best results.",
+          "type": "multiline",
+          "required": true
+        },
+        "resolution": {
+          "label": "Resolution",
+          "description": "The image resolution (e.g., 512x512, 1024x1024).",
+          "type": "select",
+          "required": true,
+          "defaultValue": "1024x1024",
+          "options": [
+            {
+              "value": "256x256",
+              "label": "256x256"
+            },
+            {
+              "value": "512x512",
+              "label": "512x512"
+            },
+            {
+              "value": "1024x1024",
+              "label": "1024x1024"
+            },
+            {
+              "value": "1024x1792",
+              "label": "1024x1792 (Portrait)"
+            },
+            {
+              "value": "1792x1024",
+              "label": "1792x1024 (Landscape)"
+            }
+          ]
+        },
+        "num_images": {
+          "label": "Number of Images",
+          "description": "Number of images to generate (1-10).",
+          "type": "number",
+          "defaultValue": "1"
+        },
+        "model": {
+          "label": "Model",
+          "description": "Specific model to use for image generation. Leave empty for provider default.",
+          "type": "select",
+          "options": [
+            {
+              "value": "dall-e-3",
+              "label": "DALL-E 3 (OpenAI)"
+            },
+            {
+              "value": "dall-e-2",
+              "label": "DALL-E 2 (OpenAI)"
+            },
+            {
+              "value": "stable-diffusion-v1-6",
+              "label": "Stable Diffusion v1.6 (StabilityAI)"
+            },
+            {
+              "value": "stable-diffusion-xl-1024-v1-0",
+              "label": "Stable Diffusion XL 1024 v1.0 (StabilityAI)"
+            },
+            {
+              "value": "classic",
+              "label": "Classic (Replicate)"
+            },
+            {
+              "value": "anime-style",
+              "label": "Anime Style (Replicate)"
+            },
+            {
+              "value": "vintedois-diffusion",
+              "label": "Vintedois Diffusion (Replicate)"
+            },
+            {
+              "value": "titan-image-generator-v1_premium",
+              "label": "Titan Image Generator v1 Premium (Amazon)"
+            },
+            {
+              "value": "titan-image-generator-v1_standard",
+              "label": "Titan Image Generator v1 Standard (Amazon)"
+            },
+            {
+              "value": "Leonardo Phoenix",
+              "label": "Leonardo Phoenix"
+            },
+            {
+              "value": "Leonardo Lightning XL",
+              "label": "Leonardo Lightning XL"
+            },
+            {
+              "value": "Leonardo Anime XL",
+              "label": "Leonardo Anime XL"
+            },
+            {
+              "value": "Leonardo Kino XL",
+              "label": "Leonardo Kino XL"
+            },
+            {
+              "value": "Leonardo Vision XL",
+              "label": "Leonardo Vision XL"
+            },
+            {
+              "value": "Leonardo Diffusion XL",
+              "label": "Leonardo Diffusion XL"
+            },
+            {
+              "value": "AlbedoBase XL",
+              "label": "AlbedoBase XL"
+            },
+            {
+              "value": "SDXL 0.9",
+              "label": "SDXL 0.9"
+            },
+            {
+              "value": "image-01",
+              "label": "Image-01 (MiniMax)"
+            },
+            {
+              "value": "seedream-3-0-t2i-250415",
+              "label": "SeeDream 3.0 T2I (ByteDance)"
+            }
+          ]
+        },
+        "fallback_providers": {
+          "label": "Fallback Providers",
+          "description": "Alternative providers to try if the main provider fails (up to 5). A JSON list of: openai, stabilityai, replicate, amazon, leonardo, minimax, bytedance.",
+          "type": "json"
+        },
+        "show_original_response": {
+          "label": "Include Original Response",
+          "description": "Include the raw provider response in the output for debugging.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.edenai.run/v2/image/generation/",
+        "body": {
+          "providers": "{{provider}}",
+          "text": "{{text}}",
+          "resolution": "{{resolution}}",
+          "num_images": "{{num_images}}",
+          "show_original_response": "{{show_original_response}}",
+          "fallback_providers": "{{fallback_providers}}"
+        }
+      },
+      "beforeRequest": "const b = request.body;\nif (b.num_images !== undefined && (!Number.isInteger(b.num_images) || b.num_images < 1 || b.num_images > 10)) throw new Error('num_images is out of range.');\nif (b.fallback_providers !== undefined && (!Array.isArray(b.fallback_providers) || b.fallback_providers.length > 5 || b.fallback_providers.some(p => typeof p !== 'string'))) throw new Error('Fallback providers should be a list of at most 5 providers.');\nif (b.show_original_response !== true) delete b.show_original_response;\nif (b.num_images === 1) delete b.num_images;\nif (!(b.fallback_providers && b.fallback_providers.length)) delete b.fallback_providers;\nif (inputs.model) b.settings = {[inputs.provider]: inputs.model};\nreturn request;",
+      "afterResponse": "const p = inputs.provider, r = response[p];\nif (!r) return Object.assign({provider: p}, {items: []}, {status: 'fail', raw: response});\nreturn Object.assign({provider: p}, {items: r.items || []}, {status: r.status || 'success', original_response: r.original_response || null, raw: response});"
+    },
+    "text_to_speech": {
+      "label": "Generate Audio From Text",
+      "description": "Convert text to spoken audio using Eden AI. Supports multiple providers, languages, and voice customization.",
+      "inputs": {
+        "provider": {
+          "label": "Provider",
+          "description": "The AI provider to use for text-to-speech synthesis.",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "amazon",
+              "label": "Amazon"
+            },
+            {
+              "value": "google",
+              "label": "Google"
+            },
+            {
+              "value": "microsoft",
+              "label": "Microsoft"
+            },
+            {
+              "value": "lovoai",
+              "label": "LovoAI"
+            },
+            {
+              "value": "elevenlabs",
+              "label": "ElevenLabs"
+            },
+            {
+              "value": "openai",
+              "label": "OpenAI"
+            },
+            {
+              "value": "deepgram",
+              "label": "Deepgram"
+            }
+          ]
+        },
+        "text": {
+          "label": "Text",
+          "description": "The text to convert to speech.",
+          "type": "multiline",
+          "required": true
+        },
+        "language": {
+          "label": "Language",
+          "description": "The language and locale for the speech synthesis (defaults to en-US if not specified).",
+          "type": "select",
+          "options": [
+            {
+              "value": "af",
+              "label": "Afrikaans"
+            },
+            {
+              "value": "sq",
+              "label": "Albanian"
+            },
+            {
+              "value": "am",
+              "label": "Amharic"
+            },
+            {
+              "value": "ar",
+              "label": "Arabic"
+            },
+            {
+              "value": "hy",
+              "label": "Armenian"
+            },
+            {
+              "value": "az",
+              "label": "Azerbaijani"
+            },
+            {
+              "value": "eu",
+              "label": "Basque"
+            },
+            {
+              "value": "be",
+              "label": "Belarusian"
+            },
+            {
+              "value": "bn",
+              "label": "Bengali"
+            },
+            {
+              "value": "bs",
+              "label": "Bosnian"
+            },
+            {
+              "value": "bg",
+              "label": "Bulgarian"
+            },
+            {
+              "value": "my",
+              "label": "Burmese"
+            },
+            {
+              "value": "ca",
+              "label": "Catalan"
+            },
+            {
+              "value": "zh",
+              "label": "Chinese"
+            },
+            {
+              "value": "hr",
+              "label": "Croatian"
+            },
+            {
+              "value": "cs",
+              "label": "Czech"
+            },
+            {
+              "value": "da",
+              "label": "Danish"
+            },
+            {
+              "value": "nl",
+              "label": "Dutch"
+            },
+            {
+              "value": "en",
+              "label": "English"
+            },
+            {
+              "value": "et",
+              "label": "Estonian"
+            },
+            {
+              "value": "fil",
+              "label": "Filipino"
+            },
+            {
+              "value": "fi",
+              "label": "Finnish"
+            },
+            {
+              "value": "fr",
+              "label": "French"
+            },
+            {
+              "value": "gl",
+              "label": "Galician"
+            },
+            {
+              "value": "ka",
+              "label": "Georgian"
+            },
+            {
+              "value": "de",
+              "label": "German"
+            },
+            {
+              "value": "el",
+              "label": "Modern Greek"
+            },
+            {
+              "value": "gu",
+              "label": "Gujarati"
+            },
+            {
+              "value": "he",
+              "label": "Hebrew"
+            },
+            {
+              "value": "hi",
+              "label": "Hindi"
+            },
+            {
+              "value": "hu",
+              "label": "Hungarian"
+            },
+            {
+              "value": "is",
+              "label": "Icelandic"
+            },
+            {
+              "value": "id",
+              "label": "Indonesian"
+            },
+            {
+              "value": "ga",
+              "label": "Irish"
+            },
+            {
+              "value": "it",
+              "label": "Italian"
+            },
+            {
+              "value": "ja",
+              "label": "Japanese"
+            },
+            {
+              "value": "jv",
+              "label": "Javanese"
+            },
+            {
+              "value": "kn",
+              "label": "Kannada"
+            },
+            {
+              "value": "kk",
+              "label": "Kazakh"
+            },
+            {
+              "value": "km",
+              "label": "Khmer"
+            },
+            {
+              "value": "ko",
+              "label": "Korean"
+            },
+            {
+              "value": "lo",
+              "label": "Lao"
+            },
+            {
+              "value": "lv",
+              "label": "Latvian"
+            },
+            {
+              "value": "lt",
+              "label": "Lithuanian"
+            },
+            {
+              "value": "mk",
+              "label": "Macedonian"
+            },
+            {
+              "value": "ms",
+              "label": "Malay"
+            },
+            {
+              "value": "ml",
+              "label": "Malayalam"
+            },
+            {
+              "value": "mt",
+              "label": "Maltese"
+            },
+            {
+              "value": "cmn",
+              "label": "Mandarin Chinese"
+            },
+            {
+              "value": "mi",
+              "label": "Maori"
+            },
+            {
+              "value": "mr",
+              "label": "Marathi"
+            },
+            {
+              "value": "mn",
+              "label": "Mongolian"
+            },
+            {
+              "value": "ne",
+              "label": "Nepali"
+            },
+            {
+              "value": "no",
+              "label": "Norwegian"
+            },
+            {
+              "value": "nb",
+              "label": "Norwegian Bokmål"
+            },
+            {
+              "value": "pa",
+              "label": "Panjabi"
+            },
+            {
+              "value": "fa",
+              "label": "Persian"
+            },
+            {
+              "value": "pl",
+              "label": "Polish"
+            },
+            {
+              "value": "pt",
+              "label": "Portuguese"
+            },
+            {
+              "value": "ps",
+              "label": "Pushto"
+            },
+            {
+              "value": "ro",
+              "label": "Romanian"
+            },
+            {
+              "value": "ru",
+              "label": "Russian"
+            },
+            {
+              "value": "sr",
+              "label": "Serbian"
+            },
+            {
+              "value": "si",
+              "label": "Sinhala"
+            },
+            {
+              "value": "sk",
+              "label": "Slovak"
+            },
+            {
+              "value": "sl",
+              "label": "Slovenian"
+            },
+            {
+              "value": "so",
+              "label": "Somali"
+            },
+            {
+              "value": "es",
+              "label": "Spanish"
+            },
+            {
+              "value": "arb",
+              "label": "Standard Arabic"
+            },
+            {
+              "value": "su",
+              "label": "Sundanese"
+            },
+            {
+              "value": "sw",
+              "label": "Swahili"
+            },
+            {
+              "value": "sv",
+              "label": "Swedish"
+            },
+            {
+              "value": "tl",
+              "label": "Tagalog"
+            },
+            {
+              "value": "ta",
+              "label": "Tamil"
+            },
+            {
+              "value": "te",
+              "label": "Telugu"
+            },
+            {
+              "value": "th",
+              "label": "Thai"
+            },
+            {
+              "value": "tr",
+              "label": "Turkish"
+            },
+            {
+              "value": "uk",
+              "label": "Ukrainian"
+            },
+            {
+              "value": "ur",
+              "label": "Urdu"
+            },
+            {
+              "value": "uz",
+              "label": "Uzbek"
+            },
+            {
+              "value": "vi",
+              "label": "Vietnamese"
+            },
+            {
+              "value": "cy",
+              "label": "Welsh"
+            },
+            {
+              "value": "wuu",
+              "label": "Wu Chinese"
+            },
+            {
+              "value": "xh",
+              "label": "Xhosa"
+            },
+            {
+              "value": "yue",
+              "label": "Yue Chinese"
+            },
+            {
+              "value": "zu",
+              "label": "Zulu"
+            },
+            {
+              "value": "af-ZA",
+              "label": "Afrikaans (South Africa)"
+            },
+            {
+              "value": "sq-AL",
+              "label": "Albanian (Albania)"
+            },
+            {
+              "value": "am-ET",
+              "label": "Amharic (Ethiopia)"
+            },
+            {
+              "value": "ar-DZ",
+              "label": "Arabic (Algeria)"
+            },
+            {
+              "value": "ar-BH",
+              "label": "Arabic (Bahrain)"
+            },
+            {
+              "value": "ar-EG",
+              "label": "Arabic (Egypt)"
+            },
+            {
+              "value": "ar-IQ",
+              "label": "Arabic (Iraq)"
+            },
+            {
+              "value": "ar-JO",
+              "label": "Arabic (Jordan)"
+            },
+            {
+              "value": "ar-KW",
+              "label": "Arabic (Kuwait)"
+            },
+            {
+              "value": "ar-LB",
+              "label": "Arabic (Lebanon)"
+            },
+            {
+              "value": "ar-LY",
+              "label": "Arabic (Libya)"
+            },
+            {
+              "value": "ar-MA",
+              "label": "Arabic (Morocco)"
+            },
+            {
+              "value": "ar-OM",
+              "label": "Arabic (Oman)"
+            },
+            {
+              "value": "ar-XA",
+              "label": "Arabic (Pseudo-Accents)"
+            },
+            {
+              "value": "ar-QA",
+              "label": "Arabic (Qatar)"
+            },
+            {
+              "value": "ar-SA",
+              "label": "Arabic (Saudi Arabia)"
+            },
+            {
+              "value": "ar-SY",
+              "label": "Arabic (Syria)"
+            },
+            {
+              "value": "ar-TN",
+              "label": "Arabic (Tunisia)"
+            },
+            {
+              "value": "ar-AE",
+              "label": "Arabic (UAE)"
+            },
+            {
+              "value": "ar-YE",
+              "label": "Arabic (Yemen)"
+            },
+            {
+              "value": "hy-AM",
+              "label": "Armenian (Armenia)"
+            },
+            {
+              "value": "az-AZ",
+              "label": "Azerbaijani (Azerbaijan)"
+            },
+            {
+              "value": "bn-BD",
+              "label": "Bangla (Bangladesh)"
+            },
+            {
+              "value": "bn-IN",
+              "label": "Bangla (India)"
+            },
+            {
+              "value": "eu-ES",
+              "label": "Basque (Spain)"
+            },
+            {
+              "value": "bs-BA",
+              "label": "Bosnian (Bosnia & Herzegovina)"
+            },
+            {
+              "value": "bg-BG",
+              "label": "Bulgarian (Bulgaria)"
+            },
+            {
+              "value": "my-MM",
+              "label": "Burmese (Myanmar)"
+            },
+            {
+              "value": "yue-CN",
+              "label": "Cantonese (China)"
+            },
+            {
+              "value": "yue-HK",
+              "label": "Cantonese (Hong Kong)"
+            },
+            {
+              "value": "ca-ES",
+              "label": "Catalan (Spain)"
+            },
+            {
+              "value": "zh-CN",
+              "label": "Chinese (China)"
+            },
+            {
+              "value": "zh-CN-henan",
+              "label": "Chinese (China - Henan)"
+            },
+            {
+              "value": "zh-CN-shandong",
+              "label": "Chinese (China - Shandong)"
+            },
+            {
+              "value": "zh-CN-sichuan",
+              "label": "Chinese (China - Sichuan)"
+            },
+            {
+              "value": "zh-HK",
+              "label": "Chinese (Hong Kong)"
+            },
+            {
+              "value": "zh-TW",
+              "label": "Chinese (Taiwan)"
+            },
+            {
+              "value": "hr-HR",
+              "label": "Croatian (Croatia)"
+            },
+            {
+              "value": "cs-CZ",
+              "label": "Czech (Czechia)"
+            },
+            {
+              "value": "da-DK",
+              "label": "Danish (Denmark)"
+            },
+            {
+              "value": "nl-BE",
+              "label": "Dutch (Belgium)"
+            },
+            {
+              "value": "nl-NL",
+              "label": "Dutch (Netherlands)"
+            },
+            {
+              "value": "en-AU",
+              "label": "English (Australia)"
+            },
+            {
+              "value": "en-CA",
+              "label": "English (Canada)"
+            },
+            {
+              "value": "en-AN",
+              "label": "English (Curaçao)"
+            },
+            {
+              "value": "en-HK",
+              "label": "English (Hong Kong)"
+            },
+            {
+              "value": "en-IN",
+              "label": "English (India)"
+            },
+            {
+              "value": "en-IE",
+              "label": "English (Ireland)"
+            },
+            {
+              "value": "en-KE",
+              "label": "English (Kenya)"
+            },
+            {
+              "value": "en-NZ",
+              "label": "English (New Zealand)"
+            },
+            {
+              "value": "en-NG",
+              "label": "English (Nigeria)"
+            },
+            {
+              "value": "en-PH",
+              "label": "English (Philippines)"
+            },
+            {
+              "value": "en-SG",
+              "label": "English (Singapore)"
+            },
+            {
+              "value": "en-ZA",
+              "label": "English (South Africa)"
+            },
+            {
+              "value": "en-TZ",
+              "label": "English (Tanzania)"
+            },
+            {
+              "value": "en-GB",
+              "label": "English (United Kingdom)"
+            },
+            {
+              "value": "en-US",
+              "label": "English (United States)"
+            },
+            {
+              "value": "et-EE",
+              "label": "Estonian (Estonia)"
+            },
+            {
+              "value": "fil-PH",
+              "label": "Filipino (Philippines)"
+            },
+            {
+              "value": "fi-FI",
+              "label": "Finnish (Finland)"
+            },
+            {
+              "value": "fr-BE",
+              "label": "French (Belgium)"
+            },
+            {
+              "value": "fr-CA",
+              "label": "French (Canada)"
+            },
+            {
+              "value": "fr-FR",
+              "label": "French (France)"
+            },
+            {
+              "value": "fr-CH",
+              "label": "French (Switzerland)"
+            },
+            {
+              "value": "gl-ES",
+              "label": "Galician (Spain)"
+            },
+            {
+              "value": "ka-GE",
+              "label": "Georgian (Georgia)"
+            },
+            {
+              "value": "de-AT",
+              "label": "German (Austria)"
+            },
+            {
+              "value": "de-DE",
+              "label": "German (Germany)"
+            },
+            {
+              "value": "de-CH",
+              "label": "German (Switzerland)"
+            },
+            {
+              "value": "el-GR",
+              "label": "Greek (Greece)"
+            },
+            {
+              "value": "gu-IN",
+              "label": "Gujarati (India)"
+            },
+            {
+              "value": "he-IL",
+              "label": "Hebrew (Israel)"
+            },
+            {
+              "value": "hi-IN",
+              "label": "Hindi (India)"
+            },
+            {
+              "value": "hu-HU",
+              "label": "Hungarian (Hungary)"
+            },
+            {
+              "value": "is-IS",
+              "label": "Icelandic (Iceland)"
+            },
+            {
+              "value": "id-ID",
+              "label": "Indonesian (Indonesia)"
+            },
+            {
+              "value": "ga-IE",
+              "label": "Irish (Ireland)"
+            },
+            {
+              "value": "it-IT",
+              "label": "Italian (Italy)"
+            },
+            {
+              "value": "ja-JP",
+              "label": "Japanese (Japan)"
+            },
+            {
+              "value": "jv-ID",
+              "label": "Javanese (Indonesia)"
+            },
+            {
+              "value": "kn-IN",
+              "label": "Kannada (India)"
+            },
+            {
+              "value": "kk-KZ",
+              "label": "Kazakh (Kazakhstan)"
+            },
+            {
+              "value": "km-KH",
+              "label": "Khmer (Cambodia)"
+            },
+            {
+              "value": "ko-KR",
+              "label": "Korean (South Korea)"
+            },
+            {
+              "value": "lo-LA",
+              "label": "Lao (Laos)"
+            },
+            {
+              "value": "lv-LV",
+              "label": "Latvian (Latvia)"
+            },
+            {
+              "value": "lt-LT",
+              "label": "Lithuanian (Lithuania)"
+            },
+            {
+              "value": "mk-MK",
+              "label": "Macedonian (North Macedonia)"
+            },
+            {
+              "value": "ms-MY",
+              "label": "Malay (Malaysia)"
+            },
+            {
+              "value": "ml-IN",
+              "label": "Malayalam (India)"
+            },
+            {
+              "value": "mt-MT",
+              "label": "Maltese (Malta)"
+            },
+            {
+              "value": "cmn-CN",
+              "label": "Mandarin Chinese (China)"
+            },
+            {
+              "value": "cmn-TW",
+              "label": "Mandarin Chinese (Taiwan)"
+            },
+            {
+              "value": "mr-IN",
+              "label": "Marathi (India)"
+            },
+            {
+              "value": "mn-MN",
+              "label": "Mongolian (Mongolia)"
+            },
+            {
+              "value": "ne-NP",
+              "label": "Nepali (Nepal)"
+            },
+            {
+              "value": "nb-NO",
+              "label": "Norwegian Bokmål (Norway)"
+            },
+            {
+              "value": "ps-AF",
+              "label": "Pashto (Afghanistan)"
+            },
+            {
+              "value": "fa-IR",
+              "label": "Persian (Iran)"
+            },
+            {
+              "value": "pl-PL",
+              "label": "Polish (Poland)"
+            },
+            {
+              "value": "pt-BR",
+              "label": "Portuguese (Brazil)"
+            },
+            {
+              "value": "pt-PT",
+              "label": "Portuguese (Portugal)"
+            },
+            {
+              "value": "pa-IN",
+              "label": "Punjabi (India)"
+            },
+            {
+              "value": "ro-RO",
+              "label": "Romanian (Romania)"
+            },
+            {
+              "value": "ru-RU",
+              "label": "Russian (Russia)"
+            },
+            {
+              "value": "sr-RS",
+              "label": "Serbian (Serbia)"
+            },
+            {
+              "value": "si-LK",
+              "label": "Sinhala (Sri Lanka)"
+            },
+            {
+              "value": "sk-SK",
+              "label": "Slovak (Slovakia)"
+            },
+            {
+              "value": "sl-SI",
+              "label": "Slovenian (Slovenia)"
+            },
+            {
+              "value": "so-SO",
+              "label": "Somali (Somalia)"
+            },
+            {
+              "value": "es-AR",
+              "label": "Spanish (Argentina)"
+            },
+            {
+              "value": "es-BO",
+              "label": "Spanish (Bolivia)"
+            },
+            {
+              "value": "es-CL",
+              "label": "Spanish (Chile)"
+            },
+            {
+              "value": "es-CO",
+              "label": "Spanish (Colombia)"
+            },
+            {
+              "value": "es-CR",
+              "label": "Spanish (Costa Rica)"
+            },
+            {
+              "value": "es-CU",
+              "label": "Spanish (Cuba)"
+            },
+            {
+              "value": "es-DO",
+              "label": "Spanish (Dominican Republic)"
+            },
+            {
+              "value": "es-EC",
+              "label": "Spanish (Ecuador)"
+            },
+            {
+              "value": "es-SV",
+              "label": "Spanish (El Salvador)"
+            },
+            {
+              "value": "es-GQ",
+              "label": "Spanish (Equatorial Guinea)"
+            },
+            {
+              "value": "es-GT",
+              "label": "Spanish (Guatemala)"
+            },
+            {
+              "value": "es-HN",
+              "label": "Spanish (Honduras)"
+            },
+            {
+              "value": "es-MX",
+              "label": "Spanish (Mexico)"
+            },
+            {
+              "value": "es-NI",
+              "label": "Spanish (Nicaragua)"
+            },
+            {
+              "value": "es-PA",
+              "label": "Spanish (Panama)"
+            },
+            {
+              "value": "es-PY",
+              "label": "Spanish (Paraguay)"
+            },
+            {
+              "value": "es-PE",
+              "label": "Spanish (Peru)"
+            },
+            {
+              "value": "es-PR",
+              "label": "Spanish (Puerto Rico)"
+            },
+            {
+              "value": "es-ES",
+              "label": "Spanish (Spain)"
+            },
+            {
+              "value": "es-US",
+              "label": "Spanish (United States)"
+            },
+            {
+              "value": "es-UY",
+              "label": "Spanish (Uruguay)"
+            },
+            {
+              "value": "es-VE",
+              "label": "Spanish (Venezuela)"
+            },
+            {
+              "value": "su-ID",
+              "label": "Sundanese (Indonesia)"
+            },
+            {
+              "value": "sw-KE",
+              "label": "Swahili (Kenya)"
+            },
+            {
+              "value": "sw-TZ",
+              "label": "Swahili (Tanzania)"
+            },
+            {
+              "value": "sv-SE",
+              "label": "Swedish (Sweden)"
+            },
+            {
+              "value": "ta-IN",
+              "label": "Tamil (India)"
+            },
+            {
+              "value": "ta-MY",
+              "label": "Tamil (Malaysia)"
+            },
+            {
+              "value": "ta-SG",
+              "label": "Tamil (Singapore)"
+            },
+            {
+              "value": "ta-LK",
+              "label": "Tamil (Sri Lanka)"
+            },
+            {
+              "value": "te-IN",
+              "label": "Telugu (India)"
+            },
+            {
+              "value": "th-TH",
+              "label": "Thai (Thailand)"
+            },
+            {
+              "value": "tr-TR",
+              "label": "Turkish (Türkiye)"
+            },
+            {
+              "value": "uk-UA",
+              "label": "Ukrainian (Ukraine)"
+            },
+            {
+              "value": "ur-IN",
+              "label": "Urdu (India)"
+            },
+            {
+              "value": "ur-PK",
+              "label": "Urdu (Pakistan)"
+            },
+            {
+              "value": "uz-UK",
+              "label": "Uzbek (United Kingdom)"
+            },
+            {
+              "value": "uz-UZ",
+              "label": "Uzbek (Uzbekistan)"
+            },
+            {
+              "value": "vi-VN",
+              "label": "Vietnamese (Vietnam)"
+            },
+            {
+              "value": "cy-GB",
+              "label": "Welsh (United Kingdom)"
+            },
+            {
+              "value": "wuu-CN",
+              "label": "Wu Chinese (China)"
+            },
+            {
+              "value": "xh-ZA",
+              "label": "Xhosa (South Africa)"
+            },
+            {
+              "value": "zu-ZA",
+              "label": "Zulu (South Africa)"
+            }
+          ]
+        },
+        "option": {
+          "label": "Voice Gender",
+          "description": "Choose the voice gender for speech synthesis (defaults to Female if not specified).",
+          "type": "select",
+          "options": [
+            {
+              "value": "MALE",
+              "label": "Male"
+            },
+            {
+              "value": "FEMALE",
+              "label": "Female"
+            }
+          ]
+        },
+        "rate": {
+          "label": "Speaking Rate",
+          "description": "Adjust speaking rate (-100 to 100, where 0 is normal speed).",
+          "type": "number",
+          "defaultValue": "0"
+        },
+        "pitch": {
+          "label": "Voice Pitch",
+          "description": "Adjust voice pitch (-100 to 100, where 0 is normal pitch).",
+          "type": "number",
+          "defaultValue": "0"
+        },
+        "volume": {
+          "label": "Audio Volume",
+          "description": "Adjust audio volume (-100 to 100, where 0 is normal volume).",
+          "type": "number",
+          "defaultValue": "0"
+        },
+        "audio_format": {
+          "label": "Audio Format",
+          "description": "The audio format for the generated speech (default: MP3).",
+          "type": "select",
+          "options": [
+            {
+              "value": "mp3",
+              "label": "MP3"
+            },
+            {
+              "value": "wav",
+              "label": "WAV"
+            },
+            {
+              "value": "aac",
+              "label": "AAC"
+            },
+            {
+              "value": "ogg",
+              "label": "OGG"
+            },
+            {
+              "value": "flac",
+              "label": "FLAC"
+            }
+          ]
+        },
+        "sampling_rate": {
+          "label": "Sampling Rate",
+          "description": "Audio sampling rate in Hz (0-200000, 0 for provider default).",
+          "type": "number",
+          "defaultValue": "0"
+        },
+        "fallback_providers": {
+          "label": "Fallback Providers",
+          "description": "Alternative providers to try if the main provider fails (up to 5). A JSON list of: amazon, google, microsoft, lovoai, elevenlabs, openai, deepgram.",
+          "type": "json"
+        },
+        "show_original_response": {
+          "label": "Include Original Response",
+          "description": "Include the raw provider response in the output for debugging.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.edenai.run/v2/audio/text_to_speech/",
+        "body": {
+          "providers": "{{provider}}",
+          "text": "{{text}}",
+          "language": "{{language}}",
+          "option": "{{option}}",
+          "rate": "{{rate}}",
+          "pitch": "{{pitch}}",
+          "volume": "{{volume}}",
+          "audio_format": "{{audio_format}}",
+          "sampling_rate": "{{sampling_rate}}",
+          "show_original_response": "{{show_original_response}}",
+          "fallback_providers": "{{fallback_providers}}"
+        }
+      },
+      "beforeRequest": "const b = request.body;\nif (b.rate !== undefined && (!Number.isInteger(b.rate) || b.rate < -100 || b.rate > 100)) throw new Error('rate is out of range.');\nif (b.pitch !== undefined && (!Number.isInteger(b.pitch) || b.pitch < -100 || b.pitch > 100)) throw new Error('pitch is out of range.');\nif (b.volume !== undefined && (!Number.isInteger(b.volume) || b.volume < -100 || b.volume > 100)) throw new Error('volume is out of range.');\nif (b.sampling_rate !== undefined && (!Number.isInteger(b.sampling_rate) || b.sampling_rate < 0 || b.sampling_rate > 200000)) throw new Error('sampling_rate is out of range.');\nif (b.fallback_providers !== undefined && (!Array.isArray(b.fallback_providers) || b.fallback_providers.length > 5 || b.fallback_providers.some(p => typeof p !== 'string'))) throw new Error('Fallback providers should be a list of at most 5 providers.');\nif (!b.language) b.language = 'en-US';\nif (!b.option) b.option = 'FEMALE';\nif (b.show_original_response !== true) delete b.show_original_response;\nfor (const k of ['rate', 'pitch', 'volume', 'sampling_rate']) if (b[k] === 0) delete b[k];\nif (!(b.fallback_providers && b.fallback_providers.length)) delete b.fallback_providers;\nreturn request;",
+      "afterResponse": "const p = inputs.provider, r = response[p];\nif (!r) return Object.assign({provider: p}, {audio: '', audio_resource_url: '', voice_type: 0}, {status: 'fail', raw: response});\nreturn Object.assign({provider: p}, {audio: r.audio || '', audio_resource_url: r.audio_resource_url || '', voice_type: r.voice_type || 0}, {status: r.status || 'success', original_response: r.original_response || null, raw: response});"
+    }
+  }
+}

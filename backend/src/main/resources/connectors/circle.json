@@ -1,0 +1,365 @@
+{
+  "name": "circle",
+  "label": "Circle",
+  "description": "Circle.so is a platform for creating and managing communities.",
+  "icon": "",
+  "hosts": [
+    "app.circle.so"
+  ],
+  "baseUrl": "https://app.circle.so/api/admin/v2",
+  "upstream": {
+    "package": "@activepieces/piece-circle",
+    "version": "0.2.2"
+  },
+  "credential": {
+    "fields": {
+      "apiToken": {
+        "label": "API Token",
+        "secret": true,
+        "required": true,
+        "description": "You can obtain your API token by navigating to Settings->Developers->Tokens."
+      }
+    },
+    "headers": {
+      "Authorization": "Bearer {{credential.apiToken}}"
+    }
+  },
+  "lists": {
+    "spaces": {
+      "request": {
+        "url": "https://app.circle.so/api/admin/v2/spaces",
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "items": "$.records",
+      "label": "$.name",
+      "value": "$.id"
+    },
+    "posts": {
+      "request": {
+        "url": "https://app.circle.so/api/admin/v2/posts",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "query": {
+          "space_id": "{{space_id}}",
+          "status": "all"
+        }
+      },
+      "items": "$.records",
+      "label": "$.name",
+      "value": "$.id"
+    },
+    "members": {
+      "request": {
+        "url": "https://app.circle.so/api/admin/v2/community_members",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "query": {
+          "status": "all"
+        }
+      },
+      "items": "$.records",
+      "label": "$.name",
+      "value": "$.id"
+    }
+  },
+  "actions": {
+    "create_post": {
+      "label": "Create Post",
+      "description": "Creates a new post in a specific space.",
+      "inputs": {
+        "space_id": {
+          "label": "Space",
+          "type": "number",
+          "required": true,
+          "list": "spaces"
+        },
+        "name": {
+          "label": "Post Name/Title",
+          "description": "The title of the post.",
+          "required": true
+        },
+        "text_body": {
+          "label": "Post Body (Plain Text)",
+          "description": "Simple plain text content for the post. Used if 'Tiptap Body JSON' is not provided.",
+          "type": "multiline"
+        },
+        "tiptap_body_json": {
+          "label": "Tiptap Body JSON",
+          "description": "Full TipTap JSON object for the post body. If provided, 'Post Body (Plain Text)' is ignored.",
+          "type": "json"
+        },
+        "status": {
+          "label": "Status",
+          "description": "The status of the post.",
+          "type": "select",
+          "defaultValue": "published",
+          "options": [
+            {
+              "label": "Draft",
+              "value": "draft"
+            },
+            {
+              "label": "Published",
+              "value": "published"
+            },
+            {
+              "label": "Scheduled",
+              "value": "scheduled"
+            }
+          ]
+        },
+        "published_at": {
+          "label": "Published At (for Scheduled)",
+          "description": "If status is 'scheduled', provide the future date and time for publishing."
+        },
+        "is_comments_enabled": {
+          "label": "Enable Comments",
+          "description": "Allow comments on this post?",
+          "type": "boolean",
+          "defaultValue": "true"
+        },
+        "skip_notifications": {
+          "label": "Skip Notifications",
+          "description": "Prevent notifications from being sent for this post?",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "user_email": {
+          "label": "Post As User Email",
+          "description": "Email of an existing community member to create this post as. If empty, posts as the authenticated admin."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://app.circle.so/api/admin/v2/posts",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "space_id": "{{space_id}}",
+          "name": "{{name}}",
+          "tiptap_body": "{{tiptap_body_json}}",
+          "status": "{{status}}",
+          "published_at": "{{published_at}}",
+          "is_comments_enabled": "{{is_comments_enabled}}",
+          "skip_notifications": "{{skip_notifications}}",
+          "user_email": "{{user_email}}"
+        }
+      },
+      "beforeRequest": "var body = request.body, tiptap = body.tiptap_body;\nif (!(tiptap && typeof tiptap === 'object' && tiptap.body)) {\n  if (tiptap && !inputs.text_body) throw new Error(\"Invalid body input. Provide either 'Post Body (Plain Text)' or a valid 'Tiptap Body JSON'. If both are empty, an empty post will be created.\");\n  body.tiptap_body = { body: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: inputs.text_body || '' }] }] } };\n}\nbody.status = body.status || 'published';\nif (body.published_at && body.status === 'scheduled') body.published_at = new Date(body.published_at).toISOString();\nelse delete body.published_at;\nif ('is_comments_enabled' in body) body.is_comments_closed = !body.is_comments_enabled;\nreturn request;"
+    },
+    "create_comment": {
+      "label": "Create Comment",
+      "description": "Creates a new comment on a post.",
+      "inputs": {
+        "space_id": {
+          "label": "Space",
+          "type": "number",
+          "required": true,
+          "list": "spaces"
+        },
+        "post_id": {
+          "label": "Post",
+          "type": "number",
+          "required": true,
+          "list": "posts"
+        },
+        "body": {
+          "label": "Comment Body",
+          "description": "The content of the comment.",
+          "type": "multiline",
+          "required": true
+        },
+        "parent_comment_id": {
+          "label": "Parent Comment ID",
+          "description": "ID of the comment to reply to. Leave empty if not a reply.",
+          "type": "number"
+        },
+        "skip_notifications": {
+          "label": "Skip Notifications",
+          "description": "Skip sending notifications for this comment?",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://app.circle.so/api/admin/v2/comments",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "post_id": "{{post_id}}",
+          "body": "{{body}}",
+          "parent_comment_id": "{{parent_comment_id}}",
+          "skip_notifications": "{{skip_notifications}}"
+        }
+      }
+    },
+    "add_member_to_space": {
+      "label": "Add Member to Space",
+      "description": "Add an existing member to a specific space by their email.",
+      "inputs": {
+        "space_id": {
+          "label": "Space",
+          "type": "number",
+          "required": true,
+          "list": "spaces"
+        },
+        "email": {
+          "label": "Member Email",
+          "description": "The email address of the member to add to the space.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://app.circle.so/api/admin/v2/space_members",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "space_id": "{{space_id}}",
+          "email": "{{email}}"
+        }
+      }
+    },
+    "find_member_by_email": {
+      "label": "Find Member by Email",
+      "description": "Finds a community member by their email address.",
+      "inputs": {
+        "email": {
+          "label": "Member Email",
+          "description": "The email address of the member to find.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://app.circle.so/api/admin/v2/community_members/search",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "query": {
+          "email": "{{email}}"
+        }
+      },
+      "outputs": {
+        "id": "$.id",
+        "name": "$.name",
+        "email": "$.email",
+        "user_id": "$.user_id"
+      }
+    },
+    "get_post_details": {
+      "label": "Get Post Details",
+      "description": "Retrieves the complete details of a specific post.",
+      "inputs": {
+        "space_id": {
+          "label": "Space",
+          "type": "number",
+          "required": true,
+          "list": "spaces"
+        },
+        "post_id": {
+          "label": "Post",
+          "type": "number",
+          "required": true,
+          "list": "posts"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://app.circle.so/api/admin/v2/posts/{{post_id}}",
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "outputs": {
+        "id": "$.id",
+        "name": "$.name",
+        "url": "$.url"
+      }
+    },
+    "get_member_details": {
+      "label": "Get Member Details",
+      "description": "Fetches the full profile details for a specific community member.",
+      "inputs": {
+        "member_id": {
+          "label": "Community Member",
+          "type": "number",
+          "required": true,
+          "list": "members"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://app.circle.so/api/admin/v2/community_members/{{member_id}}",
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "outputs": {
+        "id": "$.id",
+        "name": "$.name",
+        "email": "$.email"
+      }
+    }
+  },
+  "triggers": {
+    "new_post_created": {
+      "label": "New Post Created",
+      "description": "Triggers when a new post is created in a specific space.",
+      "inputs": {
+        "space_id": {
+          "label": "Space",
+          "type": "number",
+          "required": true,
+          "list": "spaces"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://app.circle.so/api/admin/v2/posts",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "query": {
+          "space_id": "{{space_id}}",
+          "status": "published",
+          "sort": "latest",
+          "page": "1",
+          "per_page": "60"
+        }
+      },
+      "items": "$",
+      "newBy": "time",
+      "key": "$.published_at",
+      "afterResponse": "// Like the original: pages until an item is older than the last check, and only the first page on the first check.\nconst since = Number(inputs.lastPollTime) || 0, items = [];\nlet page = response;\nfor (let number = 2; ; number++) {\n  let older = false;\n  for (const item of page.records || []) { if (new Date(item.published_at).getTime() < since) { older = true; break; } items.push(item); }\n  if (older || !since || !page.has_next_page) break;\n  page = call({method: 'GET', url: '/posts', query: {space_id: inputs.space_id, status: 'published', sort: 'latest', page: String(number), per_page: '60'}, headers: {'Content-Type': 'application/json'}});\n}\nreturn items;"
+    },
+    "new_member_added": {
+      "label": "New Member Added",
+      "description": "Triggers when a new member is added to the community.",
+      "request": {
+        "method": "GET",
+        "url": "https://app.circle.so/api/admin/v2/community_members",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "query": {
+          "page": "1",
+          "per_page": "50",
+          "status": "all"
+        }
+      },
+      "items": "$",
+      "newBy": "time",
+      "key": "$.created_at",
+      "afterResponse": "// Like the original: pages until an item is older than the last check, and only the first page on the first check.\nconst since = Number(inputs.lastPollTime) || 0, items = [];\nlet page = response;\nfor (let number = 2; ; number++) {\n  let older = false;\n  for (const item of page.records || []) { if (new Date(item.created_at).getTime() < since) { older = true; break; } items.push(item); }\n  if (older || !since || !page.has_next_page) break;\n  page = call({method: 'GET', url: '/community_members', query: {page: String(number), per_page: '50', status: 'all'}, headers: {'Content-Type': 'application/json'}});\n}\nreturn items;"
+    }
+  }
+}

@@ -1,0 +1,1457 @@
+{
+  "name": "wordpress",
+  "label": "WordPress",
+  "description": "Open-source website creation software",
+  "icon": "wordpress",
+  "hosts": [
+    "{{credential.website_url}}"
+  ],
+  "baseUrl": "https://{{credential.website_url}}/wp-json/wp/v2",
+  "upstream": {
+    "package": "@activepieces/piece-wordpress",
+    "version": "0.9.1"
+  },
+  "credential": {
+    "fields": {
+      "username": {
+        "label": "Username",
+        "description": "The WordPress user the steps act as.",
+        "required": true
+      },
+      "password": {
+        "label": "Password",
+        "description": "Application password, or the login password with the Basic Auth plugin.",
+        "secret": true,
+        "required": true
+      },
+      "website_url": {
+        "label": "Website URL",
+        "description": "Address of your WordPress site, such as https://example.com.",
+        "required": true
+      }
+    },
+    "basic": {
+      "username": "{{credential.username}}",
+      "password": "{{credential.password}}"
+    }
+  },
+  "actions": {
+    "list_posts": {
+      "label": "List Posts",
+      "description": "Lists blog posts, optionally filtered by keyword, status, category, tag, author or date.",
+      "inputs": {
+        "search": {
+          "label": "Search",
+          "description": "Only posts whose title, content or excerpt contain this text."
+        },
+        "status": {
+          "label": "Status",
+          "description": "Post statuses to include, such as [\"publish\", \"draft\"]. Defaults to published only. Use any of publish, draft, pending, private, future, trash, or any for every status except trash.",
+          "type": "json"
+        },
+        "categories": {
+          "label": "Category IDs",
+          "description": "Only posts in any of these category IDs, from List Categories.",
+          "type": "json"
+        },
+        "tags": {
+          "label": "Tag IDs",
+          "description": "Only posts with any of these tag IDs, from List Tags.",
+          "type": "json"
+        },
+        "author": {
+          "label": "Author ID",
+          "description": "Only posts by this user ID, from List Users.",
+          "type": "number"
+        },
+        "after": {
+          "label": "Published After",
+          "description": "Only posts published after this ISO 8601 date, e.g. 2026-01-31T00:00:00."
+        },
+        "before": {
+          "label": "Published Before",
+          "description": "Only posts published before this ISO 8601 date."
+        },
+        "orderby": {
+          "label": "Order By",
+          "description": "Sort field. Defaults to date. \"Relevance\" needs Search.",
+          "type": "select",
+          "options": [
+            {
+              "value": "date",
+              "label": "Date"
+            },
+            {
+              "value": "modified",
+              "label": "Modified Date"
+            },
+            {
+              "value": "title",
+              "label": "Title"
+            },
+            {
+              "value": "id",
+              "label": "ID"
+            },
+            {
+              "value": "slug",
+              "label": "Slug"
+            },
+            {
+              "value": "relevance",
+              "label": "Relevance"
+            }
+          ]
+        },
+        "order": {
+          "label": "Order",
+          "description": "Sort direction. Defaults to descending.",
+          "type": "select",
+          "options": [
+            {
+              "value": "desc",
+              "label": "Descending"
+            },
+            {
+              "value": "asc",
+              "label": "Ascending"
+            }
+          ]
+        },
+        "per_page": {
+          "label": "Results Per Page",
+          "description": "How many results to return, from 1 to 100. Defaults to 10.",
+          "type": "number",
+          "defaultValue": "10"
+        },
+        "page": {
+          "label": "Page",
+          "description": "Page of results to return, starting at 1. The output reports total_pages.",
+          "type": "number",
+          "defaultValue": "1"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.website_url}}/wp-json/wp/v2/posts"
+      },
+      "beforeRequest": "const text = (value) => typeof value === 'string' && value.trim() !== '';\nconst id = (name, label) => { const value = inputs[name]; if (value === undefined || value === null || String(value).trim() === '') return undefined; const parsed = Number(value); if (!Number.isInteger(parsed) || parsed < 0) throw new Error(label + ' must be a whole-number ID; got \"' + value + '\".'); return parsed; };\nconst perPage = text(String(inputs.per_page ?? '')) ? Number(inputs.per_page) : 10; const page = text(String(inputs.page ?? '')) ? Number(inputs.page) : 1;\nif (!Number.isInteger(perPage) || perPage < 1 || perPage > 100) throw new Error('Results Per Page must be a whole number from 1 to 100; got \"' + perPage + '\".');\nif (!Number.isInteger(page) || page < 1) throw new Error('Page must be a whole number of 1 or more; got \"' + page + '\".');\nconst query = {per_page: String(perPage), page: String(page)};\nconst ids = (name, label) => { if (!text(inputs[name])) return undefined; const list = JSON.parse(inputs[name]); if (!Array.isArray(list) || list.length === 0) return undefined; return list.map((item) => { const parsed = typeof item === 'string' ? Number(item.trim()) : item; if (typeof parsed !== 'number' || !Number.isInteger(parsed) || parsed <= 0) throw new Error(label + ' must contain whole-number IDs only; got \"' + String(item) + '\".'); return parsed; }); };\nif (text(inputs.search)) query.search = inputs.search;\nif (inputs.orderby === 'relevance' && query.search === undefined) throw new Error('Order By \"Relevance\" needs a Search value.');\nif (text(inputs.status)) { const statuses = JSON.parse(inputs.status); if (Array.isArray(statuses) && statuses.length > 0) query.status = statuses.join(','); }\nconst categories = ids('categories', 'Category IDs'); if (categories) query.categories = categories.join(',');\nconst tags = ids('tags', 'Tag IDs'); if (tags) query.tags = tags.join(',');\nconst author = id('author', 'Author ID'); if (author !== undefined) query.author = String(author);\nif (text(inputs.after)) query.after = inputs.after;\nif (text(inputs.before)) query.before = inputs.before;\nif (text(inputs.orderby)) query.orderby = inputs.orderby;\nif (text(inputs.order)) query.order = inputs.order;\nrequest.query = query;\nreturn request;",
+      "afterResponse": "if (response === null || typeof response !== 'object') throw new Error('WordPress did not return REST API JSON. The REST API is not reachable at /wp-json: set Settings > Permalinks to any option other than \"Plain\", check the Website URL, and check that no security plugin blocks the REST API.');\nconst count = (header) => { const found = Object.entries(received.headers || {}).find(([key]) => key.toLowerCase() === header); const value = found ? found[1] : undefined; if (value === undefined || value === null || value === '') return undefined; const parsed = Number(value); return Number.isFinite(parsed) ? parsed : undefined; };\nconst items = Array.isArray(response) ? response : [];\nreturn {posts: items, count: items.length, total: count('x-wp-total'), total_pages: count('x-wp-totalpages')};"
+    },
+    "get_post_by_id": {
+      "label": "Get Post",
+      "description": "Gets one blog post by its ID.",
+      "inputs": {
+        "post_id": {
+          "label": "Post ID",
+          "description": "ID of the post, from List Posts or Search Site Content.",
+          "type": "number",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.website_url}}/wp-json/wp/v2/posts/{{post_id}}"
+      },
+      "beforeRequest": "const id = (name, label) => { const value = inputs[name]; if (value === undefined || value === null || String(value).trim() === '') return undefined; const parsed = Number(value); if (!Number.isInteger(parsed) || parsed < 0) throw new Error(label + ' must be a whole-number ID; got \"' + value + '\".'); return parsed; };\nrequest.url = '/posts/' + id('post_id', 'Post ID');\nreturn request;",
+      "afterResponse": "if (response === null || typeof response !== 'object') throw new Error('WordPress did not return REST API JSON. The REST API is not reachable at /wp-json: set Settings > Permalinks to any option other than \"Plain\", check the Website URL, and check that no security plugin blocks the REST API.');\nreturn response;"
+    },
+    "create_blog_post": {
+      "label": "Create Post",
+      "description": "Creates a blog post. Saved as a draft unless a status is given.",
+      "inputs": {
+        "title": {
+          "label": "Title",
+          "description": "The post title.",
+          "required": true
+        },
+        "content": {
+          "label": "Content",
+          "description": "The post body as HTML.",
+          "type": "multiline",
+          "required": true
+        },
+        "status": {
+          "label": "Status",
+          "description": "Leave empty to save the post as a draft. \"Scheduled (future)\" needs a Publish Date.",
+          "type": "select",
+          "options": [
+            {
+              "value": "publish",
+              "label": "Publish"
+            },
+            {
+              "value": "draft",
+              "label": "Draft"
+            },
+            {
+              "value": "pending",
+              "label": "Pending Review"
+            },
+            {
+              "value": "private",
+              "label": "Private"
+            },
+            {
+              "value": "future",
+              "label": "Scheduled (future)"
+            }
+          ]
+        },
+        "date": {
+          "label": "Publish Date",
+          "description": "Publish date in the site's timezone, ISO 8601 (e.g. 2030-01-31T09:00:00). A past date with status \"future\" publishes immediately."
+        },
+        "slug": {
+          "label": "Slug",
+          "description": "URL slug."
+        },
+        "featured_media": {
+          "label": "Featured Media ID",
+          "description": "ID of an uploaded image to use as the featured image. Get it from Upload Media or List Media.",
+          "type": "number"
+        },
+        "author": {
+          "label": "Author ID",
+          "description": "User ID of the author. Get it from List Users or Get Current User. Leave empty for the connected user.",
+          "type": "number"
+        },
+        "comment_status": {
+          "label": "Comments",
+          "description": "Whether visitors can comment.",
+          "type": "select",
+          "options": [
+            {
+              "value": "open",
+              "label": "Open"
+            },
+            {
+              "value": "closed",
+              "label": "Closed"
+            }
+          ]
+        },
+        "ping_status": {
+          "label": "Pingbacks",
+          "description": "Whether the post accepts pingbacks and trackbacks.",
+          "type": "select",
+          "options": [
+            {
+              "value": "open",
+              "label": "Open"
+            },
+            {
+              "value": "closed",
+              "label": "Closed"
+            }
+          ]
+        },
+        "excerpt": {
+          "label": "Excerpt",
+          "description": "Short summary of the post.",
+          "type": "multiline"
+        },
+        "categories": {
+          "label": "Category IDs",
+          "description": "Category IDs from List Categories.",
+          "type": "json"
+        },
+        "tags": {
+          "label": "Tag IDs",
+          "description": "Tag IDs from List Tags.",
+          "type": "json"
+        },
+        "sticky": {
+          "label": "Sticky",
+          "description": "Whether the post is pinned to the top of the blog.",
+          "type": "select",
+          "options": [
+            {
+              "value": "true",
+              "label": "Yes"
+            },
+            {
+              "value": "false",
+              "label": "No"
+            }
+          ]
+        },
+        "format": {
+          "label": "Format",
+          "description": "Post format. Only formats the active theme supports are accepted.",
+          "type": "select",
+          "options": [
+            {
+              "value": "standard",
+              "label": "Standard"
+            },
+            {
+              "value": "aside",
+              "label": "Aside"
+            },
+            {
+              "value": "chat",
+              "label": "Chat"
+            },
+            {
+              "value": "gallery",
+              "label": "Gallery"
+            },
+            {
+              "value": "link",
+              "label": "Link"
+            },
+            {
+              "value": "image",
+              "label": "Image"
+            },
+            {
+              "value": "quote",
+              "label": "Quote"
+            },
+            {
+              "value": "status",
+              "label": "Status"
+            },
+            {
+              "value": "video",
+              "label": "Video"
+            },
+            {
+              "value": "audio",
+              "label": "Audio"
+            }
+          ]
+        },
+        "acf": {
+          "label": "Custom ACF Fields",
+          "description": "Advanced Custom Fields values as field name and value pairs; field names come from the ACF plugin menu. Only the fields you supply are written. Requires the site to expose ACF over the REST API.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.website_url}}/wp-json/wp/v2/posts"
+      },
+      "beforeRequest": "const text = (value) => typeof value === 'string' && value.trim() !== '';\nconst id = (name, label) => { const value = inputs[name]; if (value === undefined || value === null || String(value).trim() === '') return undefined; const parsed = Number(value); if (!Number.isInteger(parsed) || parsed < 0) throw new Error(label + ' must be a whole-number ID; got \"' + value + '\".'); return parsed; };\nconst ids = (name, label) => { if (!text(inputs[name])) return undefined; const list = JSON.parse(inputs[name]); if (!Array.isArray(list) || list.length === 0) return undefined; return list.map((item) => { const parsed = typeof item === 'string' ? Number(item.trim()) : item; if (typeof parsed !== 'number' || !Number.isInteger(parsed) || parsed <= 0) throw new Error(label + ' must contain whole-number IDs only; got \"' + String(item) + '\".'); return parsed; }); };\nif (inputs.status === 'future' && !text(inputs.date)) throw new Error('Status \"future\" needs a Publish Date in the future (ISO 8601, e.g. 2030-01-31T09:00:00).');\nconst body = {};\n['title', 'content', 'status', 'date', 'slug', 'comment_status', 'ping_status'].forEach((key) => { if (text(inputs[key])) body[key] = inputs[key]; });\nconst featured = id('featured_media', 'Featured Media ID'); if (featured !== undefined) body.featured_media = featured;\nconst author = id('author', 'Author ID'); if (author !== undefined) body.author = author;\nif (text(inputs.excerpt)) body.excerpt = inputs.excerpt;\nif (text(inputs.format)) body.format = inputs.format;\nif (inputs.sticky === 'true' || inputs.sticky === 'false') body.sticky = inputs.sticky === 'true';\nconst categories = ids('categories', 'Category IDs'); if (categories) body.categories = categories;\nconst tags = ids('tags', 'Tag IDs'); if (tags) body.tags = tags;\nif (text(inputs.acf)) { const acf = JSON.parse(inputs.acf); if (acf && Object.keys(acf).length > 0) body.acf = acf; }\nrequest.body = body;\nreturn request;",
+      "afterResponse": "if (response === null || typeof response !== 'object') throw new Error('WordPress did not return REST API JSON. The REST API is not reachable at /wp-json: set Settings > Permalinks to any option other than \"Plain\", check the Website URL, and check that no security plugin blocks the REST API.');\nreturn response;"
+    },
+    "update_blog_post": {
+      "label": "Update Post",
+      "description": "Changes only the fields you supply on an existing blog post.",
+      "inputs": {
+        "post_id": {
+          "label": "Post ID",
+          "description": "ID of the post to update, from List Posts.",
+          "type": "number",
+          "required": true
+        },
+        "title": {
+          "label": "Title",
+          "description": "The post title. Leave empty to keep the current value."
+        },
+        "content": {
+          "label": "Content",
+          "description": "The post body as HTML. Leave empty to keep the current value.",
+          "type": "multiline"
+        },
+        "status": {
+          "label": "Status",
+          "description": "New status. Leave empty to keep the current value.",
+          "type": "select",
+          "options": [
+            {
+              "value": "publish",
+              "label": "Publish"
+            },
+            {
+              "value": "draft",
+              "label": "Draft"
+            },
+            {
+              "value": "pending",
+              "label": "Pending Review"
+            },
+            {
+              "value": "private",
+              "label": "Private"
+            },
+            {
+              "value": "future",
+              "label": "Scheduled (future)"
+            }
+          ]
+        },
+        "date": {
+          "label": "Publish Date",
+          "description": "Publish date in the site's timezone, ISO 8601 (e.g. 2030-01-31T09:00:00). A past date with status \"future\" publishes immediately. Leave empty to keep the current value."
+        },
+        "slug": {
+          "label": "Slug",
+          "description": "URL slug. Leave empty to keep the current value."
+        },
+        "featured_media": {
+          "label": "Featured Media ID",
+          "description": "ID of an uploaded image to use as the featured image. Get it from Upload Media or List Media. Leave empty to keep the current value.",
+          "type": "number"
+        },
+        "author": {
+          "label": "Author ID",
+          "description": "User ID of the author. Get it from List Users or Get Current User. Leave empty to keep the current value.",
+          "type": "number"
+        },
+        "comment_status": {
+          "label": "Comments",
+          "description": "Whether visitors can comment. Leave empty to keep the current value.",
+          "type": "select",
+          "options": [
+            {
+              "value": "open",
+              "label": "Open"
+            },
+            {
+              "value": "closed",
+              "label": "Closed"
+            }
+          ]
+        },
+        "ping_status": {
+          "label": "Pingbacks",
+          "description": "Whether the post accepts pingbacks and trackbacks. Leave empty to keep the current value.",
+          "type": "select",
+          "options": [
+            {
+              "value": "open",
+              "label": "Open"
+            },
+            {
+              "value": "closed",
+              "label": "Closed"
+            }
+          ]
+        },
+        "excerpt": {
+          "label": "Excerpt",
+          "description": "Short summary of the post. Leave empty to keep the current value.",
+          "type": "multiline"
+        },
+        "categories": {
+          "label": "Category IDs",
+          "description": "Category IDs from List Categories. The list replaces the post's current set. Leave empty to keep the current value.",
+          "type": "json"
+        },
+        "tags": {
+          "label": "Tag IDs",
+          "description": "Tag IDs from List Tags. The list replaces the post's current set. Leave empty to keep the current value.",
+          "type": "json"
+        },
+        "sticky": {
+          "label": "Sticky",
+          "description": "Whether the post is pinned to the top of the blog. Leave empty to keep the current value.",
+          "type": "select",
+          "options": [
+            {
+              "value": "true",
+              "label": "Yes"
+            },
+            {
+              "value": "false",
+              "label": "No"
+            }
+          ]
+        },
+        "format": {
+          "label": "Format",
+          "description": "Post format. Only formats the active theme supports are accepted. Leave empty to keep the current value.",
+          "type": "select",
+          "options": [
+            {
+              "value": "standard",
+              "label": "Standard"
+            },
+            {
+              "value": "aside",
+              "label": "Aside"
+            },
+            {
+              "value": "chat",
+              "label": "Chat"
+            },
+            {
+              "value": "gallery",
+              "label": "Gallery"
+            },
+            {
+              "value": "link",
+              "label": "Link"
+            },
+            {
+              "value": "image",
+              "label": "Image"
+            },
+            {
+              "value": "quote",
+              "label": "Quote"
+            },
+            {
+              "value": "status",
+              "label": "Status"
+            },
+            {
+              "value": "video",
+              "label": "Video"
+            },
+            {
+              "value": "audio",
+              "label": "Audio"
+            }
+          ]
+        },
+        "acf": {
+          "label": "Custom ACF Fields",
+          "description": "Advanced Custom Fields values as field name and value pairs; field names come from the ACF plugin menu. Only the fields you supply are written. Requires the site to expose ACF over the REST API. Leave empty to keep the current value.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.website_url}}/wp-json/wp/v2/posts/{{post_id}}"
+      },
+      "beforeRequest": "const text = (value) => typeof value === 'string' && value.trim() !== '';\nconst id = (name, label) => { const value = inputs[name]; if (value === undefined || value === null || String(value).trim() === '') return undefined; const parsed = Number(value); if (!Number.isInteger(parsed) || parsed < 0) throw new Error(label + ' must be a whole-number ID; got \"' + value + '\".'); return parsed; };\nconst target = id('post_id', 'Post ID');\nconst ids = (name, label) => { if (!text(inputs[name])) return undefined; const list = JSON.parse(inputs[name]); if (!Array.isArray(list) || list.length === 0) return undefined; return list.map((item) => { const parsed = typeof item === 'string' ? Number(item.trim()) : item; if (typeof parsed !== 'number' || !Number.isInteger(parsed) || parsed <= 0) throw new Error(label + ' must contain whole-number IDs only; got \"' + String(item) + '\".'); return parsed; }); };\nconst body = {};\n['title', 'content', 'status', 'date', 'slug', 'comment_status', 'ping_status'].forEach((key) => { if (text(inputs[key])) body[key] = inputs[key]; });\nconst featured = id('featured_media', 'Featured Media ID'); if (featured !== undefined) body.featured_media = featured;\nconst author = id('author', 'Author ID'); if (author !== undefined) body.author = author;\nif (text(inputs.excerpt)) body.excerpt = inputs.excerpt;\nif (text(inputs.format)) body.format = inputs.format;\nif (inputs.sticky === 'true' || inputs.sticky === 'false') body.sticky = inputs.sticky === 'true';\nconst categories = ids('categories', 'Category IDs'); if (categories) body.categories = categories;\nconst tags = ids('tags', 'Tag IDs'); if (tags) body.tags = tags;\nif (text(inputs.acf)) { const acf = JSON.parse(inputs.acf); if (acf && Object.keys(acf).length > 0) body.acf = acf; }\nif (Object.keys(body).length === 0) throw new Error('Nothing to update: supply at least one field to change. Empty text fields are treated as \"leave unchanged\".');\nrequest.url = '/posts/' + target;\nrequest.body = body;\nreturn request;",
+      "afterResponse": "if (response === null || typeof response !== 'object') throw new Error('WordPress did not return REST API JSON. The REST API is not reachable at /wp-json: set Settings > Permalinks to any option other than \"Plain\", check the Website URL, and check that no security plugin blocks the REST API.');\nreturn response;"
+    },
+    "delete_post_permanently": {
+      "label": "Delete Post",
+      "description": "Permanently deletes a blog post, skipping the trash. This cannot be undone.",
+      "inputs": {
+        "post_id": {
+          "label": "Post ID",
+          "description": "ID of the post to delete, from List Posts.",
+          "type": "number",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.website_url}}/wp-json/wp/v2/posts/{{post_id}}",
+        "query": {
+          "force": "true"
+        }
+      },
+      "beforeRequest": "const id = (name, label) => { const value = inputs[name]; if (value === undefined || value === null || String(value).trim() === '') return undefined; const parsed = Number(value); if (!Number.isInteger(parsed) || parsed < 0) throw new Error(label + ' must be a whole-number ID; got \"' + value + '\".'); return parsed; };\nrequest.url = '/posts/' + id('post_id', 'Post ID');\nreturn request;",
+      "afterResponse": "if (response === null || typeof response !== 'object') throw new Error('WordPress did not return REST API JSON. The REST API is not reachable at /wp-json: set Settings > Permalinks to any option other than \"Plain\", check the Website URL, and check that no security plugin blocks the REST API.');\nreturn response;"
+    },
+    "list_pages": {
+      "label": "List Pages",
+      "description": "Lists site pages, optionally filtered by keyword, status or parent page.",
+      "inputs": {
+        "search": {
+          "label": "Search",
+          "description": "Only pages whose title or content contain this text."
+        },
+        "status": {
+          "label": "Status",
+          "description": "Page statuses to include, such as [\"publish\", \"draft\"]. Defaults to published only. Use any of publish, draft, pending, private, future, trash, or any for every status except trash.",
+          "type": "json"
+        },
+        "parent": {
+          "label": "Parent Page ID",
+          "description": "Only direct children of this page ID. Use 0 for top-level pages.",
+          "type": "number"
+        },
+        "orderby": {
+          "label": "Order By",
+          "description": "Sort field. Defaults to date. \"Relevance\" needs Search.",
+          "type": "select",
+          "options": [
+            {
+              "value": "date",
+              "label": "Date"
+            },
+            {
+              "value": "modified",
+              "label": "Modified Date"
+            },
+            {
+              "value": "title",
+              "label": "Title"
+            },
+            {
+              "value": "id",
+              "label": "ID"
+            },
+            {
+              "value": "slug",
+              "label": "Slug"
+            },
+            {
+              "value": "menu_order",
+              "label": "Menu Order"
+            },
+            {
+              "value": "relevance",
+              "label": "Relevance"
+            }
+          ]
+        },
+        "order": {
+          "label": "Order",
+          "description": "Sort direction. Defaults to descending.",
+          "type": "select",
+          "options": [
+            {
+              "value": "desc",
+              "label": "Descending"
+            },
+            {
+              "value": "asc",
+              "label": "Ascending"
+            }
+          ]
+        },
+        "per_page": {
+          "label": "Results Per Page",
+          "description": "How many results to return, from 1 to 100. Defaults to 10.",
+          "type": "number",
+          "defaultValue": "10"
+        },
+        "page": {
+          "label": "Page",
+          "description": "Page of results to return, starting at 1. The output reports total_pages.",
+          "type": "number",
+          "defaultValue": "1"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.website_url}}/wp-json/wp/v2/pages"
+      },
+      "beforeRequest": "const text = (value) => typeof value === 'string' && value.trim() !== '';\nconst id = (name, label) => { const value = inputs[name]; if (value === undefined || value === null || String(value).trim() === '') return undefined; const parsed = Number(value); if (!Number.isInteger(parsed) || parsed < 0) throw new Error(label + ' must be a whole-number ID; got \"' + value + '\".'); return parsed; };\nconst perPage = text(String(inputs.per_page ?? '')) ? Number(inputs.per_page) : 10; const page = text(String(inputs.page ?? '')) ? Number(inputs.page) : 1;\nif (!Number.isInteger(perPage) || perPage < 1 || perPage > 100) throw new Error('Results Per Page must be a whole number from 1 to 100; got \"' + perPage + '\".');\nif (!Number.isInteger(page) || page < 1) throw new Error('Page must be a whole number of 1 or more; got \"' + page + '\".');\nconst query = {per_page: String(perPage), page: String(page)};\nif (text(inputs.search)) query.search = inputs.search;\nif (inputs.orderby === 'relevance' && query.search === undefined) throw new Error('Order By \"Relevance\" needs a Search value.');\nif (text(inputs.status)) { const statuses = JSON.parse(inputs.status); if (Array.isArray(statuses) && statuses.length > 0) query.status = statuses.join(','); }\nconst parent = id('parent', 'Parent Page ID'); if (parent !== undefined) query.parent = String(parent);\nif (text(inputs.orderby)) query.orderby = inputs.orderby;\nif (text(inputs.order)) query.order = inputs.order;\nrequest.query = query;\nreturn request;",
+      "afterResponse": "if (response === null || typeof response !== 'object') throw new Error('WordPress did not return REST API JSON. The REST API is not reachable at /wp-json: set Settings > Permalinks to any option other than \"Plain\", check the Website URL, and check that no security plugin blocks the REST API.');\nconst count = (header) => { const found = Object.entries(received.headers || {}).find(([key]) => key.toLowerCase() === header); const value = found ? found[1] : undefined; if (value === undefined || value === null || value === '') return undefined; const parsed = Number(value); return Number.isFinite(parsed) ? parsed : undefined; };\nconst items = Array.isArray(response) ? response : [];\nreturn {pages: items, count: items.length, total: count('x-wp-total'), total_pages: count('x-wp-totalpages')};"
+    },
+    "get_page": {
+      "label": "Get Page",
+      "description": "Gets one site page by its ID.",
+      "inputs": {
+        "page_id": {
+          "label": "Page ID",
+          "description": "ID of the page, from List Pages or Search Site Content.",
+          "type": "number",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.website_url}}/wp-json/wp/v2/pages/{{page_id}}"
+      },
+      "beforeRequest": "const id = (name, label) => { const value = inputs[name]; if (value === undefined || value === null || String(value).trim() === '') return undefined; const parsed = Number(value); if (!Number.isInteger(parsed) || parsed < 0) throw new Error(label + ' must be a whole-number ID; got \"' + value + '\".'); return parsed; };\nrequest.url = '/pages/' + id('page_id', 'Page ID');\nreturn request;",
+      "afterResponse": "if (response === null || typeof response !== 'object') throw new Error('WordPress did not return REST API JSON. The REST API is not reachable at /wp-json: set Settings > Permalinks to any option other than \"Plain\", check the Website URL, and check that no security plugin blocks the REST API.');\nreturn response;"
+    },
+    "create_site_page": {
+      "label": "Create Page",
+      "description": "Creates a static page. Saved as a draft unless a status is given.",
+      "inputs": {
+        "title": {
+          "label": "Title",
+          "description": "The page title.",
+          "required": true
+        },
+        "content": {
+          "label": "Content",
+          "description": "The page body as HTML.",
+          "type": "multiline",
+          "required": true
+        },
+        "status": {
+          "label": "Status",
+          "description": "Leave empty to save the page as a draft. \"Scheduled (future)\" needs a Publish Date.",
+          "type": "select",
+          "options": [
+            {
+              "value": "publish",
+              "label": "Publish"
+            },
+            {
+              "value": "draft",
+              "label": "Draft"
+            },
+            {
+              "value": "pending",
+              "label": "Pending Review"
+            },
+            {
+              "value": "private",
+              "label": "Private"
+            },
+            {
+              "value": "future",
+              "label": "Scheduled (future)"
+            }
+          ]
+        },
+        "date": {
+          "label": "Publish Date",
+          "description": "Publish date in the site's timezone, ISO 8601 (e.g. 2030-01-31T09:00:00). A past date with status \"future\" publishes immediately."
+        },
+        "slug": {
+          "label": "Slug",
+          "description": "URL slug."
+        },
+        "featured_media": {
+          "label": "Featured Media ID",
+          "description": "ID of an uploaded image to use as the featured image. Get it from Upload Media or List Media.",
+          "type": "number"
+        },
+        "author": {
+          "label": "Author ID",
+          "description": "User ID of the author. Get it from List Users or Get Current User. Leave empty for the connected user.",
+          "type": "number"
+        },
+        "comment_status": {
+          "label": "Comments",
+          "description": "Whether visitors can comment.",
+          "type": "select",
+          "options": [
+            {
+              "value": "open",
+              "label": "Open"
+            },
+            {
+              "value": "closed",
+              "label": "Closed"
+            }
+          ]
+        },
+        "ping_status": {
+          "label": "Pingbacks",
+          "description": "Whether the page accepts pingbacks and trackbacks.",
+          "type": "select",
+          "options": [
+            {
+              "value": "open",
+              "label": "Open"
+            },
+            {
+              "value": "closed",
+              "label": "Closed"
+            }
+          ]
+        },
+        "excerpt": {
+          "label": "Excerpt",
+          "description": "Short summary of the page. Takes effect only when the theme or site supports page excerpts; WordPress silently ignores it otherwise.",
+          "type": "multiline"
+        },
+        "parent": {
+          "label": "Parent Page ID",
+          "description": "ID of the parent page, from List Pages.",
+          "type": "number"
+        },
+        "menu_order": {
+          "label": "Menu Order",
+          "description": "Position of the page among its siblings.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.website_url}}/wp-json/wp/v2/pages"
+      },
+      "beforeRequest": "const text = (value) => typeof value === 'string' && value.trim() !== '';\nconst id = (name, label) => { const value = inputs[name]; if (value === undefined || value === null || String(value).trim() === '') return undefined; const parsed = Number(value); if (!Number.isInteger(parsed) || parsed < 0) throw new Error(label + ' must be a whole-number ID; got \"' + value + '\".'); return parsed; };\nif (inputs.status === 'future' && !text(inputs.date)) throw new Error('Status \"future\" needs a Publish Date in the future (ISO 8601, e.g. 2030-01-31T09:00:00).');\nconst body = {};\n['title', 'content', 'status', 'date', 'slug', 'comment_status', 'ping_status'].forEach((key) => { if (text(inputs[key])) body[key] = inputs[key]; });\nconst featured = id('featured_media', 'Featured Media ID'); if (featured !== undefined) body.featured_media = featured;\nconst author = id('author', 'Author ID'); if (author !== undefined) body.author = author;\nif (text(inputs.excerpt)) body.excerpt = inputs.excerpt;\nconst parent = id('parent', 'Parent Page ID'); if (parent !== undefined) body.parent = parent;\nif (text(String(inputs.menu_order ?? ''))) { const order = Number(inputs.menu_order); if (!Number.isInteger(order)) throw new Error('Menu Order must be a whole number; got \"' + inputs.menu_order + '\".'); body.menu_order = order; }\nrequest.body = body;\nreturn request;",
+      "afterResponse": "if (response === null || typeof response !== 'object') throw new Error('WordPress did not return REST API JSON. The REST API is not reachable at /wp-json: set Settings > Permalinks to any option other than \"Plain\", check the Website URL, and check that no security plugin blocks the REST API.');\nreturn response;"
+    },
+    "update_page": {
+      "label": "Update Page",
+      "description": "Changes only the fields you supply on an existing page.",
+      "inputs": {
+        "page_id": {
+          "label": "Page ID",
+          "description": "ID of the page to update, from List Pages.",
+          "type": "number",
+          "required": true
+        },
+        "title": {
+          "label": "Title",
+          "description": "The page title. Leave empty to keep the current value."
+        },
+        "content": {
+          "label": "Content",
+          "description": "The page body as HTML. Leave empty to keep the current value.",
+          "type": "multiline"
+        },
+        "status": {
+          "label": "Status",
+          "description": "New status. Leave empty to keep the current value.",
+          "type": "select",
+          "options": [
+            {
+              "value": "publish",
+              "label": "Publish"
+            },
+            {
+              "value": "draft",
+              "label": "Draft"
+            },
+            {
+              "value": "pending",
+              "label": "Pending Review"
+            },
+            {
+              "value": "private",
+              "label": "Private"
+            },
+            {
+              "value": "future",
+              "label": "Scheduled (future)"
+            }
+          ]
+        },
+        "date": {
+          "label": "Publish Date",
+          "description": "Publish date in the site's timezone, ISO 8601 (e.g. 2030-01-31T09:00:00). A past date with status \"future\" publishes immediately. Leave empty to keep the current value."
+        },
+        "slug": {
+          "label": "Slug",
+          "description": "URL slug. Leave empty to keep the current value."
+        },
+        "featured_media": {
+          "label": "Featured Media ID",
+          "description": "ID of an uploaded image to use as the featured image. Get it from Upload Media or List Media. Leave empty to keep the current value.",
+          "type": "number"
+        },
+        "author": {
+          "label": "Author ID",
+          "description": "User ID of the author. Get it from List Users or Get Current User. Leave empty to keep the current value.",
+          "type": "number"
+        },
+        "comment_status": {
+          "label": "Comments",
+          "description": "Whether visitors can comment. Leave empty to keep the current value.",
+          "type": "select",
+          "options": [
+            {
+              "value": "open",
+              "label": "Open"
+            },
+            {
+              "value": "closed",
+              "label": "Closed"
+            }
+          ]
+        },
+        "ping_status": {
+          "label": "Pingbacks",
+          "description": "Whether the page accepts pingbacks and trackbacks. Leave empty to keep the current value.",
+          "type": "select",
+          "options": [
+            {
+              "value": "open",
+              "label": "Open"
+            },
+            {
+              "value": "closed",
+              "label": "Closed"
+            }
+          ]
+        },
+        "excerpt": {
+          "label": "Excerpt",
+          "description": "Short summary of the page. Takes effect only when the theme or site supports page excerpts; WordPress silently ignores it otherwise. Leave empty to keep the current value.",
+          "type": "multiline"
+        },
+        "parent": {
+          "label": "Parent Page ID",
+          "description": "ID of the parent page, from List Pages. Leave empty to keep the current value.",
+          "type": "number"
+        },
+        "menu_order": {
+          "label": "Menu Order",
+          "description": "Position of the page among its siblings. Leave empty to keep the current value.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.website_url}}/wp-json/wp/v2/pages/{{page_id}}"
+      },
+      "beforeRequest": "const text = (value) => typeof value === 'string' && value.trim() !== '';\nconst id = (name, label) => { const value = inputs[name]; if (value === undefined || value === null || String(value).trim() === '') return undefined; const parsed = Number(value); if (!Number.isInteger(parsed) || parsed < 0) throw new Error(label + ' must be a whole-number ID; got \"' + value + '\".'); return parsed; };\nconst target = id('page_id', 'Page ID');\nconst body = {};\n['title', 'content', 'status', 'date', 'slug', 'comment_status', 'ping_status'].forEach((key) => { if (text(inputs[key])) body[key] = inputs[key]; });\nconst featured = id('featured_media', 'Featured Media ID'); if (featured !== undefined) body.featured_media = featured;\nconst author = id('author', 'Author ID'); if (author !== undefined) body.author = author;\nif (text(inputs.excerpt)) body.excerpt = inputs.excerpt;\nconst parent = id('parent', 'Parent Page ID'); if (parent !== undefined) body.parent = parent;\nif (text(String(inputs.menu_order ?? ''))) { const order = Number(inputs.menu_order); if (!Number.isInteger(order)) throw new Error('Menu Order must be a whole number; got \"' + inputs.menu_order + '\".'); body.menu_order = order; }\nif (Object.keys(body).length === 0) throw new Error('Nothing to update: supply at least one field to change. Empty text fields are treated as \"leave unchanged\".');\nrequest.url = '/pages/' + target;\nrequest.body = body;\nreturn request;",
+      "afterResponse": "if (response === null || typeof response !== 'object') throw new Error('WordPress did not return REST API JSON. The REST API is not reachable at /wp-json: set Settings > Permalinks to any option other than \"Plain\", check the Website URL, and check that no security plugin blocks the REST API.');\nreturn response;"
+    },
+    "list_categories": {
+      "label": "List Categories",
+      "description": "Lists post categories, optionally filtered by name, parent or post.",
+      "inputs": {
+        "search": {
+          "label": "Search",
+          "description": "Only categories whose name or slug contain this text."
+        },
+        "slug": {
+          "label": "Slug",
+          "description": "Only the category with this exact slug."
+        },
+        "parent": {
+          "label": "Parent Category ID",
+          "description": "Only direct children of this category ID. Use 0 for top-level categories.",
+          "type": "number"
+        },
+        "post": {
+          "label": "Post ID",
+          "description": "Only categories assigned to this post ID, from List Posts.",
+          "type": "number"
+        },
+        "hide_empty": {
+          "label": "Hide Empty",
+          "description": "Whether to leave out categories with no published posts. Defaults to No.",
+          "type": "select",
+          "options": [
+            {
+              "value": "true",
+              "label": "Yes"
+            },
+            {
+              "value": "false",
+              "label": "No"
+            }
+          ]
+        },
+        "per_page": {
+          "label": "Results Per Page",
+          "description": "How many results to return, from 1 to 100. Defaults to 10.",
+          "type": "number",
+          "defaultValue": "10"
+        },
+        "page": {
+          "label": "Page",
+          "description": "Page of results to return, starting at 1. The output reports total_pages.",
+          "type": "number",
+          "defaultValue": "1"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.website_url}}/wp-json/wp/v2/categories"
+      },
+      "beforeRequest": "const text = (value) => typeof value === 'string' && value.trim() !== '';\nconst id = (name, label) => { const value = inputs[name]; if (value === undefined || value === null || String(value).trim() === '') return undefined; const parsed = Number(value); if (!Number.isInteger(parsed) || parsed < 0) throw new Error(label + ' must be a whole-number ID; got \"' + value + '\".'); return parsed; };\nconst perPage = text(String(inputs.per_page ?? '')) ? Number(inputs.per_page) : 10; const page = text(String(inputs.page ?? '')) ? Number(inputs.page) : 1;\nif (!Number.isInteger(perPage) || perPage < 1 || perPage > 100) throw new Error('Results Per Page must be a whole number from 1 to 100; got \"' + perPage + '\".');\nif (!Number.isInteger(page) || page < 1) throw new Error('Page must be a whole number of 1 or more; got \"' + page + '\".');\nconst query = {per_page: String(perPage), page: String(page)};\nif (text(inputs.search)) query.search = inputs.search;\nif (text(inputs.slug)) query.slug = inputs.slug;\nconst parent = id('parent', 'Parent Category ID'); if (parent !== undefined) query.parent = String(parent);\nconst post = id('post', 'Post ID'); if (post !== undefined) query.post = String(post);\nif (text(inputs.hide_empty)) query.hide_empty = inputs.hide_empty;\nrequest.query = query;\nreturn request;",
+      "afterResponse": "if (response === null || typeof response !== 'object') throw new Error('WordPress did not return REST API JSON. The REST API is not reachable at /wp-json: set Settings > Permalinks to any option other than \"Plain\", check the Website URL, and check that no security plugin blocks the REST API.');\nconst count = (header) => { const found = Object.entries(received.headers || {}).find(([key]) => key.toLowerCase() === header); const value = found ? found[1] : undefined; if (value === undefined || value === null || value === '') return undefined; const parsed = Number(value); return Number.isFinite(parsed) ? parsed : undefined; };\nconst items = Array.isArray(response) ? response : [];\nreturn {categories: items, count: items.length, total: count('x-wp-total'), total_pages: count('x-wp-totalpages')};"
+    },
+    "delete_category": {
+      "label": "Delete Category",
+      "description": "Permanently deletes a post category. This cannot be undone.",
+      "inputs": {
+        "category_id": {
+          "label": "Category ID",
+          "description": "ID of the category to delete, from List Categories.",
+          "type": "number",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.website_url}}/wp-json/wp/v2/categories/{{category_id}}",
+        "query": {
+          "force": "true"
+        }
+      },
+      "beforeRequest": "const id = (name, label) => { const value = inputs[name]; if (value === undefined || value === null || String(value).trim() === '') return undefined; const parsed = Number(value); if (!Number.isInteger(parsed) || parsed < 0) throw new Error(label + ' must be a whole-number ID; got \"' + value + '\".'); return parsed; };\nrequest.url = '/categories/' + id('category_id', 'Category ID');\nreturn request;",
+      "afterResponse": "if (response === null || typeof response !== 'object') throw new Error('WordPress did not return REST API JSON. The REST API is not reachable at /wp-json: set Settings > Permalinks to any option other than \"Plain\", check the Website URL, and check that no security plugin blocks the REST API.');\nreturn response;"
+    },
+    "list_tags": {
+      "label": "List Tags",
+      "description": "Lists post tags, optionally filtered by name or post.",
+      "inputs": {
+        "search": {
+          "label": "Search",
+          "description": "Only tags whose name or slug contain this text."
+        },
+        "slug": {
+          "label": "Slug",
+          "description": "Only the tag with this exact slug."
+        },
+        "post": {
+          "label": "Post ID",
+          "description": "Only tags assigned to this post ID, from List Posts.",
+          "type": "number"
+        },
+        "hide_empty": {
+          "label": "Hide Empty",
+          "description": "Whether to leave out tags with no published posts. Defaults to No.",
+          "type": "select",
+          "options": [
+            {
+              "value": "true",
+              "label": "Yes"
+            },
+            {
+              "value": "false",
+              "label": "No"
+            }
+          ]
+        },
+        "per_page": {
+          "label": "Results Per Page",
+          "description": "How many results to return, from 1 to 100. Defaults to 10.",
+          "type": "number",
+          "defaultValue": "10"
+        },
+        "page": {
+          "label": "Page",
+          "description": "Page of results to return, starting at 1. The output reports total_pages.",
+          "type": "number",
+          "defaultValue": "1"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.website_url}}/wp-json/wp/v2/tags"
+      },
+      "beforeRequest": "const text = (value) => typeof value === 'string' && value.trim() !== '';\nconst id = (name, label) => { const value = inputs[name]; if (value === undefined || value === null || String(value).trim() === '') return undefined; const parsed = Number(value); if (!Number.isInteger(parsed) || parsed < 0) throw new Error(label + ' must be a whole-number ID; got \"' + value + '\".'); return parsed; };\nconst perPage = text(String(inputs.per_page ?? '')) ? Number(inputs.per_page) : 10; const page = text(String(inputs.page ?? '')) ? Number(inputs.page) : 1;\nif (!Number.isInteger(perPage) || perPage < 1 || perPage > 100) throw new Error('Results Per Page must be a whole number from 1 to 100; got \"' + perPage + '\".');\nif (!Number.isInteger(page) || page < 1) throw new Error('Page must be a whole number of 1 or more; got \"' + page + '\".');\nconst query = {per_page: String(perPage), page: String(page)};\nif (text(inputs.search)) query.search = inputs.search;\nif (text(inputs.slug)) query.slug = inputs.slug;\nconst post = id('post', 'Post ID'); if (post !== undefined) query.post = String(post);\nif (text(inputs.hide_empty)) query.hide_empty = inputs.hide_empty;\nrequest.query = query;\nreturn request;",
+      "afterResponse": "if (response === null || typeof response !== 'object') throw new Error('WordPress did not return REST API JSON. The REST API is not reachable at /wp-json: set Settings > Permalinks to any option other than \"Plain\", check the Website URL, and check that no security plugin blocks the REST API.');\nconst count = (header) => { const found = Object.entries(received.headers || {}).find(([key]) => key.toLowerCase() === header); const value = found ? found[1] : undefined; if (value === undefined || value === null || value === '') return undefined; const parsed = Number(value); return Number.isFinite(parsed) ? parsed : undefined; };\nconst items = Array.isArray(response) ? response : [];\nreturn {tags: items, count: items.length, total: count('x-wp-total'), total_pages: count('x-wp-totalpages')};"
+    },
+    "delete_tag": {
+      "label": "Delete Tag",
+      "description": "Permanently deletes a post tag. This cannot be undone.",
+      "inputs": {
+        "tag_id": {
+          "label": "Tag ID",
+          "description": "ID of the tag to delete, from List Tags.",
+          "type": "number",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.website_url}}/wp-json/wp/v2/tags/{{tag_id}}",
+        "query": {
+          "force": "true"
+        }
+      },
+      "beforeRequest": "const id = (name, label) => { const value = inputs[name]; if (value === undefined || value === null || String(value).trim() === '') return undefined; const parsed = Number(value); if (!Number.isInteger(parsed) || parsed < 0) throw new Error(label + ' must be a whole-number ID; got \"' + value + '\".'); return parsed; };\nrequest.url = '/tags/' + id('tag_id', 'Tag ID');\nreturn request;",
+      "afterResponse": "if (response === null || typeof response !== 'object') throw new Error('WordPress did not return REST API JSON. The REST API is not reachable at /wp-json: set Settings > Permalinks to any option other than \"Plain\", check the Website URL, and check that no security plugin blocks the REST API.');\nreturn response;"
+    },
+    "list_comments": {
+      "label": "List Comments",
+      "description": "Lists comments, optionally filtered by post, status, author or keyword.",
+      "inputs": {
+        "post": {
+          "label": "Post ID",
+          "description": "Only comments on this post or page ID, from List Posts or List Pages.",
+          "type": "number"
+        },
+        "status": {
+          "label": "Status",
+          "description": "Moderation status to list. Defaults to approved. Other statuses need a moderator (Editor or Administrator) connection.",
+          "type": "select",
+          "options": [
+            {
+              "value": "approve",
+              "label": "Approved"
+            },
+            {
+              "value": "hold",
+              "label": "Pending (held for moderation)"
+            },
+            {
+              "value": "spam",
+              "label": "Spam"
+            },
+            {
+              "value": "trash",
+              "label": "Trash"
+            }
+          ]
+        },
+        "search": {
+          "label": "Search",
+          "description": "Only comments containing this text."
+        },
+        "author": {
+          "label": "Author User ID",
+          "description": "Only comments written by this registered user ID, from List Users.",
+          "type": "number"
+        },
+        "parent": {
+          "label": "Parent Comment ID",
+          "description": "Only replies to this comment ID. Use 0 for top-level comments.",
+          "type": "number"
+        },
+        "order": {
+          "label": "Order",
+          "description": "Sort direction by date. Defaults to newest first.",
+          "type": "select",
+          "options": [
+            {
+              "value": "desc",
+              "label": "Descending"
+            },
+            {
+              "value": "asc",
+              "label": "Ascending"
+            }
+          ]
+        },
+        "per_page": {
+          "label": "Results Per Page",
+          "description": "How many results to return, from 1 to 100. Defaults to 10.",
+          "type": "number",
+          "defaultValue": "10"
+        },
+        "page": {
+          "label": "Page",
+          "description": "Page of results to return, starting at 1. The output reports total_pages.",
+          "type": "number",
+          "defaultValue": "1"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.website_url}}/wp-json/wp/v2/comments"
+      },
+      "beforeRequest": "const text = (value) => typeof value === 'string' && value.trim() !== '';\nconst id = (name, label) => { const value = inputs[name]; if (value === undefined || value === null || String(value).trim() === '') return undefined; const parsed = Number(value); if (!Number.isInteger(parsed) || parsed < 0) throw new Error(label + ' must be a whole-number ID; got \"' + value + '\".'); return parsed; };\nconst perPage = text(String(inputs.per_page ?? '')) ? Number(inputs.per_page) : 10; const page = text(String(inputs.page ?? '')) ? Number(inputs.page) : 1;\nif (!Number.isInteger(perPage) || perPage < 1 || perPage > 100) throw new Error('Results Per Page must be a whole number from 1 to 100; got \"' + perPage + '\".');\nif (!Number.isInteger(page) || page < 1) throw new Error('Page must be a whole number of 1 or more; got \"' + page + '\".');\nconst query = {per_page: String(perPage), page: String(page)};\nconst post = id('post', 'Post ID'); if (post !== undefined) query.post = String(post);\nif (text(inputs.status)) query.status = inputs.status;\nif (text(inputs.search)) query.search = inputs.search;\nconst author = id('author', 'Author User ID'); if (author !== undefined) query.author = String(author);\nconst parent = id('parent', 'Parent Comment ID'); if (parent !== undefined) query.parent = String(parent);\nif (text(inputs.order)) query.order = inputs.order;\nrequest.query = query;\nreturn request;",
+      "afterResponse": "if (response === null || typeof response !== 'object') throw new Error('WordPress did not return REST API JSON. The REST API is not reachable at /wp-json: set Settings > Permalinks to any option other than \"Plain\", check the Website URL, and check that no security plugin blocks the REST API.');\nconst count = (header) => { const found = Object.entries(received.headers || {}).find(([key]) => key.toLowerCase() === header); const value = found ? found[1] : undefined; if (value === undefined || value === null || value === '') return undefined; const parsed = Number(value); return Number.isFinite(parsed) ? parsed : undefined; };\nconst items = Array.isArray(response) ? response : [];\nreturn {comments: items, count: items.length, total: count('x-wp-total'), total_pages: count('x-wp-totalpages')};"
+    },
+    "create_comment": {
+      "label": "Create Comment",
+      "description": "Adds a comment, or a reply to a comment, on a published post or page.",
+      "inputs": {
+        "post": {
+          "label": "Post ID",
+          "description": "ID of a published post or page with comments open, from List Posts or List Pages.",
+          "type": "number",
+          "required": true
+        },
+        "content": {
+          "label": "Comment",
+          "description": "Comment text. Basic HTML is allowed.",
+          "type": "multiline",
+          "required": true
+        },
+        "parent": {
+          "label": "Reply To Comment ID",
+          "description": "ID of the comment to reply to, from List Comments. Leave empty for a top-level comment.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.website_url}}/wp-json/wp/v2/comments"
+      },
+      "beforeRequest": "const id = (name, label) => { const value = inputs[name]; if (value === undefined || value === null || String(value).trim() === '') return undefined; const parsed = Number(value); if (!Number.isInteger(parsed) || parsed < 0) throw new Error(label + ' must be a whole-number ID; got \"' + value + '\".'); return parsed; };\nconst body = {post: id('post', 'Post ID'), content: inputs.content};\nconst parent = id('parent', 'Reply To Comment ID'); if (parent !== undefined) body.parent = parent;\nrequest.body = body;\nreturn request;",
+      "afterResponse": "if (response === null || typeof response !== 'object') throw new Error('WordPress did not return REST API JSON. The REST API is not reachable at /wp-json: set Settings > Permalinks to any option other than \"Plain\", check the Website URL, and check that no security plugin blocks the REST API.');\nreturn response;"
+    },
+    "delete_comment": {
+      "label": "Delete Comment",
+      "description": "Permanently deletes a comment, skipping the trash. This cannot be undone.",
+      "inputs": {
+        "comment_id": {
+          "label": "Comment ID",
+          "description": "ID of the comment to delete, from List Comments.",
+          "type": "number",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.website_url}}/wp-json/wp/v2/comments/{{comment_id}}",
+        "query": {
+          "force": "true"
+        }
+      },
+      "beforeRequest": "const id = (name, label) => { const value = inputs[name]; if (value === undefined || value === null || String(value).trim() === '') return undefined; const parsed = Number(value); if (!Number.isInteger(parsed) || parsed < 0) throw new Error(label + ' must be a whole-number ID; got \"' + value + '\".'); return parsed; };\nrequest.url = '/comments/' + id('comment_id', 'Comment ID');\nreturn request;",
+      "afterResponse": "if (response === null || typeof response !== 'object') throw new Error('WordPress did not return REST API JSON. The REST API is not reachable at /wp-json: set Settings > Permalinks to any option other than \"Plain\", check the Website URL, and check that no security plugin blocks the REST API.');\nreturn response;"
+    },
+    "list_media": {
+      "label": "List Media",
+      "description": "Lists files in the media library, optionally filtered by keyword, type or attached post.",
+      "inputs": {
+        "search": {
+          "label": "Search",
+          "description": "Only files whose title, caption or file name contain this text."
+        },
+        "media_type": {
+          "label": "Media Type",
+          "description": "Only files of this general type.",
+          "type": "select",
+          "options": [
+            {
+              "value": "image",
+              "label": "Image"
+            },
+            {
+              "value": "video",
+              "label": "Video"
+            },
+            {
+              "value": "audio",
+              "label": "Audio"
+            },
+            {
+              "value": "text",
+              "label": "Text"
+            },
+            {
+              "value": "application",
+              "label": "Application (PDF, documents, archives)"
+            }
+          ]
+        },
+        "mime_type": {
+          "label": "MIME Type",
+          "description": "Only files with this exact MIME type, e.g. image/png."
+        },
+        "parent": {
+          "label": "Attached Post ID",
+          "description": "Only files attached to this post or page ID. Use 0 for unattached files.",
+          "type": "number"
+        },
+        "per_page": {
+          "label": "Results Per Page",
+          "description": "How many results to return, from 1 to 100. Defaults to 10.",
+          "type": "number",
+          "defaultValue": "10"
+        },
+        "page": {
+          "label": "Page",
+          "description": "Page of results to return, starting at 1. The output reports total_pages.",
+          "type": "number",
+          "defaultValue": "1"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.website_url}}/wp-json/wp/v2/media"
+      },
+      "beforeRequest": "const text = (value) => typeof value === 'string' && value.trim() !== '';\nconst id = (name, label) => { const value = inputs[name]; if (value === undefined || value === null || String(value).trim() === '') return undefined; const parsed = Number(value); if (!Number.isInteger(parsed) || parsed < 0) throw new Error(label + ' must be a whole-number ID; got \"' + value + '\".'); return parsed; };\nconst perPage = text(String(inputs.per_page ?? '')) ? Number(inputs.per_page) : 10; const page = text(String(inputs.page ?? '')) ? Number(inputs.page) : 1;\nif (!Number.isInteger(perPage) || perPage < 1 || perPage > 100) throw new Error('Results Per Page must be a whole number from 1 to 100; got \"' + perPage + '\".');\nif (!Number.isInteger(page) || page < 1) throw new Error('Page must be a whole number of 1 or more; got \"' + page + '\".');\nconst query = {per_page: String(perPage), page: String(page)};\nif (text(inputs.search)) query.search = inputs.search;\nif (text(inputs.media_type)) query.media_type = inputs.media_type;\nif (text(inputs.mime_type)) query.mime_type = inputs.mime_type;\nconst parent = id('parent', 'Attached Post ID'); if (parent !== undefined) query.parent = String(parent);\nrequest.query = query;\nreturn request;",
+      "afterResponse": "if (response === null || typeof response !== 'object') throw new Error('WordPress did not return REST API JSON. The REST API is not reachable at /wp-json: set Settings > Permalinks to any option other than \"Plain\", check the Website URL, and check that no security plugin blocks the REST API.');\nconst count = (header) => { const found = Object.entries(received.headers || {}).find(([key]) => key.toLowerCase() === header); const value = found ? found[1] : undefined; if (value === undefined || value === null || value === '') return undefined; const parsed = Number(value); return Number.isFinite(parsed) ? parsed : undefined; };\nconst items = Array.isArray(response) ? response : [];\nreturn {media: items, count: items.length, total: count('x-wp-total'), total_pages: count('x-wp-totalpages')};"
+    },
+    "get_media": {
+      "label": "Get Media",
+      "description": "Gets one media library file by its ID.",
+      "inputs": {
+        "media_id": {
+          "label": "Media ID",
+          "description": "ID of the media item, from List Media or Upload Media.",
+          "type": "number",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.website_url}}/wp-json/wp/v2/media/{{media_id}}"
+      },
+      "beforeRequest": "const id = (name, label) => { const value = inputs[name]; if (value === undefined || value === null || String(value).trim() === '') return undefined; const parsed = Number(value); if (!Number.isInteger(parsed) || parsed < 0) throw new Error(label + ' must be a whole-number ID; got \"' + value + '\".'); return parsed; };\nrequest.url = '/media/' + id('media_id', 'Media ID');\nreturn request;",
+      "afterResponse": "if (response === null || typeof response !== 'object') throw new Error('WordPress did not return REST API JSON. The REST API is not reachable at /wp-json: set Settings > Permalinks to any option other than \"Plain\", check the Website URL, and check that no security plugin blocks the REST API.');\nreturn response;"
+    },
+    "upload_media": {
+      "label": "Upload Media",
+      "description": "Uploads a file to the media library. Set its title, alt text, caption or post with Update Media Details.",
+      "inputs": {
+        "file": {
+          "label": "File",
+          "description": "The file to upload, such as one Read file read. The file name and extension decide its type.",
+          "type": "file",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.website_url}}/wp-json/wp/v2/media",
+        "headers": {
+          "Content-Type": "multipart/form-data"
+        },
+        "body": {
+          "file": "{{file}}"
+        }
+      },
+      "afterResponse": "if (response === null || typeof response !== 'object') throw new Error('WordPress did not return REST API JSON. The REST API is not reachable at /wp-json: set Settings > Permalinks to any option other than \"Plain\", check the Website URL, and check that no security plugin blocks the REST API.');\nreturn response;"
+    },
+    "update_media_details": {
+      "label": "Update Media Details",
+      "description": "Changes the title, alt text, caption, description or attached post of a media file.",
+      "inputs": {
+        "media_id": {
+          "label": "Media ID",
+          "description": "ID of the media item, from List Media or Upload Media.",
+          "type": "number",
+          "required": true
+        },
+        "title": {
+          "label": "Title",
+          "description": "New title. Leave empty to keep the current value."
+        },
+        "alt_text": {
+          "label": "Alt Text",
+          "description": "New alternative text. Leave empty to keep the current value."
+        },
+        "caption": {
+          "label": "Caption",
+          "description": "New caption. Leave empty to keep the current value.",
+          "type": "multiline"
+        },
+        "description": {
+          "label": "Description",
+          "description": "New description. Leave empty to keep the current value.",
+          "type": "multiline"
+        },
+        "post": {
+          "label": "Attach To Post ID",
+          "description": "ID of the post or page to attach the file to. Leave empty to keep the current value.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.website_url}}/wp-json/wp/v2/media/{{media_id}}"
+      },
+      "beforeRequest": "const text = (value) => typeof value === 'string' && value.trim() !== '';\nconst id = (name, label) => { const value = inputs[name]; if (value === undefined || value === null || String(value).trim() === '') return undefined; const parsed = Number(value); if (!Number.isInteger(parsed) || parsed < 0) throw new Error(label + ' must be a whole-number ID; got \"' + value + '\".'); return parsed; };\nconst target = id('media_id', 'Media ID');\nconst body = {};\n['title', 'alt_text', 'caption', 'description'].forEach((key) => { if (text(inputs[key])) body[key] = inputs[key]; });\nconst post = id('post', 'Attached Post ID'); if (post !== undefined) body.post = post;\nif (Object.keys(body).length === 0) throw new Error('Nothing to update: supply at least one field to change. Empty text fields are treated as \"leave unchanged\".');\nrequest.url = '/media/' + target;\nrequest.body = body;\nreturn request;",
+      "afterResponse": "if (response === null || typeof response !== 'object') throw new Error('WordPress did not return REST API JSON. The REST API is not reachable at /wp-json: set Settings > Permalinks to any option other than \"Plain\", check the Website URL, and check that no security plugin blocks the REST API.');\nreturn response;"
+    },
+    "delete_media": {
+      "label": "Delete Media",
+      "description": "Permanently deletes a media file and its generated sizes. This cannot be undone.",
+      "inputs": {
+        "media_id": {
+          "label": "Media ID",
+          "description": "ID of the media item to delete, from List Media.",
+          "type": "number",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.website_url}}/wp-json/wp/v2/media/{{media_id}}",
+        "query": {
+          "force": "true"
+        }
+      },
+      "beforeRequest": "const id = (name, label) => { const value = inputs[name]; if (value === undefined || value === null || String(value).trim() === '') return undefined; const parsed = Number(value); if (!Number.isInteger(parsed) || parsed < 0) throw new Error(label + ' must be a whole-number ID; got \"' + value + '\".'); return parsed; };\nrequest.url = '/media/' + id('media_id', 'Media ID');\nreturn request;",
+      "afterResponse": "if (response === null || typeof response !== 'object') throw new Error('WordPress did not return REST API JSON. The REST API is not reachable at /wp-json: set Settings > Permalinks to any option other than \"Plain\", check the Website URL, and check that no security plugin blocks the REST API.');\nreturn response;"
+    },
+    "get_current_user": {
+      "label": "Get Current User",
+      "description": "Gets the WordPress user this connection signs in as, with roles and capabilities.",
+      "inputs": {},
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.website_url}}/wp-json/wp/v2/users/me",
+        "query": {
+          "context": "edit"
+        }
+      },
+      "afterResponse": "if (response === null || typeof response !== 'object') throw new Error('WordPress did not return REST API JSON. The REST API is not reachable at /wp-json: set Settings > Permalinks to any option other than \"Plain\", check the Website URL, and check that no security plugin blocks the REST API.');\nreturn response;"
+    },
+    "list_users": {
+      "label": "List Users",
+      "description": "Lists site users, optionally filtered by name or role.",
+      "inputs": {
+        "search": {
+          "label": "Search",
+          "description": "Only users whose name, slug, email or URL contain this text."
+        },
+        "roles": {
+          "label": "Roles",
+          "description": "Only users with any of these role slugs, such as [\"editor\", \"author\"]: administrator, editor, author, contributor or subscriber.",
+          "type": "json"
+        },
+        "per_page": {
+          "label": "Results Per Page",
+          "description": "How many results to return, from 1 to 100. Defaults to 10.",
+          "type": "number",
+          "defaultValue": "10"
+        },
+        "page": {
+          "label": "Page",
+          "description": "Page of results to return, starting at 1. The output reports total_pages.",
+          "type": "number",
+          "defaultValue": "1"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.website_url}}/wp-json/wp/v2/users"
+      },
+      "beforeRequest": "const text = (value) => typeof value === 'string' && value.trim() !== '';\nconst perPage = text(String(inputs.per_page ?? '')) ? Number(inputs.per_page) : 10; const page = text(String(inputs.page ?? '')) ? Number(inputs.page) : 1;\nif (!Number.isInteger(perPage) || perPage < 1 || perPage > 100) throw new Error('Results Per Page must be a whole number from 1 to 100; got \"' + perPage + '\".');\nif (!Number.isInteger(page) || page < 1) throw new Error('Page must be a whole number of 1 or more; got \"' + page + '\".');\nconst query = {per_page: String(perPage), page: String(page)};\nif (text(inputs.search)) query.search = inputs.search;\nif (text(inputs.roles)) { const roles = JSON.parse(inputs.roles); const names = Array.isArray(roles) ? roles.map((role) => String(role).trim()).filter((role) => role !== '') : []; if (names.length > 0) query.roles = names.join(','); }\nrequest.query = query;\nreturn request;",
+      "afterResponse": "if (response === null || typeof response !== 'object') throw new Error('WordPress did not return REST API JSON. The REST API is not reachable at /wp-json: set Settings > Permalinks to any option other than \"Plain\", check the Website URL, and check that no security plugin blocks the REST API.');\nconst count = (header) => { const found = Object.entries(received.headers || {}).find(([key]) => key.toLowerCase() === header); const value = found ? found[1] : undefined; if (value === undefined || value === null || value === '') return undefined; const parsed = Number(value); return Number.isFinite(parsed) ? parsed : undefined; };\nconst items = Array.isArray(response) ? response : [];\nreturn {users: items, count: items.length, total: count('x-wp-total'), total_pages: count('x-wp-totalpages')};"
+    },
+    "search_site_content": {
+      "label": "Search Site Content",
+      "description": "Searches published posts and pages, or categories and tags, by keyword.",
+      "inputs": {
+        "search": {
+          "label": "Search",
+          "description": "Text to search for.",
+          "required": true
+        },
+        "type": {
+          "label": "Type",
+          "description": "What to search. Defaults to posts and pages.",
+          "type": "select",
+          "options": [
+            {
+              "value": "post",
+              "label": "Posts and pages"
+            },
+            {
+              "value": "term",
+              "label": "Categories and tags"
+            },
+            {
+              "value": "post-format",
+              "label": "Post formats"
+            }
+          ]
+        },
+        "subtype": {
+          "label": "Subtype",
+          "description": "Narrow the search within the chosen Type. \"Post\" and \"Page\" work only with Type \"Posts and pages\"; \"Category\" and \"Tag\" only with Type \"Categories and tags\". Leave empty for all.",
+          "type": "select",
+          "options": [
+            {
+              "value": "post",
+              "label": "Post"
+            },
+            {
+              "value": "page",
+              "label": "Page"
+            },
+            {
+              "value": "category",
+              "label": "Category"
+            },
+            {
+              "value": "post_tag",
+              "label": "Tag"
+            }
+          ]
+        },
+        "per_page": {
+          "label": "Results Per Page",
+          "description": "How many results to return, from 1 to 100. Defaults to 10.",
+          "type": "number",
+          "defaultValue": "10"
+        },
+        "page": {
+          "label": "Page",
+          "description": "Page of results to return, starting at 1. The output reports total_pages.",
+          "type": "number",
+          "defaultValue": "1"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.website_url}}/wp-json/wp/v2/search"
+      },
+      "beforeRequest": "const text = (value) => typeof value === 'string' && value.trim() !== '';\nconst perPage = text(String(inputs.per_page ?? '')) ? Number(inputs.per_page) : 10; const page = text(String(inputs.page ?? '')) ? Number(inputs.page) : 1;\nif (!Number.isInteger(perPage) || perPage < 1 || perPage > 100) throw new Error('Results Per Page must be a whole number from 1 to 100; got \"' + perPage + '\".');\nif (!Number.isInteger(page) || page < 1) throw new Error('Page must be a whole number of 1 or more; got \"' + page + '\".');\nconst query = {per_page: String(perPage), page: String(page)};\nconst type = text(inputs.type) ? inputs.type : 'post';\nquery.search = inputs.search;\nquery.type = type;\nif (text(inputs.subtype)) { const allowed = {post: ['post', 'page'], term: ['category', 'post_tag'], 'post-format': []}[type] || []; if (!allowed.includes(inputs.subtype)) throw new Error('Subtype \"' + inputs.subtype + '\" does not belong to Type \"' + type + '\". Allowed: ' + (allowed.length > 0 ? allowed.join(', ') : 'none (leave Subtype empty)') + '.'); query.subtype = inputs.subtype; }\nrequest.query = query;\nreturn request;",
+      "afterResponse": "if (response === null || typeof response !== 'object') throw new Error('WordPress did not return REST API JSON. The REST API is not reachable at /wp-json: set Settings > Permalinks to any option other than \"Plain\", check the Website URL, and check that no security plugin blocks the REST API.');\nconst count = (header) => { const found = Object.entries(received.headers || {}).find(([key]) => key.toLowerCase() === header); const value = found ? found[1] : undefined; if (value === undefined || value === null || value === '') return undefined; const parsed = Number(value); return Number.isFinite(parsed) ? parsed : undefined; };\nconst items = Array.isArray(response) ? response : [];\nreturn {results: items, count: items.length, total: count('x-wp-total'), total_pages: count('x-wp-totalpages')};"
+    },
+    "get_site_settings": {
+      "label": "Get Site Settings",
+      "description": "Gets the site title, tagline, URL, timezone, date format and reading settings.",
+      "inputs": {},
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.website_url}}/wp-json/wp/v2/settings"
+      },
+      "afterResponse": "if (response === null || typeof response !== 'object') throw new Error('WordPress did not return REST API JSON. The REST API is not reachable at /wp-json: set Settings > Permalinks to any option other than \"Plain\", check the Website URL, and check that no security plugin blocks the REST API.');\nreturn response;"
+    }
+  }
+}

@@ -18,6 +18,9 @@ abstract class Trigger : Action() {
 
     abstract fun trigger(): TriggerResult
 
+    /** Called when the task stops, so that a trigger can let go of what it holds, such as a subscription. */
+    open fun stop() {}
+
     /** Why the trigger cannot start the task, or null when it can. Asked when the task is turned on and when triggers start. */
     open fun problem(): String? = null
 
@@ -29,4 +32,5 @@ abstract class Trigger : Action() {
         }
 }
 
-data class TriggerResult(val resultMap: MutableMap<String, String>)
+/** What starts a run: the values it gets as TRIGGER_ parameters, and files it gets as files of the run. */
+data class TriggerResult(val resultMap: MutableMap<String, String>, val files: Map<String, ByteArray> = emptyMap())

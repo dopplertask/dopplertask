@@ -185,6 +185,7 @@ export default function boot() {
   function announceAddedStep(item) {
     const added = item && store.selectedNode;
     if (!added) return;
+    if (added.type === 'start') { DT.ui.toast(`The task ${added === rootNode(store.task) ? 'now' : 'also'} starts on ${ACTIONS[item.dataset.type].label}`, { actionLabel: 'Undo', onAction: () => store.undo() }); return; }
     const incoming = store.task.edges.find((edge) => edge.to === added.id);
     const previous = incoming && nodeById(store.task, incoming.from);
     DT.ui.toast(previous ? `Added after “${previous.name}”` : `Added “${added.name}”`, { actionLabel: 'Undo', onAction: () => store.undo() });
@@ -206,12 +207,7 @@ export default function boot() {
     if (event.target.closest('[data-wb="history"]')) renderRail();
     announceAddedStep(event.target.closest('.library-item'));
     const start = event.target.closest('[data-start]');
-    if (start) {
-      const root = rootNode(store.task);
-      store.updateConfig(root.id, 'trigger', start.dataset.start);
-      store.select(null);
-      store.select(root.id);
-    }
+    if (start) store.addTrigger(start.dataset.start);
   });
 
   core.start({ idle: () => '' });

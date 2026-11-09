@@ -1,0 +1,1090 @@
+{
+  "name": "campaign-monitor",
+  "label": "Campaign Monitor",
+  "description": "Email marketing platform for delivering exceptional email campaigns.",
+  "icon": "campaignmonitor",
+  "hosts": [
+    "api.createsend.com"
+  ],
+  "baseUrl": "https://api.createsend.com/api/v3.3",
+  "upstream": {
+    "package": "@activepieces/piece-campaign-monitor",
+    "version": "0.2.1"
+  },
+  "credential": {
+    "fields": {
+      "apiKey": {
+        "label": "API Key",
+        "description": "To use Campaign Monitor, you need to get an API key:\n1. Login to your account at https://www.campaignmonitor.com.\n2. Navigate to Account Settings.\n3. Click on API Keys.\n4. Create a new API key or use an existing one.",
+        "secret": true,
+        "required": true
+      }
+    },
+    "basic": {
+      "username": "{{credential.apiKey}}",
+      "password": "x"
+    }
+  },
+  "lists": {
+    "clients": {
+      "request": {
+        "method": "GET",
+        "url": "https://api.createsend.com/api/v3.3/clients.json"
+      },
+      "items": "$",
+      "label": "$.Name",
+      "value": "$.ClientID"
+    },
+    "lists": {
+      "request": {
+        "method": "GET",
+        "url": "https://api.createsend.com/api/v3.3/clients/{{clientId}}/lists.json"
+      },
+      "items": "$",
+      "label": "$.Name",
+      "value": "$.ListID"
+    },
+    "sent_campaigns": {
+      "request": {
+        "method": "GET",
+        "url": "https://api.createsend.com/api/v3.3/clients/{{clientId}}/campaigns.json?page=1&pagesize=1000&orderdirection=desc"
+      },
+      "items": "$.Results",
+      "label": "$.Name",
+      "value": "$.CampaignID"
+    },
+    "smart_emails": {
+      "request": {
+        "method": "GET",
+        "url": "https://api.createsend.com/api/v3.3/transactional/smartEmail?status=active&clientID={{clientId}}"
+      },
+      "items": "$",
+      "label": "$.Name",
+      "value": "$.ID"
+    },
+    "segments": {
+      "request": {
+        "method": "GET",
+        "url": "https://api.createsend.com/api/v3.3/clients/{{clientId}}/segments.json"
+      },
+      "items": "$",
+      "label": "$.Title",
+      "value": "$.SegmentID"
+    },
+    "draft_campaigns": {
+      "request": {
+        "method": "GET",
+        "url": "https://api.createsend.com/api/v3.3/clients/{{clientId}}/drafts.json"
+      },
+      "items": "$",
+      "label": "$.Name",
+      "value": "$.CampaignID"
+    }
+  },
+  "actions": {
+    "unsubscribe_subscriber": {
+      "label": "Unsubscribe Subscriber",
+      "description": "Remove a subscriber from a list.",
+      "inputs": {
+        "clientId": {
+          "label": "Client Account",
+          "required": true,
+          "list": "clients"
+        },
+        "listId": {
+          "label": "List",
+          "required": true,
+          "list": "lists"
+        },
+        "email": {
+          "label": "Email Address",
+          "description": "The email address of the subscriber to unsubscribe.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.createsend.com/api/v3.3/subscribers/{{listId}}/unsubscribe.json",
+        "body": {
+          "EmailAddress": "{{email}}"
+        }
+      },
+      "afterResponse": "return { success: true, emailAddress: inputs.email, listId: inputs.listId };"
+    },
+    "delete_subscriber": {
+      "label": "Delete Subscriber",
+      "description": "Moves a subscriber to the Deleted state of a list.",
+      "inputs": {
+        "clientId": {
+          "label": "Client Account",
+          "required": true,
+          "list": "clients"
+        },
+        "listId": {
+          "label": "List",
+          "required": true,
+          "list": "lists"
+        },
+        "email": {
+          "label": "Email Address",
+          "description": "The email address of the subscriber to delete.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.createsend.com/api/v3.3/subscribers/{{listId}}.json",
+        "query": {
+          "email": "{{email}}"
+        }
+      },
+      "afterResponse": "return { success: true, emailAddress: inputs.email, listId: inputs.listId };"
+    },
+    "get_list_subscribers": {
+      "label": "Get List Subscribers",
+      "description": "Returns one page of subscribers in a list, filtered by state.",
+      "inputs": {
+        "clientId": {
+          "label": "Client Account",
+          "required": true,
+          "list": "clients"
+        },
+        "listId": {
+          "label": "List",
+          "required": true,
+          "list": "lists"
+        },
+        "state": {
+          "label": "State",
+          "type": "select",
+          "required": true,
+          "defaultValue": "active",
+          "options": [
+            {
+              "value": "active",
+              "label": "Active"
+            },
+            {
+              "value": "unsubscribed",
+              "label": "Unsubscribed"
+            },
+            {
+              "value": "bounced",
+              "label": "Bounced"
+            },
+            {
+              "value": "deleted",
+              "label": "Deleted"
+            },
+            {
+              "value": "unconfirmed",
+              "label": "Unconfirmed"
+            }
+          ]
+        },
+        "page": {
+          "label": "Page",
+          "description": "Page number to return, starting at 1.",
+          "type": "number",
+          "defaultValue": "1"
+        },
+        "pageSize": {
+          "label": "Page Size",
+          "description": "Subscribers per page, between 10 and 1000.",
+          "type": "number",
+          "defaultValue": "100"
+        },
+        "orderField": {
+          "label": "Order By",
+          "type": "select",
+          "required": false,
+          "defaultValue": "date",
+          "options": [
+            {
+              "value": "date",
+              "label": "Date"
+            },
+            {
+              "value": "email",
+              "label": "Email"
+            },
+            {
+              "value": "name",
+              "label": "Name"
+            }
+          ]
+        },
+        "orderDirection": {
+          "label": "Order Direction",
+          "type": "select",
+          "required": false,
+          "defaultValue": "asc",
+          "options": [
+            {
+              "value": "asc",
+              "label": "Ascending"
+            },
+            {
+              "value": "desc",
+              "label": "Descending"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.createsend.com/api/v3.3/lists/{{listId}}/{{state}}.json",
+        "query": {
+          "page": "{{page}}",
+          "pagesize": "{{pageSize}}",
+          "orderfield": "{{orderField}}",
+          "orderdirection": "{{orderDirection}}"
+        }
+      },
+      "beforeRequest": "const page = (value) => { const number = Number(value === undefined || value === '' ? 1 : value); return !Number.isFinite(number) || number < 1 ? 1 : Math.floor(number); }; const size = (value) => { const number = Number(value === undefined || value === '' ? 100 : value); return Number.isFinite(number) ? Math.min(1000, Math.max(10, Math.floor(number))) : 100; }; const q = request.query; request.query = { page: String(page(q.page)), pagesize: String(size(q.pagesize)), orderfield: q.orderfield || 'date', orderdirection: q.orderdirection || 'asc', includetrackingpreference: 'true', includesmspreference: 'true' }; return request;",
+      "afterResponse": "const fields = (list) => { const out = {}; for (const { Key, Value } of list || []) { const key = Key.replace(/^\\[(.*)\\]$/, '$1'), old = out[key]; out[key] = old === undefined ? Value : Array.isArray(old) ? [...old, Value] : [old, Value]; } return out; }; const r = response; return { Results: (r.Results || []).map((item) => ({ ...item, CustomFields: fields(item.CustomFields) })), PageNumber: r.PageNumber, PageSize: r.PageSize, RecordsOnThisPage: r.RecordsOnThisPage, TotalNumberOfRecords: r.TotalNumberOfRecords, NumberOfPages: r.NumberOfPages };"
+    },
+    "list_lists": {
+      "label": "List Lists",
+      "description": "Returns all subscriber lists of a client.",
+      "inputs": {
+        "clientId": {
+          "label": "Client Account",
+          "required": true,
+          "list": "clients"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.createsend.com/api/v3.3/clients/{{clientId}}/lists.json"
+      }
+    },
+    "list_clients": {
+      "label": "List Clients",
+      "description": "Returns all clients in your Campaign Monitor account.",
+      "inputs": {},
+      "request": {
+        "method": "GET",
+        "url": "https://api.createsend.com/api/v3.3/clients.json"
+      }
+    },
+    "list_smart_emails": {
+      "label": "List Smart Emails",
+      "description": "Returns the smart transactional emails of a client.",
+      "inputs": {
+        "clientId": {
+          "label": "Client Account",
+          "required": true,
+          "list": "clients"
+        },
+        "status": {
+          "label": "Status",
+          "type": "select",
+          "required": false,
+          "defaultValue": "active",
+          "options": [
+            {
+              "value": "active",
+              "label": "Active"
+            },
+            {
+              "value": "draft",
+              "label": "Draft"
+            },
+            {
+              "value": "all",
+              "label": "All"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.createsend.com/api/v3.3/transactional/smartEmail",
+        "query": {
+          "status": "{{status}}",
+          "clientID": "{{clientId}}"
+        }
+      },
+      "beforeRequest": "request.query.status = request.query.status || 'active'; return request;"
+    },
+    "create_list": {
+      "label": "Create List",
+      "description": "Creates a new subscriber list for a client.",
+      "inputs": {
+        "clientId": {
+          "label": "Client Account",
+          "required": true,
+          "list": "clients"
+        },
+        "title": {
+          "label": "Title",
+          "required": true
+        },
+        "unsubscribeSetting": {
+          "label": "Unsubscribe Setting",
+          "description": "Whether an unsubscribe here also applies to all client lists.",
+          "type": "select",
+          "required": true,
+          "defaultValue": "AllClientLists",
+          "options": [
+            {
+              "value": "AllClientLists",
+              "label": "All client lists"
+            },
+            {
+              "value": "OnlyThisList",
+              "label": "Only this list"
+            }
+          ]
+        },
+        "confirmedOptIn": {
+          "label": "Confirmed Opt-In",
+          "description": "Require new subscribers to confirm by email (double opt-in).",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "unsubscribePage": {
+          "label": "Unsubscribe Page URL",
+          "description": "Page shown after unsubscribing. Leave empty for the default page.",
+          "required": false
+        },
+        "confirmationSuccessPage": {
+          "label": "Confirmation Success Page URL",
+          "description": "Page shown after a subscriber confirms (Confirmed Opt-In only).",
+          "required": false
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.createsend.com/api/v3.3/lists/{{clientId}}.json"
+      },
+      "beforeRequest": "request.body = { Title: inputs.title, UnsubscribePage: inputs.unsubscribePage, UnsubscribeSetting: inputs.unsubscribeSetting, ConfirmedOptIn: inputs.confirmedOptIn === 'true', ConfirmationSuccessPage: inputs.confirmationSuccessPage }; return request;",
+      "afterResponse": "return { listId: String(response), title: inputs.title };"
+    },
+    "list_sent_campaigns": {
+      "label": "List Sent Campaigns",
+      "description": "Returns one page of campaigns a client has sent.",
+      "inputs": {
+        "clientId": {
+          "label": "Client Account",
+          "required": true,
+          "list": "clients"
+        },
+        "sentFromDate": {
+          "label": "Sent From Date",
+          "description": "Only campaigns sent on or after this date."
+        },
+        "sentToDate": {
+          "label": "Sent To Date",
+          "description": "Only campaigns sent before this date (the date itself is excluded)."
+        },
+        "tags": {
+          "label": "Tags",
+          "description": "Only campaigns with these tags, as a comma-separated list.",
+          "required": false
+        },
+        "page": {
+          "label": "Page",
+          "description": "Page number to return, starting at 1.",
+          "type": "number",
+          "defaultValue": "1"
+        },
+        "pageSize": {
+          "label": "Page Size",
+          "description": "Campaigns per page, between 10 and 1000.",
+          "type": "number",
+          "defaultValue": "100"
+        },
+        "orderDirection": {
+          "label": "Order Direction",
+          "type": "select",
+          "required": false,
+          "defaultValue": "desc",
+          "options": [
+            {
+              "value": "desc",
+              "label": "Newest first"
+            },
+            {
+              "value": "asc",
+              "label": "Oldest first"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.createsend.com/api/v3.3/clients/{{clientId}}/campaigns.json",
+        "query": {
+          "page": "{{page}}",
+          "pagesize": "{{pageSize}}",
+          "orderdirection": "{{orderDirection}}"
+        }
+      },
+      "beforeRequest": "const page = (value) => { const number = Number(value === undefined || value === '' ? 1 : value); return !Number.isFinite(number) || number < 1 ? 1 : Math.floor(number); }; const size = (value) => { const number = Number(value === undefined || value === '' ? 100 : value); return Number.isFinite(number) ? Math.min(1000, Math.max(10, Math.floor(number))) : 100; }; const day = (value) => { const date = new Date(value); if (Number.isNaN(date.getTime())) throw new Error(`Invalid date: ${value}`); return date.toISOString().slice(0, 10); }; const q = request.query, query = { page: String(page(q.page)), pagesize: String(size(q.pagesize)), orderdirection: q.orderdirection || 'desc' }; if (inputs.sentFromDate) query.sentfromdate = day(inputs.sentFromDate); if (inputs.sentToDate) query.senttodate = day(inputs.sentToDate); const tags = inputs.tags.split(',').map((tag) => tag.trim()).filter((tag) => tag.length > 0); if (tags.length > 0) query.tags = tags.join(','); request.query = query; return request;"
+    },
+    "get_campaign_summary": {
+      "label": "Get Campaign Summary",
+      "description": "Returns the reporting summary of a sent campaign.",
+      "inputs": {
+        "clientId": {
+          "label": "Client Account",
+          "required": true,
+          "list": "clients"
+        },
+        "campaignId": {
+          "label": "Campaign",
+          "description": "A sent campaign of the selected client, newest first.",
+          "required": true,
+          "list": "sent_campaigns"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.createsend.com/api/v3.3/campaigns/{{campaignId}}/summary.json"
+      }
+    },
+    "send_smart_email": {
+      "label": "Send Smart Transactional Email",
+      "description": "Sends a smart transactional email to one or more recipients.",
+      "inputs": {
+        "clientId": {
+          "label": "Client Account",
+          "required": true,
+          "list": "clients"
+        },
+        "smartEmailId": {
+          "label": "Smart Email",
+          "description": "An active smart transactional email of the selected client.",
+          "required": true,
+          "list": "smart_emails"
+        },
+        "to": {
+          "label": "To",
+          "description": "Recipients, as an email address or \"Name <email@example.com>\".",
+          "type": "json",
+          "required": true
+        },
+        "cc": {
+          "label": "CC",
+          "type": "json"
+        },
+        "bcc": {
+          "label": "BCC",
+          "type": "json"
+        },
+        "data": {
+          "label": "Data",
+          "description": "Values for the smart email variables, as a JSON object.",
+          "type": "json",
+          "defaultValue": "{}"
+        },
+        "addRecipientsToList": {
+          "label": "Add Recipients to List",
+          "description": "Add the recipients to the list configured on the smart email.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "consentToTrack": {
+          "label": "Consent to Track",
+          "description": "Whether the recipients have consented to tracking.",
+          "type": "select",
+          "required": true,
+          "defaultValue": "Unchanged",
+          "options": [
+            {
+              "value": "Yes",
+              "label": "Yes"
+            },
+            {
+              "value": "No",
+              "label": "No"
+            },
+            {
+              "value": "Unchanged",
+              "label": "Unchanged"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.createsend.com/api/v3.3/transactional/smartEmail/{{smartEmailId}}/send"
+      },
+      "beforeRequest": "const list = (value) => (value ? JSON.parse(value) : []).map((item) => String(item ?? '').trim()).filter((item) => item.length > 0); const to = list(inputs.to), cc = list(inputs.cc), bcc = list(inputs.bcc); if (to.length === 0) throw new Error('Add at least one recipient in To.'); request.body = { To: to, CC: cc.length > 0 ? cc : undefined, BCC: bcc.length > 0 ? bcc : undefined, Data: inputs.data ? JSON.parse(inputs.data) : {}, AddRecipientsToList: inputs.addRecipientsToList === 'true', ConsentToTrack: inputs.consentToTrack }; return request;"
+    },
+    "add_subscriber_json": {
+      "label": "Add Subscriber",
+      "description": "Adds a new subscriber to a list.",
+      "inputs": {
+        "clientId": {
+          "label": "Client Account",
+          "required": true,
+          "list": "clients"
+        },
+        "listId": {
+          "label": "List",
+          "required": true,
+          "list": "lists"
+        },
+        "email": {
+          "label": "Email Address",
+          "required": true
+        },
+        "name": {
+          "label": "Name",
+          "required": false
+        },
+        "phone": {
+          "label": "Phone",
+          "required": false
+        },
+        "consentToTrack": {
+          "label": "Consent to Track",
+          "description": "Whether the subscriber has consented to tracking.",
+          "type": "select",
+          "required": true,
+          "defaultValue": "Unchanged",
+          "options": [
+            {
+              "value": "Yes",
+              "label": "Yes"
+            },
+            {
+              "value": "No",
+              "label": "No"
+            },
+            {
+              "value": "Unchanged",
+              "label": "Unchanged"
+            }
+          ]
+        },
+        "consentToSendSms": {
+          "label": "Consent to Send SMS",
+          "description": "Whether the subscriber has consented to send SMS.",
+          "type": "select",
+          "required": false,
+          "defaultValue": "Unchanged",
+          "options": [
+            {
+              "value": "Yes",
+              "label": "Yes"
+            },
+            {
+              "value": "No",
+              "label": "No"
+            },
+            {
+              "value": "Unchanged",
+              "label": "Unchanged"
+            }
+          ]
+        },
+        "resubscribe": {
+          "label": "Resubscribe",
+          "description": "Resubscribe the subscriber if they previously unsubscribed.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "customFields": {
+          "label": "Custom Fields",
+          "description": "JSON object of field name to value, e.g. {\"Company\":\"Acme\"}.",
+          "type": "json",
+          "fieldsFrom": {
+            "request": {
+              "method": "GET",
+              "url": "https://api.createsend.com/api/v3.3/lists/{{listId}}/customfields.json"
+            },
+            "list": "$",
+            "key": "$.Key",
+            "label": "$.FieldName",
+            "type": "$.DataType",
+            "types": {
+              "Number": "number",
+              "MultiSelectMany": "json"
+            }
+          }
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.createsend.com/api/v3.3/subscribers/{{listId}}.json"
+      },
+      "beforeRequest": "const named = (value) => { if (value === undefined || value === null || value === '') return {}; const parsed = typeof value === 'string' ? JSON.parse(value) : value; if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new Error('Custom Fields must be a JSON object, e.g. {\"Company\":\"Acme\",\"Age\":30}.'); const out = {}; for (const [key, item] of Object.entries(parsed)) { const name = key.replace(/^\\s*\\[(.*)\\]\\s*$/, '$1').replace(/\\s+/g, ''); if (name.length !== 0) out[`[${name}]`] = item; } return out; }; const listId = inputs.listId.trim(), fields = named(inputs.customFields); const blank = (value) => value === undefined || value === null || value === ''; const day = (value) => { if (typeof value !== 'string') return value; const match = /^(\\d{4})-(\\d{2})-(\\d{2})T\\d{2}:\\d{2}/.exec(value); return match ? `${match[1]}/${match[2]}/${match[3]}` : value; }; const dates = new Set((call({ method: 'GET', url: '/lists/' + encodeURIComponent(listId) + '/customfields.json' }) || []).filter((field) => field.DataType === 'Date').map((field) => field.Key)); const custom = Object.entries(fields || {}).flatMap(([key, value]) => Array.isArray(value) ? value.filter((item) => !blank(item)).map((item) => ({ Key: key, Value: item })) : blank(value) ? [] : [{ Key: key, Value: dates.has(key) ? day(value) : value }]); request.url = '/subscribers/' + encodeURIComponent(listId) + '.json'; request.body = { EmailAddress: inputs.email.trim(), Name: inputs.name || '', MobileNumber: inputs.phone || undefined, ConsentToTrack: inputs.consentToTrack || 'Unchanged', ConsentToSendSms: inputs.consentToSendSms || 'Unchanged', Resubscribe: inputs.resubscribe === 'true', CustomFields: custom }; return request;",
+      "afterResponse": "return { success: true, emailAddress: typeof response === 'string' ? response : request.body.EmailAddress, listId: inputs.listId.trim() };"
+    },
+    "update_subscriber_json": {
+      "label": "Update Subscriber",
+      "description": "Update an existing subscriber in a list.",
+      "inputs": {
+        "clientId": {
+          "label": "Client Account",
+          "required": true,
+          "list": "clients"
+        },
+        "listId": {
+          "label": "List",
+          "required": true,
+          "list": "lists"
+        },
+        "email": {
+          "label": "Email Address",
+          "description": "The current email address of the subscriber.",
+          "required": true
+        },
+        "newEmail": {
+          "label": "New Email Address",
+          "description": "New email for the subscriber. Leave empty to keep the current one.",
+          "required": false
+        },
+        "name": {
+          "label": "Name",
+          "required": false
+        },
+        "phone": {
+          "label": "Phone",
+          "required": false
+        },
+        "consentToTrack": {
+          "label": "Consent to Track",
+          "description": "Whether the subscriber has consented to tracking.",
+          "type": "select",
+          "required": false,
+          "defaultValue": "Unchanged",
+          "options": [
+            {
+              "value": "Yes",
+              "label": "Yes"
+            },
+            {
+              "value": "No",
+              "label": "No"
+            },
+            {
+              "value": "Unchanged",
+              "label": "Unchanged"
+            }
+          ]
+        },
+        "consentToSendSms": {
+          "label": "Consent to Send SMS",
+          "description": "Whether the subscriber has consented to send SMS.",
+          "type": "select",
+          "required": false,
+          "defaultValue": "Unchanged",
+          "options": [
+            {
+              "value": "Yes",
+              "label": "Yes"
+            },
+            {
+              "value": "No",
+              "label": "No"
+            },
+            {
+              "value": "Unchanged",
+              "label": "Unchanged"
+            }
+          ]
+        },
+        "resubscribe": {
+          "label": "Resubscribe",
+          "description": "Resubscribe the subscriber if they previously unsubscribed.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "customFields": {
+          "label": "Custom Fields",
+          "description": "JSON object of field name to value, e.g. {\"Company\":\"Acme\"}.",
+          "type": "json",
+          "fieldsFrom": {
+            "request": {
+              "method": "GET",
+              "url": "https://api.createsend.com/api/v3.3/lists/{{listId}}/customfields.json"
+            },
+            "list": "$",
+            "key": "$.Key",
+            "label": "$.FieldName",
+            "type": "$.DataType",
+            "types": {
+              "Number": "number",
+              "MultiSelectMany": "json"
+            }
+          }
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.createsend.com/api/v3.3/subscribers/{{listId}}.json"
+      },
+      "beforeRequest": "const named = (value) => { if (value === undefined || value === null || value === '') return {}; const parsed = typeof value === 'string' ? JSON.parse(value) : value; if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new Error('Custom Fields must be a JSON object, e.g. {\"Company\":\"Acme\",\"Age\":30}.'); const out = {}; for (const [key, item] of Object.entries(parsed)) { const name = key.replace(/^\\s*\\[(.*)\\]\\s*$/, '$1').replace(/\\s+/g, ''); if (name.length !== 0) out[`[${name}]`] = item; } return out; }; const listId = inputs.listId.trim(), email = inputs.email.trim(), fields = named(inputs.customFields); const blank = (value) => value === undefined || value === null || value === ''; const day = (value) => { if (typeof value !== 'string') return value; const match = /^(\\d{4})-(\\d{2})-(\\d{2})T\\d{2}:\\d{2}/.exec(value); return match ? `${match[1]}/${match[2]}/${match[3]}` : value; }; const dates = new Set((call({ method: 'GET', url: '/lists/' + encodeURIComponent(listId) + '/customfields.json' }) || []).filter((field) => field.DataType === 'Date').map((field) => field.Key)); const custom = Object.entries(fields || {}).flatMap(([key, value]) => Array.isArray(value) ? value.filter((item) => !blank(item)).map((item) => ({ Key: key, Value: item })) : blank(value) ? [] : [{ Key: key, Value: dates.has(key) ? day(value) : value }]); request.url = '/subscribers/' + encodeURIComponent(listId) + '.json'; request.query = { email }; request.body = { EmailAddress: (inputs.newEmail || '').trim() || email, Name: inputs.name || undefined, MobileNumber: inputs.phone || undefined, ConsentToTrack: inputs.consentToTrack || 'Unchanged', ConsentToSendSms: inputs.consentToSendSms || 'Unchanged', Resubscribe: inputs.resubscribe === 'true', CustomFields: custom }; return request;",
+      "afterResponse": "return { success: true, emailAddress: request.body.EmailAddress, listId: inputs.listId.trim() };"
+    },
+    "create_draft_campaign": {
+      "label": "Create Draft Campaign",
+      "description": "Creates a draft campaign from hosted HTML content.",
+      "inputs": {
+        "clientId": {
+          "label": "Client Account",
+          "required": true,
+          "list": "clients"
+        },
+        "name": {
+          "label": "Campaign Name",
+          "description": "Internal name; must be unique among the client campaigns.",
+          "required": true
+        },
+        "subject": {
+          "label": "Subject",
+          "required": true
+        },
+        "fromName": {
+          "label": "From Name",
+          "required": true
+        },
+        "fromEmail": {
+          "label": "From Email",
+          "description": "Sender address; must be verified in Campaign Monitor.",
+          "required": true
+        },
+        "replyTo": {
+          "label": "Reply-To Email",
+          "required": true
+        },
+        "htmlUrl": {
+          "label": "HTML Content URL",
+          "description": "Public URL of the HTML content to import.",
+          "required": true
+        },
+        "textUrl": {
+          "label": "Text Content URL",
+          "description": "Public URL of the plain-text version. Optional.",
+          "required": false
+        },
+        "listIds": {
+          "label": "Lists",
+          "description": "Lists the campaign is sent to.",
+          "type": "json",
+          "list": "lists"
+        },
+        "segmentIds": {
+          "label": "Segments",
+          "description": "Segments the campaign is sent to.",
+          "type": "json",
+          "list": "segments"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.createsend.com/api/v3.3/campaigns/{{clientId}}.json",
+        "body": {
+          "Name": "{{name}}",
+          "Subject": "{{subject}}",
+          "FromName": "{{fromName}}"
+        }
+      },
+      "beforeRequest": "const lists = inputs.listIds ? JSON.parse(inputs.listIds) : [], segments = inputs.segmentIds ? JSON.parse(inputs.segmentIds) : []; if (lists.length === 0 && segments.length === 0) throw new Error('Select at least one list or segment.'); Object.assign(request.body, { FromEmail: inputs.fromEmail.trim(), ReplyTo: inputs.replyTo.trim(), HtmlUrl: inputs.htmlUrl.trim(), TextUrl: inputs.textUrl.trim() || undefined, ListIDs: lists, SegmentIDs: segments }); return request;",
+      "afterResponse": "return { campaignId: String(response), name: inputs.name };"
+    },
+    "send_campaign": {
+      "label": "Send Campaign",
+      "description": "Sends or schedules a draft campaign.",
+      "inputs": {
+        "clientId": {
+          "label": "Client Account",
+          "required": true,
+          "list": "clients"
+        },
+        "campaignId": {
+          "label": "Draft Campaign",
+          "description": "A draft campaign of the selected client.",
+          "required": true,
+          "list": "draft_campaigns"
+        },
+        "confirmationEmail": {
+          "label": "Confirmation Email",
+          "description": "Up to 5 comma-separated addresses notified when sent.",
+          "required": true
+        },
+        "sendDate": {
+          "label": "Send Date",
+          "description": "\"Immediately\" or YYYY-MM-DD HH:MM in the client time zone.",
+          "required": true,
+          "defaultValue": "Immediately"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.createsend.com/api/v3.3/campaigns/{{campaignId}}/send.json"
+      },
+      "beforeRequest": "const date = inputs.sendDate.trim(), now = date.toLowerCase() === 'immediately'; if (!now && !/^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}$/.test(date)) throw new Error('Send Date must be \"Immediately\" or in the format YYYY-MM-DD HH:MM.'); request.body = { ConfirmationEmail: inputs.confirmationEmail.split(',').map((email) => email.trim()).filter((email) => email.length > 0).join(','), SendDate: now ? 'Immediately' : date }; return request;",
+      "afterResponse": "return { success: true, campaignId: inputs.campaignId, sendDate: request.body.SendDate };"
+    },
+    "delete_draft_campaign": {
+      "label": "Delete Draft Campaign",
+      "description": "Permanently deletes a draft campaign.",
+      "inputs": {
+        "clientId": {
+          "label": "Client Account",
+          "required": true,
+          "list": "clients"
+        },
+        "campaignId": {
+          "label": "Draft Campaign",
+          "description": "A draft campaign of the selected client.",
+          "required": true,
+          "list": "draft_campaigns"
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.createsend.com/api/v3.3/campaigns/{{campaignId}}.json"
+      },
+      "afterResponse": "return { success: true, campaignId: inputs.campaignId };"
+    },
+    "get_campaign_activity": {
+      "label": "Get Campaign Activity",
+      "description": "Returns one page of recipients, opens, clicks or bounces.",
+      "inputs": {
+        "clientId": {
+          "label": "Client Account",
+          "required": true,
+          "list": "clients"
+        },
+        "campaignId": {
+          "label": "Campaign",
+          "description": "A sent campaign of the selected client, newest first.",
+          "required": true,
+          "list": "sent_campaigns"
+        },
+        "activityType": {
+          "label": "Activity Type",
+          "type": "select",
+          "required": true,
+          "defaultValue": "opens",
+          "options": [
+            {
+              "value": "recipients",
+              "label": "Recipients"
+            },
+            {
+              "value": "opens",
+              "label": "Opens"
+            },
+            {
+              "value": "clicks",
+              "label": "Clicks"
+            },
+            {
+              "value": "bounces",
+              "label": "Bounces"
+            },
+            {
+              "value": "unsubscribes",
+              "label": "Unsubscribes"
+            }
+          ]
+        },
+        "sinceDate": {
+          "label": "Since Date",
+          "description": "Only activity on or after this day. Ignored for recipients."
+        },
+        "page": {
+          "label": "Page",
+          "description": "Page number to return, starting at 1.",
+          "type": "number",
+          "defaultValue": "1"
+        },
+        "pageSize": {
+          "label": "Page Size",
+          "description": "Records per page, between 10 and 1000.",
+          "type": "number",
+          "defaultValue": "100"
+        },
+        "orderDirection": {
+          "label": "Order Direction",
+          "type": "select",
+          "required": false,
+          "defaultValue": "desc",
+          "options": [
+            {
+              "value": "desc",
+              "label": "Newest first"
+            },
+            {
+              "value": "asc",
+              "label": "Oldest first"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.createsend.com/api/v3.3/campaigns/{{campaignId}}/{{activityType}}.json",
+        "query": {
+          "page": "{{page}}",
+          "pagesize": "{{pageSize}}",
+          "orderdirection": "{{orderDirection}}"
+        }
+      },
+      "beforeRequest": "const page = (value) => { const number = Number(value === undefined || value === '' ? 1 : value); return !Number.isFinite(number) || number < 1 ? 1 : Math.floor(number); }; const size = (value) => { const number = Number(value === undefined || value === '' ? 100 : value); return Number.isFinite(number) ? Math.min(1000, Math.max(10, Math.floor(number))) : 100; }; const day = (value) => { const date = new Date(value); if (Number.isNaN(date.getTime())) throw new Error(`Invalid date: ${value}`); return date.toISOString().slice(0, 10); }; if (!['recipients', 'opens', 'clicks', 'bounces', 'unsubscribes'].includes(inputs.activityType)) throw new Error(`Unsupported activity type: ${inputs.activityType}`); const q = request.query, query = { page: String(page(q.page)), pagesize: String(size(q.pagesize)), orderdirection: q.orderdirection || 'desc' }; if (inputs.activityType === 'recipients') query.orderfield = 'email'; else { query.orderfield = 'date'; if (inputs.sinceDate) query.date = day(inputs.sinceDate); } request.query = query; return request;"
+    },
+    "get_list_stats": {
+      "label": "Get List Stats",
+      "description": "Returns subscriber growth and totals for a list.",
+      "inputs": {
+        "clientId": {
+          "label": "Client Account",
+          "required": true,
+          "list": "clients"
+        },
+        "listId": {
+          "label": "List",
+          "required": true,
+          "list": "lists"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.createsend.com/api/v3.3/lists/{{listId}}/stats.json"
+      }
+    },
+    "suppress_emails": {
+      "label": "Add Emails to Suppression List",
+      "description": "Stops a client from sending to the given email addresses.",
+      "inputs": {
+        "clientId": {
+          "label": "Client Account",
+          "required": true,
+          "list": "clients"
+        },
+        "emails": {
+          "label": "Email Addresses",
+          "description": "Addresses to add to the suppression list.",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.createsend.com/api/v3.3/clients/{{clientId}}/suppress.json"
+      },
+      "beforeRequest": "const list = (value) => (value ? JSON.parse(value) : []).map((item) => String(item).trim()).filter((item) => item.length > 0); const emails = list(inputs.emails); if (emails.length === 0) throw new Error('Provide at least one email address.'); request.body = { EmailAddresses: emails }; return request;",
+      "afterResponse": "return { success: true, emailAddresses: request.body.EmailAddresses };"
+    },
+    "create_custom_field": {
+      "label": "Create Custom Field",
+      "description": "Adds a custom field to a list.",
+      "inputs": {
+        "clientId": {
+          "label": "Client Account",
+          "required": true,
+          "list": "clients"
+        },
+        "listId": {
+          "label": "List",
+          "required": true,
+          "list": "lists"
+        },
+        "fieldName": {
+          "label": "Field Name",
+          "required": true
+        },
+        "dataType": {
+          "label": "Data Type",
+          "type": "select",
+          "required": true,
+          "defaultValue": "Text",
+          "options": [
+            {
+              "value": "Text",
+              "label": "Text"
+            },
+            {
+              "value": "Number",
+              "label": "Number"
+            },
+            {
+              "value": "Date",
+              "label": "Date"
+            },
+            {
+              "value": "MultiSelectOne",
+              "label": "Select one option"
+            },
+            {
+              "value": "MultiSelectMany",
+              "label": "Select many options"
+            },
+            {
+              "value": "Country",
+              "label": "Country"
+            },
+            {
+              "value": "USState",
+              "label": "US State"
+            }
+          ]
+        },
+        "options": {
+          "label": "Options",
+          "description": "Choices for the multi-select data types.",
+          "type": "json"
+        },
+        "visibleInPreferenceCenter": {
+          "label": "Visible in Preference Center",
+          "description": "Let subscribers see and edit this field.",
+          "type": "boolean",
+          "defaultValue": "true"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.createsend.com/api/v3.3/lists/{{listId}}/customfields.json"
+      },
+      "beforeRequest": "const list = (value) => (value ? JSON.parse(value) : []).map((item) => String(item).trim()).filter((item) => item.length > 0); const options = list(inputs.options), multi = ['MultiSelectOne', 'MultiSelectMany'].includes(inputs.dataType); if (multi && options.length === 0) throw new Error('Options are required for multi-select data types.'); request.body = { FieldName: inputs.fieldName.trim(), DataType: inputs.dataType, Options: multi ? options : [], VisibleInPreferenceCenter: inputs.visibleInPreferenceCenter !== 'false' }; return request;",
+      "afterResponse": "return { key: String(response), fieldName: request.body.FieldName, dataType: inputs.dataType, listId: inputs.listId };"
+    }
+  },
+  "triggers": {
+    "new_campaign_sent": {
+      "label": "New Campaign Sent",
+      "description": "Triggers when a client sends a new campaign.",
+      "inputs": {
+        "clientId": {
+          "label": "Client Account",
+          "required": true,
+          "list": "clients"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.createsend.com/api/v3.3/clients/{{clientId}}/campaigns.json",
+        "query": {
+          "page": "1",
+          "pagesize": "100",
+          "orderdirection": "desc"
+        }
+      },
+      "items": "$.Results",
+      "newBy": "unseen",
+      "key": "$.CampaignID",
+      "afterResponse": "const seen = memory.seen_sent_campaigns, known = seen || [], results = [...(response.Results || [])]; for (let page = 1, last = response; seen && !(last.Results || []).some((campaign) => known.includes(campaign.CampaignID)) && page < (last.NumberOfPages ?? 1);) { page += 1; last = call({ method: 'GET', url: '/clients/' + inputs.clientId + '/campaigns.json', query: { page: String(page), pagesize: '100', orderdirection: 'desc' } }); results.push(...(last.Results || [])); } memory.seen_sent_campaigns = [...results.map((campaign) => campaign.CampaignID).filter((id) => !known.includes(id)), ...known].slice(0, 1000); return { ...response, Results: results };"
+    },
+    "new_client": {
+      "label": "New Client",
+      "description": "Triggered when a new client is added to Campaign Monitor.",
+      "inputs": {},
+      "request": {
+        "method": "GET",
+        "url": "https://api.createsend.com/api/v3.3/clients.json"
+      },
+      "items": "$",
+      "newBy": "unseen",
+      "key": "$.ClientID",
+      "afterResponse": "const known = (memory.existing_clients || {}).clients || []; memory.existing_clients = { clients: [...new Set([...known, ...response.map((client) => client.ClientID)])] }; return response;"
+    }
+  }
+}

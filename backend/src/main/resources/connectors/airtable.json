@@ -1,0 +1,946 @@
+{
+  "name": "airtable",
+  "label": "Airtable",
+  "description": "Low‒code platform to build apps.",
+  "icon": "airtable",
+  "hosts": [
+    "api.airtable.com",
+    "content.airtable.com"
+  ],
+  "baseUrl": "https://api.airtable.com/v0",
+  "upstream": {
+    "package": "@activepieces/piece-airtable",
+    "version": "0.9.4"
+  },
+  "credential": {
+    "fields": {
+      "token": {
+        "label": "Personal Access Token",
+        "description": "To obtain your personal token, follow these steps:\n1. Log in to your Airtable account.\n2. Visit https://airtable.com/create/tokens/ to create one\n3. Click on \"+ Add a base\" and select the base you want to use or all bases. To create new bases, also add the workspace under \"+ Add a workspace\".\n4. Click on \"+ Add a scope\" and select \"data.records:read\", \"data.records:write\", \"data.recordComments:read\", \"data.recordComments:write\", \"schema.bases:read\" and \"schema.bases:write\" for full functionality.\n5. Click on \"Create token\" and copy the token.",
+        "secret": true,
+        "required": true
+      }
+    },
+    "headers": {
+      "Authorization": "Bearer {{credential.token}}"
+    }
+  },
+  "lists": {
+    "bases": {
+      "request": {
+        "url": "https://api.airtable.com/v0/meta/bases"
+      },
+      "items": "$.bases"
+    },
+    "tables": {
+      "request": {
+        "url": "https://api.airtable.com/v0/meta/bases/{{base}}/tables"
+      },
+      "items": "$.tables"
+    },
+    "records": {
+      "request": {
+        "url": "https://api.airtable.com/v0/{{base}}/{{tableId}}?pageSize=100"
+      },
+      "items": "$.records",
+      "label": "$.id"
+    }
+  },
+  "actions": {
+    "airtable_update_record": {
+      "label": "Update Record (Convert Values)",
+      "description": "Changes the fields you give on a record, by field ID. An empty value leaves its field as it is.",
+      "inputs": {
+        "base": {
+          "label": "Base",
+          "required": true,
+          "list": "bases"
+        },
+        "tableId": {
+          "label": "Table",
+          "required": true,
+          "list": "tables"
+        },
+        "recordId": {
+          "label": "Record",
+          "description": "Starts with rec. The list shows the first 100 records.",
+          "required": true,
+          "list": "records"
+        },
+        "fields": {
+          "label": "Fields",
+          "description": "Field values by field ID, such as {\"fldXXXXXXXXXXXXXX\": \"Acme\"}. An attachment field takes a file URL; select and linked-record fields take arrays.",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://api.airtable.com/v0/{{base}}/{{tableId}}/{{recordId}}",
+        "body": {
+          "fields": "{{fields}}",
+          "typecast": true
+        }
+      },
+      "beforeRequest": "const given = request.body.fields || {};\nconst table = call({method: 'GET', url: '/meta/bases/' + inputs.base + '/tables'}).tables.find((t) => t.id === inputs.tableId);\nconst fields = {};\ntable.fields.forEach((field) => {\n  const value = given[field.id];\n  // An empty value leaves the field as it is.\n  if (['singleCollaborator', 'multipleCollaborators', 'aiText'].includes(field.type) || value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0)) return;\n  if (field.type === 'multipleAttachments') { if (value) fields[field.id] = [{url: value}]; }\n  else if (['multipleRecordLinks', 'multipleSelects'].includes(field.type)) { if (Array.isArray(value)) fields[field.id] = value; }\n  else fields[field.id] = value;\n});\nrequest.body = {fields, typecast: true};\nreturn request;"
+    },
+    "airtable_clean_record": {
+      "label": "Clean Record",
+      "description": "Updates a record and empties every field you leave blank.",
+      "inputs": {
+        "base": {
+          "label": "Base",
+          "required": true,
+          "list": "bases"
+        },
+        "tableId": {
+          "label": "Table",
+          "required": true,
+          "list": "tables"
+        },
+        "recordId": {
+          "label": "Record",
+          "description": "Starts with rec. The list shows the first 100 records.",
+          "required": true,
+          "list": "records"
+        },
+        "fields": {
+          "label": "Fields",
+          "description": "Field values by field ID, such as {\"fldXXXXXXXXXXXXXX\": \"Acme\"}. A field given as empty is cleared.",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://api.airtable.com/v0/{{base}}/{{tableId}}/{{recordId}}",
+        "body": {
+          "fields": "{{fields}}",
+          "typecast": true
+        }
+      },
+      "beforeRequest": "const given = request.body.fields || {};\nconst table = call({method: 'GET', url: '/meta/bases/' + inputs.base + '/tables'}).tables.find((t) => t.id === inputs.tableId);\nconst fields = {};\ntable.fields.forEach((field) => {\n  if (['singleCollaborator', 'multipleCollaborators', 'aiText'].includes(field.type) || !(field.id in given)) return;\n  const value = given[field.id];\n  // An empty value empties the field.\n  if (field.type === 'multipleAttachments') fields[field.id] = !value || (Array.isArray(value) && value.length === 0) ? [] : [{url: value}];\n  else if (['multipleRecordLinks', 'multipleSelects'].includes(field.type)) fields[field.id] = Array.isArray(value) ? value : [];\n  else fields[field.id] = value === '' ? null : value;\n});\nrequest.body = {fields, typecast: true};\nreturn request;"
+    },
+    "airtable_delete_record": {
+      "label": "Delete Record",
+      "description": "Deletes a record from a table.",
+      "inputs": {
+        "base": {
+          "label": "Base",
+          "required": true,
+          "list": "bases"
+        },
+        "tableId": {
+          "label": "Table",
+          "required": true,
+          "list": "tables"
+        },
+        "recordId": {
+          "label": "Record",
+          "description": "Starts with rec. The list shows the first 100 records.",
+          "required": true,
+          "list": "records"
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.airtable.com/v0/{{base}}/{{tableId}}/{{recordId}}"
+      }
+    },
+    "airtable_add_comment_to_record": {
+      "label": "Add Comment to Record",
+      "description": "Adds a comment to an existing record.",
+      "inputs": {
+        "base": {
+          "label": "Base",
+          "required": true,
+          "list": "bases"
+        },
+        "tableId": {
+          "label": "Table",
+          "required": true,
+          "list": "tables"
+        },
+        "recordId": {
+          "label": "Record",
+          "description": "Starts with rec. The list shows the first 100 records.",
+          "required": true,
+          "list": "records"
+        },
+        "text": {
+          "label": "Comment",
+          "description": "Mention someone with @[userId] or @[userEmail].",
+          "type": "multiline",
+          "required": true
+        },
+        "parentCommentId": {
+          "label": "Parent Comment ID",
+          "description": "Reply in this comment's thread. Empty: a new top-level comment."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.airtable.com/v0/{{base}}/{{tableId}}/{{recordId}}/comments",
+        "body": {
+          "text": "{{text}}",
+          "parentCommentId": "{{parentCommentId}}"
+        }
+      }
+    },
+    "airtable_create_base": {
+      "label": "Create Base",
+      "description": "Creates a base with the tables you give.",
+      "inputs": {
+        "workspaceId": {
+          "label": "Workspace",
+          "description": "The workspace ID, which starts with wsp. Copy it from the workspace's URL in Airtable.",
+          "required": true
+        },
+        "name": {
+          "label": "Base Name",
+          "required": true
+        },
+        "tables": {
+          "label": "Tables",
+          "description": "Tables to create. The first field of each table is its primary field.",
+          "type": "json",
+          "required": true,
+          "defaultValue": "[{\"name\":\"My First Table\",\"fields\":[{\"name\":\"Name\",\"type\":\"singleLineText\"},{\"name\":\"Status\",\"type\":\"singleSelect\",\"options\":{\"choices\":[{\"name\":\"Todo\"},{\"name\":\"In Progress\"},{\"name\":\"Done\"}]}}]}]"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.airtable.com/v0/meta/bases",
+        "body": {
+          "name": "{{name}}",
+          "workspaceId": "{{workspaceId}}",
+          "tables": "{{tables}}"
+        }
+      }
+    },
+    "airtable_create_table": {
+      "label": "Create Table",
+      "description": "Creates a table in a base.",
+      "inputs": {
+        "base": {
+          "label": "Base",
+          "required": true,
+          "list": "bases"
+        },
+        "name": {
+          "label": "Table Name",
+          "required": true
+        },
+        "description": {
+          "label": "Description",
+          "description": "Shown under the table name in Airtable.",
+          "type": "multiline"
+        },
+        "fields": {
+          "label": "Fields",
+          "description": "Fields for the table. The first one becomes the primary field.",
+          "type": "json",
+          "required": true,
+          "defaultValue": "[{\"name\":\"Name\",\"type\":\"singleLineText\",\"description\":\"This will be the primary field\"},{\"name\":\"Notes\",\"type\":\"multilineText\"}]"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.airtable.com/v0/meta/bases/{{base}}/tables",
+        "body": {
+          "name": "{{name}}",
+          "fields": "{{fields}}",
+          "description": "{{description}}"
+        }
+      }
+    },
+    "airtable_find_base": {
+      "label": "Find Base",
+      "description": "Finds the bases whose name contains a text.",
+      "inputs": {
+        "baseName": {
+          "label": "Base Name",
+          "description": "Bases whose name contains this text are returned.",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://api.airtable.com/v0/meta/bases"
+      },
+      "afterResponse": "let bases = response.bases;\nlet offset = response.offset;\nwhile (offset) {\n  const page = call({method: 'GET', url: '/meta/bases', query: {offset}});\n  bases = bases.concat(page.bases);\n  offset = page.offset;\n}\nconst term = inputs.baseName.toLowerCase();\nreturn bases.filter((base) => base.name.toLowerCase().includes(term));"
+    },
+    "airtable_find_table_by_id": {
+      "label": "Find Table by ID",
+      "description": "Gets a table with its fields and views.",
+      "inputs": {
+        "base": {
+          "label": "Base",
+          "required": true,
+          "list": "bases"
+        },
+        "tableId": {
+          "label": "Table",
+          "required": true,
+          "list": "tables"
+        }
+      },
+      "request": {
+        "url": "https://api.airtable.com/v0/meta/bases/{{base}}/tables"
+      },
+      "afterResponse": "return response.tables.find((table) => table.id === inputs.tableId);"
+    },
+    "airtable_get_record_by_id": {
+      "label": "Get Record by ID",
+      "description": "Gets one record by its ID.",
+      "inputs": {
+        "base": {
+          "label": "Base",
+          "required": true,
+          "list": "bases"
+        },
+        "tableId": {
+          "label": "Table",
+          "required": true,
+          "list": "tables"
+        },
+        "recordId": {
+          "label": "Record",
+          "description": "Starts with rec. The list shows the first 100 records.",
+          "required": true,
+          "list": "records"
+        }
+      },
+      "request": {
+        "url": "https://api.airtable.com/v0/{{base}}/{{tableId}}/{{recordId}}"
+      }
+    },
+    "airtable_find_table": {
+      "label": "Find Table",
+      "description": "Finds a table of a base by its name.",
+      "inputs": {
+        "base": {
+          "label": "Base",
+          "required": true,
+          "list": "bases"
+        },
+        "tableName": {
+          "label": "Table Name",
+          "description": "Exact table name. Case does not matter.",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://api.airtable.com/v0/meta/bases/{{base}}/tables"
+      },
+      "afterResponse": "return response.tables.find((table) => table.name.toLowerCase() === inputs.tableName.toLowerCase()) ?? null;"
+    },
+    "airtable_get_base_schema": {
+      "label": "Get Base Schema",
+      "description": "Lists every table in a base with its fields and views.",
+      "inputs": {
+        "base": {
+          "label": "Base",
+          "required": true,
+          "list": "bases"
+        }
+      },
+      "request": {
+        "url": "https://api.airtable.com/v0/meta/bases/{{base}}/tables"
+      },
+      "result": "$.tables"
+    },
+    "create_record_ai": {
+      "label": "Create Record",
+      "description": "Adds a record to a table.",
+      "inputs": {
+        "base": {
+          "label": "Base",
+          "required": true,
+          "list": "bases"
+        },
+        "tableId": {
+          "label": "Table",
+          "description": "The table, or its exact name.",
+          "required": true,
+          "list": "tables"
+        },
+        "fields": {
+          "label": "Fields",
+          "description": "Field values by field name, such as {\"Name\": \"Acme\", \"Status\": \"Active\"}. Linked-record and multiple-select fields take arrays; attachment fields take [{\"url\": \"https://...\"}]. Airtable converts text to the field's type where it can.",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.airtable.com/v0/{{base}}/{{tableId}}",
+        "body": {
+          "fields": "{{fields}}",
+          "typecast": true
+        }
+      }
+    },
+    "update_record_ai": {
+      "label": "Update Record (Exact Values)",
+      "description": "Changes the fields you give on a record, by field name, as given.",
+      "inputs": {
+        "base": {
+          "label": "Base",
+          "required": true,
+          "list": "bases"
+        },
+        "tableId": {
+          "label": "Table",
+          "description": "The table, or its exact name.",
+          "required": true,
+          "list": "tables"
+        },
+        "recordId": {
+          "label": "Record",
+          "description": "Starts with rec. The list shows the first 100 records.",
+          "required": true,
+          "list": "records"
+        },
+        "fields": {
+          "label": "Fields",
+          "description": "New values by field name, such as {\"Status\": \"Done\"}. Other fields stay as they are, and null empties a field. Linked-record and multiple-select fields take arrays; attachment fields take [{\"url\": \"https://...\"}].",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://api.airtable.com/v0/{{base}}/{{tableId}}/{{recordId}}",
+        "body": {
+          "fields": "{{fields}}"
+        }
+      }
+    },
+    "list_records": {
+      "label": "List Records",
+      "description": "Lists the records of a table, or those a formula finds.",
+      "inputs": {
+        "base": {
+          "label": "Base",
+          "required": true,
+          "list": "bases"
+        },
+        "tableId": {
+          "label": "Table",
+          "description": "The table, or its exact name.",
+          "required": true,
+          "list": "tables"
+        },
+        "filterByFormula": {
+          "label": "Filter By Formula",
+          "description": "Only records the formula is true for, such as {Status}=\"Done\" or AND({Score}>5, FIND(\"ace\", LOWER({Name}))). Field names go in {curly braces}."
+        },
+        "view": {
+          "label": "View",
+          "description": "A view ID or name. Only its records, in its order."
+        },
+        "maxRecords": {
+          "label": "Max Records",
+          "description": "The most records to give, from as many pages as that takes. Empty: the first page only, with the offset of the next.",
+          "type": "number"
+        },
+        "pageSize": {
+          "label": "Page Size",
+          "description": "Records per page, from 1 to 100. Empty: 100.",
+          "type": "number"
+        },
+        "sort": {
+          "label": "Sort",
+          "description": "A JSON list such as [{\"field\": \"Name\", \"direction\": \"asc\"}]. The direction is asc or desc.",
+          "type": "json"
+        },
+        "fields": {
+          "label": "Fields",
+          "description": "A JSON list of the field names to give. Empty: every field.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "url": "https://api.airtable.com/v0/{{base}}/{{tableId}}"
+      },
+      "beforeRequest": "const enc = (text) => encodeURIComponent(text).replace(/%20/g, '+').replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase());\nconst qs = (params) => Object.entries(params).map(([key, value]) => enc(key) + '=' + enc(String(value))).join('&');\nconst params = {};\nif (inputs.filterByFormula) params.filterByFormula = inputs.filterByFormula;\nif (inputs.view) params.view = inputs.view;\nif (inputs.maxRecords) params.maxRecords = inputs.maxRecords;\nif (inputs.pageSize) params.pageSize = inputs.pageSize;\nif (inputs.sort) { const sort = JSON.parse(inputs.sort); (Array.isArray(sort) ? sort : [sort]).forEach((entry, index) => { params['sort[' + index + '][field]'] = entry.field; if (entry.direction) params['sort[' + index + '][direction]'] = entry.direction; }); }\nif (inputs.fields) JSON.parse(inputs.fields).forEach((field, index) => { params['fields[' + index + ']'] = field; });\nrequest.url += '?' + qs(params);\nreturn request;",
+      "afterResponse": "const most = Number(inputs.maxRecords);\nlet records = response.records;\nlet offset = response.offset;\n// Without Max Records the original gives the first page only.\nwhile (inputs.maxRecords && offset && records.length < most) {\n  const page = call({method: 'GET', url: request.url + '&offset=' + encodeURIComponent(offset)});\n  records = records.concat(page.records);\n  offset = page.offset;\n}\nif (inputs.maxRecords) records = records.slice(0, most);\nreturn {records, count: records.length, offset: offset ?? null};"
+    },
+    "list_bases": {
+      "label": "List Bases",
+      "description": "Lists every base the token can open.",
+      "request": {
+        "url": "https://api.airtable.com/v0/meta/bases"
+      },
+      "afterResponse": "let bases = response.bases;\nlet offset = response.offset;\nwhile (offset) {\n  const page = call({method: 'GET', url: '/meta/bases', query: {offset}});\n  bases = bases.concat(page.bases);\n  offset = page.offset;\n}\nreturn {bases: bases.map((base) => ({id: base.id, name: base.name, permissionLevel: base.permissionLevel})), count: bases.length};"
+    },
+    "upload_attachment_ai": {
+      "label": "Upload Attachment",
+      "description": "Uploads base64 file content to an attachment field of a record.",
+      "inputs": {
+        "base": {
+          "label": "Base",
+          "required": true,
+          "list": "bases"
+        },
+        "recordId": {
+          "label": "Record",
+          "description": "Starts with rec. Copy it from the record URL or an earlier step.",
+          "required": true
+        },
+        "attachmentFieldId": {
+          "label": "Attachment Field",
+          "description": "The ID of an attachment field, which starts with fld. Get Base Schema lists the fields of type multipleAttachments.",
+          "required": true
+        },
+        "file": {
+          "label": "File Content",
+          "description": "The file content as base64, without a data: prefix.",
+          "required": true
+        },
+        "contentType": {
+          "label": "Content Type",
+          "description": "The MIME type of the file, such as image/png.",
+          "required": true
+        },
+        "filename": {
+          "label": "File Name",
+          "description": "The name shown in Airtable."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://content.airtable.com/v0/{{base}}/{{recordId}}/{{attachmentFieldId}}/uploadAttachment",
+        "body": {
+          "contentType": "{{contentType}}",
+          "file": "{{file}}",
+          "filename": "{{filename}}"
+        }
+      }
+    },
+    "airtable_upload_file_to_column": {
+      "label": "Upload File to Column",
+      "description": "Uploads a file of the run to an attachment field of a record.",
+      "inputs": {
+        "base": {
+          "label": "Base",
+          "required": true,
+          "list": "bases"
+        },
+        "tableId": {
+          "label": "Table",
+          "required": true,
+          "list": "tables"
+        },
+        "attachmentFieldId": {
+          "label": "Attachment Field",
+          "description": "The ID of an attachment field, which starts with fld. Get Base Schema lists the fields of type multipleAttachments.",
+          "required": true
+        },
+        "recordId": {
+          "label": "Record",
+          "description": "Starts with rec. The list shows the first 100 records.",
+          "required": true,
+          "list": "records"
+        },
+        "file": {
+          "label": "File",
+          "description": "A file from an earlier step.",
+          "type": "file",
+          "required": true
+        },
+        "contentType": {
+          "label": "Content Type",
+          "description": "The MIME type of the file, such as image/png.",
+          "required": true
+        },
+        "filename": {
+          "label": "File Name",
+          "description": "Name shown in Airtable. Empty: the uploaded file's own name."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://content.airtable.com/v0/{{base}}/{{recordId}}/{{attachmentFieldId}}/uploadAttachment",
+        "body": {
+          "contentType": "{{contentType}}",
+          "file": "{{file}}",
+          "filename": "{{filename}}"
+        }
+      },
+      "beforeRequest": "if (!('filename' in request.body)) request.body.filename = inputs.file;\nreturn request;"
+    },
+    "upsert_records": {
+      "label": "Upsert Records",
+      "description": "Creates or updates up to 10 records in one call.",
+      "inputs": {
+        "base": {
+          "label": "Base",
+          "required": true,
+          "list": "bases"
+        },
+        "tableId": {
+          "label": "Table",
+          "description": "The table, or its exact name.",
+          "required": true,
+          "list": "tables"
+        },
+        "records": {
+          "label": "Records",
+          "description": "A JSON list of up to 10 records, each such as {\"fields\": {\"Name\": \"Acme\", \"Status\": \"Active\"}}. Without fields to merge on, give the ID of each record to update: {\"id\": \"recXXXX\", \"fields\": {...}}.",
+          "type": "json",
+          "required": true
+        },
+        "fieldsToMergeOn": {
+          "label": "Fields To Merge On",
+          "description": "A JSON list of field names, such as [\"Email\"]. A record that matches on them is updated, the others are created. Empty: update each record by its ID.",
+          "type": "json"
+        },
+        "typecast": {
+          "label": "Typecast",
+          "description": "Airtable converts text to the field's type and adds missing select options. Off: values must have the field's type.",
+          "type": "boolean",
+          "defaultValue": "true"
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://api.airtable.com/v0/{{base}}/{{tableId}}",
+        "body": {
+          "records": "{{records}}",
+          "typecast": "{{typecast}}",
+          "performUpsert": {
+            "fieldsToMergeOn": "{{fieldsToMergeOn}}"
+          }
+        }
+      },
+      "beforeRequest": "const body = request.body; const records = body.records; if (!Array.isArray(records) || records.length === 0) throw new Error('Records must be a non-empty JSON array.'); if (records.length > 10) throw new Error('Airtable accepts at most 10 records per upsert call; received ' + records.length + '. Split into batches of 10.'); if (body.typecast === undefined) body.typecast = true; if (!(body.performUpsert.fieldsToMergeOn || []).length) delete body.performUpsert; return request;",
+      "afterResponse": "return {records: response.records, count: response.records.length, createdRecords: response.createdRecords ?? [], updatedRecords: response.updatedRecords ?? []};"
+    },
+    "delete_records_batch": {
+      "label": "Delete Records Batch",
+      "description": "Deletes up to 10 records by ID in one call.",
+      "inputs": {
+        "base": {
+          "label": "Base",
+          "required": true,
+          "list": "bases"
+        },
+        "tableId": {
+          "label": "Table",
+          "description": "The table, or its exact name.",
+          "required": true,
+          "list": "tables"
+        },
+        "recordIds": {
+          "label": "Record IDs",
+          "description": "A JSON list of up to 10 record IDs, such as [\"recAAA\", \"recBBB\"].",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.airtable.com/v0/{{base}}/{{tableId}}"
+      },
+      "beforeRequest": "const ids = JSON.parse(inputs.recordIds); if (!Array.isArray(ids) || ids.length === 0) throw new Error('Record IDs must be a non-empty list.'); if (ids.length > 10) throw new Error('Airtable deletes at most 10 records per call; received ' + ids.length + '. Split into batches of 10.'); ids.forEach((id, index) => { request.query['records[' + index + ']'] = id; }); return request;",
+      "afterResponse": "return {records: response.records, count: response.records.length};"
+    },
+    "get_current_user": {
+      "label": "Get Current User",
+      "description": "Gets the user of the token and its scopes.",
+      "request": {
+        "url": "https://api.airtable.com/v0/meta/whoami"
+      }
+    },
+    "search_records": {
+      "label": "Search Records",
+      "description": "Finds the records whose field matches a value.",
+      "inputs": {
+        "base": {
+          "label": "Base",
+          "required": true,
+          "list": "bases"
+        },
+        "tableId": {
+          "label": "Table",
+          "description": "The table, or its exact name.",
+          "required": true,
+          "list": "tables"
+        },
+        "searchField": {
+          "label": "Search Field",
+          "description": "The exact name of the field to look in.",
+          "required": true
+        },
+        "searchValue": {
+          "label": "Search Value",
+          "description": "The text to look for.",
+          "required": true
+        },
+        "matchMode": {
+          "label": "Match Mode",
+          "description": "Contains finds the text anywhere in the field, with case. Exact finds a field that is the text, also a number or checkbox field by its text.",
+          "type": "select",
+          "defaultValue": "contains",
+          "options": [
+            {
+              "value": "contains",
+              "label": "Contains"
+            },
+            {
+              "value": "exact",
+              "label": "Exact"
+            }
+          ]
+        },
+        "view": {
+          "label": "View",
+          "description": "A view ID or name. Only its records."
+        },
+        "maxRecords": {
+          "label": "Max Records",
+          "description": "The most records to give.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "url": "https://api.airtable.com/v0/{{base}}/{{tableId}}"
+      },
+      "beforeRequest": "const enc = (text) => encodeURIComponent(text).replace(/%20/g, '+').replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase());\nconst qs = (params) => Object.entries(params).map(([key, value]) => enc(key) + '=' + enc(String(value))).join('&');\nif (/[{}]/.test(inputs.searchField)) throw new Error('Search Field must not contain \"{\" or \"}\" — Airtable cannot escape braces inside a field reference.');\nconst value = String(inputs.searchValue).replace(/\\\\/g, '\\\\\\\\').replace(/\"/g, '\\\\\"');\nconst params = {filterByFormula: inputs.matchMode === 'exact' ? '{' + inputs.searchField + '}&\"\"=\"' + value + '\"' : 'FIND(\"' + value + '\",{' + inputs.searchField + '})'};\nif (inputs.view) params.view = inputs.view;\nif (inputs.maxRecords) params.maxRecords = inputs.maxRecords;\nrequest.url += '?' + qs(params);\nreturn request;",
+      "afterResponse": "const most = Number(inputs.maxRecords);\nlet records = response.records;\nlet offset = response.offset;\n// Without Max Records the original gives the first page only.\nwhile (inputs.maxRecords && offset && records.length < most) {\n  const page = call({method: 'GET', url: request.url + '&offset=' + encodeURIComponent(offset)});\n  records = records.concat(page.records);\n  offset = page.offset;\n}\nif (inputs.maxRecords) records = records.slice(0, most);\nreturn {records, count: records.length};"
+    },
+    "update_table": {
+      "label": "Update Table",
+      "description": "Renames a table or changes its description.",
+      "inputs": {
+        "base": {
+          "label": "Base",
+          "required": true,
+          "list": "bases"
+        },
+        "tableId": {
+          "label": "Table",
+          "description": "The table, or its exact name.",
+          "required": true,
+          "list": "tables"
+        },
+        "name": {
+          "label": "New Name",
+          "description": "Empty: the name stays."
+        },
+        "description": {
+          "label": "New Description",
+          "description": "Empty: the description stays.",
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://api.airtable.com/v0/meta/bases/{{base}}/tables/{{tableId}}",
+        "body": {
+          "name": "{{name}}",
+          "description": "{{description}}"
+        }
+      },
+      "beforeRequest": "if (!inputs.name && !inputs.description) throw new Error('Supply at least one of New Name or New Description.'); return request;"
+    },
+    "create_field": {
+      "label": "Create Field",
+      "description": "Adds a field (column) to a table.",
+      "inputs": {
+        "base": {
+          "label": "Base",
+          "required": true,
+          "list": "bases"
+        },
+        "tableId": {
+          "label": "Table",
+          "description": "The table, or its exact name.",
+          "required": true,
+          "list": "tables"
+        },
+        "name": {
+          "label": "Field Name",
+          "required": true
+        },
+        "type": {
+          "label": "Field Type",
+          "description": "An Airtable field type, such as singleLineText, number, singleSelect, multipleSelects, date, checkbox or multipleRecordLinks.",
+          "required": true
+        },
+        "description": {
+          "label": "Description",
+          "type": "multiline"
+        },
+        "options": {
+          "label": "Options",
+          "description": "Options of the type as JSON, such as {\"choices\": [{\"name\": \"Todo\"}, {\"name\": \"Done\"}]} for a select field or {\"precision\": 0} for a number. Text fields take none.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.airtable.com/v0/meta/bases/{{base}}/tables/{{tableId}}/fields",
+        "body": {
+          "name": "{{name}}",
+          "type": "{{type}}",
+          "description": "{{description}}",
+          "options": "{{options}}"
+        }
+      }
+    },
+    "update_field": {
+      "label": "Update Field",
+      "description": "Renames a field (column) or changes its description.",
+      "inputs": {
+        "base": {
+          "label": "Base",
+          "required": true,
+          "list": "bases"
+        },
+        "tableId": {
+          "label": "Table",
+          "description": "The table itself: its name does not work here.",
+          "required": true,
+          "list": "tables"
+        },
+        "fieldId": {
+          "label": "Field ID",
+          "description": "Starts with fld. Get Base Schema lists the fields of each table.",
+          "required": true
+        },
+        "name": {
+          "label": "New Name",
+          "description": "Empty: the name stays."
+        },
+        "description": {
+          "label": "New Description",
+          "description": "Empty: the description stays.",
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://api.airtable.com/v0/meta/bases/{{base}}/tables/{{tableId}}/fields/{{fieldId}}",
+        "body": {
+          "name": "{{name}}",
+          "description": "{{description}}"
+        }
+      },
+      "beforeRequest": "if (!inputs.name && !inputs.description) throw new Error('Supply at least one of New Name or New Description.'); return request;"
+    },
+    "list_record_comments": {
+      "label": "List Record Comments",
+      "description": "Lists the comments of a record.",
+      "inputs": {
+        "base": {
+          "label": "Base",
+          "required": true,
+          "list": "bases"
+        },
+        "tableId": {
+          "label": "Table",
+          "description": "The table, or its exact name.",
+          "required": true,
+          "list": "tables"
+        },
+        "recordId": {
+          "label": "Record",
+          "description": "Starts with rec. The list shows the first 100 records.",
+          "required": true,
+          "list": "records"
+        },
+        "pageSize": {
+          "label": "Page Size",
+          "description": "Comments per page, up to 100.",
+          "type": "number"
+        },
+        "offset": {
+          "label": "Offset",
+          "description": "The offset a previous call gave, for the next page."
+        }
+      },
+      "request": {
+        "url": "https://api.airtable.com/v0/{{base}}/{{tableId}}/{{recordId}}/comments",
+        "query": {
+          "pageSize": "{{pageSize}}",
+          "offset": "{{offset}}"
+        }
+      },
+      "afterResponse": "return {comments: response.comments, count: response.comments.length, offset: response.offset ?? null};"
+    }
+  },
+  "triggers": {
+    "new_record": {
+      "label": "New Record",
+      "description": "Triggers when a new record is added to the selected table.",
+      "inputs": {
+        "base": {
+          "label": "Base",
+          "required": true,
+          "list": "bases"
+        },
+        "tableId": {
+          "label": "Table",
+          "required": true,
+          "list": "tables"
+        },
+        "view": {
+          "label": "View",
+          "description": "Only records in this view are used. Empty: the whole table."
+        }
+      },
+      "request": {
+        "url": "https://api.airtable.com/v0/{{base}}/{{tableId}}",
+        "headers": {
+          "x-airtable-application-id": "{{base}}",
+          "x-api-version": "0.1.0"
+        }
+      },
+      "beforeRequest": "// Encoded as the original's library does, with + for a space, and ' as %27 as its URL parser sends it. Every page asks with the same search.\nmemory.search = (inputs.view ? '?view=' + encodeURIComponent(inputs.view) : '').replace(/%20/g, '+').replace(/'/g, '%27');\nrequest.url += memory.search;\nreturn request;",
+      "afterResponse": "const search = memory.search;\ndelete memory.search;\nlet records = response.records;\nlet offset = response.offset;\nwhile (offset) {\n  const page = call({method: 'GET', url: '/' + encodeURIComponent(inputs.base) + '/' + encodeURIComponent(inputs.tableId) + search + (search ? '&' : '?') + 'offset=' + encodeURIComponent(offset), headers: {'x-airtable-application-id': inputs.base, 'x-api-version': '0.1.0'}});\n  records = records.concat(page.records);\n  offset = page.offset;\n}\nreturn records;",
+      "items": "$",
+      "newBy": "time",
+      "key": "$.createdTime"
+    },
+    "updated_record": {
+      "label": "New or Updated Record",
+      "description": "Triggers when a record is created or changed in the selected table.",
+      "inputs": {
+        "base": {
+          "label": "Base",
+          "required": true,
+          "list": "bases"
+        },
+        "tableId": {
+          "label": "Table",
+          "required": true,
+          "list": "tables"
+        },
+        "sortFields": {
+          "label": "Trigger Field",
+          "description": "The name of a Last Modified Time field of the table. Add one if none exists.",
+          "required": true
+        },
+        "view": {
+          "label": "View",
+          "description": "Only records in this view are used. Empty: the whole table."
+        }
+      },
+      "request": {
+        "url": "https://api.airtable.com/v0/{{base}}/{{tableId}}",
+        "headers": {
+          "x-airtable-application-id": "{{base}}",
+          "x-api-version": "0.1.0"
+        }
+      },
+      "beforeRequest": "// Encoded as the original's library does, with + for a space, and ' as %27 as its URL parser sends it. Every page asks with the same search.\nconst since = new Date(inputs.lastPollTime ? Number(inputs.lastPollTime) : Date.now() - 86400000).toISOString();\nconst formula = 'IS_AFTER({' + inputs.sortFields + '},DATETIME_PARSE(\"' + since + '\",\"YYYY-MM-DD HH:mm:ss.SSS\"))';\nmemory.search = ('?filterByFormula=' + encodeURIComponent(formula) + (inputs.view ? '&view=' + encodeURIComponent(inputs.view) : '')).replace(/%20/g, '+').replace(/'/g, '%27');\nrequest.url += memory.search;\nreturn request;",
+      "afterResponse": "const search = memory.search;\ndelete memory.search;\nlet records = response.records;\nlet offset = response.offset;\nwhile (offset) {\n  const page = call({method: 'GET', url: '/' + encodeURIComponent(inputs.base) + '/' + encodeURIComponent(inputs.tableId) + search + '&offset=' + encodeURIComponent(offset), headers: {'x-airtable-application-id': inputs.base, 'x-api-version': '0.1.0'}});\n  records = records.concat(page.records);\n  offset = page.offset;\n}\nreturn records.map(record => ({time: record.fields[inputs.sortFields], data: record}));",
+      "items": "$",
+      "newBy": "time",
+      "key": "$.time",
+      "emit": "$.data"
+    }
+  }
+}

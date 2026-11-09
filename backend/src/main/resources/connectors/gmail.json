@@ -1,0 +1,1225 @@
+{
+  "name": "gmail",
+  "label": "Gmail",
+  "description": "Email service by Google",
+  "icon": "gmail",
+  "hosts": [
+    "gmail.googleapis.com",
+    "www.googleapis.com"
+  ],
+  "baseUrl": "https://gmail.googleapis.com/gmail/v1",
+  "upstream": {
+    "package": "@activepieces/piece-gmail",
+    "version": "0.18.6"
+  },
+  "credential": {
+    "oauth2": {
+      "authUrl": "https://accounts.google.com/o/oauth2/auth",
+      "tokenUrl": "https://oauth2.googleapis.com/token",
+      "scope": "https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.compose https://www.googleapis.com/auth/gmail.modify email",
+      "authParameters": "access_type=offline&prompt=consent"
+    }
+  },
+  "lists": {
+    "messages": {
+      "request": {
+        "method": "GET",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages",
+        "query": {
+          "maxResults": "20",
+          "q": "in:inbox OR in:sent"
+        }
+      },
+      "items": "$.messages",
+      "label": "$.id",
+      "value": "$.id"
+    },
+    "labels": {
+      "request": {
+        "method": "GET",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/labels"
+      },
+      "items": "$.labels",
+      "label": "$.name",
+      "value": "$.id"
+    },
+    "labelNames": {
+      "request": {
+        "method": "GET",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/labels"
+      },
+      "items": "$.labels",
+      "label": "$.name",
+      "value": "$.name"
+    }
+  },
+  "actions": {
+    "gmail_get_mail": {
+      "label": "Get Email",
+      "description": "Read one email by its message ID, including attachments.",
+      "inputs": {
+        "message_id": {
+          "label": "Message",
+          "description": "Pick a recent message, or map its ID from a trigger or Find Email.",
+          "required": true,
+          "list": "messages"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages/{{message_id}}",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        },
+        "query": {
+          "format": "raw"
+        }
+      },
+      "afterResponse": "var stored = (attachments) => attachments.map((attachment) => { var name = attachment.filename ?? 'attachment-' + Date.now(); return {fileName: name, mimeType: attachment.contentType, size: attachment.size, data: keepFile(name, attachment.base64)}; });\nvar read = (id, raw) => { var mail = readEmail(raw); return Object.assign({id: id}, mail, {attachments: stored(mail.attachments)}); };\nreturn read(inputs.message_id, response.raw);"
+    },
+    "gmail_search_mail": {
+      "label": "Find Email",
+      "description": "Search your mailbox; with no filters it returns the latest emails.",
+      "inputs": {
+        "from": {
+          "label": "From",
+          "description": "Only emails sent from this address."
+        },
+        "to": {
+          "label": "To",
+          "description": "Only emails sent to this address."
+        },
+        "subject": {
+          "label": "Subject",
+          "description": "Only emails whose subject contains this text."
+        },
+        "content": {
+          "label": "Body",
+          "description": "Only emails with this text in the body."
+        },
+        "has_attachment": {
+          "label": "Has Attachment",
+          "description": "Only emails with at least one attachment.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "attachment_name": {
+          "label": "Attachment Name",
+          "description": "Only emails with an attachment of this file name."
+        },
+        "label": {
+          "label": "Label",
+          "description": "Only emails carrying this label.",
+          "list": "labelNames"
+        },
+        "category": {
+          "label": "Category",
+          "description": "Only emails in this inbox tab, such as Primary or Promotions.",
+          "type": "select",
+          "options": [
+            {
+              "value": "primary",
+              "label": "Primary"
+            },
+            {
+              "value": "social",
+              "label": "Social"
+            },
+            {
+              "value": "promotions",
+              "label": "Promotions"
+            },
+            {
+              "value": "updates",
+              "label": "Updates"
+            },
+            {
+              "value": "forums",
+              "label": "Forums"
+            },
+            {
+              "value": "reservations",
+              "label": "Reservations"
+            },
+            {
+              "value": "purchases",
+              "label": "Purchases"
+            }
+          ]
+        },
+        "after_date": {
+          "label": "After",
+          "description": "Only emails received after this date, such as 2026-11-01."
+        },
+        "before_date": {
+          "label": "Before",
+          "description": "Only emails received before this date, such as 2026-11-08."
+        },
+        "include_spam_trash": {
+          "label": "Spam and Trash",
+          "description": "Also search the Spam and Trash folders.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "max_results": {
+          "label": "Max Results",
+          "description": "Newest first, up to 500.",
+          "type": "number",
+          "defaultValue": "10"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "beforeRequest": "var text = (value) => (value || '').trim();\nvar day = (value) => new Date(value).toISOString().split('T')[0].replace(/-/g, '/');\nvar parts = [];\nif (text(inputs.from)) parts.push('from:(' + text(inputs.from) + ')');\nif (text(inputs.to)) parts.push('to:(' + text(inputs.to) + ')');\nif (text(inputs.subject)) parts.push('subject:(' + text(inputs.subject) + ')');\nif (text(inputs.content)) parts.push('\"' + text(inputs.content) + '\"');\nif (inputs.has_attachment === 'true') parts.push('has:attachment');\nif (text(inputs.attachment_name)) parts.push('filename:(' + text(inputs.attachment_name) + ')');\nif (inputs.label) parts.push('label:' + inputs.label);\nif (text(inputs.category)) parts.push('category:' + text(inputs.category));\nif (inputs.after_date) parts.push('after:' + day(inputs.after_date));\nif (inputs.before_date) parts.push('before:' + day(inputs.before_date));\nvar q = parts.join(' ');\nif (q.trim()) request.query.q = q;\nrequest.query.maxResults = Math.min(Math.max(Number(inputs.max_results) || 10, 1), 500);\nrequest.query.includeSpamTrash = inputs.include_spam_trash === 'true';\nreturn request;",
+      "afterResponse": "var apiClient = {'x-goog-api-client': 'gdcl/8.0.2 gl-node/26.4.0'};\nvar stored = (attachments) => attachments.map((attachment) => { var name = attachment.filename ?? 'attachment-' + Date.now(); return {fileName: name, mimeType: attachment.contentType, size: attachment.size, data: keepFile(name, attachment.base64)}; });\nvar read = (id, raw) => { var mail = readEmail(raw); return Object.assign({id: id}, mail, {attachments: stored(mail.attachments)}); };\nvar messages = response.messages || [];\nif (messages.length === 0) return {found: false, results: {messages: [], count: 0}};\nvar found = messages.map((message) => {\n  try {\n    return read(message.id, call({headers: apiClient, method: 'GET', url: '/users/me/messages/' + encodeURIComponent(message.id), query: {format: 'raw'}}).raw);\n  } catch (error) {\n    return {id: message.id, threadId: message.threadId, error: 'Failed to retrieve message details'};\n  }\n});\nreturn {found: true, results: {messages: found, count: found.length}};"
+    },
+    "gmail_get_attachment": {
+      "label": "Get Attachment",
+      "description": "Download an email attachment by message ID and attachment ID.",
+      "inputs": {
+        "message_id": {
+          "label": "Message",
+          "description": "Pick a recent message, or map its ID from a trigger or Find Email.",
+          "required": true,
+          "list": "messages"
+        },
+        "attachment_id": {
+          "label": "Attachment ID",
+          "description": "The Gmail attachment ID, found in the message parts (parts[].body.attachmentId) of Get Thread with the Full format.",
+          "required": true
+        },
+        "file_name": {
+          "label": "File Name",
+          "description": "Optional name to give the downloaded file."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages/{{message_id}}/attachments/{{attachment_id}}",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "afterResponse": "if (!response.data) throw new Error('Failed to get attachment: Attachment returned no data.');\nvar name = inputs.file_name || 'attachment-' + inputs.attachment_id;\nreturn {fileName: name, size: response.size, data: keepFile(name, response.data.replace(/-/g, '+').replace(/_/g, '/'))};"
+    },
+    "gmail_get_thread": {
+      "label": "Get Thread",
+      "description": "Get a thread from your Gmail account via Id",
+      "inputs": {
+        "thread_id": {
+          "label": "Thread ID",
+          "description": "The ID of the thread to read (obtain from List Threads).",
+          "required": true
+        },
+        "format": {
+          "label": "Format",
+          "description": "Format of the mail",
+          "type": "select",
+          "defaultValue": "full",
+          "options": [
+            {
+              "value": "minimal",
+              "label": "Minimal"
+            },
+            {
+              "value": "full",
+              "label": "Full"
+            },
+            {
+              "value": "raw",
+              "label": "Raw"
+            },
+            {
+              "value": "metadata",
+              "label": "Metadata"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/threads/{{thread_id}}",
+        "query": {
+          "format": "{{format}}"
+        }
+      }
+    },
+    "gmail_send_draft": {
+      "label": "Send Draft",
+      "description": "Send an existing draft email by its ID.",
+      "inputs": {
+        "draft_id": {
+          "label": "Draft ID",
+          "description": "The ID of the draft to send (obtain from List Drafts).",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/drafts/send",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        },
+        "body": {
+          "id": "{{draft_id}}"
+        }
+      }
+    },
+    "gmail_get_draft": {
+      "label": "Get Draft",
+      "description": "Get a single draft email by its ID.",
+      "inputs": {
+        "draft_id": {
+          "label": "Draft ID",
+          "description": "The ID of the draft to read (obtain from List Drafts).",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/drafts/{{draft_id}}",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        },
+        "query": {
+          "format": "full"
+        }
+      }
+    },
+    "gmail_update_draft": {
+      "label": "Update Draft",
+      "description": "Replace the content of an existing draft email.",
+      "inputs": {
+        "draft_id": {
+          "label": "Draft ID",
+          "description": "The ID of the draft to update (obtain from List Drafts).",
+          "required": true
+        },
+        "receiver": {
+          "label": "To",
+          "description": "Leave empty to keep the draft's recipients. A JSON list, such as [\"ann@example.com\"].",
+          "type": "json"
+        },
+        "cc": {
+          "label": "Cc",
+          "description": "Leave empty to keep the draft's Cc. A JSON list, such as [\"ann@example.com\"].",
+          "type": "json"
+        },
+        "bcc": {
+          "label": "Bcc",
+          "description": "Leave empty to keep the draft's Bcc. A JSON list, such as [\"ann@example.com\"].",
+          "type": "json"
+        },
+        "subject": {
+          "label": "Subject",
+          "required": true
+        },
+        "body_type": {
+          "label": "Body Type",
+          "description": "How the text in Body is interpreted.",
+          "type": "select",
+          "required": true,
+          "defaultValue": "plain_text",
+          "options": [
+            {
+              "value": "plain_text",
+              "label": "Plain Text"
+            },
+            {
+              "value": "html",
+              "label": "HTML"
+            }
+          ]
+        },
+        "body": {
+          "label": "Body",
+          "description": "New body for the draft email.",
+          "type": "multiline",
+          "required": true
+        },
+        "sender_name": {
+          "label": "Sender Name",
+          "description": "Name shown in the inbox instead of your address."
+        },
+        "from": {
+          "label": "From",
+          "description": "A send-as address already set up in your Gmail settings."
+        },
+        "thread_id": {
+          "label": "Thread ID",
+          "description": "Optional thread ID to keep this draft in a conversation (obtain from List Threads or Get Thread)."
+        },
+        "attachment": {
+          "label": "Attachment",
+          "description": "File to attach. Leave empty to keep the draft's attachments.",
+          "type": "file"
+        },
+        "attachment_name": {
+          "label": "Attachment Name",
+          "description": "Overrides the file name, such as report.pdf."
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/drafts/{{draft_id}}",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        },
+        "body": {
+          "attachment": "{{attachment}}"
+        }
+      },
+      "beforeRequest": "var apiClient = {'x-goog-api-client': 'gdcl/8.0.2 gl-node/26.4.0'};\nvar bytesOf = (text) => unescape(encodeURIComponent(text));\nvar base64Of = (bytes) => { var table = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/', out = ''; for (var i = 0; i < bytes.length; i += 3) { var a = bytes.charCodeAt(i), b = bytes.charCodeAt(i + 1), c = bytes.charCodeAt(i + 2), n = (a << 16) | ((b || 0) << 8) | (c || 0); out += table[n >> 18] + table[(n >> 12) & 63] + (i + 1 < bytes.length ? table[(n >> 6) & 63] : '=') + (i + 2 < bytes.length ? table[n & 63] : '='); } return out; };\nvar wrapped = (text) => text.replace(/.{76}(?!$)/g, '$&\\r\\n');\nvar hex = (code) => (code < 16 ? '0' : '') + code.toString(16).toUpperCase();\nvar quotedPrintable = (bytes) => { var out = ''; for (var i = 0; i < bytes.length; i++) { var code = bytes.charCodeAt(i), last = i === bytes.length - 1 || bytes.charCodeAt(i + 1) === 10 || bytes.charCodeAt(i + 1) === 13; out += (code === 9 || code === 10 || code === 13 || (code >= 32 && code <= 126 && code !== 61)) && !((code === 32 || code === 9) && last) ? bytes[i] : '=' + hex(code); } return out; };\nvar quotedLines = (text) => { var size = 76, third = Math.floor(size / 3), at = 0, out = '', found, line; if (text.length <= size) return text; while (at < text.length) { line = text.substr(at, size); if ((found = line.match(/\\r\\n/))) { line = line.substr(0, found.index + 2); out += line; at += line.length; continue; } if (line.substr(-1) === '\\n') { out += line; at += line.length; continue; } if ((found = line.substr(-third).match(/\\n.*?$/))) { line = line.substr(0, line.length - (found[0].length - 1)); out += line; at += line.length; continue; } if (line.length > size - third && (found = line.substr(-third).match(/[ \\t.,!?][^ \\t.,!?]*$/))) line = line.substr(0, line.length - (found[0].length - 1)); else if (/[=][\\da-f]{0,2}$/i.test(line)) { if ((found = line.match(/[=][\\da-f]{0,1}$/i))) line = line.substr(0, line.length - found[0].length); while (line.length > 3 && line.length < text.length - at && !/^(?:=[\\da-f]{2}){1,4}$/i.test(line) && (found = line.match(/[=][\\da-f]{2}$/gi))) { var code = parseInt(found[0].substr(1, 2), 16); if (code < 128) break; line = line.substr(0, line.length - 3); if (code >= 192) break; } } if (at + line.length < text.length && line.substr(-1) !== '\\n') { if (line.length === size && /[=][\\da-f]{2}$/i.test(line)) line = line.substr(0, line.length - 3); else if (line.length === size) line = line.substr(0, line.length - 1); at += line.length; line += '=\\r\\n'; } else at += line.length; out += line; } return out; };\nvar folded = (text) => { var at = 0, out = '', line, found; while (at < text.length) { line = text.substr(at, 76); if (line.length < 76) { out += line; break; } if ((found = line.match(/^[^\\n\\r]*(\\r?\\n|\\r)/))) { out += found[0]; at += found[0].length; continue; } if ((found = line.match(/(\\s+)[^\\s]*$/)) && found[0].length < line.length) line = line.substr(0, line.length - found[0].length); else if ((found = text.substr(at + line.length).match(/^[^\\s]+(\\s*)/))) line += found[0].substr(0, found[0].length - found[1].length); out += line; at += line.length; if (at < text.length) out += '\\r\\n'; } return out; };\nvar encodingFor = (text) => { var other = 0, letters = 0; for (var i = 0; i < text.length; i++) { var code = text.charCodeAt(i); if (code <= 8 || code === 11 || code === 12 || (code >= 14 && code <= 31) || code >= 128) other++; else if ((code >= 65 && code <= 90) || (code >= 97 && code <= 122)) letters++; } return other < letters ? 'Q' : 'B'; };\nvar splitQ = (text, size) => { var parts = [], part, whole, found, done; while (text.length) { part = text.substr(0, size); if ((found = part.match(/[=][0-9A-F]?$/i))) part = part.substr(0, found.index); whole = part.length ? part : text.substr(0, size); done = false; while (!done && part.length) { done = true; if ((found = text.substr(part.length).match(/^[=]([0-9A-F]{2})/i))) { var code = parseInt(found[1], 16); if (code < 194 && code > 127) { part = part.substr(0, part.length - 3); done = false; } } } if (!part.length) part = whole; parts.push(part); text = text.substr(part.length); } return parts; };\nvar encodedWord = (text) => { var type = encodingFor(text), out; if (type === 'Q') { out = quotedPrintable(bytesOf(text)).replace(/[^a-z0-9!*+\\-/=]/gi, (c) => c === ' ' ? '_' : '=' + hex(c.charCodeAt(0))); if (out.length > 40) out = splitQ(out, 40).join('?= =?UTF-8?Q?'); } else { var chunks = [], chunk = ''; for (var i = 0; i < text.length; i++) { var c = text.charAt(i); if (/[\\ud800-\\udbff]/.test(c) && /[\\udc00-\\udfff]/.test(text.charAt(i + 1))) c += text.charAt(++i); if (bytesOf(chunk + c).length <= 30 || i === 0) chunk += c; else { chunks.push(base64Of(bytesOf(chunk))); chunk = c; } } if (chunk) chunks.push(base64Of(bytesOf(chunk))); out = chunks.join('?= =?UTF-8?B?'); } return '=?UTF-8?' + type + '?' + out + (out.substr(-2) === '?=' ? '' : '?='); };\nvar headerText = (text) => /[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]/.test(text) || /(?:^|\\s)([^\\s]*[\"\\u0080-\\uFFFF])/.test(text) ? encodedWord(text) : text;\nvar addresses = (text) => {\n  var unreadable = () => { throw new Error('The address \"' + text + '\" is not one this step can write. Use name <address> or address.'); };\n  var list = /(\"[^\"]*\"|<[^>]*>|[^,\"<])+/g;\n  if (/[\\x00-\\x1f\\x7f\\\\;]/.test(text) || text.replace(list, '').replace(/,/g, '').trim()) unreadable();\n  var pieces = (text.match(list) || []).map((piece) => piece.trim()).filter((piece) => piece).map((piece) => {\n    var named = piece.match(/^(?:\"([^\"]*)\"|([^\"<>()[\\]:@]*?))\\s*<([^\\s\"(),:<>@[\\]\\u0080-\\uFFFF]+@[^\\s\"(),:<>@[\\]\\u0080-\\uFFFF]+)>$/);\n    if (named) { var name = (named[1] === undefined ? named[2] : named[1]).trim(); return {name: name === named[3] ? '' : name, address: named[3]}; }\n    if (/^[^\\s\"(),:<>@[\\]\\u0080-\\uFFFF]+@[^\\s\"(),:<>@[\\]\\u0080-\\uFFFF]+$/.test(piece)) return {name: '', address: piece};\n    if (/^[^\"<>()[\\]:@]+$/.test(piece)) return {name: piece, address: ''};\n    return unreadable();\n  });\n  var merged = [];\n  for (var i = pieces.length - 1; i >= 0; i--) { var next = merged[merged.length - 1]; if (next && pieces[i].address === '' && pieces[i].name && next.address && next.name) next.name = pieces[i].name + ', ' + next.name; else merged.push(pieces[i]); }\n  return merged.reverse().filter((item) => item.address).map((item) => {\n    var at = item.address.lastIndexOf('@'), local = item.address.substr(0, at), address = (/^[A-Za-z0-9!#$%&'*+\\-/=?^_`{|}~]+(?:\\.[A-Za-z0-9!#$%&'*+\\-/=?^_`{|}~]+)*$/.test(local) ? local : '\"' + local + '\"') + '@' + item.address.substr(at + 1).toLowerCase();\n    var name = item.name;\n    if (!name) return /^[^\\s\"(),:;<>@[\\\\\\]]+@[^\\s\"(),:;<>@[\\\\\\]]+$/.test(address) ? address : '<' + address + '>';\n    return (/^[\\w ]*$/.test(name) ? name : /^[\\x20-\\x7e]*$/.test(name) ? '\"' + name.replace(/[\"\\\\]/g, '\\\\$&') + '\"' : encodedWord(name)) + ' <' + address + '>';\n  }).join(', ');\n};\nvar angled = (text) => { text = text.replace(/\\r?\\n|\\r/g, ' ').replace(/[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]/g, ''); if (text.charAt(0) !== '<') text = '<' + text; if (text.charAt(text.length - 1) !== '>') text += '>'; return text; };\nvar valueOf = (key, value) => ['From', 'To', 'Cc', 'Bcc', 'Reply-To'].includes(key) ? addresses(value) : key === 'In-Reply-To' ? angled(value) : key === 'References' ? value.replace(/\\r?\\n|\\r/g, ' ').replace(/[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]/g, '').trim().replace(/<[^>]*>/g, (id) => id.replace(/\\s/g, '')).split(/\\s+/).map(angled).join(' ').trim() : headerText(value.replace(/\\r?\\n|\\r/g, ' '));\nvar headerLines = (headers) => headers.map((header) => [header[0], header[2] ? header[1] : valueOf(header[0], header[1])]).filter((header) => header[1].trim()).map((header) => folded(header[0] + ': ' + header[1])).join('\\r\\n');\nvar textPart = (content, type) => {\n  var plain = !/[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\u0080-\\uFFFF]/.test(content) && !(content.length > 128 * 1024 || /^.{77,}/m.test(content));\n  var encoding = plain ? '7bit' : encodingFor(content) === 'Q' ? 'quoted-printable' : 'base64';\n  var body = plain ? content : encoding === 'base64' ? wrapped(base64Of(bytesOf(content))) : quotedLines(quotedPrintable(bytesOf(content)));\n  return {headers: [['Content-Type', type + '; charset=utf-8', true], ['Content-Transfer-Encoding', encoding, true]], body: body};\n};\nvar attachmentPart = (file, index) => {\n  var name = file.name || 'attachment-' + (index + 1) + '.' + (file.type === 'application/octet-stream' ? '*' : Object.keys(types).find((key) => types[key] === file.type) || 'bin');\n  if (/[\\x00-\\x1f\\x7f\"\\u0080-\\uFFFF]/.test(name) || name.length >= 75) throw new Error('The attachment name \"' + name + '\" is not one this step can write. Use a short plain name, such as report.pdf.');\n  var quoted = /[\\s'\"\\\\;:/=(),<>@[\\]?]|^-/.test(name) ? JSON.stringify(name) : name;\n  return {headers: [['Content-Type', file.type + '; name=' + quoted, true], ['Content-Transfer-Encoding', 'base64', true], ['Content-Disposition', 'attachment; filename=' + quoted, true]], body: wrapped(file.base64)};\n};\nvar raw = (mail) => {\n  var files = mail.attachments || [];\n  var text = mail.text !== undefined ? textPart(mail.text, 'text/plain') : textPart(mail.html, 'text/html');\n  var boundary = '--_NmP-' + Array.from({length: 16}, () => Math.floor(Math.random() * 16).toString(16)).join('') + '-Part_1';\n  var top = files.length ? [['Content-Type', 'multipart/mixed; boundary=\"' + boundary + '\"', true]] : [text.headers[0]];\n  var sender = (mail.from || '').split('@').pop().replace(/>.*/, '') || 'localhost';\n  var headers = top.slice(1).concat(mail.headers || [], [['From', mail.from], ['To', mail.to], ['Cc', mail.cc], ['Bcc', mail.bcc], ['Reply-To', mail.replyTo], ['Subject', mail.subject]].filter((header) => header[1]),\n    [['Message-ID', '<' + Math.random().toString(16).slice(2) + '@' + sender + '>', true]], files.length ? [] : [text.headers[1]], [['Date', new Date().toUTCString().replace(/GMT/, '+0000'), true], ['MIME-Version', '1.0', true]], [top[0]]);\n  var message = headerLines(headers) + '\\r\\n\\r\\n' + (files.length\n    ? [text].concat(files.map(attachmentPart)).map((part) => '--' + boundary + '\\r\\n' + headerLines(part.headers) + '\\r\\n\\r\\n' + part.body).join('\\r\\n') + '\\r\\n--' + boundary + '--\\r\\n'\n    : text.body + (/\\n$/.test(text.body) ? '' : /\\r$/.test(text.body) ? '\\n' : '\\r\\n'));\n  return base64Of(bytesOf(message)).replace(/\\+/g, '-').replace(/\\//g, '_');\n};\nvar types = {json: 'application/json', map: 'application/json', xml: 'application/xml', js: 'application/javascript', mjs: 'application/javascript', pdf: 'application/pdf', zip: 'application/zip', gz: 'application/gzip', bin: 'application/octet-stream', dat: 'application/octet-stream', doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', ppt: 'application/vnd.ms-powerpoint', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', csv: 'text/csv', rtf: 'application/rtf', tar: 'application/x-tar', '7z': 'application/x-7z-compressed', wasm: 'application/wasm', txt: 'text/plain', text: 'text/plain', log: 'text/plain', html: 'text/html', htm: 'text/html', css: 'text/css', md: 'text/markdown', markdown: 'text/markdown', yaml: 'text/yaml', yml: 'text/yaml', png: 'image/png', jpeg: 'image/jpeg', jpg: 'image/jpeg', jpe: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml', svgz: 'image/svg+xml', bmp: 'image/bmp', tiff: 'image/tiff', tif: 'image/tiff', ico: 'image/x-icon', heic: 'image/heic', avif: 'image/avif', mpga: 'audio/mpeg', mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', oga: 'audio/ogg', weba: 'audio/webm', m4a: 'audio/mp4', mp4: 'video/mp4', m4v: 'video/mp4', mpeg: 'video/mpeg', mpg: 'video/mpeg', webm: 'video/webm', mov: 'video/quicktime', qt: 'video/quicktime', avi: 'video/x-msvideo', woff: 'font/woff', woff2: 'font/woff2', ttf: 'font/ttf', otf: 'font/otf', jsonld: 'application/ld+json', webmanifest: 'application/manifest+json', ics: 'text/calendar', ifb: 'text/calendar', ndjson: 'application/x-ndjson'};\nvar attached = (file, name, base64) => { var type = types[file.split('.').pop().toLowerCase()]; if (!type) throw new Error('The attachment ' + file + ' is not a type this step can send. Use a file such as .pdf, .docx, .xlsx, .csv, .txt, .png, .jpg or .zip.'); return {name: name || file, type: type, base64: base64}; };\nvar attachedFile = () => inputs.attachment ? [attached(inputs.attachment, inputs.attachment_name, request.body && request.body.attachment)] : [];\nvar list = (text) => { var value = text ? JSON.parse(text) : []; return Array.isArray(value) ? value : [value]; };\nvar given = (text) => list(text).filter((item) => item !== '');\nvar joined = (items) => items.length > 0 ? items.join(', ') : undefined;\nvar encodedSubject = (text) => '=?UTF-8?B?' + base64Of(bytesOf(text)) + '?=';\nvar email = () => call({headers: apiClient, method: 'GET', url: 'https://www.googleapis.com/oauth2/v2/userinfo'}).email;\nvar signed = (address) => address ? (inputs.sender_name ? inputs.sender_name + ' <' + address + '>' : address) : undefined;\nvar headerMap = (message) => (message.payload.headers || []).reduce((all, item) => { if (item.name && item.value) all[item.name.toLowerCase()] = item.value; return all; }, {});\nvar addressesOf = (field) => (Array.isArray(field) ? field : field ? [field] : []).flatMap((item) => item.value).map((item) => item.address).filter((address) => !!address);\nvar to = given(inputs.receiver), cc = given(inputs.cc), bcc = given(inputs.bcc), threadId = inputs.thread_id || undefined, files = attachedFile();\nif (!to.length || !cc.length || !bcc.length || !threadId || !files.length) {\n  var draft = call({headers: apiClient, method: 'GET', url: '/users/me/drafts/' + encodeURIComponent(inputs.draft_id), query: {format: 'raw'}}).message;\n  threadId = threadId ?? (draft && draft.threadId) ?? undefined;\n  if (draft && draft.raw) {\n    var mail = readEmail(draft.raw);\n    if (!to.length) to = addressesOf(mail.to);\n    if (!cc.length) cc = addressesOf(mail.cc);\n    if (!bcc.length) bcc = addressesOf(mail.bcc);\n    if (!files.length) files = mail.attachments.map((attachment) => ({name: attachment.filename, type: attachment.contentType, base64: attachment.base64}));\n  }\n}\nrequest.body = {message: {raw: raw({\n  from: signed(inputs.from || email()), to: joined(to), cc: joined(cc), bcc: joined(bcc), subject: encodedSubject(inputs.subject),\n  text: inputs.body_type === 'plain_text' ? inputs.body : undefined, html: inputs.body_type === 'html' ? inputs.body : undefined,\n  attachments: files\n}), threadId: threadId}};\nreturn request;"
+    },
+    "gmail_list_drafts": {
+      "label": "List Drafts",
+      "description": "List draft emails in the mailbox.",
+      "inputs": {
+        "query": {
+          "label": "Search Query",
+          "description": "Optional Gmail search query to filter drafts (e.g. \"subject:invoice\")."
+        },
+        "max_results": {
+          "label": "Max Results",
+          "description": "Maximum number of drafts to return (1-500).",
+          "type": "number",
+          "defaultValue": "20"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/drafts",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "beforeRequest": "var clamp = (value, fallback) => Math.min(Math.max(Number(value) || fallback, 1), 500);\nrequest.query.maxResults = clamp(inputs.max_results, 20);\nif (inputs.query && inputs.query.trim()) request.query.q = inputs.query.trim();\nreturn request;",
+      "afterResponse": "var drafts = response.drafts || [];\nreturn Object.assign({drafts: drafts, count: drafts.length, resultSizeEstimate: response.resultSizeEstimate}, response.nextPageToken ? {nextPageToken: response.nextPageToken} : {});"
+    },
+    "gmail_list_threads": {
+      "label": "List Threads",
+      "description": "List email conversation threads in the mailbox.",
+      "inputs": {
+        "query": {
+          "label": "Search Query",
+          "description": "Optional Gmail search query to filter threads (e.g. \"from:boss@example.com is:unread\")."
+        },
+        "label_ids": {
+          "label": "Label IDs",
+          "description": "Optional list of label IDs to filter by (resolve via List Labels; system labels like INBOX, UNREAD are valid). A JSON list, such as [\"INBOX\"].",
+          "type": "json",
+          "list": "labels"
+        },
+        "include_spam_trash": {
+          "label": "Include Spam & Trash",
+          "description": "Include threads from Spam and Trash in the results.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "max_results": {
+          "label": "Max Results",
+          "description": "Maximum number of threads to return (1-500).",
+          "type": "number",
+          "defaultValue": "20"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/threads",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "beforeRequest": "var list = (text) => { var value = text ? JSON.parse(text) : []; return Array.isArray(value) ? value : [value]; };\nvar clamp = (value, fallback) => Math.min(Math.max(Number(value) || fallback, 1), 500);\nrequest.query.maxResults = clamp(inputs.max_results, 20);\nrequest.query.includeSpamTrash = String(inputs.include_spam_trash) === 'true';\nif (inputs.query && inputs.query.trim()) request.query.q = inputs.query.trim();\nvar labelIds = list(inputs.label_ids).filter((id) => id !== '');\nif (labelIds.length > 0) request.url += '?' + labelIds.map((id) => 'labelIds=' + encodeURIComponent(id)).join('&');\nreturn request;",
+      "afterResponse": "var threads = response.threads || [];\nreturn Object.assign({threads: threads, count: threads.length, resultSizeEstimate: response.resultSizeEstimate}, response.nextPageToken ? {nextPageToken: response.nextPageToken} : {});"
+    },
+    "gmail_list_labels": {
+      "label": "List Labels",
+      "description": "List all labels in the mailbox.",
+      "request": {
+        "method": "GET",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/labels",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "afterResponse": "var labels = response.labels || [];\nreturn {labels: labels, count: labels.length};"
+    },
+    "gmail_get_label": {
+      "label": "Get Label",
+      "description": "Get a single label by its ID, including message and thread counts.",
+      "inputs": {
+        "label_id": {
+          "label": "Label ID",
+          "description": "The ID of the label to read (obtain from List Labels).",
+          "required": true,
+          "list": "labels"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/labels/{{label_id}}",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      }
+    },
+    "gmail_get_profile": {
+      "label": "Get Profile",
+      "description": "Get the connected mailbox profile.",
+      "request": {
+        "method": "GET",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/profile",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "outputs": {
+        "emailAddress": "$.emailAddress",
+        "historyId": "$.historyId"
+      }
+    },
+    "gmail_list_history": {
+      "label": "List History",
+      "description": "List mailbox changes since a given history ID.",
+      "inputs": {
+        "start_history_id": {
+          "label": "Start History ID",
+          "description": "Return changes after this history ID (obtain from Get Profile or a previous history result).",
+          "required": true
+        },
+        "history_types": {
+          "label": "History Types",
+          "description": "Limit results to these change types (leave empty for all). A list of: messageAdded, messageDeleted, labelAdded, labelRemoved.",
+          "type": "json"
+        },
+        "max_results": {
+          "label": "Max Results",
+          "description": "Maximum number of history records to return (1-500).",
+          "type": "number",
+          "defaultValue": "100"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/history",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        },
+        "query": {
+          "startHistoryId": "{{start_history_id}}"
+        }
+      },
+      "beforeRequest": "var list = (text) => { var value = text ? JSON.parse(text) : []; return Array.isArray(value) ? value : [value]; };\nvar clamp = (value, fallback) => Math.min(Math.max(Number(value) || fallback, 1), 500);\nrequest.query.maxResults = clamp(inputs.max_results, 100);\nvar historyTypes = list(inputs.history_types);\nif (historyTypes.length > 0) request.url += '?' + historyTypes.map((type) => 'historyTypes=' + encodeURIComponent(type)).join('&');\nreturn request;"
+    },
+    "gmail_stop_watch": {
+      "label": "Stop Watch",
+      "description": "Stop push notifications on the mailbox.",
+      "request": {
+        "method": "POST",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/stop",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "afterResponse": "return {success: true};"
+    },
+    "gmail_create_label": {
+      "label": "Create Label",
+      "description": "Create a new label in the mailbox.",
+      "inputs": {
+        "name": {
+          "label": "Label Name",
+          "description": "Appears in your Gmail label list.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/labels",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        },
+        "body": {
+          "name": "{{name}}"
+        }
+      },
+      "outputs": {
+        "id": "$.id"
+      }
+    },
+    "gmail_add_label_to_email": {
+      "label": "Add Label to Email",
+      "description": "Apply a label to an email message.",
+      "inputs": {
+        "message_id": {
+          "label": "Message",
+          "description": "Pick a recent message, or map its ID from a trigger or Find Email.",
+          "required": true,
+          "list": "messages"
+        },
+        "label_id": {
+          "label": "Label",
+          "description": "Label to add.",
+          "required": true,
+          "list": "labels"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages/{{message_id}}/modify",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        },
+        "body": {
+          "addLabelIds": [
+            "{{label_id}}"
+          ]
+        }
+      }
+    },
+    "gmail_remove_label_from_email": {
+      "label": "Remove Label From Email",
+      "description": "Remove a label from an email message.",
+      "inputs": {
+        "message_id": {
+          "label": "Message",
+          "description": "Pick a recent message, or map its ID from a trigger or Find Email.",
+          "required": true,
+          "list": "messages"
+        },
+        "label_id": {
+          "label": "Label",
+          "description": "Label to remove.",
+          "required": true,
+          "list": "labels"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages/{{message_id}}/modify",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        },
+        "body": {
+          "removeLabelIds": [
+            "{{label_id}}"
+          ]
+        }
+      }
+    },
+    "gmail_archive_email": {
+      "label": "Archive Email",
+      "description": "Archive an email message by removing it from the inbox.",
+      "inputs": {
+        "message_id": {
+          "label": "Message",
+          "description": "Pick a recent message, or map its ID from a trigger or Find Email.",
+          "required": true,
+          "list": "messages"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages/{{message_id}}/modify",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        },
+        "body": {
+          "removeLabelIds": [
+            "INBOX"
+          ]
+        }
+      }
+    },
+    "gmail_get_or_create_label": {
+      "label": "Get or Create Label",
+      "description": "Get an existing label by name, creating it first if it does not exist.",
+      "inputs": {
+        "name": {
+          "label": "Label Name",
+          "description": "The exact display name of the label, e.g. \"Follow Up\". Matching is case-sensitive.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/labels",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "afterResponse": "var apiClient = {'x-goog-api-client': 'gdcl/8.0.2 gl-node/26.4.0'};\nvar named = (labels) => (labels || []).find((label) => label.name === inputs.name);\nvar match = named(response.labels);\nif (match) return Object.assign({}, match, {created: false});\ntry {\n  return Object.assign(call({headers: apiClient, method: 'POST', url: '/users/me/labels', body: {name: inputs.name}}), {created: true});\n} catch (error) {\n  if (!/status (400|409)\\b/.test(String(error && error.message || error))) throw error;\n  var raced = named(call({headers: apiClient, method: 'GET', url: '/users/me/labels'}).labels);\n  if (raced) return Object.assign({}, raced, {created: false});\n  throw error;\n}",
+      "outputs": {
+        "id": "$.id"
+      }
+    },
+    "gmail_modify_labels": {
+      "label": "Modify Labels",
+      "description": "Add and/or remove labels across one or more email messages in a single call.",
+      "inputs": {
+        "message_ids": {
+          "label": "Message IDs",
+          "description": "The Gmail message IDs to modify (obtain from Find Email or Get Email). Up to 1000 per call. A JSON list, such as [\"18c2f0a1b2c3d4e5\"].",
+          "type": "json",
+          "required": true,
+          "list": "messages"
+        },
+        "add_label_ids": {
+          "label": "Label IDs to Add",
+          "description": "Label IDs to add to every message listed above (obtain from List Labels or Get or Create Label). A JSON list, such as [\"INBOX\"].",
+          "type": "json",
+          "list": "labels"
+        },
+        "remove_label_ids": {
+          "label": "Label IDs to Remove",
+          "description": "Label IDs to remove from every message listed above (obtain from List Labels). A JSON list, such as [\"INBOX\"].",
+          "type": "json",
+          "list": "labels"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages/batchModify",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "beforeRequest": "var list = (text) => { var value = text ? JSON.parse(text) : []; return Array.isArray(value) ? value : [value]; };\nvar strings = (text, label) => list(text).map((item, index) => { if (typeof item !== 'string' || item.trim() === '') throw new Error(label + ' contains an invalid entry at position ' + (index + 1) + ': expected a non-empty string.'); return item; });\nvar ids = strings(inputs.message_ids, 'Message IDs');\nvar add = strings(inputs.add_label_ids, 'Label IDs to Add');\nvar remove = strings(inputs.remove_label_ids, 'Label IDs to Remove');\nif (ids.length === 0) throw new Error('At least one message ID is required.');\nif (ids.length > 1000) throw new Error(\"Gmail's batch modify accepts at most 1000 message IDs per call; received \" + ids.length + '.');\nif (add.length === 0 && remove.length === 0) throw new Error('At least one of Label IDs to Add or Label IDs to Remove is required.');\nrequest.body = {ids: ids, addLabelIds: add.length > 0 ? add : undefined, removeLabelIds: remove.length > 0 ? remove : undefined};\nreturn request;",
+      "afterResponse": "return {success: true, messageCount: request.body.ids.length, messageIds: request.body.ids, addedLabelIds: request.body.addLabelIds || [], removedLabelIds: request.body.removeLabelIds || []};"
+    },
+    "gmail_trash_message": {
+      "label": "Trash Message",
+      "description": "Move an email message to Trash.",
+      "inputs": {
+        "message_id": {
+          "label": "Message",
+          "description": "Pick a recent message, or map its ID from a trigger or Find Email.",
+          "required": true,
+          "list": "messages"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages/{{message_id}}/trash",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      }
+    },
+    "gmail_untrash_message": {
+      "label": "Untrash Message",
+      "description": "Restore an email message from Trash.",
+      "inputs": {
+        "message_id": {
+          "label": "Message",
+          "description": "Pick a recent message, or map its ID from a trigger or Find Email.",
+          "required": true,
+          "list": "messages"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages/{{message_id}}/untrash",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      }
+    },
+    "gmail_update_label": {
+      "label": "Update Label",
+      "description": "Rename, recolor, or change the visibility of a user label.",
+      "inputs": {
+        "label_id": {
+          "label": "Label ID",
+          "description": "The ID of the user label to update (obtain from List Labels).",
+          "required": true,
+          "list": "labels"
+        },
+        "name": {
+          "label": "New Name",
+          "description": "Leave empty to keep the current name."
+        },
+        "label_list_visibility": {
+          "label": "Label List Visibility",
+          "description": "Leave unselected to keep the current setting.",
+          "type": "select",
+          "options": [
+            {
+              "value": "labelShow",
+              "label": "Show"
+            },
+            {
+              "value": "labelShowIfUnread",
+              "label": "Show if unread"
+            },
+            {
+              "value": "labelHide",
+              "label": "Hide"
+            }
+          ]
+        },
+        "message_list_visibility": {
+          "label": "Message List Visibility",
+          "description": "Leave unselected to keep the current setting.",
+          "type": "select",
+          "options": [
+            {
+              "value": "show",
+              "label": "Show"
+            },
+            {
+              "value": "hide",
+              "label": "Hide"
+            }
+          ]
+        },
+        "background_color": {
+          "label": "Background Color (hex)",
+          "description": "Leave empty to keep the current background color."
+        },
+        "text_color": {
+          "label": "Text Color (hex)",
+          "description": "Leave empty to keep the current text color."
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/labels/{{label_id}}",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "beforeRequest": "var apiClient = {'x-goog-api-client': 'gdcl/8.0.2 gl-node/26.4.0'};\nvar given = (value) => value === undefined || value === null || value.trim() === '' ? undefined : value;\nvar name = given(inputs.name);\nvar backgroundColor = given(inputs.background_color);\nvar textColor = given(inputs.text_color);\nvar body = {};\nif (name !== undefined) body.name = name;\nif (inputs.label_list_visibility) body.labelListVisibility = inputs.label_list_visibility;\nif (inputs.message_list_visibility) body.messageListVisibility = inputs.message_list_visibility;\nif (backgroundColor !== undefined || textColor !== undefined) {\n  var current = call({headers: apiClient, method: 'GET', url: '/users/me/labels/' + encodeURIComponent(inputs.label_id)}).color || {};\n  body.color = {backgroundColor: backgroundColor ?? current.backgroundColor ?? undefined, textColor: textColor ?? current.textColor ?? undefined};\n}\nrequest.body = body;\nreturn request;"
+    },
+    "gmail_modify_thread_labels": {
+      "label": "Modify Thread Labels",
+      "description": "Add and/or remove labels across every message in a thread in a single call.",
+      "inputs": {
+        "thread_id": {
+          "label": "Thread ID",
+          "description": "The Gmail thread ID to modify (obtain from List Threads or Get Thread).",
+          "required": true
+        },
+        "add_label_ids": {
+          "label": "Label IDs to Add",
+          "description": "Label IDs to add to every message in the thread (obtain from List Labels or Get or Create Label). A JSON list, such as [\"INBOX\"].",
+          "type": "json",
+          "list": "labels"
+        },
+        "remove_label_ids": {
+          "label": "Label IDs to Remove",
+          "description": "Label IDs to remove from every message in the thread (obtain from List Labels). A JSON list, such as [\"INBOX\"].",
+          "type": "json",
+          "list": "labels"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/threads/{{thread_id}}/modify",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "beforeRequest": "var list = (text) => { var value = text ? JSON.parse(text) : []; return Array.isArray(value) ? value : [value]; };\nvar strings = (text, label) => list(text).map((item, index) => { if (typeof item !== 'string' || item.trim() === '') throw new Error(label + ' contains an invalid entry at position ' + (index + 1) + ': expected a non-empty string.'); return item; });\nvar add = strings(inputs.add_label_ids, 'Label IDs to Add');\nvar remove = strings(inputs.remove_label_ids, 'Label IDs to Remove');\nif (add.length === 0 && remove.length === 0) throw new Error('At least one of Label IDs to Add or Label IDs to Remove is required.');\nrequest.body = {addLabelIds: add.length > 0 ? add : undefined, removeLabelIds: remove.length > 0 ? remove : undefined};\nreturn request;"
+    },
+    "reply_to_email": {
+      "label": "Reply to Email",
+      "description": "Reply to an existing email.",
+      "inputs": {
+        "message_id": {
+          "label": "Message",
+          "description": "Pick a recent message, or map its ID from a trigger or Find Email.",
+          "required": true,
+          "list": "messages"
+        },
+        "reply_type": {
+          "label": "Reply Type",
+          "description": "Reply to the sender only, or to everyone on the thread.",
+          "type": "select",
+          "required": true,
+          "defaultValue": "reply",
+          "options": [
+            {
+              "value": "reply",
+              "label": "Reply"
+            },
+            {
+              "value": "reply_all",
+              "label": "Reply All"
+            }
+          ]
+        },
+        "body_type": {
+          "label": "Body Type",
+          "description": "How the text in Body is interpreted.",
+          "type": "select",
+          "required": true,
+          "defaultValue": "plain_text",
+          "options": [
+            {
+              "value": "plain_text",
+              "label": "Plain Text"
+            },
+            {
+              "value": "html",
+              "label": "HTML"
+            }
+          ]
+        },
+        "body": {
+          "label": "Body",
+          "type": "multiline",
+          "required": true
+        },
+        "sender_name": {
+          "label": "Sender Name",
+          "description": "Name shown in the inbox instead of your address."
+        },
+        "attachment": {
+          "label": "Attachment",
+          "description": "File to attach.",
+          "type": "file"
+        },
+        "attachment_name": {
+          "label": "Attachment Name",
+          "description": "Overrides the file name, such as report.pdf."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        },
+        "body": {
+          "attachment": "{{attachment}}"
+        }
+      },
+      "beforeRequest": "var apiClient = {'x-goog-api-client': 'gdcl/8.0.2 gl-node/26.4.0'};\nvar bytesOf = (text) => unescape(encodeURIComponent(text));\nvar base64Of = (bytes) => { var table = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/', out = ''; for (var i = 0; i < bytes.length; i += 3) { var a = bytes.charCodeAt(i), b = bytes.charCodeAt(i + 1), c = bytes.charCodeAt(i + 2), n = (a << 16) | ((b || 0) << 8) | (c || 0); out += table[n >> 18] + table[(n >> 12) & 63] + (i + 1 < bytes.length ? table[(n >> 6) & 63] : '=') + (i + 2 < bytes.length ? table[n & 63] : '='); } return out; };\nvar wrapped = (text) => text.replace(/.{76}(?!$)/g, '$&\\r\\n');\nvar hex = (code) => (code < 16 ? '0' : '') + code.toString(16).toUpperCase();\nvar quotedPrintable = (bytes) => { var out = ''; for (var i = 0; i < bytes.length; i++) { var code = bytes.charCodeAt(i), last = i === bytes.length - 1 || bytes.charCodeAt(i + 1) === 10 || bytes.charCodeAt(i + 1) === 13; out += (code === 9 || code === 10 || code === 13 || (code >= 32 && code <= 126 && code !== 61)) && !((code === 32 || code === 9) && last) ? bytes[i] : '=' + hex(code); } return out; };\nvar quotedLines = (text) => { var size = 76, third = Math.floor(size / 3), at = 0, out = '', found, line; if (text.length <= size) return text; while (at < text.length) { line = text.substr(at, size); if ((found = line.match(/\\r\\n/))) { line = line.substr(0, found.index + 2); out += line; at += line.length; continue; } if (line.substr(-1) === '\\n') { out += line; at += line.length; continue; } if ((found = line.substr(-third).match(/\\n.*?$/))) { line = line.substr(0, line.length - (found[0].length - 1)); out += line; at += line.length; continue; } if (line.length > size - third && (found = line.substr(-third).match(/[ \\t.,!?][^ \\t.,!?]*$/))) line = line.substr(0, line.length - (found[0].length - 1)); else if (/[=][\\da-f]{0,2}$/i.test(line)) { if ((found = line.match(/[=][\\da-f]{0,1}$/i))) line = line.substr(0, line.length - found[0].length); while (line.length > 3 && line.length < text.length - at && !/^(?:=[\\da-f]{2}){1,4}$/i.test(line) && (found = line.match(/[=][\\da-f]{2}$/gi))) { var code = parseInt(found[0].substr(1, 2), 16); if (code < 128) break; line = line.substr(0, line.length - 3); if (code >= 192) break; } } if (at + line.length < text.length && line.substr(-1) !== '\\n') { if (line.length === size && /[=][\\da-f]{2}$/i.test(line)) line = line.substr(0, line.length - 3); else if (line.length === size) line = line.substr(0, line.length - 1); at += line.length; line += '=\\r\\n'; } else at += line.length; out += line; } return out; };\nvar folded = (text) => { var at = 0, out = '', line, found; while (at < text.length) { line = text.substr(at, 76); if (line.length < 76) { out += line; break; } if ((found = line.match(/^[^\\n\\r]*(\\r?\\n|\\r)/))) { out += found[0]; at += found[0].length; continue; } if ((found = line.match(/(\\s+)[^\\s]*$/)) && found[0].length < line.length) line = line.substr(0, line.length - found[0].length); else if ((found = text.substr(at + line.length).match(/^[^\\s]+(\\s*)/))) line += found[0].substr(0, found[0].length - found[1].length); out += line; at += line.length; if (at < text.length) out += '\\r\\n'; } return out; };\nvar encodingFor = (text) => { var other = 0, letters = 0; for (var i = 0; i < text.length; i++) { var code = text.charCodeAt(i); if (code <= 8 || code === 11 || code === 12 || (code >= 14 && code <= 31) || code >= 128) other++; else if ((code >= 65 && code <= 90) || (code >= 97 && code <= 122)) letters++; } return other < letters ? 'Q' : 'B'; };\nvar splitQ = (text, size) => { var parts = [], part, whole, found, done; while (text.length) { part = text.substr(0, size); if ((found = part.match(/[=][0-9A-F]?$/i))) part = part.substr(0, found.index); whole = part.length ? part : text.substr(0, size); done = false; while (!done && part.length) { done = true; if ((found = text.substr(part.length).match(/^[=]([0-9A-F]{2})/i))) { var code = parseInt(found[1], 16); if (code < 194 && code > 127) { part = part.substr(0, part.length - 3); done = false; } } } if (!part.length) part = whole; parts.push(part); text = text.substr(part.length); } return parts; };\nvar encodedWord = (text) => { var type = encodingFor(text), out; if (type === 'Q') { out = quotedPrintable(bytesOf(text)).replace(/[^a-z0-9!*+\\-/=]/gi, (c) => c === ' ' ? '_' : '=' + hex(c.charCodeAt(0))); if (out.length > 40) out = splitQ(out, 40).join('?= =?UTF-8?Q?'); } else { var chunks = [], chunk = ''; for (var i = 0; i < text.length; i++) { var c = text.charAt(i); if (/[\\ud800-\\udbff]/.test(c) && /[\\udc00-\\udfff]/.test(text.charAt(i + 1))) c += text.charAt(++i); if (bytesOf(chunk + c).length <= 30 || i === 0) chunk += c; else { chunks.push(base64Of(bytesOf(chunk))); chunk = c; } } if (chunk) chunks.push(base64Of(bytesOf(chunk))); out = chunks.join('?= =?UTF-8?B?'); } return '=?UTF-8?' + type + '?' + out + (out.substr(-2) === '?=' ? '' : '?='); };\nvar headerText = (text) => /[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]/.test(text) || /(?:^|\\s)([^\\s]*[\"\\u0080-\\uFFFF])/.test(text) ? encodedWord(text) : text;\nvar addresses = (text) => {\n  var unreadable = () => { throw new Error('The address \"' + text + '\" is not one this step can write. Use name <address> or address.'); };\n  var list = /(\"[^\"]*\"|<[^>]*>|[^,\"<])+/g;\n  if (/[\\x00-\\x1f\\x7f\\\\;]/.test(text) || text.replace(list, '').replace(/,/g, '').trim()) unreadable();\n  var pieces = (text.match(list) || []).map((piece) => piece.trim()).filter((piece) => piece).map((piece) => {\n    var named = piece.match(/^(?:\"([^\"]*)\"|([^\"<>()[\\]:@]*?))\\s*<([^\\s\"(),:<>@[\\]\\u0080-\\uFFFF]+@[^\\s\"(),:<>@[\\]\\u0080-\\uFFFF]+)>$/);\n    if (named) { var name = (named[1] === undefined ? named[2] : named[1]).trim(); return {name: name === named[3] ? '' : name, address: named[3]}; }\n    if (/^[^\\s\"(),:<>@[\\]\\u0080-\\uFFFF]+@[^\\s\"(),:<>@[\\]\\u0080-\\uFFFF]+$/.test(piece)) return {name: '', address: piece};\n    if (/^[^\"<>()[\\]:@]+$/.test(piece)) return {name: piece, address: ''};\n    return unreadable();\n  });\n  var merged = [];\n  for (var i = pieces.length - 1; i >= 0; i--) { var next = merged[merged.length - 1]; if (next && pieces[i].address === '' && pieces[i].name && next.address && next.name) next.name = pieces[i].name + ', ' + next.name; else merged.push(pieces[i]); }\n  return merged.reverse().filter((item) => item.address).map((item) => {\n    var at = item.address.lastIndexOf('@'), local = item.address.substr(0, at), address = (/^[A-Za-z0-9!#$%&'*+\\-/=?^_`{|}~]+(?:\\.[A-Za-z0-9!#$%&'*+\\-/=?^_`{|}~]+)*$/.test(local) ? local : '\"' + local + '\"') + '@' + item.address.substr(at + 1).toLowerCase();\n    var name = item.name;\n    if (!name) return /^[^\\s\"(),:;<>@[\\\\\\]]+@[^\\s\"(),:;<>@[\\\\\\]]+$/.test(address) ? address : '<' + address + '>';\n    return (/^[\\w ]*$/.test(name) ? name : /^[\\x20-\\x7e]*$/.test(name) ? '\"' + name.replace(/[\"\\\\]/g, '\\\\$&') + '\"' : encodedWord(name)) + ' <' + address + '>';\n  }).join(', ');\n};\nvar angled = (text) => { text = text.replace(/\\r?\\n|\\r/g, ' ').replace(/[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]/g, ''); if (text.charAt(0) !== '<') text = '<' + text; if (text.charAt(text.length - 1) !== '>') text += '>'; return text; };\nvar valueOf = (key, value) => ['From', 'To', 'Cc', 'Bcc', 'Reply-To'].includes(key) ? addresses(value) : key === 'In-Reply-To' ? angled(value) : key === 'References' ? value.replace(/\\r?\\n|\\r/g, ' ').replace(/[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]/g, '').trim().replace(/<[^>]*>/g, (id) => id.replace(/\\s/g, '')).split(/\\s+/).map(angled).join(' ').trim() : headerText(value.replace(/\\r?\\n|\\r/g, ' '));\nvar headerLines = (headers) => headers.map((header) => [header[0], header[2] ? header[1] : valueOf(header[0], header[1])]).filter((header) => header[1].trim()).map((header) => folded(header[0] + ': ' + header[1])).join('\\r\\n');\nvar textPart = (content, type) => {\n  var plain = !/[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\u0080-\\uFFFF]/.test(content) && !(content.length > 128 * 1024 || /^.{77,}/m.test(content));\n  var encoding = plain ? '7bit' : encodingFor(content) === 'Q' ? 'quoted-printable' : 'base64';\n  var body = plain ? content : encoding === 'base64' ? wrapped(base64Of(bytesOf(content))) : quotedLines(quotedPrintable(bytesOf(content)));\n  return {headers: [['Content-Type', type + '; charset=utf-8', true], ['Content-Transfer-Encoding', encoding, true]], body: body};\n};\nvar attachmentPart = (file, index) => {\n  var name = file.name || 'attachment-' + (index + 1) + '.' + (file.type === 'application/octet-stream' ? '*' : Object.keys(types).find((key) => types[key] === file.type) || 'bin');\n  if (/[\\x00-\\x1f\\x7f\"\\u0080-\\uFFFF]/.test(name) || name.length >= 75) throw new Error('The attachment name \"' + name + '\" is not one this step can write. Use a short plain name, such as report.pdf.');\n  var quoted = /[\\s'\"\\\\;:/=(),<>@[\\]?]|^-/.test(name) ? JSON.stringify(name) : name;\n  return {headers: [['Content-Type', file.type + '; name=' + quoted, true], ['Content-Transfer-Encoding', 'base64', true], ['Content-Disposition', 'attachment; filename=' + quoted, true]], body: wrapped(file.base64)};\n};\nvar raw = (mail) => {\n  var files = mail.attachments || [];\n  var text = mail.text !== undefined ? textPart(mail.text, 'text/plain') : textPart(mail.html, 'text/html');\n  var boundary = '--_NmP-' + Array.from({length: 16}, () => Math.floor(Math.random() * 16).toString(16)).join('') + '-Part_1';\n  var top = files.length ? [['Content-Type', 'multipart/mixed; boundary=\"' + boundary + '\"', true]] : [text.headers[0]];\n  var sender = (mail.from || '').split('@').pop().replace(/>.*/, '') || 'localhost';\n  var headers = top.slice(1).concat(mail.headers || [], [['From', mail.from], ['To', mail.to], ['Cc', mail.cc], ['Bcc', mail.bcc], ['Reply-To', mail.replyTo], ['Subject', mail.subject]].filter((header) => header[1]),\n    [['Message-ID', '<' + Math.random().toString(16).slice(2) + '@' + sender + '>', true]], files.length ? [] : [text.headers[1]], [['Date', new Date().toUTCString().replace(/GMT/, '+0000'), true], ['MIME-Version', '1.0', true]], [top[0]]);\n  var message = headerLines(headers) + '\\r\\n\\r\\n' + (files.length\n    ? [text].concat(files.map(attachmentPart)).map((part) => '--' + boundary + '\\r\\n' + headerLines(part.headers) + '\\r\\n\\r\\n' + part.body).join('\\r\\n') + '\\r\\n--' + boundary + '--\\r\\n'\n    : text.body + (/\\n$/.test(text.body) ? '' : /\\r$/.test(text.body) ? '\\n' : '\\r\\n'));\n  return base64Of(bytesOf(message)).replace(/\\+/g, '-').replace(/\\//g, '_');\n};\nvar types = {json: 'application/json', map: 'application/json', xml: 'application/xml', js: 'application/javascript', mjs: 'application/javascript', pdf: 'application/pdf', zip: 'application/zip', gz: 'application/gzip', bin: 'application/octet-stream', dat: 'application/octet-stream', doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', ppt: 'application/vnd.ms-powerpoint', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', csv: 'text/csv', rtf: 'application/rtf', tar: 'application/x-tar', '7z': 'application/x-7z-compressed', wasm: 'application/wasm', txt: 'text/plain', text: 'text/plain', log: 'text/plain', html: 'text/html', htm: 'text/html', css: 'text/css', md: 'text/markdown', markdown: 'text/markdown', yaml: 'text/yaml', yml: 'text/yaml', png: 'image/png', jpeg: 'image/jpeg', jpg: 'image/jpeg', jpe: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml', svgz: 'image/svg+xml', bmp: 'image/bmp', tiff: 'image/tiff', tif: 'image/tiff', ico: 'image/x-icon', heic: 'image/heic', avif: 'image/avif', mpga: 'audio/mpeg', mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', oga: 'audio/ogg', weba: 'audio/webm', m4a: 'audio/mp4', mp4: 'video/mp4', m4v: 'video/mp4', mpeg: 'video/mpeg', mpg: 'video/mpeg', webm: 'video/webm', mov: 'video/quicktime', qt: 'video/quicktime', avi: 'video/x-msvideo', woff: 'font/woff', woff2: 'font/woff2', ttf: 'font/ttf', otf: 'font/otf', jsonld: 'application/ld+json', webmanifest: 'application/manifest+json', ics: 'text/calendar', ifb: 'text/calendar', ndjson: 'application/x-ndjson'};\nvar attached = (file, name, base64) => { var type = types[file.split('.').pop().toLowerCase()]; if (!type) throw new Error('The attachment ' + file + ' is not a type this step can send. Use a file such as .pdf, .docx, .xlsx, .csv, .txt, .png, .jpg or .zip.'); return {name: name || file, type: type, base64: base64}; };\nvar attachedFile = () => inputs.attachment ? [attached(inputs.attachment, inputs.attachment_name, request.body && request.body.attachment)] : [];\nvar list = (text) => { var value = text ? JSON.parse(text) : []; return Array.isArray(value) ? value : [value]; };\nvar given = (text) => list(text).filter((item) => item !== '');\nvar joined = (items) => items.length > 0 ? items.join(', ') : undefined;\nvar encodedSubject = (text) => '=?UTF-8?B?' + base64Of(bytesOf(text)) + '?=';\nvar email = () => call({headers: apiClient, method: 'GET', url: 'https://www.googleapis.com/oauth2/v2/userinfo'}).email;\nvar signed = (address) => address ? (inputs.sender_name ? inputs.sender_name + ' <' + address + '>' : address) : undefined;\nvar headerMap = (message) => (message.payload.headers || []).reduce((all, item) => { if (item.name && item.value) all[item.name.toLowerCase()] = item.value; return all; }, {});\nvar original = call({headers: apiClient, method: 'GET', url: '/users/me/messages/' + encodeURIComponent(inputs.message_id), query: {format: 'full'}});\nif (!original || !original.payload) throw new Error('Could not fetch original message details');\nvar header = headerMap(original);\nvar to = [], cc = [], target = header['reply-to'] || header.from || '';\nif (target) to.push(target);\nif (inputs.reply_type === 'reply_all') {\n  var me = email() || '';\n  var others = (text) => text ? text.split(',').map((item) => item.trim()).filter((item) => !item.includes(me)) : [];\n  to = to.concat(others(header.to));\n  cc = others(header.cc);\n}\nvar subject = header.subject || '';\nif (!subject.toLowerCase().startsWith('re:')) subject = 'Re: ' + subject;\nvar messageId = header['message-id'] || '';\nvar plain = inputs.body_type === 'plain_text';\nrequest.body = Object.assign(original.threadId ? {threadId: original.threadId} : {}, {raw: raw({\n  from: signed(email()), to: to.join(', '), cc: joined(cc), subject: encodedSubject(subject),\n  text: plain ? inputs.body : undefined, html: plain ? undefined : inputs.body,\n  headers: [['In-Reply-To', messageId], ['References', header.references ? header.references + ' ' + messageId : messageId]],\n  attachments: attachedFile()\n})});\nreturn request;"
+    },
+    "create_draft_reply": {
+      "label": "Create Draft Reply",
+      "description": "Creates a draft reply to an existing email.",
+      "inputs": {
+        "message_id": {
+          "label": "Message",
+          "description": "Pick a recent message, or map its ID from a trigger or Find Email.",
+          "required": true,
+          "list": "messages"
+        },
+        "reply_type": {
+          "label": "Reply Type",
+          "description": "Reply to the sender only, or to everyone on the thread.",
+          "type": "select",
+          "required": true,
+          "defaultValue": "reply",
+          "options": [
+            {
+              "value": "reply",
+              "label": "Reply"
+            },
+            {
+              "value": "reply_all",
+              "label": "Reply All"
+            }
+          ]
+        },
+        "body_type": {
+          "label": "Body Type",
+          "description": "How the text in Body is interpreted.",
+          "type": "select",
+          "required": true,
+          "defaultValue": "plain_text",
+          "options": [
+            {
+              "value": "plain_text",
+              "label": "Plain Text"
+            },
+            {
+              "value": "html",
+              "label": "HTML"
+            }
+          ]
+        },
+        "body": {
+          "label": "Body",
+          "type": "multiline"
+        },
+        "include_original_message": {
+          "label": "Include Original Message",
+          "description": "Quote the original message below your reply.",
+          "type": "boolean",
+          "defaultValue": "true"
+        },
+        "sender_name": {
+          "label": "Sender Name",
+          "description": "Name shown in the inbox instead of your address."
+        },
+        "attachment": {
+          "label": "Attachment",
+          "description": "File to attach.",
+          "type": "file"
+        },
+        "attachment_name": {
+          "label": "Attachment Name",
+          "description": "Overrides the file name, such as report.pdf."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/drafts",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        },
+        "body": {
+          "attachment": "{{attachment}}"
+        }
+      },
+      "beforeRequest": "var apiClient = {'x-goog-api-client': 'gdcl/8.0.2 gl-node/26.4.0'};\nvar bytesOf = (text) => unescape(encodeURIComponent(text));\nvar base64Of = (bytes) => { var table = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/', out = ''; for (var i = 0; i < bytes.length; i += 3) { var a = bytes.charCodeAt(i), b = bytes.charCodeAt(i + 1), c = bytes.charCodeAt(i + 2), n = (a << 16) | ((b || 0) << 8) | (c || 0); out += table[n >> 18] + table[(n >> 12) & 63] + (i + 1 < bytes.length ? table[(n >> 6) & 63] : '=') + (i + 2 < bytes.length ? table[n & 63] : '='); } return out; };\nvar wrapped = (text) => text.replace(/.{76}(?!$)/g, '$&\\r\\n');\nvar hex = (code) => (code < 16 ? '0' : '') + code.toString(16).toUpperCase();\nvar quotedPrintable = (bytes) => { var out = ''; for (var i = 0; i < bytes.length; i++) { var code = bytes.charCodeAt(i), last = i === bytes.length - 1 || bytes.charCodeAt(i + 1) === 10 || bytes.charCodeAt(i + 1) === 13; out += (code === 9 || code === 10 || code === 13 || (code >= 32 && code <= 126 && code !== 61)) && !((code === 32 || code === 9) && last) ? bytes[i] : '=' + hex(code); } return out; };\nvar quotedLines = (text) => { var size = 76, third = Math.floor(size / 3), at = 0, out = '', found, line; if (text.length <= size) return text; while (at < text.length) { line = text.substr(at, size); if ((found = line.match(/\\r\\n/))) { line = line.substr(0, found.index + 2); out += line; at += line.length; continue; } if (line.substr(-1) === '\\n') { out += line; at += line.length; continue; } if ((found = line.substr(-third).match(/\\n.*?$/))) { line = line.substr(0, line.length - (found[0].length - 1)); out += line; at += line.length; continue; } if (line.length > size - third && (found = line.substr(-third).match(/[ \\t.,!?][^ \\t.,!?]*$/))) line = line.substr(0, line.length - (found[0].length - 1)); else if (/[=][\\da-f]{0,2}$/i.test(line)) { if ((found = line.match(/[=][\\da-f]{0,1}$/i))) line = line.substr(0, line.length - found[0].length); while (line.length > 3 && line.length < text.length - at && !/^(?:=[\\da-f]{2}){1,4}$/i.test(line) && (found = line.match(/[=][\\da-f]{2}$/gi))) { var code = parseInt(found[0].substr(1, 2), 16); if (code < 128) break; line = line.substr(0, line.length - 3); if (code >= 192) break; } } if (at + line.length < text.length && line.substr(-1) !== '\\n') { if (line.length === size && /[=][\\da-f]{2}$/i.test(line)) line = line.substr(0, line.length - 3); else if (line.length === size) line = line.substr(0, line.length - 1); at += line.length; line += '=\\r\\n'; } else at += line.length; out += line; } return out; };\nvar folded = (text) => { var at = 0, out = '', line, found; while (at < text.length) { line = text.substr(at, 76); if (line.length < 76) { out += line; break; } if ((found = line.match(/^[^\\n\\r]*(\\r?\\n|\\r)/))) { out += found[0]; at += found[0].length; continue; } if ((found = line.match(/(\\s+)[^\\s]*$/)) && found[0].length < line.length) line = line.substr(0, line.length - found[0].length); else if ((found = text.substr(at + line.length).match(/^[^\\s]+(\\s*)/))) line += found[0].substr(0, found[0].length - found[1].length); out += line; at += line.length; if (at < text.length) out += '\\r\\n'; } return out; };\nvar encodingFor = (text) => { var other = 0, letters = 0; for (var i = 0; i < text.length; i++) { var code = text.charCodeAt(i); if (code <= 8 || code === 11 || code === 12 || (code >= 14 && code <= 31) || code >= 128) other++; else if ((code >= 65 && code <= 90) || (code >= 97 && code <= 122)) letters++; } return other < letters ? 'Q' : 'B'; };\nvar splitQ = (text, size) => { var parts = [], part, whole, found, done; while (text.length) { part = text.substr(0, size); if ((found = part.match(/[=][0-9A-F]?$/i))) part = part.substr(0, found.index); whole = part.length ? part : text.substr(0, size); done = false; while (!done && part.length) { done = true; if ((found = text.substr(part.length).match(/^[=]([0-9A-F]{2})/i))) { var code = parseInt(found[1], 16); if (code < 194 && code > 127) { part = part.substr(0, part.length - 3); done = false; } } } if (!part.length) part = whole; parts.push(part); text = text.substr(part.length); } return parts; };\nvar encodedWord = (text) => { var type = encodingFor(text), out; if (type === 'Q') { out = quotedPrintable(bytesOf(text)).replace(/[^a-z0-9!*+\\-/=]/gi, (c) => c === ' ' ? '_' : '=' + hex(c.charCodeAt(0))); if (out.length > 40) out = splitQ(out, 40).join('?= =?UTF-8?Q?'); } else { var chunks = [], chunk = ''; for (var i = 0; i < text.length; i++) { var c = text.charAt(i); if (/[\\ud800-\\udbff]/.test(c) && /[\\udc00-\\udfff]/.test(text.charAt(i + 1))) c += text.charAt(++i); if (bytesOf(chunk + c).length <= 30 || i === 0) chunk += c; else { chunks.push(base64Of(bytesOf(chunk))); chunk = c; } } if (chunk) chunks.push(base64Of(bytesOf(chunk))); out = chunks.join('?= =?UTF-8?B?'); } return '=?UTF-8?' + type + '?' + out + (out.substr(-2) === '?=' ? '' : '?='); };\nvar headerText = (text) => /[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]/.test(text) || /(?:^|\\s)([^\\s]*[\"\\u0080-\\uFFFF])/.test(text) ? encodedWord(text) : text;\nvar addresses = (text) => {\n  var unreadable = () => { throw new Error('The address \"' + text + '\" is not one this step can write. Use name <address> or address.'); };\n  var list = /(\"[^\"]*\"|<[^>]*>|[^,\"<])+/g;\n  if (/[\\x00-\\x1f\\x7f\\\\;]/.test(text) || text.replace(list, '').replace(/,/g, '').trim()) unreadable();\n  var pieces = (text.match(list) || []).map((piece) => piece.trim()).filter((piece) => piece).map((piece) => {\n    var named = piece.match(/^(?:\"([^\"]*)\"|([^\"<>()[\\]:@]*?))\\s*<([^\\s\"(),:<>@[\\]\\u0080-\\uFFFF]+@[^\\s\"(),:<>@[\\]\\u0080-\\uFFFF]+)>$/);\n    if (named) { var name = (named[1] === undefined ? named[2] : named[1]).trim(); return {name: name === named[3] ? '' : name, address: named[3]}; }\n    if (/^[^\\s\"(),:<>@[\\]\\u0080-\\uFFFF]+@[^\\s\"(),:<>@[\\]\\u0080-\\uFFFF]+$/.test(piece)) return {name: '', address: piece};\n    if (/^[^\"<>()[\\]:@]+$/.test(piece)) return {name: piece, address: ''};\n    return unreadable();\n  });\n  var merged = [];\n  for (var i = pieces.length - 1; i >= 0; i--) { var next = merged[merged.length - 1]; if (next && pieces[i].address === '' && pieces[i].name && next.address && next.name) next.name = pieces[i].name + ', ' + next.name; else merged.push(pieces[i]); }\n  return merged.reverse().filter((item) => item.address).map((item) => {\n    var at = item.address.lastIndexOf('@'), local = item.address.substr(0, at), address = (/^[A-Za-z0-9!#$%&'*+\\-/=?^_`{|}~]+(?:\\.[A-Za-z0-9!#$%&'*+\\-/=?^_`{|}~]+)*$/.test(local) ? local : '\"' + local + '\"') + '@' + item.address.substr(at + 1).toLowerCase();\n    var name = item.name;\n    if (!name) return /^[^\\s\"(),:;<>@[\\\\\\]]+@[^\\s\"(),:;<>@[\\\\\\]]+$/.test(address) ? address : '<' + address + '>';\n    return (/^[\\w ]*$/.test(name) ? name : /^[\\x20-\\x7e]*$/.test(name) ? '\"' + name.replace(/[\"\\\\]/g, '\\\\$&') + '\"' : encodedWord(name)) + ' <' + address + '>';\n  }).join(', ');\n};\nvar angled = (text) => { text = text.replace(/\\r?\\n|\\r/g, ' ').replace(/[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]/g, ''); if (text.charAt(0) !== '<') text = '<' + text; if (text.charAt(text.length - 1) !== '>') text += '>'; return text; };\nvar valueOf = (key, value) => ['From', 'To', 'Cc', 'Bcc', 'Reply-To'].includes(key) ? addresses(value) : key === 'In-Reply-To' ? angled(value) : key === 'References' ? value.replace(/\\r?\\n|\\r/g, ' ').replace(/[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]/g, '').trim().replace(/<[^>]*>/g, (id) => id.replace(/\\s/g, '')).split(/\\s+/).map(angled).join(' ').trim() : headerText(value.replace(/\\r?\\n|\\r/g, ' '));\nvar headerLines = (headers) => headers.map((header) => [header[0], header[2] ? header[1] : valueOf(header[0], header[1])]).filter((header) => header[1].trim()).map((header) => folded(header[0] + ': ' + header[1])).join('\\r\\n');\nvar textPart = (content, type) => {\n  var plain = !/[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\u0080-\\uFFFF]/.test(content) && !(content.length > 128 * 1024 || /^.{77,}/m.test(content));\n  var encoding = plain ? '7bit' : encodingFor(content) === 'Q' ? 'quoted-printable' : 'base64';\n  var body = plain ? content : encoding === 'base64' ? wrapped(base64Of(bytesOf(content))) : quotedLines(quotedPrintable(bytesOf(content)));\n  return {headers: [['Content-Type', type + '; charset=utf-8', true], ['Content-Transfer-Encoding', encoding, true]], body: body};\n};\nvar attachmentPart = (file, index) => {\n  var name = file.name || 'attachment-' + (index + 1) + '.' + (file.type === 'application/octet-stream' ? '*' : Object.keys(types).find((key) => types[key] === file.type) || 'bin');\n  if (/[\\x00-\\x1f\\x7f\"\\u0080-\\uFFFF]/.test(name) || name.length >= 75) throw new Error('The attachment name \"' + name + '\" is not one this step can write. Use a short plain name, such as report.pdf.');\n  var quoted = /[\\s'\"\\\\;:/=(),<>@[\\]?]|^-/.test(name) ? JSON.stringify(name) : name;\n  return {headers: [['Content-Type', file.type + '; name=' + quoted, true], ['Content-Transfer-Encoding', 'base64', true], ['Content-Disposition', 'attachment; filename=' + quoted, true]], body: wrapped(file.base64)};\n};\nvar raw = (mail) => {\n  var files = mail.attachments || [];\n  var text = mail.text !== undefined ? textPart(mail.text, 'text/plain') : textPart(mail.html, 'text/html');\n  var boundary = '--_NmP-' + Array.from({length: 16}, () => Math.floor(Math.random() * 16).toString(16)).join('') + '-Part_1';\n  var top = files.length ? [['Content-Type', 'multipart/mixed; boundary=\"' + boundary + '\"', true]] : [text.headers[0]];\n  var sender = (mail.from || '').split('@').pop().replace(/>.*/, '') || 'localhost';\n  var headers = top.slice(1).concat(mail.headers || [], [['From', mail.from], ['To', mail.to], ['Cc', mail.cc], ['Bcc', mail.bcc], ['Reply-To', mail.replyTo], ['Subject', mail.subject]].filter((header) => header[1]),\n    [['Message-ID', '<' + Math.random().toString(16).slice(2) + '@' + sender + '>', true]], files.length ? [] : [text.headers[1]], [['Date', new Date().toUTCString().replace(/GMT/, '+0000'), true], ['MIME-Version', '1.0', true]], [top[0]]);\n  var message = headerLines(headers) + '\\r\\n\\r\\n' + (files.length\n    ? [text].concat(files.map(attachmentPart)).map((part) => '--' + boundary + '\\r\\n' + headerLines(part.headers) + '\\r\\n\\r\\n' + part.body).join('\\r\\n') + '\\r\\n--' + boundary + '--\\r\\n'\n    : text.body + (/\\n$/.test(text.body) ? '' : /\\r$/.test(text.body) ? '\\n' : '\\r\\n'));\n  return base64Of(bytesOf(message)).replace(/\\+/g, '-').replace(/\\//g, '_');\n};\nvar types = {json: 'application/json', map: 'application/json', xml: 'application/xml', js: 'application/javascript', mjs: 'application/javascript', pdf: 'application/pdf', zip: 'application/zip', gz: 'application/gzip', bin: 'application/octet-stream', dat: 'application/octet-stream', doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', ppt: 'application/vnd.ms-powerpoint', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', csv: 'text/csv', rtf: 'application/rtf', tar: 'application/x-tar', '7z': 'application/x-7z-compressed', wasm: 'application/wasm', txt: 'text/plain', text: 'text/plain', log: 'text/plain', html: 'text/html', htm: 'text/html', css: 'text/css', md: 'text/markdown', markdown: 'text/markdown', yaml: 'text/yaml', yml: 'text/yaml', png: 'image/png', jpeg: 'image/jpeg', jpg: 'image/jpeg', jpe: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml', svgz: 'image/svg+xml', bmp: 'image/bmp', tiff: 'image/tiff', tif: 'image/tiff', ico: 'image/x-icon', heic: 'image/heic', avif: 'image/avif', mpga: 'audio/mpeg', mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', oga: 'audio/ogg', weba: 'audio/webm', m4a: 'audio/mp4', mp4: 'video/mp4', m4v: 'video/mp4', mpeg: 'video/mpeg', mpg: 'video/mpeg', webm: 'video/webm', mov: 'video/quicktime', qt: 'video/quicktime', avi: 'video/x-msvideo', woff: 'font/woff', woff2: 'font/woff2', ttf: 'font/ttf', otf: 'font/otf', jsonld: 'application/ld+json', webmanifest: 'application/manifest+json', ics: 'text/calendar', ifb: 'text/calendar', ndjson: 'application/x-ndjson'};\nvar attached = (file, name, base64) => { var type = types[file.split('.').pop().toLowerCase()]; if (!type) throw new Error('The attachment ' + file + ' is not a type this step can send. Use a file such as .pdf, .docx, .xlsx, .csv, .txt, .png, .jpg or .zip.'); return {name: name || file, type: type, base64: base64}; };\nvar attachedFile = () => inputs.attachment ? [attached(inputs.attachment, inputs.attachment_name, request.body && request.body.attachment)] : [];\nvar list = (text) => { var value = text ? JSON.parse(text) : []; return Array.isArray(value) ? value : [value]; };\nvar given = (text) => list(text).filter((item) => item !== '');\nvar joined = (items) => items.length > 0 ? items.join(', ') : undefined;\nvar encodedSubject = (text) => '=?UTF-8?B?' + base64Of(bytesOf(text)) + '?=';\nvar email = () => call({headers: apiClient, method: 'GET', url: 'https://www.googleapis.com/oauth2/v2/userinfo'}).email;\nvar signed = (address) => address ? (inputs.sender_name ? inputs.sender_name + ' <' + address + '>' : address) : undefined;\nvar headerMap = (message) => (message.payload.headers || []).reduce((all, item) => { if (item.name && item.value) all[item.name.toLowerCase()] = item.value; return all; }, {});\nvar original = call({headers: apiClient, method: 'GET', url: '/users/me/messages/' + encodeURIComponent(inputs.message_id), query: {format: 'full'}});\nif (!original || !original.payload) throw new Error('Could not fetch original message details');\nvar header = headerMap(original);\nvar from = header.from || '', date = header.date || '', messageId = header['message-id'] || '', include = inputs.include_original_message === 'true', quoted = '';\nif (include) {\n  try {\n    var copy = call({headers: apiClient, method: 'GET', url: '/users/me/messages/' + encodeURIComponent(inputs.message_id), query: {format: 'raw'}});\n    if (copy.raw) {\n      var mail = readEmail(copy.raw), text = mail.text || '';\n      if (!text && mail.html) text = mail.html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');\n      if (text) quoted = 'On ' + date + ', ' + from + ' wrote:\\n' + text.split('\\n').map((line) => '> ' + line.trim()).join('\\n');\n    }\n  } catch (error) {\n    quoted = 'On ' + date + ', ' + from + ' wrote:\\n> [Original message content could not be parsed]';\n  }\n}\nvar to = [], cc = [], target = header['reply-to'] || from;\nif (target) to.push(target);\nif (inputs.reply_type === 'reply_all') {\n  var me = email();\n  var others = (text) => text ? text.split(',').map((item) => item.trim()).filter((item) => !item.includes(me || '')) : [];\n  to = to.concat(others(header.to));\n  cc = others(header.cc);\n}\nvar subject = header.subject || '';\nif (!subject.toLowerCase().startsWith('re:')) subject = 'Re: ' + subject;\nvar plain = inputs.body_type === 'plain_text', body = inputs.body || '';\nif (include && quoted) {\n  var quote = plain ? quoted : quoted.replace(/\\n/g, '<br>');\n  body = body ? body + (plain ? '\\n\\n--- Original Message ---\\n' : '<br><br>--- Original Message ---<br>') + quote : quote;\n}\nrequest.body = {message: {threadId: original.threadId || undefined, raw: raw({\n  from: signed(email()), to: to.join(', '), cc: joined(cc), subject: encodedSubject(subject),\n  text: plain ? body : undefined, html: plain ? undefined : body,\n  headers: [['In-Reply-To', messageId], ['References', header.references ? header.references + ' ' + messageId : messageId]],\n  attachments: attachedFile()\n})}};\n// What the step gives besides the draft, read again after the answer.\nrequest.reply = {originalMessage: {id: inputs.message_id, subject: header.subject || '', from: from, to: header.to || '', date: date, threadId: original.threadId},\n  draftDetails: {replyType: inputs.reply_type, recipients: {to: to, cc: cc}, subject: subject, includeOriginal: include}};\nreturn request;",
+      "afterResponse": "return Object.assign({}, response, request.reply);"
+    },
+    "gmail_forward_message": {
+      "label": "Forward Message",
+      "description": "Forward an existing email to new recipients.",
+      "inputs": {
+        "message_id": {
+          "label": "Message",
+          "description": "Pick a recent message, or map its ID from a trigger or Find Email.",
+          "required": true,
+          "list": "messages"
+        },
+        "receiver": {
+          "label": "To",
+          "description": "A JSON list, such as [\"ann@example.com\"].",
+          "type": "json",
+          "required": true
+        },
+        "cc": {
+          "label": "Cc",
+          "description": "A JSON list, such as [\"ann@example.com\"].",
+          "type": "json"
+        },
+        "bcc": {
+          "label": "Bcc",
+          "description": "A JSON list, such as [\"ann@example.com\"].",
+          "type": "json"
+        },
+        "note": {
+          "label": "Note",
+          "description": "Optional message to add above the forwarded content.",
+          "type": "multiline"
+        },
+        "sender_name": {
+          "label": "Sender Name",
+          "description": "Name shown in the inbox instead of your address."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "beforeRequest": "var apiClient = {'x-goog-api-client': 'gdcl/8.0.2 gl-node/26.4.0'};\nvar bytesOf = (text) => unescape(encodeURIComponent(text));\nvar base64Of = (bytes) => { var table = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/', out = ''; for (var i = 0; i < bytes.length; i += 3) { var a = bytes.charCodeAt(i), b = bytes.charCodeAt(i + 1), c = bytes.charCodeAt(i + 2), n = (a << 16) | ((b || 0) << 8) | (c || 0); out += table[n >> 18] + table[(n >> 12) & 63] + (i + 1 < bytes.length ? table[(n >> 6) & 63] : '=') + (i + 2 < bytes.length ? table[n & 63] : '='); } return out; };\nvar wrapped = (text) => text.replace(/.{76}(?!$)/g, '$&\\r\\n');\nvar hex = (code) => (code < 16 ? '0' : '') + code.toString(16).toUpperCase();\nvar quotedPrintable = (bytes) => { var out = ''; for (var i = 0; i < bytes.length; i++) { var code = bytes.charCodeAt(i), last = i === bytes.length - 1 || bytes.charCodeAt(i + 1) === 10 || bytes.charCodeAt(i + 1) === 13; out += (code === 9 || code === 10 || code === 13 || (code >= 32 && code <= 126 && code !== 61)) && !((code === 32 || code === 9) && last) ? bytes[i] : '=' + hex(code); } return out; };\nvar quotedLines = (text) => { var size = 76, third = Math.floor(size / 3), at = 0, out = '', found, line; if (text.length <= size) return text; while (at < text.length) { line = text.substr(at, size); if ((found = line.match(/\\r\\n/))) { line = line.substr(0, found.index + 2); out += line; at += line.length; continue; } if (line.substr(-1) === '\\n') { out += line; at += line.length; continue; } if ((found = line.substr(-third).match(/\\n.*?$/))) { line = line.substr(0, line.length - (found[0].length - 1)); out += line; at += line.length; continue; } if (line.length > size - third && (found = line.substr(-third).match(/[ \\t.,!?][^ \\t.,!?]*$/))) line = line.substr(0, line.length - (found[0].length - 1)); else if (/[=][\\da-f]{0,2}$/i.test(line)) { if ((found = line.match(/[=][\\da-f]{0,1}$/i))) line = line.substr(0, line.length - found[0].length); while (line.length > 3 && line.length < text.length - at && !/^(?:=[\\da-f]{2}){1,4}$/i.test(line) && (found = line.match(/[=][\\da-f]{2}$/gi))) { var code = parseInt(found[0].substr(1, 2), 16); if (code < 128) break; line = line.substr(0, line.length - 3); if (code >= 192) break; } } if (at + line.length < text.length && line.substr(-1) !== '\\n') { if (line.length === size && /[=][\\da-f]{2}$/i.test(line)) line = line.substr(0, line.length - 3); else if (line.length === size) line = line.substr(0, line.length - 1); at += line.length; line += '=\\r\\n'; } else at += line.length; out += line; } return out; };\nvar folded = (text) => { var at = 0, out = '', line, found; while (at < text.length) { line = text.substr(at, 76); if (line.length < 76) { out += line; break; } if ((found = line.match(/^[^\\n\\r]*(\\r?\\n|\\r)/))) { out += found[0]; at += found[0].length; continue; } if ((found = line.match(/(\\s+)[^\\s]*$/)) && found[0].length < line.length) line = line.substr(0, line.length - found[0].length); else if ((found = text.substr(at + line.length).match(/^[^\\s]+(\\s*)/))) line += found[0].substr(0, found[0].length - found[1].length); out += line; at += line.length; if (at < text.length) out += '\\r\\n'; } return out; };\nvar encodingFor = (text) => { var other = 0, letters = 0; for (var i = 0; i < text.length; i++) { var code = text.charCodeAt(i); if (code <= 8 || code === 11 || code === 12 || (code >= 14 && code <= 31) || code >= 128) other++; else if ((code >= 65 && code <= 90) || (code >= 97 && code <= 122)) letters++; } return other < letters ? 'Q' : 'B'; };\nvar splitQ = (text, size) => { var parts = [], part, whole, found, done; while (text.length) { part = text.substr(0, size); if ((found = part.match(/[=][0-9A-F]?$/i))) part = part.substr(0, found.index); whole = part.length ? part : text.substr(0, size); done = false; while (!done && part.length) { done = true; if ((found = text.substr(part.length).match(/^[=]([0-9A-F]{2})/i))) { var code = parseInt(found[1], 16); if (code < 194 && code > 127) { part = part.substr(0, part.length - 3); done = false; } } } if (!part.length) part = whole; parts.push(part); text = text.substr(part.length); } return parts; };\nvar encodedWord = (text) => { var type = encodingFor(text), out; if (type === 'Q') { out = quotedPrintable(bytesOf(text)).replace(/[^a-z0-9!*+\\-/=]/gi, (c) => c === ' ' ? '_' : '=' + hex(c.charCodeAt(0))); if (out.length > 40) out = splitQ(out, 40).join('?= =?UTF-8?Q?'); } else { var chunks = [], chunk = ''; for (var i = 0; i < text.length; i++) { var c = text.charAt(i); if (/[\\ud800-\\udbff]/.test(c) && /[\\udc00-\\udfff]/.test(text.charAt(i + 1))) c += text.charAt(++i); if (bytesOf(chunk + c).length <= 30 || i === 0) chunk += c; else { chunks.push(base64Of(bytesOf(chunk))); chunk = c; } } if (chunk) chunks.push(base64Of(bytesOf(chunk))); out = chunks.join('?= =?UTF-8?B?'); } return '=?UTF-8?' + type + '?' + out + (out.substr(-2) === '?=' ? '' : '?='); };\nvar headerText = (text) => /[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]/.test(text) || /(?:^|\\s)([^\\s]*[\"\\u0080-\\uFFFF])/.test(text) ? encodedWord(text) : text;\nvar addresses = (text) => {\n  var unreadable = () => { throw new Error('The address \"' + text + '\" is not one this step can write. Use name <address> or address.'); };\n  var list = /(\"[^\"]*\"|<[^>]*>|[^,\"<])+/g;\n  if (/[\\x00-\\x1f\\x7f\\\\;]/.test(text) || text.replace(list, '').replace(/,/g, '').trim()) unreadable();\n  var pieces = (text.match(list) || []).map((piece) => piece.trim()).filter((piece) => piece).map((piece) => {\n    var named = piece.match(/^(?:\"([^\"]*)\"|([^\"<>()[\\]:@]*?))\\s*<([^\\s\"(),:<>@[\\]\\u0080-\\uFFFF]+@[^\\s\"(),:<>@[\\]\\u0080-\\uFFFF]+)>$/);\n    if (named) { var name = (named[1] === undefined ? named[2] : named[1]).trim(); return {name: name === named[3] ? '' : name, address: named[3]}; }\n    if (/^[^\\s\"(),:<>@[\\]\\u0080-\\uFFFF]+@[^\\s\"(),:<>@[\\]\\u0080-\\uFFFF]+$/.test(piece)) return {name: '', address: piece};\n    if (/^[^\"<>()[\\]:@]+$/.test(piece)) return {name: piece, address: ''};\n    return unreadable();\n  });\n  var merged = [];\n  for (var i = pieces.length - 1; i >= 0; i--) { var next = merged[merged.length - 1]; if (next && pieces[i].address === '' && pieces[i].name && next.address && next.name) next.name = pieces[i].name + ', ' + next.name; else merged.push(pieces[i]); }\n  return merged.reverse().filter((item) => item.address).map((item) => {\n    var at = item.address.lastIndexOf('@'), local = item.address.substr(0, at), address = (/^[A-Za-z0-9!#$%&'*+\\-/=?^_`{|}~]+(?:\\.[A-Za-z0-9!#$%&'*+\\-/=?^_`{|}~]+)*$/.test(local) ? local : '\"' + local + '\"') + '@' + item.address.substr(at + 1).toLowerCase();\n    var name = item.name;\n    if (!name) return /^[^\\s\"(),:;<>@[\\\\\\]]+@[^\\s\"(),:;<>@[\\\\\\]]+$/.test(address) ? address : '<' + address + '>';\n    return (/^[\\w ]*$/.test(name) ? name : /^[\\x20-\\x7e]*$/.test(name) ? '\"' + name.replace(/[\"\\\\]/g, '\\\\$&') + '\"' : encodedWord(name)) + ' <' + address + '>';\n  }).join(', ');\n};\nvar angled = (text) => { text = text.replace(/\\r?\\n|\\r/g, ' ').replace(/[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]/g, ''); if (text.charAt(0) !== '<') text = '<' + text; if (text.charAt(text.length - 1) !== '>') text += '>'; return text; };\nvar valueOf = (key, value) => ['From', 'To', 'Cc', 'Bcc', 'Reply-To'].includes(key) ? addresses(value) : key === 'In-Reply-To' ? angled(value) : key === 'References' ? value.replace(/\\r?\\n|\\r/g, ' ').replace(/[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]/g, '').trim().replace(/<[^>]*>/g, (id) => id.replace(/\\s/g, '')).split(/\\s+/).map(angled).join(' ').trim() : headerText(value.replace(/\\r?\\n|\\r/g, ' '));\nvar headerLines = (headers) => headers.map((header) => [header[0], header[2] ? header[1] : valueOf(header[0], header[1])]).filter((header) => header[1].trim()).map((header) => folded(header[0] + ': ' + header[1])).join('\\r\\n');\nvar textPart = (content, type) => {\n  var plain = !/[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\u0080-\\uFFFF]/.test(content) && !(content.length > 128 * 1024 || /^.{77,}/m.test(content));\n  var encoding = plain ? '7bit' : encodingFor(content) === 'Q' ? 'quoted-printable' : 'base64';\n  var body = plain ? content : encoding === 'base64' ? wrapped(base64Of(bytesOf(content))) : quotedLines(quotedPrintable(bytesOf(content)));\n  return {headers: [['Content-Type', type + '; charset=utf-8', true], ['Content-Transfer-Encoding', encoding, true]], body: body};\n};\nvar attachmentPart = (file, index) => {\n  var name = file.name || 'attachment-' + (index + 1) + '.' + (file.type === 'application/octet-stream' ? '*' : Object.keys(types).find((key) => types[key] === file.type) || 'bin');\n  if (/[\\x00-\\x1f\\x7f\"\\u0080-\\uFFFF]/.test(name) || name.length >= 75) throw new Error('The attachment name \"' + name + '\" is not one this step can write. Use a short plain name, such as report.pdf.');\n  var quoted = /[\\s'\"\\\\;:/=(),<>@[\\]?]|^-/.test(name) ? JSON.stringify(name) : name;\n  return {headers: [['Content-Type', file.type + '; name=' + quoted, true], ['Content-Transfer-Encoding', 'base64', true], ['Content-Disposition', 'attachment; filename=' + quoted, true]], body: wrapped(file.base64)};\n};\nvar raw = (mail) => {\n  var files = mail.attachments || [];\n  var text = mail.text !== undefined ? textPart(mail.text, 'text/plain') : textPart(mail.html, 'text/html');\n  var boundary = '--_NmP-' + Array.from({length: 16}, () => Math.floor(Math.random() * 16).toString(16)).join('') + '-Part_1';\n  var top = files.length ? [['Content-Type', 'multipart/mixed; boundary=\"' + boundary + '\"', true]] : [text.headers[0]];\n  var sender = (mail.from || '').split('@').pop().replace(/>.*/, '') || 'localhost';\n  var headers = top.slice(1).concat(mail.headers || [], [['From', mail.from], ['To', mail.to], ['Cc', mail.cc], ['Bcc', mail.bcc], ['Reply-To', mail.replyTo], ['Subject', mail.subject]].filter((header) => header[1]),\n    [['Message-ID', '<' + Math.random().toString(16).slice(2) + '@' + sender + '>', true]], files.length ? [] : [text.headers[1]], [['Date', new Date().toUTCString().replace(/GMT/, '+0000'), true], ['MIME-Version', '1.0', true]], [top[0]]);\n  var message = headerLines(headers) + '\\r\\n\\r\\n' + (files.length\n    ? [text].concat(files.map(attachmentPart)).map((part) => '--' + boundary + '\\r\\n' + headerLines(part.headers) + '\\r\\n\\r\\n' + part.body).join('\\r\\n') + '\\r\\n--' + boundary + '--\\r\\n'\n    : text.body + (/\\n$/.test(text.body) ? '' : /\\r$/.test(text.body) ? '\\n' : '\\r\\n'));\n  return base64Of(bytesOf(message)).replace(/\\+/g, '-').replace(/\\//g, '_');\n};\nvar types = {json: 'application/json', map: 'application/json', xml: 'application/xml', js: 'application/javascript', mjs: 'application/javascript', pdf: 'application/pdf', zip: 'application/zip', gz: 'application/gzip', bin: 'application/octet-stream', dat: 'application/octet-stream', doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', ppt: 'application/vnd.ms-powerpoint', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', csv: 'text/csv', rtf: 'application/rtf', tar: 'application/x-tar', '7z': 'application/x-7z-compressed', wasm: 'application/wasm', txt: 'text/plain', text: 'text/plain', log: 'text/plain', html: 'text/html', htm: 'text/html', css: 'text/css', md: 'text/markdown', markdown: 'text/markdown', yaml: 'text/yaml', yml: 'text/yaml', png: 'image/png', jpeg: 'image/jpeg', jpg: 'image/jpeg', jpe: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml', svgz: 'image/svg+xml', bmp: 'image/bmp', tiff: 'image/tiff', tif: 'image/tiff', ico: 'image/x-icon', heic: 'image/heic', avif: 'image/avif', mpga: 'audio/mpeg', mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', oga: 'audio/ogg', weba: 'audio/webm', m4a: 'audio/mp4', mp4: 'video/mp4', m4v: 'video/mp4', mpeg: 'video/mpeg', mpg: 'video/mpeg', webm: 'video/webm', mov: 'video/quicktime', qt: 'video/quicktime', avi: 'video/x-msvideo', woff: 'font/woff', woff2: 'font/woff2', ttf: 'font/ttf', otf: 'font/otf', jsonld: 'application/ld+json', webmanifest: 'application/manifest+json', ics: 'text/calendar', ifb: 'text/calendar', ndjson: 'application/x-ndjson'};\nvar attached = (file, name, base64) => { var type = types[file.split('.').pop().toLowerCase()]; if (!type) throw new Error('The attachment ' + file + ' is not a type this step can send. Use a file such as .pdf, .docx, .xlsx, .csv, .txt, .png, .jpg or .zip.'); return {name: name || file, type: type, base64: base64}; };\nvar attachedFile = () => inputs.attachment ? [attached(inputs.attachment, inputs.attachment_name, request.body && request.body.attachment)] : [];\nvar list = (text) => { var value = text ? JSON.parse(text) : []; return Array.isArray(value) ? value : [value]; };\nvar given = (text) => list(text).filter((item) => item !== '');\nvar joined = (items) => items.length > 0 ? items.join(', ') : undefined;\nvar encodedSubject = (text) => '=?UTF-8?B?' + base64Of(bytesOf(text)) + '?=';\nvar email = () => call({headers: apiClient, method: 'GET', url: 'https://www.googleapis.com/oauth2/v2/userinfo'}).email;\nvar signed = (address) => address ? (inputs.sender_name ? inputs.sender_name + ' <' + address + '>' : address) : undefined;\nvar headerMap = (message) => (message.payload.headers || []).reduce((all, item) => { if (item.name && item.value) all[item.name.toLowerCase()] = item.value; return all; }, {});\nvar original = call({headers: apiClient, method: 'GET', url: '/users/me/messages/' + encodeURIComponent(inputs.message_id), query: {format: 'raw'}});\nif (!original.raw) throw new Error('Could not fetch the original message to forward.');\nvar mail = readEmail(original.raw);\nvar subject = mail.subject || '';\nvar html = mail.html ? mail.html.replace(/<[^>]*>/g, '') : '';\nvar quoted = (mail.text || html || '').split('\\n').map((line) => '> ' + line).join('\\n');\nvar body = (inputs.note ? inputs.note + '\\n\\n' : '') + '---------- Forwarded message ----------\\nFrom: ' + (mail.from && typeof mail.from.text === 'string' ? mail.from.text : '') +\n  '\\nDate: ' + (mail.date ? new Date(mail.date).toUTCString() : '') + '\\nSubject: ' + subject + '\\nTo: ' + (mail.to && !Array.isArray(mail.to) ? mail.to.text : '') + '\\n\\n' + quoted;\nrequest.body = {raw: raw({\n  from: signed(email()), to: joined(given(inputs.receiver)), cc: joined(given(inputs.cc)), bcc: joined(given(inputs.bcc)),\n  subject: encodedSubject(subject.toLowerCase().startsWith('fwd:') ? subject : 'Fwd: ' + subject), text: body,\n  attachments: (mail.attachments || []).map((attachment) => attachment.filename ? attached(attachment.filename, undefined, attachment.base64)\n    : {name: 'attachment-' + Date.now(), type: 'application/octet-stream', base64: attachment.base64})\n})};\nreturn request;"
+    },
+    "gmail_create_draft": {
+      "label": "Create Draft",
+      "description": "Create a new draft email (optionally inside an existing thread).",
+      "inputs": {
+        "receiver": {
+          "label": "To",
+          "description": "A JSON list, such as [\"ann@example.com\"].",
+          "type": "json"
+        },
+        "cc": {
+          "label": "Cc",
+          "description": "A JSON list, such as [\"ann@example.com\"].",
+          "type": "json"
+        },
+        "bcc": {
+          "label": "Bcc",
+          "description": "A JSON list, such as [\"ann@example.com\"].",
+          "type": "json"
+        },
+        "subject": {
+          "label": "Subject",
+          "required": true
+        },
+        "body_type": {
+          "label": "Body Type",
+          "description": "How the text in Body is interpreted.",
+          "type": "select",
+          "required": true,
+          "defaultValue": "plain_text",
+          "options": [
+            {
+              "value": "plain_text",
+              "label": "Plain Text"
+            },
+            {
+              "value": "html",
+              "label": "HTML"
+            }
+          ]
+        },
+        "body": {
+          "label": "Body",
+          "description": "Body for the draft email.",
+          "type": "multiline",
+          "required": true
+        },
+        "sender_name": {
+          "label": "Sender Name",
+          "description": "Name shown in the inbox instead of your address."
+        },
+        "from": {
+          "label": "From",
+          "description": "A send-as address already set up in your Gmail settings."
+        },
+        "thread_id": {
+          "label": "Thread ID",
+          "description": "Optional thread ID to attach this draft to an existing conversation (obtain from List Threads or Get Thread)."
+        },
+        "attachment": {
+          "label": "Attachment",
+          "description": "File to attach to the draft.",
+          "type": "file"
+        },
+        "attachment_name": {
+          "label": "Attachment Name",
+          "description": "Overrides the file name, such as report.pdf."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/drafts",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        },
+        "body": {
+          "attachment": "{{attachment}}"
+        }
+      },
+      "beforeRequest": "var apiClient = {'x-goog-api-client': 'gdcl/8.0.2 gl-node/26.4.0'};\nvar bytesOf = (text) => unescape(encodeURIComponent(text));\nvar base64Of = (bytes) => { var table = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/', out = ''; for (var i = 0; i < bytes.length; i += 3) { var a = bytes.charCodeAt(i), b = bytes.charCodeAt(i + 1), c = bytes.charCodeAt(i + 2), n = (a << 16) | ((b || 0) << 8) | (c || 0); out += table[n >> 18] + table[(n >> 12) & 63] + (i + 1 < bytes.length ? table[(n >> 6) & 63] : '=') + (i + 2 < bytes.length ? table[n & 63] : '='); } return out; };\nvar wrapped = (text) => text.replace(/.{76}(?!$)/g, '$&\\r\\n');\nvar hex = (code) => (code < 16 ? '0' : '') + code.toString(16).toUpperCase();\nvar quotedPrintable = (bytes) => { var out = ''; for (var i = 0; i < bytes.length; i++) { var code = bytes.charCodeAt(i), last = i === bytes.length - 1 || bytes.charCodeAt(i + 1) === 10 || bytes.charCodeAt(i + 1) === 13; out += (code === 9 || code === 10 || code === 13 || (code >= 32 && code <= 126 && code !== 61)) && !((code === 32 || code === 9) && last) ? bytes[i] : '=' + hex(code); } return out; };\nvar quotedLines = (text) => { var size = 76, third = Math.floor(size / 3), at = 0, out = '', found, line; if (text.length <= size) return text; while (at < text.length) { line = text.substr(at, size); if ((found = line.match(/\\r\\n/))) { line = line.substr(0, found.index + 2); out += line; at += line.length; continue; } if (line.substr(-1) === '\\n') { out += line; at += line.length; continue; } if ((found = line.substr(-third).match(/\\n.*?$/))) { line = line.substr(0, line.length - (found[0].length - 1)); out += line; at += line.length; continue; } if (line.length > size - third && (found = line.substr(-third).match(/[ \\t.,!?][^ \\t.,!?]*$/))) line = line.substr(0, line.length - (found[0].length - 1)); else if (/[=][\\da-f]{0,2}$/i.test(line)) { if ((found = line.match(/[=][\\da-f]{0,1}$/i))) line = line.substr(0, line.length - found[0].length); while (line.length > 3 && line.length < text.length - at && !/^(?:=[\\da-f]{2}){1,4}$/i.test(line) && (found = line.match(/[=][\\da-f]{2}$/gi))) { var code = parseInt(found[0].substr(1, 2), 16); if (code < 128) break; line = line.substr(0, line.length - 3); if (code >= 192) break; } } if (at + line.length < text.length && line.substr(-1) !== '\\n') { if (line.length === size && /[=][\\da-f]{2}$/i.test(line)) line = line.substr(0, line.length - 3); else if (line.length === size) line = line.substr(0, line.length - 1); at += line.length; line += '=\\r\\n'; } else at += line.length; out += line; } return out; };\nvar folded = (text) => { var at = 0, out = '', line, found; while (at < text.length) { line = text.substr(at, 76); if (line.length < 76) { out += line; break; } if ((found = line.match(/^[^\\n\\r]*(\\r?\\n|\\r)/))) { out += found[0]; at += found[0].length; continue; } if ((found = line.match(/(\\s+)[^\\s]*$/)) && found[0].length < line.length) line = line.substr(0, line.length - found[0].length); else if ((found = text.substr(at + line.length).match(/^[^\\s]+(\\s*)/))) line += found[0].substr(0, found[0].length - found[1].length); out += line; at += line.length; if (at < text.length) out += '\\r\\n'; } return out; };\nvar encodingFor = (text) => { var other = 0, letters = 0; for (var i = 0; i < text.length; i++) { var code = text.charCodeAt(i); if (code <= 8 || code === 11 || code === 12 || (code >= 14 && code <= 31) || code >= 128) other++; else if ((code >= 65 && code <= 90) || (code >= 97 && code <= 122)) letters++; } return other < letters ? 'Q' : 'B'; };\nvar splitQ = (text, size) => { var parts = [], part, whole, found, done; while (text.length) { part = text.substr(0, size); if ((found = part.match(/[=][0-9A-F]?$/i))) part = part.substr(0, found.index); whole = part.length ? part : text.substr(0, size); done = false; while (!done && part.length) { done = true; if ((found = text.substr(part.length).match(/^[=]([0-9A-F]{2})/i))) { var code = parseInt(found[1], 16); if (code < 194 && code > 127) { part = part.substr(0, part.length - 3); done = false; } } } if (!part.length) part = whole; parts.push(part); text = text.substr(part.length); } return parts; };\nvar encodedWord = (text) => { var type = encodingFor(text), out; if (type === 'Q') { out = quotedPrintable(bytesOf(text)).replace(/[^a-z0-9!*+\\-/=]/gi, (c) => c === ' ' ? '_' : '=' + hex(c.charCodeAt(0))); if (out.length > 40) out = splitQ(out, 40).join('?= =?UTF-8?Q?'); } else { var chunks = [], chunk = ''; for (var i = 0; i < text.length; i++) { var c = text.charAt(i); if (/[\\ud800-\\udbff]/.test(c) && /[\\udc00-\\udfff]/.test(text.charAt(i + 1))) c += text.charAt(++i); if (bytesOf(chunk + c).length <= 30 || i === 0) chunk += c; else { chunks.push(base64Of(bytesOf(chunk))); chunk = c; } } if (chunk) chunks.push(base64Of(bytesOf(chunk))); out = chunks.join('?= =?UTF-8?B?'); } return '=?UTF-8?' + type + '?' + out + (out.substr(-2) === '?=' ? '' : '?='); };\nvar headerText = (text) => /[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]/.test(text) || /(?:^|\\s)([^\\s]*[\"\\u0080-\\uFFFF])/.test(text) ? encodedWord(text) : text;\nvar addresses = (text) => {\n  var unreadable = () => { throw new Error('The address \"' + text + '\" is not one this step can write. Use name <address> or address.'); };\n  var list = /(\"[^\"]*\"|<[^>]*>|[^,\"<])+/g;\n  if (/[\\x00-\\x1f\\x7f\\\\;]/.test(text) || text.replace(list, '').replace(/,/g, '').trim()) unreadable();\n  var pieces = (text.match(list) || []).map((piece) => piece.trim()).filter((piece) => piece).map((piece) => {\n    var named = piece.match(/^(?:\"([^\"]*)\"|([^\"<>()[\\]:@]*?))\\s*<([^\\s\"(),:<>@[\\]\\u0080-\\uFFFF]+@[^\\s\"(),:<>@[\\]\\u0080-\\uFFFF]+)>$/);\n    if (named) { var name = (named[1] === undefined ? named[2] : named[1]).trim(); return {name: name === named[3] ? '' : name, address: named[3]}; }\n    if (/^[^\\s\"(),:<>@[\\]\\u0080-\\uFFFF]+@[^\\s\"(),:<>@[\\]\\u0080-\\uFFFF]+$/.test(piece)) return {name: '', address: piece};\n    if (/^[^\"<>()[\\]:@]+$/.test(piece)) return {name: piece, address: ''};\n    return unreadable();\n  });\n  var merged = [];\n  for (var i = pieces.length - 1; i >= 0; i--) { var next = merged[merged.length - 1]; if (next && pieces[i].address === '' && pieces[i].name && next.address && next.name) next.name = pieces[i].name + ', ' + next.name; else merged.push(pieces[i]); }\n  return merged.reverse().filter((item) => item.address).map((item) => {\n    var at = item.address.lastIndexOf('@'), local = item.address.substr(0, at), address = (/^[A-Za-z0-9!#$%&'*+\\-/=?^_`{|}~]+(?:\\.[A-Za-z0-9!#$%&'*+\\-/=?^_`{|}~]+)*$/.test(local) ? local : '\"' + local + '\"') + '@' + item.address.substr(at + 1).toLowerCase();\n    var name = item.name;\n    if (!name) return /^[^\\s\"(),:;<>@[\\\\\\]]+@[^\\s\"(),:;<>@[\\\\\\]]+$/.test(address) ? address : '<' + address + '>';\n    return (/^[\\w ]*$/.test(name) ? name : /^[\\x20-\\x7e]*$/.test(name) ? '\"' + name.replace(/[\"\\\\]/g, '\\\\$&') + '\"' : encodedWord(name)) + ' <' + address + '>';\n  }).join(', ');\n};\nvar angled = (text) => { text = text.replace(/\\r?\\n|\\r/g, ' ').replace(/[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]/g, ''); if (text.charAt(0) !== '<') text = '<' + text; if (text.charAt(text.length - 1) !== '>') text += '>'; return text; };\nvar valueOf = (key, value) => ['From', 'To', 'Cc', 'Bcc', 'Reply-To'].includes(key) ? addresses(value) : key === 'In-Reply-To' ? angled(value) : key === 'References' ? value.replace(/\\r?\\n|\\r/g, ' ').replace(/[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]/g, '').trim().replace(/<[^>]*>/g, (id) => id.replace(/\\s/g, '')).split(/\\s+/).map(angled).join(' ').trim() : headerText(value.replace(/\\r?\\n|\\r/g, ' '));\nvar headerLines = (headers) => headers.map((header) => [header[0], header[2] ? header[1] : valueOf(header[0], header[1])]).filter((header) => header[1].trim()).map((header) => folded(header[0] + ': ' + header[1])).join('\\r\\n');\nvar textPart = (content, type) => {\n  var plain = !/[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\u0080-\\uFFFF]/.test(content) && !(content.length > 128 * 1024 || /^.{77,}/m.test(content));\n  var encoding = plain ? '7bit' : encodingFor(content) === 'Q' ? 'quoted-printable' : 'base64';\n  var body = plain ? content : encoding === 'base64' ? wrapped(base64Of(bytesOf(content))) : quotedLines(quotedPrintable(bytesOf(content)));\n  return {headers: [['Content-Type', type + '; charset=utf-8', true], ['Content-Transfer-Encoding', encoding, true]], body: body};\n};\nvar attachmentPart = (file, index) => {\n  var name = file.name || 'attachment-' + (index + 1) + '.' + (file.type === 'application/octet-stream' ? '*' : Object.keys(types).find((key) => types[key] === file.type) || 'bin');\n  if (/[\\x00-\\x1f\\x7f\"\\u0080-\\uFFFF]/.test(name) || name.length >= 75) throw new Error('The attachment name \"' + name + '\" is not one this step can write. Use a short plain name, such as report.pdf.');\n  var quoted = /[\\s'\"\\\\;:/=(),<>@[\\]?]|^-/.test(name) ? JSON.stringify(name) : name;\n  return {headers: [['Content-Type', file.type + '; name=' + quoted, true], ['Content-Transfer-Encoding', 'base64', true], ['Content-Disposition', 'attachment; filename=' + quoted, true]], body: wrapped(file.base64)};\n};\nvar raw = (mail) => {\n  var files = mail.attachments || [];\n  var text = mail.text !== undefined ? textPart(mail.text, 'text/plain') : textPart(mail.html, 'text/html');\n  var boundary = '--_NmP-' + Array.from({length: 16}, () => Math.floor(Math.random() * 16).toString(16)).join('') + '-Part_1';\n  var top = files.length ? [['Content-Type', 'multipart/mixed; boundary=\"' + boundary + '\"', true]] : [text.headers[0]];\n  var sender = (mail.from || '').split('@').pop().replace(/>.*/, '') || 'localhost';\n  var headers = top.slice(1).concat(mail.headers || [], [['From', mail.from], ['To', mail.to], ['Cc', mail.cc], ['Bcc', mail.bcc], ['Reply-To', mail.replyTo], ['Subject', mail.subject]].filter((header) => header[1]),\n    [['Message-ID', '<' + Math.random().toString(16).slice(2) + '@' + sender + '>', true]], files.length ? [] : [text.headers[1]], [['Date', new Date().toUTCString().replace(/GMT/, '+0000'), true], ['MIME-Version', '1.0', true]], [top[0]]);\n  var message = headerLines(headers) + '\\r\\n\\r\\n' + (files.length\n    ? [text].concat(files.map(attachmentPart)).map((part) => '--' + boundary + '\\r\\n' + headerLines(part.headers) + '\\r\\n\\r\\n' + part.body).join('\\r\\n') + '\\r\\n--' + boundary + '--\\r\\n'\n    : text.body + (/\\n$/.test(text.body) ? '' : /\\r$/.test(text.body) ? '\\n' : '\\r\\n'));\n  return base64Of(bytesOf(message)).replace(/\\+/g, '-').replace(/\\//g, '_');\n};\nvar types = {json: 'application/json', map: 'application/json', xml: 'application/xml', js: 'application/javascript', mjs: 'application/javascript', pdf: 'application/pdf', zip: 'application/zip', gz: 'application/gzip', bin: 'application/octet-stream', dat: 'application/octet-stream', doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', ppt: 'application/vnd.ms-powerpoint', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', csv: 'text/csv', rtf: 'application/rtf', tar: 'application/x-tar', '7z': 'application/x-7z-compressed', wasm: 'application/wasm', txt: 'text/plain', text: 'text/plain', log: 'text/plain', html: 'text/html', htm: 'text/html', css: 'text/css', md: 'text/markdown', markdown: 'text/markdown', yaml: 'text/yaml', yml: 'text/yaml', png: 'image/png', jpeg: 'image/jpeg', jpg: 'image/jpeg', jpe: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml', svgz: 'image/svg+xml', bmp: 'image/bmp', tiff: 'image/tiff', tif: 'image/tiff', ico: 'image/x-icon', heic: 'image/heic', avif: 'image/avif', mpga: 'audio/mpeg', mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', oga: 'audio/ogg', weba: 'audio/webm', m4a: 'audio/mp4', mp4: 'video/mp4', m4v: 'video/mp4', mpeg: 'video/mpeg', mpg: 'video/mpeg', webm: 'video/webm', mov: 'video/quicktime', qt: 'video/quicktime', avi: 'video/x-msvideo', woff: 'font/woff', woff2: 'font/woff2', ttf: 'font/ttf', otf: 'font/otf', jsonld: 'application/ld+json', webmanifest: 'application/manifest+json', ics: 'text/calendar', ifb: 'text/calendar', ndjson: 'application/x-ndjson'};\nvar attached = (file, name, base64) => { var type = types[file.split('.').pop().toLowerCase()]; if (!type) throw new Error('The attachment ' + file + ' is not a type this step can send. Use a file such as .pdf, .docx, .xlsx, .csv, .txt, .png, .jpg or .zip.'); return {name: name || file, type: type, base64: base64}; };\nvar attachedFile = () => inputs.attachment ? [attached(inputs.attachment, inputs.attachment_name, request.body && request.body.attachment)] : [];\nvar list = (text) => { var value = text ? JSON.parse(text) : []; return Array.isArray(value) ? value : [value]; };\nvar given = (text) => list(text).filter((item) => item !== '');\nvar joined = (items) => items.length > 0 ? items.join(', ') : undefined;\nvar encodedSubject = (text) => '=?UTF-8?B?' + base64Of(bytesOf(text)) + '?=';\nvar email = () => call({headers: apiClient, method: 'GET', url: 'https://www.googleapis.com/oauth2/v2/userinfo'}).email;\nvar signed = (address) => address ? (inputs.sender_name ? inputs.sender_name + ' <' + address + '>' : address) : undefined;\nvar headerMap = (message) => (message.payload.headers || []).reduce((all, item) => { if (item.name && item.value) all[item.name.toLowerCase()] = item.value; return all; }, {});\nrequest.body = {message: Object.assign({raw: raw({\n  from: signed(inputs.from || email()), to: joined(given(inputs.receiver)), cc: joined(given(inputs.cc)), bcc: joined(given(inputs.bcc)), subject: encodedSubject(inputs.subject),\n  text: inputs.body_type === 'plain_text' ? inputs.body : undefined, html: inputs.body_type === 'html' ? inputs.body : undefined,\n  attachments: attachedFile()\n})}, inputs.thread_id ? {threadId: inputs.thread_id} : {})};\nreturn request;"
+    },
+    "send_email": {
+      "label": "Send Email",
+      "description": "Send an email through a Gmail account",
+      "inputs": {
+        "receiver": {
+          "label": "To",
+          "description": "A JSON list, such as [\"ann@example.com\"].",
+          "type": "json",
+          "required": true
+        },
+        "cc": {
+          "label": "Cc",
+          "description": "A JSON list, such as [\"ann@example.com\"].",
+          "type": "json"
+        },
+        "bcc": {
+          "label": "Bcc",
+          "description": "A JSON list, such as [\"ann@example.com\"].",
+          "type": "json"
+        },
+        "reply_to": {
+          "label": "Reply To",
+          "description": "Replies go to these addresses instead of the sender. A JSON list, such as [\"ann@example.com\"].",
+          "type": "json"
+        },
+        "subject": {
+          "label": "Subject",
+          "required": true
+        },
+        "body_type": {
+          "label": "Body Type",
+          "description": "How the text in Body is interpreted.",
+          "type": "select",
+          "required": true,
+          "defaultValue": "plain_text",
+          "options": [
+            {
+              "value": "plain_text",
+              "label": "Plain Text"
+            },
+            {
+              "value": "html",
+              "label": "HTML"
+            }
+          ]
+        },
+        "body": {
+          "label": "Body",
+          "type": "multiline",
+          "required": true
+        },
+        "sender_name": {
+          "label": "Sender Name",
+          "description": "Name shown in the inbox instead of your address."
+        },
+        "from": {
+          "label": "From",
+          "description": "A send-as address already set up in your Gmail settings."
+        },
+        "attachment": {
+          "label": "Attachment",
+          "description": "File to attach.",
+          "type": "file"
+        },
+        "attachment_name": {
+          "label": "Attachment Name",
+          "description": "Overrides the file name, such as report.pdf."
+        },
+        "in_reply_to": {
+          "label": "In Reply To",
+          "description": "Message-ID header of the email to thread this under."
+        },
+        "draft": {
+          "label": "Save as Draft",
+          "description": "Save to Drafts instead of sending.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        },
+        "body": {
+          "attachment": "{{attachment}}"
+        }
+      },
+      "outputs": {
+        "messageId": "$.data.id",
+        "threadId": "$.data.threadId",
+        "labelIds": "$.data.labelIds"
+      },
+      "beforeRequest": "var apiClient = {'x-goog-api-client': 'gdcl/8.0.2 gl-node/26.4.0'};\nvar bytesOf = (text) => unescape(encodeURIComponent(text));\nvar base64Of = (bytes) => { var table = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/', out = ''; for (var i = 0; i < bytes.length; i += 3) { var a = bytes.charCodeAt(i), b = bytes.charCodeAt(i + 1), c = bytes.charCodeAt(i + 2), n = (a << 16) | ((b || 0) << 8) | (c || 0); out += table[n >> 18] + table[(n >> 12) & 63] + (i + 1 < bytes.length ? table[(n >> 6) & 63] : '=') + (i + 2 < bytes.length ? table[n & 63] : '='); } return out; };\nvar wrapped = (text) => text.replace(/.{76}(?!$)/g, '$&\\r\\n');\nvar hex = (code) => (code < 16 ? '0' : '') + code.toString(16).toUpperCase();\nvar quotedPrintable = (bytes) => { var out = ''; for (var i = 0; i < bytes.length; i++) { var code = bytes.charCodeAt(i), last = i === bytes.length - 1 || bytes.charCodeAt(i + 1) === 10 || bytes.charCodeAt(i + 1) === 13; out += (code === 9 || code === 10 || code === 13 || (code >= 32 && code <= 126 && code !== 61)) && !((code === 32 || code === 9) && last) ? bytes[i] : '=' + hex(code); } return out; };\nvar quotedLines = (text) => { var size = 76, third = Math.floor(size / 3), at = 0, out = '', found, line; if (text.length <= size) return text; while (at < text.length) { line = text.substr(at, size); if ((found = line.match(/\\r\\n/))) { line = line.substr(0, found.index + 2); out += line; at += line.length; continue; } if (line.substr(-1) === '\\n') { out += line; at += line.length; continue; } if ((found = line.substr(-third).match(/\\n.*?$/))) { line = line.substr(0, line.length - (found[0].length - 1)); out += line; at += line.length; continue; } if (line.length > size - third && (found = line.substr(-third).match(/[ \\t.,!?][^ \\t.,!?]*$/))) line = line.substr(0, line.length - (found[0].length - 1)); else if (/[=][\\da-f]{0,2}$/i.test(line)) { if ((found = line.match(/[=][\\da-f]{0,1}$/i))) line = line.substr(0, line.length - found[0].length); while (line.length > 3 && line.length < text.length - at && !/^(?:=[\\da-f]{2}){1,4}$/i.test(line) && (found = line.match(/[=][\\da-f]{2}$/gi))) { var code = parseInt(found[0].substr(1, 2), 16); if (code < 128) break; line = line.substr(0, line.length - 3); if (code >= 192) break; } } if (at + line.length < text.length && line.substr(-1) !== '\\n') { if (line.length === size && /[=][\\da-f]{2}$/i.test(line)) line = line.substr(0, line.length - 3); else if (line.length === size) line = line.substr(0, line.length - 1); at += line.length; line += '=\\r\\n'; } else at += line.length; out += line; } return out; };\nvar folded = (text) => { var at = 0, out = '', line, found; while (at < text.length) { line = text.substr(at, 76); if (line.length < 76) { out += line; break; } if ((found = line.match(/^[^\\n\\r]*(\\r?\\n|\\r)/))) { out += found[0]; at += found[0].length; continue; } if ((found = line.match(/(\\s+)[^\\s]*$/)) && found[0].length < line.length) line = line.substr(0, line.length - found[0].length); else if ((found = text.substr(at + line.length).match(/^[^\\s]+(\\s*)/))) line += found[0].substr(0, found[0].length - found[1].length); out += line; at += line.length; if (at < text.length) out += '\\r\\n'; } return out; };\nvar encodingFor = (text) => { var other = 0, letters = 0; for (var i = 0; i < text.length; i++) { var code = text.charCodeAt(i); if (code <= 8 || code === 11 || code === 12 || (code >= 14 && code <= 31) || code >= 128) other++; else if ((code >= 65 && code <= 90) || (code >= 97 && code <= 122)) letters++; } return other < letters ? 'Q' : 'B'; };\nvar splitQ = (text, size) => { var parts = [], part, whole, found, done; while (text.length) { part = text.substr(0, size); if ((found = part.match(/[=][0-9A-F]?$/i))) part = part.substr(0, found.index); whole = part.length ? part : text.substr(0, size); done = false; while (!done && part.length) { done = true; if ((found = text.substr(part.length).match(/^[=]([0-9A-F]{2})/i))) { var code = parseInt(found[1], 16); if (code < 194 && code > 127) { part = part.substr(0, part.length - 3); done = false; } } } if (!part.length) part = whole; parts.push(part); text = text.substr(part.length); } return parts; };\nvar encodedWord = (text) => { var type = encodingFor(text), out; if (type === 'Q') { out = quotedPrintable(bytesOf(text)).replace(/[^a-z0-9!*+\\-/=]/gi, (c) => c === ' ' ? '_' : '=' + hex(c.charCodeAt(0))); if (out.length > 40) out = splitQ(out, 40).join('?= =?UTF-8?Q?'); } else { var chunks = [], chunk = ''; for (var i = 0; i < text.length; i++) { var c = text.charAt(i); if (/[\\ud800-\\udbff]/.test(c) && /[\\udc00-\\udfff]/.test(text.charAt(i + 1))) c += text.charAt(++i); if (bytesOf(chunk + c).length <= 30 || i === 0) chunk += c; else { chunks.push(base64Of(bytesOf(chunk))); chunk = c; } } if (chunk) chunks.push(base64Of(bytesOf(chunk))); out = chunks.join('?= =?UTF-8?B?'); } return '=?UTF-8?' + type + '?' + out + (out.substr(-2) === '?=' ? '' : '?='); };\nvar headerText = (text) => /[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]/.test(text) || /(?:^|\\s)([^\\s]*[\"\\u0080-\\uFFFF])/.test(text) ? encodedWord(text) : text;\nvar addresses = (text) => {\n  var unreadable = () => { throw new Error('The address \"' + text + '\" is not one this step can write. Use name <address> or address.'); };\n  var list = /(\"[^\"]*\"|<[^>]*>|[^,\"<])+/g;\n  if (/[\\x00-\\x1f\\x7f\\\\;]/.test(text) || text.replace(list, '').replace(/,/g, '').trim()) unreadable();\n  var pieces = (text.match(list) || []).map((piece) => piece.trim()).filter((piece) => piece).map((piece) => {\n    var named = piece.match(/^(?:\"([^\"]*)\"|([^\"<>()[\\]:@]*?))\\s*<([^\\s\"(),:<>@[\\]\\u0080-\\uFFFF]+@[^\\s\"(),:<>@[\\]\\u0080-\\uFFFF]+)>$/);\n    if (named) { var name = (named[1] === undefined ? named[2] : named[1]).trim(); return {name: name === named[3] ? '' : name, address: named[3]}; }\n    if (/^[^\\s\"(),:<>@[\\]\\u0080-\\uFFFF]+@[^\\s\"(),:<>@[\\]\\u0080-\\uFFFF]+$/.test(piece)) return {name: '', address: piece};\n    if (/^[^\"<>()[\\]:@]+$/.test(piece)) return {name: piece, address: ''};\n    return unreadable();\n  });\n  var merged = [];\n  for (var i = pieces.length - 1; i >= 0; i--) { var next = merged[merged.length - 1]; if (next && pieces[i].address === '' && pieces[i].name && next.address && next.name) next.name = pieces[i].name + ', ' + next.name; else merged.push(pieces[i]); }\n  return merged.reverse().filter((item) => item.address).map((item) => {\n    var at = item.address.lastIndexOf('@'), local = item.address.substr(0, at), address = (/^[A-Za-z0-9!#$%&'*+\\-/=?^_`{|}~]+(?:\\.[A-Za-z0-9!#$%&'*+\\-/=?^_`{|}~]+)*$/.test(local) ? local : '\"' + local + '\"') + '@' + item.address.substr(at + 1).toLowerCase();\n    var name = item.name;\n    if (!name) return /^[^\\s\"(),:;<>@[\\\\\\]]+@[^\\s\"(),:;<>@[\\\\\\]]+$/.test(address) ? address : '<' + address + '>';\n    return (/^[\\w ]*$/.test(name) ? name : /^[\\x20-\\x7e]*$/.test(name) ? '\"' + name.replace(/[\"\\\\]/g, '\\\\$&') + '\"' : encodedWord(name)) + ' <' + address + '>';\n  }).join(', ');\n};\nvar angled = (text) => { text = text.replace(/\\r?\\n|\\r/g, ' ').replace(/[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]/g, ''); if (text.charAt(0) !== '<') text = '<' + text; if (text.charAt(text.length - 1) !== '>') text += '>'; return text; };\nvar valueOf = (key, value) => ['From', 'To', 'Cc', 'Bcc', 'Reply-To'].includes(key) ? addresses(value) : key === 'In-Reply-To' ? angled(value) : key === 'References' ? value.replace(/\\r?\\n|\\r/g, ' ').replace(/[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]/g, '').trim().replace(/<[^>]*>/g, (id) => id.replace(/\\s/g, '')).split(/\\s+/).map(angled).join(' ').trim() : headerText(value.replace(/\\r?\\n|\\r/g, ' '));\nvar headerLines = (headers) => headers.map((header) => [header[0], header[2] ? header[1] : valueOf(header[0], header[1])]).filter((header) => header[1].trim()).map((header) => folded(header[0] + ': ' + header[1])).join('\\r\\n');\nvar textPart = (content, type) => {\n  var plain = !/[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\u0080-\\uFFFF]/.test(content) && !(content.length > 128 * 1024 || /^.{77,}/m.test(content));\n  var encoding = plain ? '7bit' : encodingFor(content) === 'Q' ? 'quoted-printable' : 'base64';\n  var body = plain ? content : encoding === 'base64' ? wrapped(base64Of(bytesOf(content))) : quotedLines(quotedPrintable(bytesOf(content)));\n  return {headers: [['Content-Type', type + '; charset=utf-8', true], ['Content-Transfer-Encoding', encoding, true]], body: body};\n};\nvar attachmentPart = (file, index) => {\n  var name = file.name || 'attachment-' + (index + 1) + '.' + (file.type === 'application/octet-stream' ? '*' : Object.keys(types).find((key) => types[key] === file.type) || 'bin');\n  if (/[\\x00-\\x1f\\x7f\"\\u0080-\\uFFFF]/.test(name) || name.length >= 75) throw new Error('The attachment name \"' + name + '\" is not one this step can write. Use a short plain name, such as report.pdf.');\n  var quoted = /[\\s'\"\\\\;:/=(),<>@[\\]?]|^-/.test(name) ? JSON.stringify(name) : name;\n  return {headers: [['Content-Type', file.type + '; name=' + quoted, true], ['Content-Transfer-Encoding', 'base64', true], ['Content-Disposition', 'attachment; filename=' + quoted, true]], body: wrapped(file.base64)};\n};\nvar raw = (mail) => {\n  var files = mail.attachments || [];\n  var text = mail.text !== undefined ? textPart(mail.text, 'text/plain') : textPart(mail.html, 'text/html');\n  var boundary = '--_NmP-' + Array.from({length: 16}, () => Math.floor(Math.random() * 16).toString(16)).join('') + '-Part_1';\n  var top = files.length ? [['Content-Type', 'multipart/mixed; boundary=\"' + boundary + '\"', true]] : [text.headers[0]];\n  var sender = (mail.from || '').split('@').pop().replace(/>.*/, '') || 'localhost';\n  var headers = top.slice(1).concat(mail.headers || [], [['From', mail.from], ['To', mail.to], ['Cc', mail.cc], ['Bcc', mail.bcc], ['Reply-To', mail.replyTo], ['Subject', mail.subject]].filter((header) => header[1]),\n    [['Message-ID', '<' + Math.random().toString(16).slice(2) + '@' + sender + '>', true]], files.length ? [] : [text.headers[1]], [['Date', new Date().toUTCString().replace(/GMT/, '+0000'), true], ['MIME-Version', '1.0', true]], [top[0]]);\n  var message = headerLines(headers) + '\\r\\n\\r\\n' + (files.length\n    ? [text].concat(files.map(attachmentPart)).map((part) => '--' + boundary + '\\r\\n' + headerLines(part.headers) + '\\r\\n\\r\\n' + part.body).join('\\r\\n') + '\\r\\n--' + boundary + '--\\r\\n'\n    : text.body + (/\\n$/.test(text.body) ? '' : /\\r$/.test(text.body) ? '\\n' : '\\r\\n'));\n  return base64Of(bytesOf(message)).replace(/\\+/g, '-').replace(/\\//g, '_');\n};\nvar types = {json: 'application/json', map: 'application/json', xml: 'application/xml', js: 'application/javascript', mjs: 'application/javascript', pdf: 'application/pdf', zip: 'application/zip', gz: 'application/gzip', bin: 'application/octet-stream', dat: 'application/octet-stream', doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', ppt: 'application/vnd.ms-powerpoint', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', csv: 'text/csv', rtf: 'application/rtf', tar: 'application/x-tar', '7z': 'application/x-7z-compressed', wasm: 'application/wasm', txt: 'text/plain', text: 'text/plain', log: 'text/plain', html: 'text/html', htm: 'text/html', css: 'text/css', md: 'text/markdown', markdown: 'text/markdown', yaml: 'text/yaml', yml: 'text/yaml', png: 'image/png', jpeg: 'image/jpeg', jpg: 'image/jpeg', jpe: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml', svgz: 'image/svg+xml', bmp: 'image/bmp', tiff: 'image/tiff', tif: 'image/tiff', ico: 'image/x-icon', heic: 'image/heic', avif: 'image/avif', mpga: 'audio/mpeg', mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', oga: 'audio/ogg', weba: 'audio/webm', m4a: 'audio/mp4', mp4: 'video/mp4', m4v: 'video/mp4', mpeg: 'video/mpeg', mpg: 'video/mpeg', webm: 'video/webm', mov: 'video/quicktime', qt: 'video/quicktime', avi: 'video/x-msvideo', woff: 'font/woff', woff2: 'font/woff2', ttf: 'font/ttf', otf: 'font/otf', jsonld: 'application/ld+json', webmanifest: 'application/manifest+json', ics: 'text/calendar', ifb: 'text/calendar', ndjson: 'application/x-ndjson'};\nvar attached = (file, name, base64) => { var type = types[file.split('.').pop().toLowerCase()]; if (!type) throw new Error('The attachment ' + file + ' is not a type this step can send. Use a file such as .pdf, .docx, .xlsx, .csv, .txt, .png, .jpg or .zip.'); return {name: name || file, type: type, base64: base64}; };\nvar attachedFile = () => inputs.attachment ? [attached(inputs.attachment, inputs.attachment_name, request.body && request.body.attachment)] : [];\nvar list = (text) => { var value = text ? JSON.parse(text) : []; return Array.isArray(value) ? value : [value]; };\nvar given = (text) => list(text).filter((item) => item !== '');\nvar joined = (items) => items.length > 0 ? items.join(', ') : undefined;\nvar encodedSubject = (text) => '=?UTF-8?B?' + base64Of(bytesOf(text)) + '?=';\nvar email = () => call({headers: apiClient, method: 'GET', url: 'https://www.googleapis.com/oauth2/v2/userinfo'}).email;\nvar signed = (address) => address ? (inputs.sender_name ? inputs.sender_name + ' <' + address + '>' : address) : undefined;\nvar headerMap = (message) => (message.payload.headers || []).reduce((all, item) => { if (item.name && item.value) all[item.name.toLowerCase()] = item.value; return all; }, {});\nvar threadId = inputs.in_reply_to ? ((call({headers: apiClient, method: 'GET', url: '/users/me/messages', query: {q: 'Rfc822msgid:' + inputs.in_reply_to}}).messages || [])[0] || {}).threadId : undefined;\nvar message = Object.assign(threadId ? {threadId: threadId} : {}, {raw: raw({\n  from: signed(inputs.from || email()), to: joined(given(inputs.receiver)), cc: joined(given(inputs.cc)), bcc: joined(given(inputs.bcc)), replyTo: joined(given(inputs.reply_to)), subject: encodedSubject(inputs.subject),\n  text: inputs.body_type === 'plain_text' ? inputs.body : undefined, html: inputs.body_type === 'html' ? inputs.body : undefined,\n  headers: inputs.in_reply_to ? [['References', inputs.in_reply_to], ['In-Reply-To', inputs.in_reply_to]] : [],\n  attachments: attachedFile()\n})});\nif (inputs.draft === 'true') { request.url = 'https://gmail.googleapis.com/gmail/v1/users/me/drafts'; request.body = {message: message}; } else request.body = message;\nreturn request;",
+      "afterResponse": "return {size: 0, data: response, config: {url: request.url, method: 'POST', apiVersion: '', userAgentDirectives: [{product: 'google-api-nodejs-client', version: '8.0.2', comment: 'gzip'}], data: request.body, headers: {}, retry: true, body: JSON.stringify(request.body), responseType: 'unknown', duplex: 'half'}, headers: {}};"
+    }
+  },
+  "triggers": {
+    "new_label": {
+      "label": "New Label",
+      "description": "Triggers when a new label is created in Gmail.",
+      "request": {
+        "method": "GET",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/labels",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "newBy": "unseen",
+      "afterResponse": "var labels = response.labels || [];\nmemory.labels = JSON.stringify(labels.map((label) => label.id));\nreturn labels;"
+    }
+  }
+}

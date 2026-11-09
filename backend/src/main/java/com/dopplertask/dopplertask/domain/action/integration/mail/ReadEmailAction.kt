@@ -17,9 +17,8 @@ import jakarta.mail.AuthenticationFailedException
 import jakarta.mail.Flags
 import jakarta.mail.Folder
 import jakarta.mail.MessagingException
-import jakarta.mail.Multipart
-import jakarta.mail.Part
 import jakarta.mail.Session
+import jakarta.mail.internet.MimeMessage
 import jakarta.mail.search.FlagTerm
 import java.io.IOException
 import jakarta.persistence.Column
@@ -102,11 +101,13 @@ class ReadEmailAction : Action() {
                     val found = if (read(onlyUnread) == "true") box.search(FlagTerm(Flags(Flags.Flag.SEEN), false)) else box.messages
                     val newestFirst = found.reversed().take(limit)
                     val messages = newestFirst.map { message ->
+                        val email = Emails.read(message as MimeMessage, withAttachments = false)
+                        // A mail often holds both text and HTML, and the next step wants the text.
                         mapOf(
-                            "from" to message.from?.firstOrNull()?.toString(),
-                            "subject" to message.subject,
-                            "date" to message.sentDate?.toInstant()?.toString(),
-                            "text" to plainTextOf(message)
+                            "from" to email.path("from").path("text").asText(null),
+                            "subject" to email.path("subject").asText(null),
+                            "date" to email.path("date").asText(null),
+                            "text" to (email.path("text").takeIf { it.isTextual } ?: email.path("html").takeIf { it.isTextual })?.asText()
                         )
                     }
                     if (markValue) newestFirst.forEach { it.setFlag(Flags.Flag.SEEN, true) }
@@ -127,17 +128,6 @@ class ReadEmailAction : Action() {
                 else -> ActionResult.failure("The mail server answered: ${e.message?.trim()}")
             }
         }
-    }
-
-    // A mail often holds both text and HTML, and the next step wants the text.
-    private fun plainTextOf(part: Part): String? {
-        if (part.isMimeType("text/plain")) return part.content as String
-        if (part.isMimeType("multipart/*")) {
-            val parts = part.content as Multipart
-            val texts = (0 until parts.count).map { parts.getBodyPart(it) }
-            return texts.firstNotNullOfOrNull { plainTextOf(it) } ?: texts.firstOrNull { it.isMimeType("text/html") }?.content as String?
-        }
-        return if (part.isMimeType("text/html")) part.content as String else null
     }
 
     override val outputs: Map<String, String>

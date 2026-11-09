@@ -1,0 +1,2505 @@
+{
+  "name": "hubspot",
+  "label": "HubSpot",
+  "description": "Powerful CRM that offers tools for sales, customer service, and marketing automation.",
+  "icon": "hubSpot",
+  "hosts": [
+    "api.hubapi.com"
+  ],
+  "baseUrl": "https://api.hubapi.com",
+  "upstream": {
+    "package": "@activepieces/piece-hubspot",
+    "version": "0.13.2"
+  },
+  "credential": {
+    "oauth2": {
+      "authUrl": "https://app.hubspot.com/oauth/authorize",
+      "tokenUrl": "https://api.hubapi.com/oauth/v1/token",
+      "scope": "crm.lists.read crm.lists.write crm.objects.companies.read crm.objects.companies.write crm.objects.contacts.read crm.objects.contacts.write crm.objects.custom.read crm.objects.custom.write crm.objects.deals.read crm.objects.deals.write crm.objects.line_items.read crm.objects.owners.read crm.objects.leads.read crm.objects.leads.write crm.schemas.companies.read crm.schemas.contacts.read crm.schemas.custom.read crm.schemas.deals.read crm.schemas.line_items.read automation e-commerce tickets content settings.currencies.read settings.users.read settings.users.teams.read files forms scheduler.meetings.meeting-link.read"
+    }
+  },
+  "lists": {
+    "deal_pipelines": {
+      "request": {
+        "url": "https://api.hubapi.com/crm/v3/pipelines/deals"
+      },
+      "items": "$.results",
+      "label": "$.label"
+    },
+    "deal_pipeline_stages": {
+      "request": {
+        "url": "https://api.hubapi.com/crm/v3/pipelines/deals/{{pipelineId}}/stages"
+      },
+      "items": "$.results",
+      "label": "$.label"
+    },
+    "ticket_pipelines": {
+      "request": {
+        "url": "https://api.hubapi.com/crm/v3/pipelines/tickets"
+      },
+      "items": "$.results",
+      "label": "$.label"
+    },
+    "ticket_pipeline_stages": {
+      "request": {
+        "url": "https://api.hubapi.com/crm/v3/pipelines/tickets/{{pipelineId}}/stages"
+      },
+      "items": "$.results",
+      "label": "$.label"
+    },
+    "products": {
+      "request": {
+        "url": "https://api.hubapi.com/crm/v3/objects/products",
+        "query": {
+          "properties": "name",
+          "limit": "100"
+        }
+      },
+      "items": "$.results",
+      "label": "$.properties.name"
+    },
+    "custom_object_types": {
+      "request": {
+        "url": "https://api.hubapi.com/crm/v3/schemas"
+      },
+      "items": "$.results",
+      "label": "$.labels.plural",
+      "value": "$.objectTypeId"
+    },
+    "static_lists": {
+      "request": {
+        "url": "https://api.hubapi.com/contacts/v1/lists/static",
+        "query": {
+          "count": "100"
+        }
+      },
+      "items": "$.lists",
+      "value": "$.listId"
+    },
+    "association_types": {
+      "request": {
+        "url": "https://api.hubapi.com/crm/v4/associations/{{fromObjectType}}/{{toObjectType}}/labels"
+      },
+      "items": "$.results",
+      "label": "$.label",
+      "value": "$.typeId"
+    },
+    "content_groups": {
+      "request": {
+        "url": "https://api.hubapi.com/content/api/v2/blogs",
+        "query": {
+          "limit": "100"
+        }
+      },
+      "items": "$.objects",
+      "label": "$.absolute_url"
+    },
+    "authors": {
+      "request": {
+        "url": "https://api.hubapi.com/cms/v3/blogs/authors",
+        "query": {
+          "limit": "100"
+        }
+      },
+      "items": "$.results"
+    },
+    "forms": {
+      "request": {
+        "url": "https://api.hubapi.com/marketing/v3/forms",
+        "query": {
+          "limit": "100"
+        }
+      },
+      "items": "$.results"
+    },
+    "contact_lists": {
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/lists/search",
+        "body": {
+          "count": 100,
+          "offset": 0
+        }
+      },
+      "items": "$.lists",
+      "value": "$.listId"
+    },
+    "workflows": {
+      "request": {
+        "url": "https://api.hubapi.com/automation/v2/workflows"
+      },
+      "items": "$.workflows"
+    }
+  },
+  "actions": {
+    "create-company": {
+      "label": "Create Company",
+      "description": "Creates a company in HubSpot.",
+      "group": "Companies",
+      "inputs": {
+        "objectProperties": {
+          "label": "Object Properties",
+          "type": "json",
+          "description": "The properties to set, as a JSON object such as {\"firstname\": \"Ada\"}. A list becomes values joined with ;."
+        },
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get besides the usual ones, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/companies"
+      },
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const parsed = (text) => { if (text == null || text === '') return undefined; try { return JSON.parse(text); } catch (e) { return text; } };\nconst propertiesOf = (text, skipEmpty) => { const properties = {}; Object.entries(parsed(text) ?? {}).forEach(([key, value]) => { if (skipEmpty && Array.isArray(value) && value.length === 0) return; properties[key] = Array.isArray(value) ? value.join(';') : value; }); return properties; };\nrequest.body = {properties: Object.assign({}, propertiesOf(inputs.objectProperties))};\nreturn request;",
+      "afterResponse": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nreturn call({method: 'GET', url: '/crm/v3/objects/companies/' + encodeURIComponent(response.id), query: {properties: 'name,domain,industry,about_us,phone,address,address2,city,state,zip,country,website,type,description,founded_year,hs_createdate,hs_lastmodifieddate,hs_object_id,is_public,timezone,total_money_raised,total_revenue,owneremail,ownername,numberofemployees,annualrevenue,lifecyclestage,createdate,web_technologies'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)).join(',')}});"
+    },
+    "get-company": {
+      "label": "Get Company",
+      "description": "Gets a company by its ID.",
+      "group": "Companies",
+      "inputs": {
+        "companyId": {
+          "label": "Company ID",
+          "required": true,
+          "description": "The ID of the company to get."
+        },
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get besides the usual ones, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "url": "https://api.hubapi.com/crm/v3/objects/companies/{{companyId}}"
+      },
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nrequest.query.properties = 'name,domain,industry,about_us,phone,address,address2,city,state,zip,country,website,type,description,founded_year,hs_createdate,hs_lastmodifieddate,hs_object_id,is_public,timezone,total_money_raised,total_revenue,owneremail,ownername,numberofemployees,annualrevenue,lifecyclestage,createdate,web_technologies'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)).join(',');\nreturn request;"
+    },
+    "update-company": {
+      "label": "Update Company",
+      "description": "Updates a company in HubSpot.",
+      "group": "Companies",
+      "inputs": {
+        "companyId": {
+          "label": "Company ID",
+          "required": true,
+          "description": "The ID of the company to update."
+        },
+        "objectProperties": {
+          "label": "Object Properties",
+          "type": "json",
+          "description": "The properties to set, as a JSON object such as {\"firstname\": \"Ada\"}. A list becomes values joined with ;."
+        },
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get besides the usual ones, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://api.hubapi.com/crm/v3/objects/companies/{{companyId}}"
+      },
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const parsed = (text) => { if (text == null || text === '') return undefined; try { return JSON.parse(text); } catch (e) { return text; } };\nconst propertiesOf = (text, skipEmpty) => { const properties = {}; Object.entries(parsed(text) ?? {}).forEach(([key, value]) => { if (skipEmpty && Array.isArray(value) && value.length === 0) return; properties[key] = Array.isArray(value) ? value.join(';') : value; }); return properties; };\nconst properties = {};\nrequest.body = {properties: Object.assign(properties, propertiesOf(inputs.objectProperties, true))};\nreturn request;",
+      "afterResponse": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nreturn call({method: 'GET', url: '/crm/v3/objects/companies/' + encodeURIComponent(response.id), query: {properties: 'name,domain,industry,about_us,phone,address,address2,city,state,zip,country,website,type,description,founded_year,hs_createdate,hs_lastmodifieddate,hs_object_id,is_public,timezone,total_money_raised,total_revenue,owneremail,ownername,numberofemployees,annualrevenue,lifecyclestage,createdate,web_technologies'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)).join(',')}});"
+    },
+    "find-company": {
+      "label": "Find Company",
+      "description": "Finds up to 200 companies matching one or two property values.",
+      "group": "Companies",
+      "inputs": {
+        "firstSearchPropertyName": {
+          "label": "Search Property",
+          "required": true,
+          "description": "The property to compare, such as the company domain."
+        },
+        "firstSearchPropertyValue": {
+          "label": "Search Value",
+          "required": true,
+          "description": "Only exact matches are returned."
+        },
+        "secondSearchPropertyName": {
+          "label": "Second Search Property",
+          "description": "Optional second condition; records must match both."
+        },
+        "secondSearchPropertyValue": {
+          "label": "Second Search Value",
+          "description": "Ignored unless a second property is also chosen."
+        },
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get besides the usual ones, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/companies/search"
+      },
+      "beforeRequest": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nconst filters = [{propertyName: inputs.firstSearchPropertyName, operator: 'EQ', value: inputs.firstSearchPropertyValue}];\nconst second = inputs.secondSearchPropertyName;\nif (second && inputs.secondSearchPropertyValue) filters.push({propertyName: second, operator: 'EQ', value: inputs.secondSearchPropertyValue});\nrequest.body = {limit: 200, properties: 'name,domain,industry,about_us,phone,address,address2,city,state,zip,country,website,type,description,founded_year,hs_createdate,hs_lastmodifieddate,hs_object_id,is_public,timezone,total_money_raised,total_revenue,owneremail,ownername,numberofemployees,annualrevenue,lifecyclestage,createdate,web_technologies'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)), filterGroups: [{filters}]};\nreturn request;"
+    },
+    "create-contact": {
+      "label": "Create Contact",
+      "description": "Creates a contact in HubSpot.",
+      "group": "Contacts",
+      "inputs": {
+        "objectProperties": {
+          "label": "Object Properties",
+          "type": "json",
+          "description": "The properties to set, as a JSON object such as {\"firstname\": \"Ada\"}. A list becomes values joined with ;."
+        },
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get besides the usual ones, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/contacts"
+      },
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const parsed = (text) => { if (text == null || text === '') return undefined; try { return JSON.parse(text); } catch (e) { return text; } };\nconst propertiesOf = (text, skipEmpty) => { const properties = {}; Object.entries(parsed(text) ?? {}).forEach(([key, value]) => { if (skipEmpty && Array.isArray(value) && value.length === 0) return; properties[key] = Array.isArray(value) ? value.join(';') : value; }); return properties; };\nrequest.body = {properties: Object.assign({}, propertiesOf(inputs.objectProperties))};\nreturn request;",
+      "afterResponse": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nreturn call({method: 'GET', url: '/crm/v3/objects/contacts/' + encodeURIComponent(response.id), query: {properties: 'firstname,lastname,email,company,website,mobilephone,phone,fax,address,city,state,zip,salutation,country,jobtitle,hs_createdate,hs_email_domain,hs_object_id,lastmodifieddate,hs_persona,hs_language,lifecyclestage,createdate,numemployees,annualrevenue,industry'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)).join(',')}});"
+    },
+    "get-contact": {
+      "label": "Get Contact",
+      "description": "Gets a contact by its ID.",
+      "group": "Contacts",
+      "inputs": {
+        "contactId": {
+          "label": "Contact ID",
+          "required": true,
+          "description": "The ID of the contact to get."
+        },
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get besides the usual ones, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "url": "https://api.hubapi.com/crm/v3/objects/contacts/{{contactId}}"
+      },
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nrequest.query.properties = 'firstname,lastname,email,company,website,mobilephone,phone,fax,address,city,state,zip,salutation,country,jobtitle,hs_createdate,hs_email_domain,hs_object_id,lastmodifieddate,hs_persona,hs_language,lifecyclestage,createdate,numemployees,annualrevenue,industry'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)).join(',');\nreturn request;"
+    },
+    "update-contact": {
+      "label": "Update Contact",
+      "description": "Updates a contact in HubSpot.",
+      "group": "Contacts",
+      "inputs": {
+        "contactId": {
+          "label": "Contact ID",
+          "required": true,
+          "description": "The ID of the contact to update."
+        },
+        "objectProperties": {
+          "label": "Object Properties",
+          "type": "json",
+          "description": "The properties to set, as a JSON object such as {\"firstname\": \"Ada\"}. A list becomes values joined with ;."
+        },
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get besides the usual ones, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://api.hubapi.com/crm/v3/objects/contacts/{{contactId}}"
+      },
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const parsed = (text) => { if (text == null || text === '') return undefined; try { return JSON.parse(text); } catch (e) { return text; } };\nconst propertiesOf = (text, skipEmpty) => { const properties = {}; Object.entries(parsed(text) ?? {}).forEach(([key, value]) => { if (skipEmpty && Array.isArray(value) && value.length === 0) return; properties[key] = Array.isArray(value) ? value.join(';') : value; }); return properties; };\nconst properties = {};\nrequest.body = {properties: Object.assign(properties, propertiesOf(inputs.objectProperties, true))};\nreturn request;",
+      "afterResponse": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nreturn call({method: 'GET', url: '/crm/v3/objects/contacts/' + encodeURIComponent(response.id), query: {properties: 'firstname,lastname,email,company,website,mobilephone,phone,fax,address,city,state,zip,salutation,country,jobtitle,hs_createdate,hs_email_domain,hs_object_id,lastmodifieddate,hs_persona,hs_language,lifecyclestage,createdate,numemployees,annualrevenue,industry'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)).join(',')}});"
+    },
+    "find-contact": {
+      "label": "Find Contact",
+      "description": "Finds up to 200 contacts matching one or two property values.",
+      "group": "Contacts",
+      "inputs": {
+        "firstSearchPropertyName": {
+          "label": "Search Property",
+          "required": true,
+          "description": "The property to compare, such as the email address."
+        },
+        "firstSearchPropertyValue": {
+          "label": "Search Value",
+          "required": true,
+          "description": "Only exact matches are returned."
+        },
+        "secondSearchPropertyName": {
+          "label": "Second Search Property",
+          "description": "Optional second condition; records must match both."
+        },
+        "secondSearchPropertyValue": {
+          "label": "Second Search Value",
+          "description": "Ignored unless a second property is also chosen."
+        },
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get besides the usual ones, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/contacts/search"
+      },
+      "beforeRequest": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nconst filters = [{propertyName: inputs.firstSearchPropertyName, operator: 'EQ', value: inputs.firstSearchPropertyValue}];\nconst second = inputs.secondSearchPropertyName;\nif (second && inputs.secondSearchPropertyValue) filters.push({propertyName: second, operator: 'EQ', value: inputs.secondSearchPropertyValue});\nrequest.body = {limit: 200, properties: 'firstname,lastname,email,company,website,mobilephone,phone,fax,address,city,state,zip,salutation,country,jobtitle,hs_createdate,hs_email_domain,hs_object_id,lastmodifieddate,hs_persona,hs_language,lifecyclestage,createdate,numemployees,annualrevenue,industry'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)), filterGroups: [{filters}]};\nreturn request;"
+    },
+    "create-deal": {
+      "label": "Create Deal",
+      "description": "Creates a deal in HubSpot.",
+      "group": "Deals",
+      "inputs": {
+        "dealName": {
+          "label": "Deal Name",
+          "required": true
+        },
+        "pipelineId": {
+          "label": "Deal Pipeline",
+          "required": true,
+          "list": "deal_pipelines"
+        },
+        "pipelineStageId": {
+          "label": "Deal Stage",
+          "required": true,
+          "list": "deal_pipeline_stages"
+        },
+        "objectProperties": {
+          "label": "Object Properties",
+          "type": "json",
+          "description": "The properties to set, as a JSON object such as {\"firstname\": \"Ada\"}. A list becomes values joined with ;."
+        },
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get besides the usual ones, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/deals"
+      },
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const parsed = (text) => { if (text == null || text === '') return undefined; try { return JSON.parse(text); } catch (e) { return text; } };\nconst propertiesOf = (text, skipEmpty) => { const properties = {}; Object.entries(parsed(text) ?? {}).forEach(([key, value]) => { if (skipEmpty && Array.isArray(value) && value.length === 0) return; properties[key] = Array.isArray(value) ? value.join(';') : value; }); return properties; };\nrequest.body = {properties: Object.assign({dealname: inputs.dealName, pipeline: inputs.pipelineId, dealstage: inputs.pipelineStageId}, propertiesOf(inputs.objectProperties))};\nreturn request;",
+      "afterResponse": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nreturn call({method: 'GET', url: '/crm/v3/objects/deals/' + encodeURIComponent(response.id), query: {properties: 'dealtype,dealname,amount,description,closedate,createdate,num_associated_contacts,hs_forecast_amount,hs_forecast_probability,hs_manual_forecast_category,hs_next_step,hs_object_id,hs_lastmodifieddate,hubspot_owner_id,hubspot_team_id'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)).join(',')}});"
+    },
+    "get-deal": {
+      "label": "Get Deal",
+      "description": "Gets a deal by its ID.",
+      "group": "Deals",
+      "inputs": {
+        "dealId": {
+          "label": "Deal ID",
+          "required": true,
+          "description": "The ID of the deal to get."
+        },
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get besides the usual ones, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "url": "https://api.hubapi.com/crm/v3/objects/deals/{{dealId}}"
+      },
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nrequest.query.properties = 'dealtype,dealname,amount,description,closedate,createdate,num_associated_contacts,hs_forecast_amount,hs_forecast_probability,hs_manual_forecast_category,hs_next_step,hs_object_id,hs_lastmodifieddate,hubspot_owner_id,hubspot_team_id'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)).join(',');\nreturn request;"
+    },
+    "update-deal": {
+      "label": "Update Deal",
+      "description": "Updates a deal in HubSpot.",
+      "group": "Deals",
+      "inputs": {
+        "dealId": {
+          "label": "Deal ID",
+          "required": true,
+          "description": "The ID of the deal to update."
+        },
+        "dealName": {
+          "label": "Deal Name",
+          "description": "Leave empty to keep the current name."
+        },
+        "pipelineId": {
+          "label": "Deal Pipeline",
+          "description": "Leave empty to keep the current pipeline.",
+          "list": "deal_pipelines"
+        },
+        "pipelineStageId": {
+          "label": "Deal Stage",
+          "description": "Leave empty to keep the current stage.",
+          "list": "deal_pipeline_stages"
+        },
+        "objectProperties": {
+          "label": "Object Properties",
+          "type": "json",
+          "description": "The properties to set, as a JSON object such as {\"firstname\": \"Ada\"}. A list becomes values joined with ;."
+        },
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get besides the usual ones, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://api.hubapi.com/crm/v3/objects/deals/{{dealId}}"
+      },
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const parsed = (text) => { if (text == null || text === '') return undefined; try { return JSON.parse(text); } catch (e) { return text; } };\nconst propertiesOf = (text, skipEmpty) => { const properties = {}; Object.entries(parsed(text) ?? {}).forEach(([key, value]) => { if (skipEmpty && Array.isArray(value) && value.length === 0) return; properties[key] = Array.isArray(value) ? value.join(';') : value; }); return properties; };\nconst properties = {};\nif (inputs.dealName) properties.dealname = inputs.dealName;\nif (inputs.pipelineId) properties.pipeline = inputs.pipelineId;\nif (inputs.pipelineStageId) properties.dealstage = inputs.pipelineStageId;\nrequest.body = {properties: Object.assign(properties, propertiesOf(inputs.objectProperties, true))};\nreturn request;",
+      "afterResponse": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nreturn call({method: 'GET', url: '/crm/v3/objects/deals/' + encodeURIComponent(response.id), query: {properties: 'dealtype,dealname,amount,description,closedate,createdate,num_associated_contacts,hs_forecast_amount,hs_forecast_probability,hs_manual_forecast_category,hs_next_step,hs_object_id,hs_lastmodifieddate,hubspot_owner_id,hubspot_team_id'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)).join(',')}});"
+    },
+    "find-deal": {
+      "label": "Find Deal",
+      "description": "Finds up to 200 deals matching one or two property values.",
+      "group": "Deals",
+      "inputs": {
+        "firstSearchPropertyName": {
+          "label": "Search Property",
+          "required": true,
+          "description": "The property to compare, such as the deal name."
+        },
+        "firstSearchPropertyValue": {
+          "label": "Search Value",
+          "required": true,
+          "description": "Only exact matches are returned."
+        },
+        "secondSearchPropertyName": {
+          "label": "Second Search Property",
+          "description": "Optional second condition; records must match both."
+        },
+        "secondSearchPropertyValue": {
+          "label": "Second Search Value",
+          "description": "Ignored unless a second property is also chosen."
+        },
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get besides the usual ones, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/deals/search"
+      },
+      "beforeRequest": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nconst filters = [{propertyName: inputs.firstSearchPropertyName, operator: 'EQ', value: inputs.firstSearchPropertyValue}];\nconst second = inputs.secondSearchPropertyName;\nif (second && inputs.secondSearchPropertyValue) filters.push({propertyName: second, operator: 'EQ', value: inputs.secondSearchPropertyValue});\nrequest.body = {limit: 200, properties: 'dealtype,dealname,amount,description,closedate,createdate,num_associated_contacts,hs_forecast_amount,hs_forecast_probability,hs_manual_forecast_category,hs_next_step,hs_object_id,hs_lastmodifieddate,hubspot_owner_id,hubspot_team_id'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)), filterGroups: [{filters}]};\nreturn request;"
+    },
+    "create-ticket": {
+      "label": "Create Ticket",
+      "description": "Creates a ticket in HubSpot.",
+      "group": "Tickets",
+      "inputs": {
+        "ticketName": {
+          "label": "Ticket Name",
+          "required": true,
+          "description": "Shown as the ticket's subject in HubSpot."
+        },
+        "pipelineId": {
+          "label": "Ticket Pipeline",
+          "required": true,
+          "list": "ticket_pipelines"
+        },
+        "pipelineStageId": {
+          "label": "Ticket Stage",
+          "required": true,
+          "list": "ticket_pipeline_stages"
+        },
+        "objectProperties": {
+          "label": "Object Properties",
+          "type": "json",
+          "description": "The properties to set, as a JSON object such as {\"firstname\": \"Ada\"}. A list becomes values joined with ;."
+        },
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get besides the usual ones, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/tickets"
+      },
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const parsed = (text) => { if (text == null || text === '') return undefined; try { return JSON.parse(text); } catch (e) { return text; } };\nconst propertiesOf = (text, skipEmpty) => { const properties = {}; Object.entries(parsed(text) ?? {}).forEach(([key, value]) => { if (skipEmpty && Array.isArray(value) && value.length === 0) return; properties[key] = Array.isArray(value) ? value.join(';') : value; }); return properties; };\nrequest.body = {properties: Object.assign({subject: inputs.ticketName, hs_pipeline: inputs.pipelineId, hs_pipeline_stage: inputs.pipelineStageId}, propertiesOf(inputs.objectProperties))};\nreturn request;",
+      "afterResponse": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nreturn call({method: 'GET', url: '/crm/v3/objects/tickets/' + encodeURIComponent(response.id), query: {properties: 'subject,content,source_type,createdate,hs_pipeline,hs_pipeline_stage,hs_resolution,hs_ticket_category,hs_ticket_id,hs_ticket_priority,hs_lastmodifieddate,hubspot_owner_id,hubspot_team_id'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)).join(',')}});"
+    },
+    "get-ticket": {
+      "label": "Get Ticket",
+      "description": "Gets a ticket by its ID.",
+      "group": "Tickets",
+      "inputs": {
+        "ticketId": {
+          "label": "Ticket ID",
+          "required": true,
+          "description": "The ID of the ticket to get."
+        },
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get besides the usual ones, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "url": "https://api.hubapi.com/crm/v3/objects/tickets/{{ticketId}}"
+      },
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nrequest.query.properties = 'subject,content,source_type,createdate,hs_pipeline,hs_pipeline_stage,hs_resolution,hs_ticket_category,hs_ticket_id,hs_ticket_priority,hs_lastmodifieddate,hubspot_owner_id,hubspot_team_id'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)).join(',');\nreturn request;"
+    },
+    "update-ticket": {
+      "label": "Update Ticket",
+      "description": "Updates a ticket in HubSpot.",
+      "group": "Tickets",
+      "inputs": {
+        "ticketId": {
+          "label": "Ticket ID",
+          "required": true,
+          "description": "The ID of the ticket to update."
+        },
+        "ticketName": {
+          "label": "Ticket Name",
+          "description": "Leave empty to keep the current name."
+        },
+        "pipelineId": {
+          "label": "Ticket Pipeline",
+          "description": "Leave empty to keep the current pipeline.",
+          "list": "ticket_pipelines"
+        },
+        "pipelineStageId": {
+          "label": "Ticket Stage",
+          "description": "Leave empty to keep the current stage.",
+          "list": "ticket_pipeline_stages"
+        },
+        "objectProperties": {
+          "label": "Object Properties",
+          "type": "json",
+          "description": "The properties to set, as a JSON object such as {\"firstname\": \"Ada\"}. A list becomes values joined with ;."
+        },
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get besides the usual ones, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://api.hubapi.com/crm/v3/objects/tickets/{{ticketId}}"
+      },
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const parsed = (text) => { if (text == null || text === '') return undefined; try { return JSON.parse(text); } catch (e) { return text; } };\nconst propertiesOf = (text, skipEmpty) => { const properties = {}; Object.entries(parsed(text) ?? {}).forEach(([key, value]) => { if (skipEmpty && Array.isArray(value) && value.length === 0) return; properties[key] = Array.isArray(value) ? value.join(';') : value; }); return properties; };\nconst properties = {};\nif (inputs.ticketName) properties.subject = inputs.ticketName;\nif (inputs.pipelineId) properties.hs_pipeline = inputs.pipelineId;\nif (inputs.pipelineStageId) properties.hs_pipeline_stage = inputs.pipelineStageId;\nrequest.body = {properties: Object.assign(properties, propertiesOf(inputs.objectProperties, true))};\nreturn request;",
+      "afterResponse": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nreturn call({method: 'GET', url: '/crm/v3/objects/tickets/' + encodeURIComponent(response.id), query: {properties: 'subject,content,source_type,createdate,hs_pipeline,hs_pipeline_stage,hs_resolution,hs_ticket_category,hs_ticket_id,hs_ticket_priority,hs_lastmodifieddate,hubspot_owner_id,hubspot_team_id'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)).join(',')}});"
+    },
+    "find-ticket": {
+      "label": "Find Ticket",
+      "description": "Finds up to 200 tickets matching one or two property values.",
+      "group": "Tickets",
+      "inputs": {
+        "firstSearchPropertyName": {
+          "label": "Search Property",
+          "required": true,
+          "description": "The property to compare, such as the subject."
+        },
+        "firstSearchPropertyValue": {
+          "label": "Search Value",
+          "required": true,
+          "description": "Only exact matches are returned."
+        },
+        "secondSearchPropertyName": {
+          "label": "Second Search Property",
+          "description": "Optional second condition; records must match both."
+        },
+        "secondSearchPropertyValue": {
+          "label": "Second Search Value",
+          "description": "Ignored unless a second property is also chosen."
+        },
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get besides the usual ones, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/tickets/search"
+      },
+      "beforeRequest": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nconst filters = [{propertyName: inputs.firstSearchPropertyName, operator: 'EQ', value: inputs.firstSearchPropertyValue}];\nconst second = inputs.secondSearchPropertyName;\nif (second && inputs.secondSearchPropertyValue) filters.push({propertyName: second, operator: 'EQ', value: inputs.secondSearchPropertyValue});\nrequest.body = {limit: 200, properties: 'subject,content,source_type,createdate,hs_pipeline,hs_pipeline_stage,hs_resolution,hs_ticket_category,hs_ticket_id,hs_ticket_priority,hs_lastmodifieddate,hubspot_owner_id,hubspot_team_id'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)), filterGroups: [{filters}]};\nreturn request;"
+    },
+    "create-product": {
+      "label": "Create Product",
+      "description": "Creates a product in HubSpot.",
+      "group": "Products",
+      "inputs": {
+        "objectProperties": {
+          "label": "Object Properties",
+          "type": "json",
+          "description": "The properties to set, as a JSON object such as {\"firstname\": \"Ada\"}. A list becomes values joined with ;."
+        },
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get besides the usual ones, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/products"
+      },
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const parsed = (text) => { if (text == null || text === '') return undefined; try { return JSON.parse(text); } catch (e) { return text; } };\nconst propertiesOf = (text, skipEmpty) => { const properties = {}; Object.entries(parsed(text) ?? {}).forEach(([key, value]) => { if (skipEmpty && Array.isArray(value) && value.length === 0) return; properties[key] = Array.isArray(value) ? value.join(';') : value; }); return properties; };\nrequest.body = {properties: Object.assign({}, propertiesOf(inputs.objectProperties))};\nreturn request;",
+      "afterResponse": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nreturn call({method: 'GET', url: '/crm/v3/objects/products/' + encodeURIComponent(response.id), query: {properties: 'createdate,description,name,price,tax,hs_lastmodifieddate'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)).join(',')}});"
+    },
+    "get-product": {
+      "label": "Get Product",
+      "description": "Gets a product by its ID.",
+      "group": "Products",
+      "inputs": {
+        "productId": {
+          "label": "Product ID",
+          "required": true,
+          "description": "The ID of the product to get.",
+          "list": "products"
+        },
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get besides the usual ones, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "url": "https://api.hubapi.com/crm/v3/objects/products/{{productId}}"
+      },
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nrequest.query.properties = 'createdate,description,name,price,tax,hs_lastmodifieddate'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)).join(',');\nreturn request;"
+    },
+    "update-product": {
+      "label": "Update Product",
+      "description": "Updates a product in HubSpot.",
+      "group": "Products",
+      "inputs": {
+        "productId": {
+          "label": "Product ID",
+          "required": true,
+          "description": "The ID of the product to update.",
+          "list": "products"
+        },
+        "objectProperties": {
+          "label": "Object Properties",
+          "type": "json",
+          "description": "The properties to set, as a JSON object such as {\"firstname\": \"Ada\"}. A list becomes values joined with ;."
+        },
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get besides the usual ones, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://api.hubapi.com/crm/v3/objects/products/{{productId}}"
+      },
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const parsed = (text) => { if (text == null || text === '') return undefined; try { return JSON.parse(text); } catch (e) { return text; } };\nconst propertiesOf = (text, skipEmpty) => { const properties = {}; Object.entries(parsed(text) ?? {}).forEach(([key, value]) => { if (skipEmpty && Array.isArray(value) && value.length === 0) return; properties[key] = Array.isArray(value) ? value.join(';') : value; }); return properties; };\nconst properties = {};\nrequest.body = {properties: Object.assign(properties, propertiesOf(inputs.objectProperties, true))};\nreturn request;",
+      "afterResponse": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nreturn call({method: 'GET', url: '/crm/v3/objects/products/' + encodeURIComponent(response.id), query: {properties: 'createdate,description,name,price,tax,hs_lastmodifieddate'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)).join(',')}});"
+    },
+    "find-product": {
+      "label": "Find Product",
+      "description": "Finds up to 200 products matching one or two property values.",
+      "group": "Products",
+      "inputs": {
+        "firstSearchPropertyName": {
+          "label": "Search Property",
+          "required": true,
+          "description": "The property to compare, such as the SKU."
+        },
+        "firstSearchPropertyValue": {
+          "label": "Search Value",
+          "required": true,
+          "description": "Only exact matches are returned."
+        },
+        "secondSearchPropertyName": {
+          "label": "Second Search Property",
+          "description": "Optional second condition; records must match both."
+        },
+        "secondSearchPropertyValue": {
+          "label": "Second Search Value",
+          "description": "Ignored unless a second property is also chosen."
+        },
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get besides the usual ones, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/products/search"
+      },
+      "beforeRequest": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nconst filters = [{propertyName: inputs.firstSearchPropertyName, operator: 'EQ', value: inputs.firstSearchPropertyValue}];\nconst second = inputs.secondSearchPropertyName;\nif (second && inputs.secondSearchPropertyValue) filters.push({propertyName: second, operator: 'EQ', value: inputs.secondSearchPropertyValue});\nrequest.body = {limit: 200, properties: 'createdate,description,name,price,tax,hs_lastmodifieddate'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)), filterGroups: [{filters}]};\nreturn request;"
+    },
+    "create-line-item": {
+      "label": "Create Line Item",
+      "description": "Creates a line item in HubSpot.",
+      "group": "Line Items",
+      "inputs": {
+        "productId": {
+          "label": "Product",
+          "required": true,
+          "list": "products"
+        },
+        "objectProperties": {
+          "label": "Object Properties",
+          "type": "json",
+          "description": "The properties to set, as a JSON object such as {\"firstname\": \"Ada\"}. A list becomes values joined with ;."
+        },
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get besides the usual ones, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/line_items"
+      },
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const parsed = (text) => { if (text == null || text === '') return undefined; try { return JSON.parse(text); } catch (e) { return text; } };\nconst propertiesOf = (text, skipEmpty) => { const properties = {}; Object.entries(parsed(text) ?? {}).forEach(([key, value]) => { if (skipEmpty && Array.isArray(value) && value.length === 0) return; properties[key] = Array.isArray(value) ? value.join(';') : value; }); return properties; };\nrequest.body = {associations: [], properties: Object.assign({hs_product_id: inputs.productId}, propertiesOf(inputs.objectProperties))};\nreturn request;",
+      "afterResponse": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nreturn call({method: 'GET', url: '/crm/v3/objects/line_items/' + encodeURIComponent(response.id), query: {properties: 'name,description,price,quantity,amount,discount,tax,createdate,hs_object_id,hs_product_id,hs_images,hs_lastmodifieddate,hs_line_item_currency_code,hs_sku,hs_url,hs_cost_of_goods_sold,hs_discount_percentage,hs_term_in_months'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)).join(',')}});"
+    },
+    "get-line-item": {
+      "label": "Get Line Item",
+      "description": "Gets a line item by its ID.",
+      "group": "Line Items",
+      "inputs": {
+        "lineItemId": {
+          "label": "Line Item ID",
+          "required": true,
+          "description": "The ID of the line item to get."
+        },
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get besides the usual ones, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "url": "https://api.hubapi.com/crm/v3/objects/line_items/{{lineItemId}}"
+      },
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nrequest.query.properties = 'name,description,price,quantity,amount,discount,tax,createdate,hs_object_id,hs_product_id,hs_images,hs_lastmodifieddate,hs_line_item_currency_code,hs_sku,hs_url,hs_cost_of_goods_sold,hs_discount_percentage,hs_term_in_months'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)).join(',');\nreturn request;"
+    },
+    "update-line-item": {
+      "label": "Update Line Item",
+      "description": "Updates a line item in HubSpot.",
+      "group": "Line Items",
+      "inputs": {
+        "lineItemId": {
+          "label": "Line Item ID",
+          "required": true,
+          "description": "The ID of the line item to update."
+        },
+        "productId": {
+          "label": "Product",
+          "description": "Leave empty to keep the current product.",
+          "list": "products"
+        },
+        "objectProperties": {
+          "label": "Object Properties",
+          "type": "json",
+          "description": "The properties to set, as a JSON object such as {\"firstname\": \"Ada\"}. A list becomes values joined with ;."
+        },
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get besides the usual ones, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://api.hubapi.com/crm/v3/objects/line_items/{{lineItemId}}"
+      },
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const parsed = (text) => { if (text == null || text === '') return undefined; try { return JSON.parse(text); } catch (e) { return text; } };\nconst propertiesOf = (text, skipEmpty) => { const properties = {}; Object.entries(parsed(text) ?? {}).forEach(([key, value]) => { if (skipEmpty && Array.isArray(value) && value.length === 0) return; properties[key] = Array.isArray(value) ? value.join(';') : value; }); return properties; };\nconst properties = {};\nif (inputs.productId) properties.hs_product_id = inputs.productId;\nrequest.body = {properties: Object.assign(properties, propertiesOf(inputs.objectProperties, true))};\nreturn request;",
+      "afterResponse": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nreturn call({method: 'GET', url: '/crm/v3/objects/line_items/' + encodeURIComponent(response.id), query: {properties: 'name,description,price,quantity,amount,discount,tax,createdate,hs_object_id,hs_product_id,hs_images,hs_lastmodifieddate,hs_line_item_currency_code,hs_sku,hs_url,hs_cost_of_goods_sold,hs_discount_percentage,hs_term_in_months'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)).join(',')}});"
+    },
+    "find-line-item": {
+      "label": "Find Line Item",
+      "description": "Finds up to 200 line items matching one or two property values.",
+      "group": "Line Items",
+      "inputs": {
+        "firstSearchPropertyName": {
+          "label": "Search Property",
+          "required": true,
+          "description": "The property to compare, such as the line item name."
+        },
+        "firstSearchPropertyValue": {
+          "label": "Search Value",
+          "required": true,
+          "description": "Only exact matches are returned."
+        },
+        "secondSearchPropertyName": {
+          "label": "Second Search Property",
+          "description": "Optional second condition; records must match both."
+        },
+        "secondSearchPropertyValue": {
+          "label": "Second Search Value",
+          "description": "Ignored unless a second property is also chosen."
+        },
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get besides the usual ones, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/line_items/search"
+      },
+      "beforeRequest": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nconst filters = [{propertyName: inputs.firstSearchPropertyName, operator: 'EQ', value: inputs.firstSearchPropertyValue}];\nconst second = inputs.secondSearchPropertyName;\nif (second && inputs.secondSearchPropertyValue) filters.push({propertyName: second, operator: 'EQ', value: inputs.secondSearchPropertyValue});\nrequest.body = {limit: 200, properties: 'name,description,price,quantity,amount,discount,tax,createdate,hs_object_id,hs_product_id,hs_images,hs_lastmodifieddate,hs_line_item_currency_code,hs_sku,hs_url,hs_cost_of_goods_sold,hs_discount_percentage,hs_term_in_months'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)), filterGroups: [{filters}]};\nreturn request;"
+    },
+    "create-custome-object": {
+      "label": "Create Custom Object",
+      "description": "Creates a custom object record in HubSpot.",
+      "group": "Custom Objects",
+      "inputs": {
+        "customObjectType": {
+          "label": "Custom Object Type",
+          "required": true,
+          "list": "custom_object_types"
+        },
+        "objectProperties": {
+          "label": "Object Properties",
+          "type": "json",
+          "description": "The properties to set, as a JSON object such as {\"firstname\": \"Ada\"}. A list becomes values joined with ;."
+        },
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/{{customObjectType}}"
+      },
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const parsed = (text) => { if (text == null || text === '') return undefined; try { return JSON.parse(text); } catch (e) { return text; } };\nconst propertiesOf = (text, skipEmpty) => { const properties = {}; Object.entries(parsed(text) ?? {}).forEach(([key, value]) => { if (skipEmpty && Array.isArray(value) && value.length === 0) return; properties[key] = Array.isArray(value) ? value.join(';') : value; }); return properties; };\nrequest.body = {properties: propertiesOf(inputs.objectProperties), associations: []};\nreturn request;",
+      "afterResponse": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nconst properties = inputs.additionalPropertiesToRetrieve ? listOf(inputs.additionalPropertiesToRetrieve) : undefined;\nreturn call({method: 'GET', url: '/crm/v3/objects/' + encodeURIComponent(inputs.customObjectType) + '/' + encodeURIComponent(response.id), query: properties === undefined ? {} : {properties: properties.join(',')}});"
+    },
+    "update-custome-object": {
+      "label": "Update Custom Object",
+      "description": "Updates a custom object record in HubSpot.",
+      "group": "Custom Objects",
+      "inputs": {
+        "customObjectType": {
+          "label": "Custom Object Type",
+          "required": true,
+          "list": "custom_object_types"
+        },
+        "customObjectId": {
+          "label": "Custom Object ID",
+          "required": true,
+          "description": "Map it from an earlier step like Find Custom Object."
+        },
+        "objectProperties": {
+          "label": "Object Properties",
+          "type": "json",
+          "description": "The properties to set, as a JSON object such as {\"firstname\": \"Ada\"}. A list becomes values joined with ;."
+        },
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://api.hubapi.com/crm/v3/objects/{{customObjectType}}/{{customObjectId}}"
+      },
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const parsed = (text) => { if (text == null || text === '') return undefined; try { return JSON.parse(text); } catch (e) { return text; } };\nconst propertiesOf = (text, skipEmpty) => { const properties = {}; Object.entries(parsed(text) ?? {}).forEach(([key, value]) => { if (skipEmpty && Array.isArray(value) && value.length === 0) return; properties[key] = Array.isArray(value) ? value.join(';') : value; }); return properties; };\nrequest.body = {properties: propertiesOf(inputs.objectProperties, true)};\nreturn request;",
+      "afterResponse": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nconst properties = inputs.additionalPropertiesToRetrieve ? listOf(inputs.additionalPropertiesToRetrieve) : undefined;\nreturn call({method: 'GET', url: '/crm/v3/objects/' + encodeURIComponent(inputs.customObjectType) + '/' + encodeURIComponent(response.id), query: properties === undefined ? {} : {properties: properties.join(',')}});"
+    },
+    "get-custom-object": {
+      "label": "Get Custom Object",
+      "description": "Gets a custom object record by its ID.",
+      "group": "Custom Objects",
+      "inputs": {
+        "customObjectType": {
+          "label": "Custom Object Type",
+          "required": true,
+          "list": "custom_object_types"
+        },
+        "customObjectId": {
+          "label": "Custom Object ID",
+          "required": true,
+          "description": "Map it from an earlier step like Find Custom Object."
+        },
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "url": "https://api.hubapi.com/crm/v3/objects/{{customObjectType}}/{{customObjectId}}"
+      },
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nconst properties = inputs.additionalPropertiesToRetrieve ? listOf(inputs.additionalPropertiesToRetrieve) : undefined;\nif (properties !== undefined) request.query.properties = properties.join(',');\nreturn request;"
+    },
+    "find-custom-object": {
+      "label": "Find Custom Object",
+      "description": "Finds up to 200 custom object records matching one or two values.",
+      "group": "Custom Objects",
+      "inputs": {
+        "customObjectType": {
+          "label": "Custom Object Type",
+          "required": true,
+          "list": "custom_object_types"
+        },
+        "firstSearchPropertyName": {
+          "label": "Search Property",
+          "required": true
+        },
+        "firstSearchPropertyValue": {
+          "label": "Search Value",
+          "required": true,
+          "description": "Only exact matches are returned."
+        },
+        "secondSearchPropertyName": {
+          "label": "Second Search Property"
+        },
+        "secondSearchPropertyValue": {
+          "label": "Second Search Value",
+          "description": "Ignored unless a second property is also chosen."
+        },
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/{{customObjectType}}/search"
+      },
+      "beforeRequest": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nconst filters = [{propertyName: inputs.firstSearchPropertyName, operator: 'EQ', value: inputs.firstSearchPropertyValue}];\nconst second = inputs.secondSearchPropertyName;\nif (second && inputs.secondSearchPropertyValue) filters.push({propertyName: second, operator: 'EQ', value: inputs.secondSearchPropertyValue});\nrequest.body = {limit: 200, properties: inputs.additionalPropertiesToRetrieve ? listOf(inputs.additionalPropertiesToRetrieve) : undefined, filterGroups: [{filters}]};\nreturn request;"
+    },
+    "create-or-update-contact": {
+      "label": "Create or Update Contact",
+      "description": "Updates the contact with this email, or creates it if none exists.",
+      "group": "Contacts",
+      "inputs": {
+        "email": {
+          "label": "Contact Email",
+          "required": true,
+          "description": "Used to find the contact; a new one is created if none matches."
+        },
+        "objectProperties": {
+          "label": "Object Properties",
+          "type": "json",
+          "description": "The properties to set, as a JSON object such as {\"firstname\": \"Ada\"}. A list becomes values joined with ;."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/contacts/search",
+        "body": {
+          "limit": 1,
+          "filterGroups": [
+            {
+              "filters": [
+                {
+                  "propertyName": "email",
+                  "operator": "EQ",
+                  "value": "{{email}}"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "outputs": {
+        "id": "$.id"
+      },
+      "afterResponse": "const parsed = (text) => { if (text == null || text === '') return undefined; try { return JSON.parse(text); } catch (e) { return text; } };\nconst propertiesOf = (text, skipEmpty) => { const properties = {}; Object.entries(parsed(text) ?? {}).forEach(([key, value]) => { if (skipEmpty && Array.isArray(value) && value.length === 0) return; properties[key] = Array.isArray(value) ? value.join(';') : value; }); return properties; };\nconst properties = propertiesOf(inputs.objectProperties);\nif (response.results.length > 0) return call({method: 'PATCH', url: '/crm/v3/objects/contacts/' + encodeURIComponent(response.results[0].id), body: {properties}});\nreturn call({method: 'POST', url: '/crm/v3/objects/contacts', body: {properties: Object.assign({}, properties, {email: inputs.email})}});"
+    },
+    "add_contact_to_list": {
+      "label": "Add Contact to List",
+      "description": "Adds a contact to a static list by email.",
+      "group": "Lists",
+      "inputs": {
+        "listId": {
+          "label": "Contact List",
+          "required": true,
+          "description": "Only static lists are shown.",
+          "list": "static_lists"
+        },
+        "email": {
+          "label": "Contact Email",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/contacts/v1/lists/{{listId}}/add",
+        "body": {
+          "emails": [
+            "{{email}}"
+          ]
+        }
+      }
+    },
+    "remove-contact-from-list": {
+      "label": "Remove Contact from List",
+      "description": "Removes a contact from a static list by email.",
+      "group": "Lists",
+      "inputs": {
+        "listId": {
+          "label": "Contact List",
+          "required": true,
+          "description": "Only static lists are shown.",
+          "list": "static_lists"
+        },
+        "email": {
+          "label": "Contact Email",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/contacts/search",
+        "body": {
+          "limit": 1,
+          "filterGroups": [
+            {
+              "filters": [
+                {
+                  "propertyName": "email",
+                  "operator": "EQ",
+                  "value": "{{email}}"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "afterResponse": "if (response.results.length === 0) throw new Error(\"No contact with email '\" + inputs.email + \"' was found. Unable to remove unknown contact from list.\");\nconst answer = call({method: 'POST', url: '/contacts/v1/lists/' + encodeURIComponent(inputs.listId) + '/remove', body: {vids: [response.results[0].id]}});\nif (answer.updated.length === 0) throw new Error(\"Contact with email '\" + inputs.email + \"' wasn't a member of list with id '\" + inputs.listId + \"'.\");\nreturn answer;"
+    },
+    "add-contact-to-workflow": {
+      "label": "Add Contact to Workflow",
+      "description": "Adds a contact to a specified workflow in your HubSpot account.",
+      "group": "Contacts",
+      "inputs": {
+        "workflowId": {
+          "label": "Workflow",
+          "required": true,
+          "description": "Choose a workflow that is turned on.",
+          "list": "workflows"
+        },
+        "email": {
+          "label": "Contact Email",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/automation/v2/workflows/{{workflowId}}/enrollments/contacts"
+      },
+      "beforeRequest": "request.url += '/' + encodeURI(inputs.email);\nreturn request;",
+      "afterResponse": "const type = Object.entries(received.headers).find(([name]) => name.toLowerCase() === 'content-type')?.[1];\nconst answer = {status: received.status, headers: type ? {'content-type': type} : {}};\nreturn response == null ? answer : {...answer, body: response};"
+    },
+    "remove-email-subscription": {
+      "label": "Remove Email Subscription",
+      "description": "Unsubscribes an email address from all HubSpot email subscriptions.",
+      "group": "Contacts",
+      "inputs": {
+        "email": {
+          "label": "Contact Email",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.hubapi.com/email/public/v1/subscriptions",
+        "body": {
+          "unsubscribeFromAll": true
+        }
+      },
+      "beforeRequest": "request.url += '/' + encodeURI(inputs.email);\nreturn request;"
+    },
+    "create-associations": {
+      "label": "Create Associations",
+      "description": "Links a record to one or more other records.",
+      "group": "Associations",
+      "inputs": {
+        "fromObjectId": {
+          "label": "From Object ID",
+          "required": true,
+          "description": "The ID of the object being associated."
+        },
+        "fromObjectType": {
+          "label": "From Object Type",
+          "required": true,
+          "description": "The type of the object being associated, such as company or 2-123."
+        },
+        "toObjectType": {
+          "label": "To Object Type",
+          "required": true,
+          "description": "Type of the objects the from object is being associated with."
+        },
+        "associationType": {
+          "label": "Association Type",
+          "required": true,
+          "description": "The association type ID, such as 279.",
+          "list": "association_types"
+        },
+        "toObjectIds": {
+          "label": "To Object IDs",
+          "type": "json",
+          "required": true,
+          "description": "The IDs of the objects to associate with, as a JSON list such as [\"11\", \"12\"]."
+        }
+      },
+      "request": {
+        "url": "https://api.hubapi.com/crm/v4/associations/{{fromObjectType}}/{{toObjectType}}/labels"
+      },
+      "afterResponse": "let ids;\ntry { ids = JSON.parse(inputs.toObjectIds); } catch (e) { ids = undefined; }\nif (!Array.isArray(ids)) throw new Error('Please provide To Object IDs in a valid format. Provided : ' + JSON.stringify(inputs.toObjectIds));\nconst association = (response.results ?? []).find((label) => String(label.typeId) === String(inputs.associationType));\nif (!association) throw new Error('Association type ' + inputs.associationType + ' not found for ' + inputs.fromObjectType + ' to ' + inputs.toObjectType);\nconst responses = [];\nfor (let start = 0; start < ids.length; start += 100) {\n  responses.push(call({method: 'POST', url: '/crm/v4/associations/' + encodeURIComponent(inputs.fromObjectType) + '/' + encodeURIComponent(inputs.toObjectType) + '/batch/create', body: {inputs: ids.slice(start, start + 100).map((id) => ({from: {id: inputs.fromObjectId}, to: {id}, types: [{associationCategory: association.category, associationTypeId: Number(inputs.associationType)}]}))}}));\n}\nreturn {totalAssociations: ids.length, batchCount: Math.ceil(ids.length / 100), responses};"
+    },
+    "find-associations": {
+      "label": "Find Associations",
+      "description": "Lists the records of one type linked to a record.",
+      "group": "Associations",
+      "inputs": {
+        "fromObjectId": {
+          "label": "From Object ID",
+          "required": true,
+          "description": "The ID of the object being associated."
+        },
+        "fromObjectType": {
+          "label": "From Object Type",
+          "required": true,
+          "description": "The type of the object being associated, such as company or 2-123."
+        },
+        "toObjectType": {
+          "label": "To Object Type",
+          "required": true,
+          "description": "Type of the objects the from object is being associated with."
+        }
+      },
+      "request": {
+        "url": "https://api.hubapi.com/crm/v4/objects/{{fromObjectType}}/{{fromObjectId}}/associations/{{toObjectType}}",
+        "query": {
+          "limit": "100"
+        }
+      },
+      "afterResponse": "let results = response.results ?? [];\nlet after = response.paging?.next?.after;\nwhile (after) {\n  const page = call({method: 'GET', url: '/crm/v4/objects/' + encodeURIComponent(inputs.fromObjectType) + '/' + encodeURIComponent(inputs.fromObjectId) + '/associations/' + encodeURIComponent(inputs.toObjectType), query: {after, limit: '100'}});\n  results = results.concat(page.results ?? []);\n  after = page.paging?.next?.after;\n}\nreturn results;"
+    },
+    "remove-associations": {
+      "label": "Remove Associations",
+      "description": "Removes the links between a record and one or more other records.",
+      "group": "Associations",
+      "inputs": {
+        "fromObjectId": {
+          "label": "From Object ID",
+          "required": true,
+          "description": "The ID of the object you want to remove the association from."
+        },
+        "fromObjectType": {
+          "label": "From Object Type",
+          "required": true,
+          "description": "The type of the object you want to remove the association from, such as company or 2-123."
+        },
+        "toObjectType": {
+          "label": "To Object Type",
+          "required": true,
+          "description": "Type of the currently associated objects that you're removing the association from."
+        },
+        "associationType": {
+          "label": "Association Type",
+          "required": true,
+          "description": "The association type ID, such as 279.",
+          "list": "association_types"
+        },
+        "toObjectIds": {
+          "label": "To Object IDs",
+          "type": "json",
+          "required": true,
+          "description": "The IDs of the currently associated objects, as a JSON list such as [\"11\", \"12\"]."
+        }
+      },
+      "request": {
+        "url": "https://api.hubapi.com/crm/v4/associations/{{fromObjectType}}/{{toObjectType}}/labels"
+      },
+      "afterResponse": "let ids;\ntry { ids = JSON.parse(inputs.toObjectIds); } catch (e) { ids = undefined; }\nif (!Array.isArray(ids)) throw new Error('Please provide To Object IDs in a valid format. Provided : ' + JSON.stringify(inputs.toObjectIds));\nconst association = (response.results ?? []).find((label) => String(label.typeId) === String(inputs.associationType));\nif (!association) throw new Error('Association type ' + inputs.associationType + ' not found for ' + inputs.fromObjectType + ' to ' + inputs.toObjectType);\nconst responses = [];\nfor (let start = 0; start < ids.length; start += 100) {\n  responses.push(call({method: 'POST', url: '/crm/v4/associations/' + encodeURIComponent(inputs.fromObjectType) + '/' + encodeURIComponent(inputs.toObjectType) + '/batch/labels/archive', body: {inputs: ids.slice(start, start + 100).map((id) => ({from: {id: inputs.fromObjectId}, to: {id}, types: [{associationCategory: association.category, associationTypeId: Number(inputs.associationType)}]}))}}));\n}\nreturn {success: true, totalAssociations: ids.length, batchCount: Math.ceil(ids.length / 100), responses};"
+    },
+    "create-blog-post": {
+      "label": "Create Blog Post",
+      "description": "Creates a draft or published post on a HubSpot blog.",
+      "group": "Content",
+      "inputs": {
+        "contentGroupId": {
+          "label": "Blog URL",
+          "required": true,
+          "list": "content_groups"
+        },
+        "authorId": {
+          "label": "Blog Author",
+          "required": true,
+          "list": "authors"
+        },
+        "status": {
+          "label": "Status",
+          "type": "select",
+          "options": [
+            {
+              "value": "DRAFT",
+              "label": "Draft"
+            },
+            {
+              "value": "PUBLISHED",
+              "label": "Published"
+            }
+          ],
+          "required": true
+        },
+        "slug": {
+          "label": "Slug",
+          "required": true,
+          "description": "Path of the blog post."
+        },
+        "title": {
+          "label": "Title",
+          "required": true
+        },
+        "body": {
+          "label": "Content",
+          "required": true,
+          "type": "multiline"
+        },
+        "meta": {
+          "label": "Meta Description",
+          "required": true,
+          "type": "multiline"
+        },
+        "imageUrl": {
+          "label": "Featured Image URL",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/content/api/v2/blog-posts",
+        "body": {
+          "blog_author_id": "{{authorId}}",
+          "content_group_id": "{{contentGroupId}}",
+          "featured_image": "{{imageUrl}}",
+          "use_featured_image": true,
+          "name": "{{title}}",
+          "slug": "{{slug}}",
+          "meta_description": "{{meta}}",
+          "post_body": "{{body}}"
+        }
+      },
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "if (inputs.status === 'PUBLISHED') request.body.publish_immediately = true;\nreturn request;",
+      "afterResponse": "if (inputs.status === 'PUBLISHED') call({method: 'POST', url: '/content/api/v2/blog-posts/' + response.id + '/publish-action', body: {action: 'schedule-publish'}});\nreturn call({method: 'GET', url: '/content/api/v2/blog-posts/' + response.id});"
+    },
+    "create-page": {
+      "label": "Create Page",
+      "description": "Creates a landing page or site page.",
+      "group": "Content",
+      "inputs": {
+        "pageType": {
+          "label": "Page Type",
+          "type": "select",
+          "options": [
+            {
+              "value": "landing_page",
+              "label": "Landing Page"
+            },
+            {
+              "value": "site_page",
+              "label": "Site Page"
+            }
+          ],
+          "required": true,
+          "defaultValue": "landing_page"
+        },
+        "pageTitle": {
+          "label": "Page Title",
+          "required": true
+        },
+        "internalPageName": {
+          "label": "Internal Page Name",
+          "required": true
+        },
+        "templatePath": {
+          "label": "Template Path",
+          "required": true,
+          "description": "The theme template to use, without a leading slash."
+        },
+        "slug": {
+          "label": "Slug",
+          "required": true
+        },
+        "language": {
+          "label": "Language",
+          "description": "A language code such as en-us or de-de."
+        },
+        "metaDescription": {
+          "label": "Meta Description",
+          "type": "multiline"
+        },
+        "state": {
+          "label": "Status",
+          "type": "select",
+          "options": [
+            {
+              "value": "DRAFT",
+              "label": "Draft"
+            },
+            {
+              "value": "PUBLISHED_OR_SCHEDULED",
+              "label": "Published or Scheduled"
+            }
+          ]
+        },
+        "headHtml": {
+          "label": "Additional Head HTML",
+          "type": "multiline"
+        },
+        "footerHtml": {
+          "label": "Additional Footer HTML",
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/cms/v3/pages/landing-pages",
+        "body": {
+          "htmlTitle": "{{pageTitle}}",
+          "name": "{{internalPageName}}",
+          "metaDescription": "{{metaDescription}}",
+          "templatePath": "{{templatePath}}",
+          "slug": "{{slug}}",
+          "language": "{{language}}",
+          "headHtml": "{{headHtml}}",
+          "footerHtml": "{{footerHtml}}"
+        }
+      },
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "if (inputs.pageType === 'site_page') request.url = request.url.replace('/landing-pages', '/site-pages');\nreturn request;",
+      "afterResponse": "if (inputs.state === 'PUBLISHED_OR_SCHEDULED') call({method: 'POST', url: '/content/api/v2/pages/' + response.id + '/publish-action', body: {action: 'schedule-publish'}});\nreturn call({method: 'GET', url: '/cms/v3/pages/' + (inputs.pageType === 'site_page' ? 'site-pages' : 'landing-pages') + '/' + response.id});"
+    },
+    "get-page": {
+      "label": "Get Page",
+      "description": "Gets a landing page or site page by its ID.",
+      "group": "Content",
+      "inputs": {
+        "pageType": {
+          "label": "Page Type",
+          "type": "select",
+          "options": [
+            {
+              "value": "landing_page",
+              "label": "Landing Page"
+            },
+            {
+              "value": "site_page",
+              "label": "Site Page"
+            }
+          ],
+          "required": true,
+          "defaultValue": "landing_page"
+        },
+        "pageId": {
+          "label": "Page ID",
+          "required": true,
+          "description": "Map it from an earlier step like Create Page."
+        }
+      },
+      "request": {
+        "url": "https://api.hubapi.com/cms/v3/pages/landing-pages/{{pageId}}"
+      },
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "if (inputs.pageType === 'site_page') request.url = request.url.replace('/landing-pages', '/site-pages');\nreturn request;"
+    },
+    "delete-page": {
+      "label": "Delete Page",
+      "description": "Deletes a landing page or site page.",
+      "group": "Content",
+      "inputs": {
+        "pageType": {
+          "label": "Page Type",
+          "type": "select",
+          "options": [
+            {
+              "value": "landing_page",
+              "label": "Landing Page"
+            },
+            {
+              "value": "site_page",
+              "label": "Site Page"
+            }
+          ],
+          "required": true,
+          "defaultValue": "landing_page"
+        },
+        "pageId": {
+          "label": "Page ID",
+          "required": true,
+          "description": "The ID of the page to delete."
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.hubapi.com/cms/v3/pages/landing-pages/{{pageId}}"
+      },
+      "beforeRequest": "if (inputs.pageType === 'site_page') request.url = request.url.replace('/landing-pages', '/site-pages');\nreturn request;"
+    },
+    "get-owner-by-id": {
+      "label": "Get Owner by ID",
+      "description": "Gets an existing owner by ID.",
+      "group": "Owners",
+      "inputs": {
+        "ownerId": {
+          "label": "Owner ID",
+          "required": true,
+          "description": "Find it in a record's hubspot_owner_id property."
+        }
+      },
+      "request": {
+        "url": "https://api.hubapi.com/crm/v3/owners"
+      },
+      "outputs": {
+        "id": "$.id",
+        "email": "$.email"
+      },
+      "beforeRequest": "request.url += '/' + Number(inputs.ownerId);\nreturn request;"
+    },
+    "get-pipeline-stage-details": {
+      "label": "Get Pipeline Stage Details",
+      "description": "Gets the details of a deal or ticket pipeline stage.",
+      "group": "Pipelines",
+      "inputs": {
+        "objectType": {
+          "label": "Object Type",
+          "type": "select",
+          "options": [
+            {
+              "value": "ticket",
+              "label": "Tickets"
+            },
+            {
+              "value": "deal",
+              "label": "Deal"
+            }
+          ],
+          "required": true
+        },
+        "pipelineId": {
+          "label": "Pipeline ID",
+          "required": true,
+          "description": "The pipeline's ID, found in a deal or ticket's pipeline property."
+        },
+        "pipelineStageId": {
+          "label": "Stage ID",
+          "required": true,
+          "description": "The stage's ID, found in a deal or ticket's stage property."
+        }
+      },
+      "request": {
+        "url": "https://api.hubapi.com/crm/v3/pipelines/{{objectType}}/{{pipelineId}}/stages/{{pipelineStageId}}"
+      },
+      "outputs": {
+        "id": "$.id",
+        "label": "$.label"
+      }
+    },
+    "list_pipelines": {
+      "label": "List Pipelines",
+      "description": "Lists the pipelines defined for deals or tickets.",
+      "group": "Pipelines",
+      "inputs": {
+        "objectType": {
+          "label": "Object Type",
+          "type": "select",
+          "options": [
+            {
+              "value": "deals",
+              "label": "Deals"
+            },
+            {
+              "value": "tickets",
+              "label": "Tickets"
+            }
+          ],
+          "required": true,
+          "defaultValue": "deals",
+          "description": "Which kind of pipeline to list."
+        }
+      },
+      "request": {
+        "url": "https://api.hubapi.com/crm/v3/pipelines/{{objectType}}"
+      },
+      "afterResponse": "const pipelines = response.results ?? [];\nreturn {pipelines, count: pipelines.length};"
+    },
+    "list_pipeline_stages": {
+      "label": "List Pipeline Stages",
+      "description": "Lists the stages of one pipeline.",
+      "group": "Pipelines",
+      "inputs": {
+        "objectType": {
+          "label": "Object Type",
+          "type": "select",
+          "options": [
+            {
+              "value": "deals",
+              "label": "Deals"
+            },
+            {
+              "value": "tickets",
+              "label": "Tickets"
+            }
+          ],
+          "required": true,
+          "defaultValue": "deals",
+          "description": "Which kind of pipeline to list."
+        },
+        "pipelineId": {
+          "label": "Pipeline ID",
+          "required": true,
+          "description": "The pipeline id, as returned by List Pipelines."
+        }
+      },
+      "request": {
+        "url": "https://api.hubapi.com/crm/v3/pipelines/{{objectType}}/{{pipelineId}}/stages"
+      },
+      "afterResponse": "const stages = response.results ?? [];\nreturn {stages, count: stages.length};"
+    },
+    "list_static_lists": {
+      "label": "List Contact Lists",
+      "description": "Lists the contact lists in the account.",
+      "group": "Lists",
+      "inputs": {
+        "query": {
+          "label": "Name Contains",
+          "description": "Filter lists whose name contains this text. Omit to list all."
+        },
+        "count": {
+          "label": "Limit",
+          "type": "number",
+          "description": "Maximum number of lists to return (HubSpot defaults to 20)."
+        },
+        "offset": {
+          "label": "Offset",
+          "type": "number",
+          "description": "Offset returned by a previous call; omit for the first page."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/lists/search",
+        "body": {
+          "query": "{{query}}",
+          "count": "{{count}}",
+          "offset": "{{offset}}"
+        }
+      },
+      "afterResponse": "return {lists: response.lists ?? [], total: response.total, offset: response.offset, hasMore: response.hasMore};"
+    },
+    "list_association_types": {
+      "label": "List Association Types",
+      "description": "Lists the association types available between two object types.",
+      "group": "Associations",
+      "inputs": {
+        "fromObjectType": {
+          "label": "From Object Type",
+          "required": true,
+          "description": "The object type the association starts at, such as contact, company, deal or ticket."
+        },
+        "toObjectType": {
+          "label": "To Object Type",
+          "required": true,
+          "description": "The object type the association points at, such as company or deal."
+        }
+      },
+      "request": {
+        "url": "https://api.hubapi.com/crm/v4/associations/{{fromObjectType}}/{{toObjectType}}/labels"
+      },
+      "afterResponse": "const associationTypes = response.results ?? [];\nreturn {associationTypes, count: associationTypes.length};"
+    },
+    "list_owners": {
+      "label": "List Owners",
+      "description": "Lists the CRM owners in the account.",
+      "group": "Owners",
+      "inputs": {
+        "email": {
+          "label": "Email",
+          "description": "Return only the owner with this email. Omit to list all owners."
+        },
+        "limit": {
+          "label": "Limit",
+          "type": "number",
+          "description": "Maximum number of owners to return per page."
+        },
+        "after": {
+          "label": "After",
+          "description": "Paging cursor returned by a previous call; omit for the first page."
+        }
+      },
+      "request": {
+        "url": "https://api.hubapi.com/crm/v3/owners",
+        "query": {
+          "email": "{{email}}",
+          "limit": "{{limit}}",
+          "after": "{{after}}"
+        }
+      },
+      "afterResponse": "const owners = response.results ?? [];\nreturn {owners, count: owners.length, paging: response.paging ?? null};"
+    },
+    "list_object_properties": {
+      "label": "List Object Properties",
+      "description": "Lists the properties defined on a CRM object type.",
+      "group": "Records",
+      "inputs": {
+        "objectType": {
+          "label": "Object Type",
+          "required": true,
+          "description": "The object type, such as contacts, companies, deals, tickets, notes or tasks."
+        },
+        "customOnly": {
+          "label": "Custom Only",
+          "type": "boolean",
+          "defaultValue": "false",
+          "description": "Return only properties defined by this account, hiding HubSpot built-ins."
+        }
+      },
+      "request": {
+        "url": "https://api.hubapi.com/crm/v3/properties/{{objectType}}"
+      },
+      "afterResponse": "const all = response.results ?? [];\nconst properties = inputs.customOnly === 'true' ? all.filter((property) => property.hubspotDefined !== true) : all;\nreturn {properties, count: properties.length};"
+    },
+    "create_note": {
+      "label": "Create Note",
+      "description": "Logs a note on the timeline of a CRM record.",
+      "group": "Notes and Tasks",
+      "inputs": {
+        "noteBody": {
+          "label": "Note Body",
+          "required": true,
+          "type": "multiline",
+          "description": "The note text. Basic HTML such as <b> and <br> is preserved."
+        },
+        "associatedObjectType": {
+          "label": "Attach To Object Type",
+          "type": "select",
+          "options": [
+            {
+              "value": "contact",
+              "label": "Contact"
+            },
+            {
+              "value": "company",
+              "label": "Company"
+            },
+            {
+              "value": "deal",
+              "label": "Deal"
+            },
+            {
+              "value": "ticket",
+              "label": "Ticket"
+            }
+          ],
+          "required": true,
+          "defaultValue": "contact",
+          "description": "The kind of record the note belongs to."
+        },
+        "associatedObjectId": {
+          "label": "Attach To Object ID",
+          "required": true,
+          "description": "The id of the record, as returned by the matching Find or Get action."
+        },
+        "timestamp": {
+          "label": "Timestamp",
+          "description": "ISO 8601 timestamp for the note, such as 2026-09-14T12:00:00Z. Defaults to now."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/notes"
+      },
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const types = {contact: 202, company: 190, deal: 214, ticket: 228};\nrequest.body = {properties: {hs_timestamp: inputs.timestamp || new Date().toISOString(), hs_note_body: inputs.noteBody}, associations: [{to: {id: inputs.associatedObjectId}, types: [{associationCategory: 'HUBSPOT_DEFINED', associationTypeId: types[inputs.associatedObjectType]}]}]};\nreturn request;"
+    },
+    "create_task": {
+      "label": "Create Task",
+      "description": "Creates a task against a CRM record.",
+      "group": "Notes and Tasks",
+      "inputs": {
+        "subject": {
+          "label": "Subject",
+          "required": true,
+          "description": "The task title shown in HubSpot."
+        },
+        "associatedObjectType": {
+          "label": "Attach To Object Type",
+          "type": "select",
+          "options": [
+            {
+              "value": "contact",
+              "label": "Contact"
+            },
+            {
+              "value": "company",
+              "label": "Company"
+            },
+            {
+              "value": "deal",
+              "label": "Deal"
+            },
+            {
+              "value": "ticket",
+              "label": "Ticket"
+            }
+          ],
+          "required": true,
+          "defaultValue": "contact",
+          "description": "The kind of record the note belongs to."
+        },
+        "associatedObjectId": {
+          "label": "Attach To Object ID",
+          "required": true,
+          "description": "The id of the record, as returned by the matching Find or Get action."
+        },
+        "dueDate": {
+          "label": "Due Date",
+          "description": "ISO 8601 timestamp for when the task is due, such as 2026-09-20T09:00:00Z. Defaults to now."
+        },
+        "body": {
+          "label": "Body",
+          "type": "multiline",
+          "description": "Optional detail shown on the task."
+        },
+        "status": {
+          "label": "Status",
+          "type": "select",
+          "options": [
+            {
+              "value": "NOT_STARTED",
+              "label": "Not started"
+            },
+            {
+              "value": "IN_PROGRESS",
+              "label": "In progress"
+            },
+            {
+              "value": "WAITING",
+              "label": "Waiting"
+            },
+            {
+              "value": "COMPLETED",
+              "label": "Completed"
+            },
+            {
+              "value": "DEFERRED",
+              "label": "Deferred"
+            }
+          ],
+          "defaultValue": "NOT_STARTED"
+        },
+        "priority": {
+          "label": "Priority",
+          "type": "select",
+          "options": [
+            {
+              "value": "LOW",
+              "label": "Low"
+            },
+            {
+              "value": "MEDIUM",
+              "label": "Medium"
+            },
+            {
+              "value": "HIGH",
+              "label": "High"
+            }
+          ],
+          "defaultValue": "MEDIUM"
+        },
+        "ownerId": {
+          "label": "Owner ID",
+          "description": "The owner the task is assigned to, as returned by List Owners."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/tasks"
+      },
+      "outputs": {
+        "id": "$.id"
+      },
+      "beforeRequest": "const types = {contact: 204, company: 192, deal: 216, ticket: 230};\nconst properties = {hs_timestamp: inputs.dueDate || new Date().toISOString(), hs_task_subject: inputs.subject, hs_task_status: inputs.status || 'NOT_STARTED', hs_task_priority: inputs.priority || 'MEDIUM'};\nif (inputs.body) properties.hs_task_body = inputs.body;\nif (inputs.ownerId) properties.hubspot_owner_id = inputs.ownerId;\nrequest.body = {properties, associations: [{to: {id: inputs.associatedObjectId}, types: [{associationCategory: 'HUBSPOT_DEFINED', associationTypeId: types[inputs.associatedObjectType]}]}]};\nreturn request;"
+    },
+    "search_objects": {
+      "label": "Search Objects",
+      "description": "Searches any CRM object type with full filter, sort and paging support.",
+      "group": "Records",
+      "inputs": {
+        "objectType": {
+          "label": "Object Type",
+          "required": true,
+          "description": "Such as contacts, companies, deals, tickets or a custom object type ID."
+        },
+        "filterGroups": {
+          "label": "Filter Groups",
+          "type": "json",
+          "description": "HubSpot filterGroups array, such as [{\"filters\": [{\"propertyName\": \"amount\", \"operator\": \"GT\", \"value\": \"10000\"}]}]."
+        },
+        "query": {
+          "label": "Text Query",
+          "description": "Free-text search across the object default searchable properties."
+        },
+        "properties": {
+          "label": "Properties To Return",
+          "type": "json",
+          "description": "Property names to return, as a JSON list."
+        },
+        "sortPropertyName": {
+          "label": "Sort By Property",
+          "description": "Internal property name to sort on, such as createdate."
+        },
+        "sortDirection": {
+          "label": "Sort Direction",
+          "type": "select",
+          "options": [
+            {
+              "value": "DESCENDING",
+              "label": "Descending"
+            },
+            {
+              "value": "ASCENDING",
+              "label": "Ascending"
+            }
+          ],
+          "defaultValue": "DESCENDING"
+        },
+        "limit": {
+          "label": "Limit",
+          "type": "number",
+          "description": "Results per page, up to 200. HubSpot defaults to 10."
+        },
+        "after": {
+          "label": "After",
+          "description": "Paging cursor from a previous call (paging.next.after). Omit for the first page."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/{{objectType}}/search"
+      },
+      "beforeRequest": "const parsed = (text) => { if (text == null || text === '') return undefined; try { return JSON.parse(text); } catch (e) { return text; } };\nconst body = {};\nconst groups = parsed(inputs.filterGroups);\nif (groups !== undefined && groups !== null) body.filterGroups = groups;\nif (inputs.query) body.query = inputs.query;\nconst properties = parsed(inputs.properties);\nif (Array.isArray(properties) && properties.length > 0) body.properties = properties.map((property) => String(property));\nif (inputs.sortPropertyName) body.sorts = [{propertyName: inputs.sortPropertyName, direction: inputs.sortDirection || 'DESCENDING'}];\nif (inputs.limit !== undefined && inputs.limit !== '') body.limit = Number(inputs.limit);\nif (inputs.after) body.after = inputs.after;\nrequest.body = body;\nreturn request;",
+      "afterResponse": "return {total: response.total, results: response.results ?? [], paging: response.paging ?? null};"
+    }
+  },
+  "triggers": {
+    "new-engagement": {
+      "label": "New Engagement",
+      "description": "Triggers when a new engagement is created.",
+      "inputs": {
+        "eventType": {
+          "label": "Engagement Type",
+          "type": "select",
+          "options": [
+            {
+              "value": "NOTE",
+              "label": "Note"
+            },
+            {
+              "value": "EMAIL",
+              "label": "Email"
+            },
+            {
+              "value": "TASK",
+              "label": "Task"
+            },
+            {
+              "value": "MEETING",
+              "label": "Meeting"
+            },
+            {
+              "value": "CALL",
+              "label": "Call"
+            }
+          ],
+          "description": "Leave empty to trigger on every engagement type."
+        }
+      },
+      "request": {
+        "url": "https://api.hubapi.com/engagements/v1/engagements/paged",
+        "query": {
+          "limit": "100"
+        }
+      },
+      "afterResponse": "let engagements = response.results ?? [];\nlet page = response;\nwhile (page.hasMore) {\n  page = call({method: 'GET', url: '/engagements/v1/engagements/paged', query: {limit: '100', offset: String(page.offset)}});\n  engagements = engagements.concat(page.results ?? []);\n}\nreturn inputs.eventType ? engagements.filter((item) => item.engagement.type === inputs.eventType) : engagements;",
+      "key": "$.engagement.createdAt"
+    },
+    "new-form-submission": {
+      "label": "New Form Submission",
+      "description": "Triggers when a form is submitted.",
+      "inputs": {
+        "formId": {
+          "label": "Form",
+          "required": true,
+          "list": "forms"
+        },
+        "allowMultipleFiles": {
+          "label": "Allow Multiple Files",
+          "type": "boolean",
+          "required": true,
+          "defaultValue": "false",
+          "description": "Gives the files of a file field as a list."
+        }
+      },
+      "request": {
+        "url": "https://api.hubapi.com/form-integrations/v1/submissions/forms/{{formId}}",
+        "query": {
+          "limit": "50"
+        }
+      },
+      "afterResponse": "const path = '/form-integrations/v1/submissions/forms/' + encodeURIComponent(inputs.formId);\nlet submissions = response.results ?? [];\nlet after = response.paging?.next?.after;\nwhile (after) {\n  const page = call({method: 'GET', url: path, query: {limit: '50', after}});\n  submissions = submissions.concat(page.results ?? []);\n  after = page.paging?.next?.after;\n}\nconst fields = {};\ncall({method: 'GET', url: '/forms/v2/fields/' + encodeURIComponent(inputs.formId)}).forEach((field) => { fields[field.name] = field; });\nconst many = inputs.allowMultipleFiles === 'true';\nreturn submissions.map((submission) => {\n  const values = {};\n  (submission.values ?? []).forEach((entry) => {\n    const field = fields[entry.name];\n    if (!field) { values[entry.name] = entry.value; return; }\n    if (field.fieldType === 'checkbox' || (field.fieldType === 'file' && many)) { values[field.label] = values[field.label] || []; values[field.label].push(entry.value); }\n    else values[field.label] = entry.value;\n  });\n  return Object.assign({}, submission, {values});\n});",
+      "key": "$.submittedAt"
+    },
+    "new-company": {
+      "label": "New Company",
+      "description": "Triggers when a new company is created.",
+      "inputs": {
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get besides the usual ones, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/companies/search"
+      },
+      "beforeRequest": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nconst test = !inputs.lastPollTime;\nrequest.body = {limit: test ? 10 : 200, properties: 'name,domain,industry,about_us,phone,address,address2,city,state,zip,country,website,type,description,founded_year,hs_createdate,hs_lastmodifieddate,hs_object_id,is_public,timezone,total_money_raised,total_revenue,owneremail,ownername,numberofemployees,annualrevenue,lifecyclestage,createdate,web_technologies'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)), sorts: ['-createdate'], filterGroups: test ? [] : [{filters: [{propertyName: 'createdate', operator: 'GT', value: inputs.lastPollTime}]}]};\nreturn request;",
+      "afterResponse": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nconst body = {limit: 200, properties: 'name,domain,industry,about_us,phone,address,address2,city,state,zip,country,website,type,description,founded_year,hs_createdate,hs_lastmodifieddate,hs_object_id,is_public,timezone,total_money_raised,total_revenue,owneremail,ownername,numberofemployees,annualrevenue,lifecyclestage,createdate,web_technologies'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)), sorts: ['-createdate'], filterGroups: [{filters: [{propertyName: 'createdate', operator: 'GT', value: inputs.lastPollTime}]}]};\nlet items = response.results ?? [];\nlet after = response.paging?.next?.after;\nwhile (inputs.lastPollTime && after && !(parseInt(after) + 200 > 10000)) {\n  const page = call({method: 'POST', url: '/crm/v3/objects/companies/search', body: {...body, after}});\n  items = items.concat(page.results ?? []);\n  after = page.paging?.next?.after;\n}\nreturn items;",
+      "key": "$.properties.createdate"
+    },
+    "new-contact": {
+      "label": "New Contact",
+      "description": "Triggers when a new contact is created.",
+      "inputs": {
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get besides the usual ones, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/contacts/search"
+      },
+      "beforeRequest": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nconst test = !inputs.lastPollTime;\nrequest.body = {limit: test ? 10 : 200, properties: 'firstname,lastname,email,company,website,mobilephone,phone,fax,address,city,state,zip,salutation,country,jobtitle,hs_createdate,hs_email_domain,hs_object_id,lastmodifieddate,hs_persona,hs_language,lifecyclestage,createdate,numemployees,annualrevenue,industry'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)), sorts: ['-createdate'], filterGroups: test ? [] : [{filters: [{propertyName: 'createdate', operator: 'GT', value: inputs.lastPollTime}]}]};\nreturn request;",
+      "afterResponse": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nconst body = {limit: 200, properties: 'firstname,lastname,email,company,website,mobilephone,phone,fax,address,city,state,zip,salutation,country,jobtitle,hs_createdate,hs_email_domain,hs_object_id,lastmodifieddate,hs_persona,hs_language,lifecyclestage,createdate,numemployees,annualrevenue,industry'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)), sorts: ['-createdate'], filterGroups: [{filters: [{propertyName: 'createdate', operator: 'GT', value: inputs.lastPollTime}]}]};\nlet items = response.results ?? [];\nlet after = response.paging?.next?.after;\nwhile (inputs.lastPollTime && after && !(parseInt(after) + 200 > 10000)) {\n  const page = call({method: 'POST', url: '/crm/v3/objects/contacts/search', body: {...body, after}});\n  items = items.concat(page.results ?? []);\n  after = page.paging?.next?.after;\n}\nreturn items;",
+      "key": "$.properties.createdate"
+    },
+    "new-deal": {
+      "label": "New Deal",
+      "description": "Triggers when a new deal is created.",
+      "inputs": {
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get besides the usual ones, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/deals/search"
+      },
+      "beforeRequest": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nconst test = !inputs.lastPollTime;\nrequest.body = {limit: test ? 10 : 200, properties: 'dealtype,dealname,amount,description,closedate,createdate,num_associated_contacts,hs_forecast_amount,hs_forecast_probability,hs_manual_forecast_category,hs_next_step,hs_object_id,hs_lastmodifieddate,hubspot_owner_id,hubspot_team_id'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)), sorts: ['-createdate'], filterGroups: test ? [] : [{filters: [{propertyName: 'createdate', operator: 'GT', value: inputs.lastPollTime}]}]};\nreturn request;",
+      "afterResponse": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nconst body = {limit: 200, properties: 'dealtype,dealname,amount,description,closedate,createdate,num_associated_contacts,hs_forecast_amount,hs_forecast_probability,hs_manual_forecast_category,hs_next_step,hs_object_id,hs_lastmodifieddate,hubspot_owner_id,hubspot_team_id'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)), sorts: ['-createdate'], filterGroups: [{filters: [{propertyName: 'createdate', operator: 'GT', value: inputs.lastPollTime}]}]};\nlet items = response.results ?? [];\nlet after = response.paging?.next?.after;\nwhile (inputs.lastPollTime && after && !(parseInt(after) + 200 > 10000)) {\n  const page = call({method: 'POST', url: '/crm/v3/objects/deals/search', body: {...body, after}});\n  items = items.concat(page.results ?? []);\n  after = page.paging?.next?.after;\n}\nreturn items;",
+      "key": "$.properties.createdate"
+    },
+    "new-task": {
+      "label": "New Task",
+      "description": "Triggers when a new task is created.",
+      "inputs": {
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get besides the usual ones, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/tasks/search"
+      },
+      "beforeRequest": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nconst test = !inputs.lastPollTime;\nrequest.body = {limit: test ? 10 : 200, properties: 'hs_task_body,hubspot_owner_id,hs_task_subject,hs_task_status,hs_task_priority,hs_task_type,hs_created_by,hs_repeat_status,hs_task_completion_date,hs_task_is_completed,hs_timestamp,hs_queue_membership_ids,hs_lastmodifieddate,hs_createdate'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)), sorts: ['-hs_createdate'], filterGroups: test ? [] : [{filters: [{propertyName: 'hs_createdate', operator: 'GT', value: inputs.lastPollTime}]}]};\nreturn request;",
+      "afterResponse": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nconst body = {limit: 200, properties: 'hs_task_body,hubspot_owner_id,hs_task_subject,hs_task_status,hs_task_priority,hs_task_type,hs_created_by,hs_repeat_status,hs_task_completion_date,hs_task_is_completed,hs_timestamp,hs_queue_membership_ids,hs_lastmodifieddate,hs_createdate'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)), sorts: ['-hs_createdate'], filterGroups: [{filters: [{propertyName: 'hs_createdate', operator: 'GT', value: inputs.lastPollTime}]}]};\nlet items = response.results ?? [];\nlet after = response.paging?.next?.after;\nwhile (inputs.lastPollTime && after && !(parseInt(after) + 200 > 10000)) {\n  const page = call({method: 'POST', url: '/crm/v3/objects/tasks/search', body: {...body, after}});\n  items = items.concat(page.results ?? []);\n  after = page.paging?.next?.after;\n}\nreturn items;",
+      "key": "$.properties.hs_createdate"
+    },
+    "new-ticket": {
+      "label": "New Ticket",
+      "description": "Triggers when a new ticket is created.",
+      "inputs": {
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get besides the usual ones, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/tickets/search"
+      },
+      "beforeRequest": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nconst test = !inputs.lastPollTime;\nrequest.body = {limit: test ? 10 : 200, properties: 'subject,content,source_type,createdate,hs_pipeline,hs_pipeline_stage,hs_resolution,hs_ticket_category,hs_ticket_id,hs_ticket_priority,hs_lastmodifieddate,hubspot_owner_id,hubspot_team_id'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)), sorts: ['-createdate'], filterGroups: test ? [] : [{filters: [{propertyName: 'createdate', operator: 'GT', value: inputs.lastPollTime}]}]};\nreturn request;",
+      "afterResponse": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nconst body = {limit: 200, properties: 'subject,content,source_type,createdate,hs_pipeline,hs_pipeline_stage,hs_resolution,hs_ticket_category,hs_ticket_id,hs_ticket_priority,hs_lastmodifieddate,hubspot_owner_id,hubspot_team_id'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)), sorts: ['-createdate'], filterGroups: [{filters: [{propertyName: 'createdate', operator: 'GT', value: inputs.lastPollTime}]}]};\nlet items = response.results ?? [];\nlet after = response.paging?.next?.after;\nwhile (inputs.lastPollTime && after && !(parseInt(after) + 200 > 10000)) {\n  const page = call({method: 'POST', url: '/crm/v3/objects/tickets/search', body: {...body, after}});\n  items = items.concat(page.results ?? []);\n  after = page.paging?.next?.after;\n}\nreturn items;",
+      "key": "$.properties.createdate"
+    },
+    "new-line-item": {
+      "label": "New Line Item",
+      "description": "Triggers when a new line item is created.",
+      "inputs": {
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get besides the usual ones, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/line_items/search"
+      },
+      "beforeRequest": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nconst test = !inputs.lastPollTime;\nrequest.body = {limit: test ? 10 : 200, properties: 'name,description,price,quantity,amount,discount,tax,createdate,hs_object_id,hs_product_id,hs_images,hs_lastmodifieddate,hs_line_item_currency_code,hs_sku,hs_url,hs_cost_of_goods_sold,hs_discount_percentage,hs_term_in_months'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)), sorts: ['-createdate'], filterGroups: test ? [] : [{filters: [{propertyName: 'createdate', operator: 'GT', value: inputs.lastPollTime}]}]};\nreturn request;",
+      "afterResponse": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nconst body = {limit: 200, properties: 'name,description,price,quantity,amount,discount,tax,createdate,hs_object_id,hs_product_id,hs_images,hs_lastmodifieddate,hs_line_item_currency_code,hs_sku,hs_url,hs_cost_of_goods_sold,hs_discount_percentage,hs_term_in_months'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)), sorts: ['-createdate'], filterGroups: [{filters: [{propertyName: 'createdate', operator: 'GT', value: inputs.lastPollTime}]}]};\nlet items = response.results ?? [];\nlet after = response.paging?.next?.after;\nwhile (inputs.lastPollTime && after && !(parseInt(after) + 200 > 10000)) {\n  const page = call({method: 'POST', url: '/crm/v3/objects/line_items/search', body: {...body, after}});\n  items = items.concat(page.results ?? []);\n  after = page.paging?.next?.after;\n}\nreturn items;",
+      "key": "$.properties.createdate"
+    },
+    "new-product": {
+      "label": "New Product",
+      "description": "Triggers when a new product is created.",
+      "inputs": {
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get besides the usual ones, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/products/search"
+      },
+      "beforeRequest": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nconst test = !inputs.lastPollTime;\nrequest.body = {limit: test ? 10 : 200, properties: 'createdate,description,name,price,tax,hs_lastmodifieddate'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)), sorts: ['-createdate'], filterGroups: test ? [] : [{filters: [{propertyName: 'createdate', operator: 'GT', value: inputs.lastPollTime}]}]};\nreturn request;",
+      "afterResponse": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nconst body = {limit: 200, properties: 'createdate,description,name,price,tax,hs_lastmodifieddate'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)), sorts: ['-createdate'], filterGroups: [{filters: [{propertyName: 'createdate', operator: 'GT', value: inputs.lastPollTime}]}]};\nlet items = response.results ?? [];\nlet after = response.paging?.next?.after;\nwhile (inputs.lastPollTime && after && !(parseInt(after) + 200 > 10000)) {\n  const page = call({method: 'POST', url: '/crm/v3/objects/products/search', body: {...body, after}});\n  items = items.concat(page.results ?? []);\n  after = page.paging?.next?.after;\n}\nreturn items;",
+      "key": "$.properties.createdate"
+    },
+    "new-or-updated-company": {
+      "label": "New or Updated Company",
+      "description": "Triggers when a company is created or updated.",
+      "inputs": {
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get besides the usual ones, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/companies/search"
+      },
+      "beforeRequest": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nconst test = !inputs.lastPollTime;\nrequest.body = {limit: test ? 10 : 200, properties: 'name,domain,industry,about_us,phone,address,address2,city,state,zip,country,website,type,description,founded_year,hs_createdate,hs_lastmodifieddate,hs_object_id,is_public,timezone,total_money_raised,total_revenue,owneremail,ownername,numberofemployees,annualrevenue,lifecyclestage,createdate,web_technologies'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)), sorts: ['-hs_lastmodifieddate'], filterGroups: test ? [] : [{filters: [{propertyName: 'hs_lastmodifieddate', operator: 'GT', value: inputs.lastPollTime}]}]};\nreturn request;",
+      "afterResponse": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nconst body = {limit: 200, properties: 'name,domain,industry,about_us,phone,address,address2,city,state,zip,country,website,type,description,founded_year,hs_createdate,hs_lastmodifieddate,hs_object_id,is_public,timezone,total_money_raised,total_revenue,owneremail,ownername,numberofemployees,annualrevenue,lifecyclestage,createdate,web_technologies'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)), sorts: ['-hs_lastmodifieddate'], filterGroups: [{filters: [{propertyName: 'hs_lastmodifieddate', operator: 'GT', value: inputs.lastPollTime}]}]};\nlet items = response.results ?? [];\nlet after = response.paging?.next?.after;\nwhile (inputs.lastPollTime && after && !(parseInt(after) + 200 > 10000)) {\n  const page = call({method: 'POST', url: '/crm/v3/objects/companies/search', body: {...body, after}});\n  items = items.concat(page.results ?? []);\n  after = page.paging?.next?.after;\n}\nreturn items;",
+      "key": "$.properties.hs_lastmodifieddate"
+    },
+    "new-or-updated-contact": {
+      "label": "New or Updated Contact",
+      "description": "Triggers when a contact is created or updated.",
+      "inputs": {
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get besides the usual ones, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/contacts/search"
+      },
+      "beforeRequest": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nconst test = !inputs.lastPollTime;\nrequest.body = {limit: test ? 10 : 200, properties: 'firstname,lastname,email,company,website,mobilephone,phone,fax,address,city,state,zip,salutation,country,jobtitle,hs_createdate,hs_email_domain,hs_object_id,lastmodifieddate,hs_persona,hs_language,lifecyclestage,createdate,numemployees,annualrevenue,industry'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)), sorts: ['-lastmodifieddate'], filterGroups: test ? [] : [{filters: [{propertyName: 'lastmodifieddate', operator: 'GT', value: inputs.lastPollTime}]}]};\nreturn request;",
+      "afterResponse": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nconst body = {limit: 200, properties: 'firstname,lastname,email,company,website,mobilephone,phone,fax,address,city,state,zip,salutation,country,jobtitle,hs_createdate,hs_email_domain,hs_object_id,lastmodifieddate,hs_persona,hs_language,lifecyclestage,createdate,numemployees,annualrevenue,industry'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)), sorts: ['-lastmodifieddate'], filterGroups: [{filters: [{propertyName: 'lastmodifieddate', operator: 'GT', value: inputs.lastPollTime}]}]};\nlet items = response.results ?? [];\nlet after = response.paging?.next?.after;\nwhile (inputs.lastPollTime && after && !(parseInt(after) + 200 > 10000)) {\n  const page = call({method: 'POST', url: '/crm/v3/objects/contacts/search', body: {...body, after}});\n  items = items.concat(page.results ?? []);\n  after = page.paging?.next?.after;\n}\nreturn items;",
+      "key": "$.properties.lastmodifieddate"
+    },
+    "new-or-updated-product": {
+      "label": "New or Updated Product",
+      "description": "Triggers when a product is created or updated.",
+      "inputs": {
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get besides the usual ones, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/products/search"
+      },
+      "beforeRequest": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nconst test = !inputs.lastPollTime;\nrequest.body = {limit: test ? 10 : 200, properties: 'createdate,description,name,price,tax,hs_lastmodifieddate'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)), sorts: ['-hs_lastmodifieddate'], filterGroups: test ? [] : [{filters: [{propertyName: 'hs_lastmodifieddate', operator: 'GT', value: inputs.lastPollTime}]}]};\nreturn request;",
+      "afterResponse": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nconst body = {limit: 200, properties: 'createdate,description,name,price,tax,hs_lastmodifieddate'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)), sorts: ['-hs_lastmodifieddate'], filterGroups: [{filters: [{propertyName: 'hs_lastmodifieddate', operator: 'GT', value: inputs.lastPollTime}]}]};\nlet items = response.results ?? [];\nlet after = response.paging?.next?.after;\nwhile (inputs.lastPollTime && after && !(parseInt(after) + 200 > 10000)) {\n  const page = call({method: 'POST', url: '/crm/v3/objects/products/search', body: {...body, after}});\n  items = items.concat(page.results ?? []);\n  after = page.paging?.next?.after;\n}\nreturn items;",
+      "key": "$.properties.hs_lastmodifieddate"
+    },
+    "new-or-updated-line-item": {
+      "label": "New or Updated Line Item",
+      "description": "Triggers when a line item is created or updated.",
+      "inputs": {
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get besides the usual ones, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/line_items/search"
+      },
+      "beforeRequest": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nconst test = !inputs.lastPollTime;\nrequest.body = {limit: test ? 10 : 200, properties: 'name,description,price,quantity,amount,discount,tax,createdate,hs_object_id,hs_product_id,hs_images,hs_lastmodifieddate,hs_line_item_currency_code,hs_sku,hs_url,hs_cost_of_goods_sold,hs_discount_percentage,hs_term_in_months'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)), sorts: ['-hs_lastmodifieddate'], filterGroups: test ? [] : [{filters: [{propertyName: 'hs_lastmodifieddate', operator: 'GT', value: inputs.lastPollTime}]}]};\nreturn request;",
+      "afterResponse": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nconst body = {limit: 200, properties: 'name,description,price,quantity,amount,discount,tax,createdate,hs_object_id,hs_product_id,hs_images,hs_lastmodifieddate,hs_line_item_currency_code,hs_sku,hs_url,hs_cost_of_goods_sold,hs_discount_percentage,hs_term_in_months'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve)), sorts: ['-hs_lastmodifieddate'], filterGroups: [{filters: [{propertyName: 'hs_lastmodifieddate', operator: 'GT', value: inputs.lastPollTime}]}]};\nlet items = response.results ?? [];\nlet after = response.paging?.next?.after;\nwhile (inputs.lastPollTime && after && !(parseInt(after) + 200 > 10000)) {\n  const page = call({method: 'POST', url: '/crm/v3/objects/line_items/search', body: {...body, after}});\n  items = items.concat(page.results ?? []);\n  after = page.paging?.next?.after;\n}\nreturn items;",
+      "key": "$.properties.hs_lastmodifieddate"
+    },
+    "new-custom-object": {
+      "label": "New Custom Object",
+      "description": "Triggers when a new custom object record is created.",
+      "inputs": {
+        "customObjectType": {
+          "label": "Custom Object Type",
+          "required": true,
+          "list": "custom_object_types"
+        },
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/{{customObjectType}}/search"
+      },
+      "beforeRequest": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nconst test = !inputs.lastPollTime;\nrequest.body = {limit: test ? 10 : 200, properties: inputs.additionalPropertiesToRetrieve ? listOf(inputs.additionalPropertiesToRetrieve) : undefined, sorts: ['-hs_createdate'], filterGroups: test ? [] : [{filters: [{propertyName: 'hs_createdate', operator: 'GT', value: inputs.lastPollTime}]}]};\nreturn request;",
+      "afterResponse": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nconst body = {limit: 200, properties: inputs.additionalPropertiesToRetrieve ? listOf(inputs.additionalPropertiesToRetrieve) : undefined, sorts: ['-hs_createdate'], filterGroups: [{filters: [{propertyName: 'hs_createdate', operator: 'GT', value: inputs.lastPollTime}]}]};\nlet items = response.results ?? [];\nlet after = response.paging?.next?.after;\nwhile (inputs.lastPollTime && after && !(parseInt(after) + 200 > 10000)) {\n  const page = call({method: 'POST', url: '/crm/v3/objects/' + encodeURIComponent(inputs.customObjectType) + '/search', body: {...body, after}});\n  items = items.concat(page.results ?? []);\n  after = page.paging?.next?.after;\n}\nreturn items;",
+      "key": "$.properties.hs_createdate"
+    },
+    "deal-stage-updated": {
+      "label": "Updated Deal Stage",
+      "description": "Triggers when a deal enters a specified stage.",
+      "inputs": {
+        "pipelineId": {
+          "label": "Deal Pipeline",
+          "required": true,
+          "list": "deal_pipelines"
+        },
+        "pipelineStageId": {
+          "label": "Deal Stage",
+          "required": true,
+          "list": "deal_pipeline_stages"
+        },
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get besides the usual ones, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/deals/search"
+      },
+      "beforeRequest": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nconst properties = 'dealtype,dealname,amount,description,closedate,createdate,num_associated_contacts,hs_forecast_amount,hs_forecast_probability,hs_manual_forecast_category,hs_next_step,hs_object_id,hs_lastmodifieddate,hubspot_owner_id,hubspot_team_id'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve), ['hs_v2_date_entered_current_stage']);\nrequest.body = {limit: inputs.lastPollTime ? 200 : 10, properties, sorts: ['-hs_v2_date_entered_current_stage'], filterGroups: [{filters: [{propertyName: 'pipeline', operator: 'EQ', value: inputs.pipelineId}, {propertyName: 'dealstage', operator: 'EQ', value: inputs.pipelineStageId}, {propertyName: 'hs_v2_date_entered_current_stage', operator: 'GT', value: inputs.lastPollTime || '0'}]}]};\nreturn request;",
+      "afterResponse": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nconst properties = 'dealtype,dealname,amount,description,closedate,createdate,num_associated_contacts,hs_forecast_amount,hs_forecast_probability,hs_manual_forecast_category,hs_next_step,hs_object_id,hs_lastmodifieddate,hubspot_owner_id,hubspot_team_id'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve), ['hs_v2_date_entered_current_stage']);\nconst body = {limit: 200, properties, sorts: ['-hs_v2_date_entered_current_stage'], filterGroups: [{filters: [{propertyName: 'pipeline', operator: 'EQ', value: inputs.pipelineId}, {propertyName: 'dealstage', operator: 'EQ', value: inputs.pipelineStageId}, {propertyName: 'hs_v2_date_entered_current_stage', operator: 'GT', value: inputs.lastPollTime || '0'}]}]};\nlet items = response.results ?? [];\nlet after = response.paging?.next?.after;\nwhile (inputs.lastPollTime && after && !(parseInt(after) + 200 > 10000)) {\n  const page = call({method: 'POST', url: '/crm/v3/objects/deals/search', body: {...body, after}});\n  items = items.concat(page.results ?? []);\n  after = page.paging?.next?.after;\n}\nreturn items;",
+      "key": "$.properties.hs_v2_date_entered_current_stage"
+    },
+    "new-contact-property-change": {
+      "label": "New Contact Property Change",
+      "description": "Triggers when a specified property is updated on a contact.",
+      "inputs": {
+        "propertyName": {
+          "label": "Property",
+          "required": true,
+          "description": "The property to watch, by its internal name."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/contacts/search"
+      },
+      "beforeRequest": "const name = inputs.propertyName;\nrequest.body = inputs.lastPollTime ? {limit: 200, sorts: ['-lastmodifieddate'], filterGroups: [{filters: [{propertyName: name, operator: 'HAS_PROPERTY'}, {propertyName: 'lastmodifieddate', operator: 'GT', value: inputs.lastPollTime}]}]} : {limit: 10, properties: [name], sorts: ['-lastmodifieddate']};\nreturn request;",
+      "afterResponse": "const name = inputs.propertyName;\nif (!inputs.lastPollTime) return response.results ?? [];\nconst body = {limit: 200, sorts: ['-lastmodifieddate'], filterGroups: [{filters: [{propertyName: name, operator: 'HAS_PROPERTY'}, {propertyName: 'lastmodifieddate', operator: 'GT', value: inputs.lastPollTime}]}]};\nlet items = response.results ?? [];\nlet after = response.paging?.next?.after;\nwhile (after && !(parseInt(after) + 200 > 10000)) {\n  const page = call({method: 'POST', url: '/crm/v3/objects/contacts' + '/search', body: {...body, after}});\n  items = items.concat(page.results ?? []);\n  after = page.paging?.next?.after;\n}\n// The original keeps a record only when the property itself changed since the last check.\nlet read = [];\nfor (let start = 0; start < items.length; start += 50) {\n  read = read.concat(call({method: 'POST', url: '/crm/v3/objects/contacts' + '/batch/read', body: {propertiesWithHistory: [name], properties: [name], inputs: items.slice(start, start + 50).map((item) => ({id: item.id}))}}).results ?? []);\n}\nreturn read.filter((item) => { const history = item.propertiesWithHistory?.[name]; return history?.length > 0 && Date.parse(history[0].timestamp) > Number(inputs.lastPollTime); }).map(({propertiesWithHistory, ...item}) => item);",
+      "key": "$.properties.lastmodifieddate"
+    },
+    "new-ticket-property-change": {
+      "label": "New Ticket Property Change",
+      "description": "Triggers when a specified property is updated on a ticket.",
+      "inputs": {
+        "propertyName": {
+          "label": "Property",
+          "required": true,
+          "description": "The property to watch, by its internal name."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/tickets/search"
+      },
+      "beforeRequest": "const name = inputs.propertyName;\nrequest.body = inputs.lastPollTime ? {limit: 200, sorts: ['-hs_lastmodifieddate'], filterGroups: [{filters: [{propertyName: name, operator: 'HAS_PROPERTY'}, {propertyName: 'hs_lastmodifieddate', operator: 'GT', value: inputs.lastPollTime}]}]} : {limit: 10, properties: [name], sorts: ['-hs_lastmodifieddate']};\nreturn request;",
+      "afterResponse": "const name = inputs.propertyName;\nif (!inputs.lastPollTime) return response.results ?? [];\nconst body = {limit: 200, sorts: ['-hs_lastmodifieddate'], filterGroups: [{filters: [{propertyName: name, operator: 'HAS_PROPERTY'}, {propertyName: 'hs_lastmodifieddate', operator: 'GT', value: inputs.lastPollTime}]}]};\nlet items = response.results ?? [];\nlet after = response.paging?.next?.after;\nwhile (after && !(parseInt(after) + 200 > 10000)) {\n  const page = call({method: 'POST', url: '/crm/v3/objects/tickets' + '/search', body: {...body, after}});\n  items = items.concat(page.results ?? []);\n  after = page.paging?.next?.after;\n}\n// The original keeps a record only when the property itself changed since the last check.\nlet read = [];\nfor (let start = 0; start < items.length; start += 50) {\n  read = read.concat(call({method: 'POST', url: '/crm/v3/objects/tickets' + '/batch/read', body: {propertiesWithHistory: [name], properties: [name], inputs: items.slice(start, start + 50).map((item) => ({id: item.id}))}}).results ?? []);\n}\nreturn read.filter((item) => { const history = item.propertiesWithHistory?.[name]; return history?.length > 0 && Date.parse(history[0].timestamp) > Number(inputs.lastPollTime); }).map(({propertiesWithHistory, ...item}) => item);",
+      "key": "$.properties.hs_lastmodifieddate"
+    },
+    "new-company-property-change": {
+      "label": "New Company Property Change",
+      "description": "Triggers when a specified property is updated on a company.",
+      "inputs": {
+        "propertyName": {
+          "label": "Property",
+          "required": true,
+          "description": "The property to watch, by its internal name."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/companies/search"
+      },
+      "beforeRequest": "const name = inputs.propertyName;\nrequest.body = inputs.lastPollTime ? {limit: 200, sorts: ['-hs_lastmodifieddate'], filterGroups: [{filters: [{propertyName: name, operator: 'HAS_PROPERTY'}, {propertyName: 'hs_lastmodifieddate', operator: 'GT', value: inputs.lastPollTime}]}]} : {limit: 10, properties: [name], sorts: ['-hs_lastmodifieddate']};\nreturn request;",
+      "afterResponse": "const name = inputs.propertyName;\nif (!inputs.lastPollTime) return response.results ?? [];\nconst body = {limit: 200, sorts: ['-hs_lastmodifieddate'], filterGroups: [{filters: [{propertyName: name, operator: 'HAS_PROPERTY'}, {propertyName: 'hs_lastmodifieddate', operator: 'GT', value: inputs.lastPollTime}]}]};\nlet items = response.results ?? [];\nlet after = response.paging?.next?.after;\nwhile (after && !(parseInt(after) + 200 > 10000)) {\n  const page = call({method: 'POST', url: '/crm/v3/objects/companies' + '/search', body: {...body, after}});\n  items = items.concat(page.results ?? []);\n  after = page.paging?.next?.after;\n}\n// The original keeps a record only when the property itself changed since the last check.\nlet read = [];\nfor (let start = 0; start < items.length; start += 50) {\n  read = read.concat(call({method: 'POST', url: '/crm/v3/objects/companies' + '/batch/read', body: {propertiesWithHistory: [name], properties: [name], inputs: items.slice(start, start + 50).map((item) => ({id: item.id}))}}).results ?? []);\n}\nreturn read.filter((item) => { const history = item.propertiesWithHistory?.[name]; return history?.length > 0 && Date.parse(history[0].timestamp) > Number(inputs.lastPollTime); }).map(({propertiesWithHistory, ...item}) => item);",
+      "key": "$.properties.hs_lastmodifieddate"
+    },
+    "new-deal-property-change": {
+      "label": "New Deal Property Change",
+      "description": "Triggers when a specified property is updated on a deal.",
+      "inputs": {
+        "propertyName": {
+          "label": "Property",
+          "required": true,
+          "description": "The property to watch, by its internal name."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/deals/search"
+      },
+      "beforeRequest": "const name = inputs.propertyName;\nrequest.body = inputs.lastPollTime ? {limit: 200, sorts: ['-hs_lastmodifieddate'], filterGroups: [{filters: [{propertyName: name, operator: 'HAS_PROPERTY'}, {propertyName: 'hs_lastmodifieddate', operator: 'GT', value: inputs.lastPollTime}]}]} : {limit: 10, properties: [name], sorts: ['-hs_lastmodifieddate']};\nreturn request;",
+      "afterResponse": "const name = inputs.propertyName;\nif (!inputs.lastPollTime) return response.results ?? [];\nconst body = {limit: 200, sorts: ['-hs_lastmodifieddate'], filterGroups: [{filters: [{propertyName: name, operator: 'HAS_PROPERTY'}, {propertyName: 'hs_lastmodifieddate', operator: 'GT', value: inputs.lastPollTime}]}]};\nlet items = response.results ?? [];\nlet after = response.paging?.next?.after;\nwhile (after && !(parseInt(after) + 200 > 10000)) {\n  const page = call({method: 'POST', url: '/crm/v3/objects/deals' + '/search', body: {...body, after}});\n  items = items.concat(page.results ?? []);\n  after = page.paging?.next?.after;\n}\n// The original keeps a record only when the property itself changed since the last check.\nlet read = [];\nfor (let start = 0; start < items.length; start += 50) {\n  read = read.concat(call({method: 'POST', url: '/crm/v3/objects/deals' + '/batch/read', body: {propertiesWithHistory: [name], properties: [name], inputs: items.slice(start, start + 50).map((item) => ({id: item.id}))}}).results ?? []);\n}\nreturn read.filter((item) => { const history = item.propertiesWithHistory?.[name]; return history?.length > 0 && Date.parse(history[0].timestamp) > Number(inputs.lastPollTime); }).map(({propertiesWithHistory, ...item}) => item);",
+      "key": "$.properties.hs_lastmodifieddate"
+    },
+    "new-custom-object-property-change": {
+      "label": "New Custom Object Property Change",
+      "description": "Triggers when a specified property is updated on a custom object.",
+      "inputs": {
+        "customObjectType": {
+          "label": "Custom Object Type",
+          "required": true,
+          "list": "custom_object_types"
+        },
+        "propertyName": {
+          "label": "Property",
+          "required": true,
+          "description": "The property to watch, by its internal name."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/{{customObjectType}}/search"
+      },
+      "beforeRequest": "const name = inputs.propertyName;\nrequest.body = inputs.lastPollTime ? {limit: 200, sorts: ['-hs_lastmodifieddate'], filterGroups: [{filters: [{propertyName: name, operator: 'HAS_PROPERTY'}, {propertyName: 'hs_lastmodifieddate', operator: 'GT', value: inputs.lastPollTime}]}]} : {limit: 10, properties: [name], sorts: ['-hs_lastmodifieddate']};\nreturn request;",
+      "afterResponse": "const name = inputs.propertyName;\nif (!inputs.lastPollTime) return response.results ?? [];\nconst body = {limit: 200, sorts: ['-hs_lastmodifieddate'], filterGroups: [{filters: [{propertyName: name, operator: 'HAS_PROPERTY'}, {propertyName: 'hs_lastmodifieddate', operator: 'GT', value: inputs.lastPollTime}]}]};\nlet items = response.results ?? [];\nlet after = response.paging?.next?.after;\nwhile (after && !(parseInt(after) + 200 > 10000)) {\n  const page = call({method: 'POST', url: '/crm/v3/objects/' + encodeURIComponent(inputs.customObjectType) + '/search', body: {...body, after}});\n  items = items.concat(page.results ?? []);\n  after = page.paging?.next?.after;\n}\n// The original keeps a record only when the property itself changed since the last check.\nlet read = [];\nfor (let start = 0; start < items.length; start += 50) {\n  read = read.concat(call({method: 'POST', url: '/crm/v3/objects/' + encodeURIComponent(inputs.customObjectType) + '/batch/read', body: {propertiesWithHistory: [name], properties: [name], inputs: items.slice(start, start + 50).map((item) => ({id: item.id}))}}).results ?? []);\n}\nreturn read.filter((item) => { const history = item.propertiesWithHistory?.[name]; return history?.length > 0 && Date.parse(history[0].timestamp) > Number(inputs.lastPollTime); }).map(({propertiesWithHistory, ...item}) => item);",
+      "key": "$.properties.hs_lastmodifieddate"
+    },
+    "new-contact-in-list": {
+      "label": "New Contact in List",
+      "description": "Triggers when a new contact is added to the specified list.",
+      "inputs": {
+        "listId": {
+          "label": "Contact List",
+          "required": true,
+          "list": "contact_lists"
+        },
+        "additionalPropertiesToRetrieve": {
+          "label": "Additional Properties to Retrieve",
+          "type": "json",
+          "description": "Property names to get besides the usual ones, as a JSON list such as [\"custom_a\"]."
+        }
+      },
+      "request": {
+        "url": "https://api.hubapi.com/crm/v3/lists/{{listId}}/memberships/join-order"
+      },
+      "beforeRequest": "request.query.limit = inputs.lastPollTime ? '100' : '10';\nreturn request;",
+      "afterResponse": "const listOf = (text) => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : []; } catch (e) { return []; } };\nlet members = response.results ?? [];\nif (inputs.lastPollTime) {\n  let after = response.paging?.next?.after;\n  while (after) {\n    const page = call({method: 'GET', url: '/crm/v3/lists/' + encodeURIComponent(inputs.listId) + '/memberships/join-order', query: {after, limit: '100'}});\n    members = members.concat(page.results ?? []);\n    after = page.paging?.next?.after;\n  }\n  members = members.filter((member) => Date.parse(member.membershipTimestamp) > Number(inputs.lastPollTime));\n}\nconst properties = 'firstname,lastname,email,company,website,mobilephone,phone,fax,address,city,state,zip,salutation,country,jobtitle,hs_createdate,hs_email_domain,hs_object_id,lastmodifieddate,hs_persona,hs_language,lifecyclestage,createdate,numemployees,annualrevenue,industry'.split(',').concat(listOf(inputs.additionalPropertiesToRetrieve));\nlet contacts = [];\nfor (let start = 0; start < members.length; start += 100) {\n  const chunk = members.slice(start, start + 100);\n  const read = call({method: 'POST', url: '/crm/v3/objects/contacts/batch/read', body: {inputs: chunk.map((member) => ({id: member.recordId})), properties, propertiesWithHistory: []}});\n  contacts = contacts.concat((read.results ?? []).map((contact) => ({...contact, membershipTimestamp: chunk.find((member) => member.recordId === contact.id)?.membershipTimestamp})));\n}\nreturn contacts;",
+      "key": "$.membershipTimestamp"
+    },
+    "new-email-event": {
+      "label": "New Email Event",
+      "description": "Triggers on new marketing email events, such as opens or clicks.",
+      "inputs": {
+        "eventType": {
+          "label": "Event Type",
+          "type": "select",
+          "options": [
+            {
+              "value": "SENT",
+              "label": "Sent"
+            },
+            {
+              "value": "DROPPED",
+              "label": "Dropped"
+            },
+            {
+              "value": "PROCESSED",
+              "label": "Processed"
+            },
+            {
+              "value": "DELIVERED",
+              "label": "Delivered"
+            },
+            {
+              "value": "DEFERRED",
+              "label": "Deferred"
+            },
+            {
+              "value": "BOUNCE",
+              "label": "Bounce"
+            },
+            {
+              "value": "OPEN",
+              "label": "Open"
+            },
+            {
+              "value": "CLICK",
+              "label": "Click"
+            },
+            {
+              "value": "STATUSCHANGE",
+              "label": "Status Change"
+            },
+            {
+              "value": "SPAMREPORT",
+              "label": "Spam Report"
+            }
+          ],
+          "description": "Leave empty to trigger on every event type."
+        }
+      },
+      "request": {
+        "url": "https://api.hubapi.com/email/public/v1/events",
+        "query": {
+          "limit": "100",
+          "eventType": "{{eventType}}",
+          "startTimestamp": "{{lastPollTime}}"
+        }
+      },
+      "afterResponse": "let events = response.events ?? [];\nlet page = response;\nwhile (inputs.lastPollTime && page.hasMore) {\n  const query = {limit: '100', startTimestamp: inputs.lastPollTime, offset: String(page.offset)};\n  if (inputs.eventType) query.eventType = inputs.eventType;\n  page = call({method: 'GET', url: '/email/public/v1/events', query});\n  events = events.concat(page.events ?? []);\n}\nreturn events;",
+      "key": "$.created"
+    },
+    "new-email-subscriptions-timeline": {
+      "label": "New Email Subscription Change",
+      "description": "Triggers when a contact's email subscription status changes.",
+      "request": {
+        "url": "https://api.hubapi.com/email/public/v1/subscriptions/timeline",
+        "query": {
+          "limit": "100",
+          "startTimestamp": "{{lastPollTime}}"
+        }
+      },
+      "afterResponse": "let changes = response.timeline ?? [];\nlet page = response;\nwhile (page.hasMore) {\n  const query = {limit: '100', offset: String(page.offset)};\n  if (inputs.lastPollTime) query.startTimestamp = inputs.lastPollTime;\n  page = call({method: 'GET', url: '/email/public/v1/subscriptions/timeline', query});\n  changes = changes.concat(page.timeline ?? []);\n}\nreturn changes;",
+      "key": "$.timestamp"
+    },
+    "new-blog-article": {
+      "label": "New Blog Post",
+      "description": "Triggers when a post is added to your HubSpot blog.",
+      "inputs": {
+        "articleState": {
+          "label": "Post Status",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "PUBLISHED",
+              "label": "Published Only"
+            },
+            {
+              "value": "DRAFT",
+              "label": "Draft Only"
+            },
+            {
+              "value": "BOTH",
+              "label": "Both"
+            }
+          ],
+          "description": "Published posts are new by their publish date, drafts by the date they were made."
+        }
+      },
+      "request": {
+        "url": "https://api.hubapi.com/cms/v3/blogs/posts"
+      },
+      "beforeRequest": "const since = Number(inputs.lastPollTime) || 0;\nconst query = {limit: '100', sort: '-createdAt'};\nif (inputs.articleState !== 'BOTH') query.state = inputs.articleState;\nif (since) query[inputs.articleState === 'PUBLISHED' ? 'publishDate__gt' : 'createdAt__gt'] = String(since);\nrequest.query = query;\nreturn request;",
+      "afterResponse": "const since = Number(inputs.lastPollTime) || 0;\nconst query = {limit: '100', sort: '-createdAt'};\nif (inputs.articleState !== 'BOTH') query.state = inputs.articleState;\nif (since) query[inputs.articleState === 'PUBLISHED' ? 'publishDate__gt' : 'createdAt__gt'] = String(since);\nlet posts = response.results ?? [];\nlet after = response.paging?.next?.after;\nwhile (since && after) {\n  query.after = after;\n  const page = call({method: 'GET', url: '/cms/v3/blogs/posts', query});\n  posts = posts.concat(page.results ?? []);\n  after = page.paging?.next?.after;\n}\nreturn posts.map((post) => ({time: inputs.articleState === 'PUBLISHED' ? post.publishDate : post.createdAt, post}));",
+      "key": "$.time",
+      "emit": "$.post"
+    }
+  }
+}

@@ -61,7 +61,7 @@ class SendGridAction : Action() {
         if (fromValue.isBlank() || recipients.isEmpty()) return ActionResult.failure("SendGrid needs who it is from and who to send to.")
         if (subjectValue.isBlank() || bodyValue.isBlank()) return ActionResult.failure("SendGrid needs a subject and a message.")
         val mail = mapOf("personalizations" to listOf(mapOf("to" to recipients.map { mapOf("email" to it) })), "from" to mapOf("email" to fromValue), "subject" to subjectValue, "content" to listOf(mapOf("type" to (if (read(isHtml) == "true") "text/html" else "text/plain"), "value" to bodyValue)))
-        val result = JsonApi.call("SendGrid", "POST", read(baseUrl).trim().trimEnd('/') + "/v3/mail/send", mapOf("Authorization" to "Bearer $keyValue"), mail)
+        val result = JsonApi.call("SendGrid", "POST", JsonApi.baseAddress(read(baseUrl)) + "/v3/mail/send", mapOf("Authorization" to "Bearer $keyValue"), mail)
         if (result.statusCode == StatusCode.SUCCESS) result.outputVariables["messageId"] = (result.outputVariables["x-message-id"] as? List<*>)?.firstOrNull()?.toString() ?: ""
         return result
     }

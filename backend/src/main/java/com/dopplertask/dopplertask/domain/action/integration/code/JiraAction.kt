@@ -19,7 +19,7 @@ import jakarta.persistence.Lob
 import jakarta.persistence.Table
 import jakarta.persistence.Transient
 
-const val ATLASSIAN_ACCOUNT = "Atlassian account"
+private const val ATLASSIAN_ACCOUNT = "Atlassian account"
 
 @Entity
 @Table(name = "JiraAction")
@@ -64,7 +64,7 @@ class JiraAction : Action() {
         variableExtractorUtil: VariableExtractorUtil,
         broadcastListener: BroadcastListener?
     ): ActionResult {
-        val site = variableExtractorUtil.extract(siteUrl, execution, scriptLanguage).trim().trimEnd('/')
+        val site = JsonApi.baseAddress(variableExtractorUtil.extract(siteUrl, execution, scriptLanguage))
         val emailValue = variableExtractorUtil.extract(email, execution, scriptLanguage).trim()
         val tokenValue = variableExtractorUtil.extract(token, execution, scriptLanguage)
         val operationValue = variableExtractorUtil.extract(operation, execution, scriptLanguage)

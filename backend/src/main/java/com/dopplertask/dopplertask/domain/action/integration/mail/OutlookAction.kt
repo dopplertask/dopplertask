@@ -78,9 +78,9 @@ class OutlookAction : Action() {
         if (operationValue == SEND_EMAIL && (recipients.isEmpty() || subjectValue.isBlank())) return ActionResult.failure("Outlook needs who to send to and a subject.")
         if (operationValue == MARK_AS_READ && messageValue.isBlank()) return ActionResult.failure("Outlook needs the ID of the email.")
 
-        val signIn = MicrosoftAccount.signIn("Outlook", read(signInUrl).trim(), read(tenantId).trim(), read(clientId).trim(), read(clientSecret))
+        val signIn = MicrosoftAccount.signIn("Outlook", JsonApi.baseAddress(read(signInUrl)), read(tenantId).trim(), read(clientId).trim(), read(clientSecret))
         signIn.failure?.let { return it }
-        val user = read(baseUrl).trim().trimEnd('/') + "/v1.0/users/${JsonApi.encoded(mailboxValue)}"
+        val user = JsonApi.baseAddress(read(baseUrl)) + "/v1.0/users/${JsonApi.encoded(mailboxValue)}"
         val result = when (operationValue) {
             SEND_EMAIL -> {
                 val message = mapOf("subject" to subjectValue, "body" to mapOf("contentType" to (if (read(isHtml) == "true") "HTML" else "Text"), "content" to read(emailBody)), "toRecipients" to recipients.map { mapOf("emailAddress" to mapOf("address" to it)) })

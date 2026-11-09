@@ -23,7 +23,7 @@ public class RemovedStepUpgradeTest {
             statement.execute("CREATE TABLE rockmelon_parameter (id BIGINT PRIMARY KEY)");
             statement.execute("INSERT INTO action VALUES (1, 'rockmelon_action', NULL), (2, 'print_action', NULL)");
             statement.execute("INSERT INTO rockmelon_action VALUES (1, 'key')");
-            statement.execute("INSERT INTO credential VALUES ('old', 'RockmelonAction'), ('kept', 'SlackAction')");
+            statement.execute("INSERT INTO credential VALUES ('old', 'RockmelonAction'), ('kept', 'TelegramAction')");
 
             RemovedStepUpgrade.upgrade(database);
 

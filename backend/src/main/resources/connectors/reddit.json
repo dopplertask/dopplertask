@@ -1,0 +1,1868 @@
+{
+  "name": "reddit",
+  "label": "Reddit",
+  "description": "Post, comment, message and moderate on Reddit, and read posts, comments, subreddits, users, flairs and wikis.",
+  "icon": "reddit",
+  "hosts": [
+    "oauth.reddit.com"
+  ],
+  "baseUrl": "https://oauth.reddit.com",
+  "upstream": {
+    "package": "@activepieces/piece-reddit",
+    "version": "0.4.2"
+  },
+  "credential": {
+    "oauth2": {
+      "authUrl": "https://www.reddit.com/api/v1/authorize",
+      "tokenUrl": "https://www.reddit.com/api/v1/access_token",
+      "scope": "identity read submit edit history flair save report subscribe privatemessages mysubreddits wikiread",
+      "authParameters": "duration=permanent"
+    }
+  },
+  "actions": {
+    "retrieveRedditPost": {
+      "label": "List Subreddit Posts with All Fields",
+      "description": "Gets a subreddit's hot, new, top, rising or controversial posts with every field Reddit gives.",
+      "inputs": {
+        "post_category": {
+          "label": "Post Category",
+          "description": "The category of posts to retrieve.",
+          "required": true,
+          "type": "select",
+          "defaultValue": "hot",
+          "options": [
+            {
+              "value": "hot",
+              "label": "Hot"
+            },
+            {
+              "value": "new",
+              "label": "New"
+            },
+            {
+              "value": "top",
+              "label": "Top"
+            },
+            {
+              "value": "rising",
+              "label": "Rising"
+            },
+            {
+              "value": "controversial",
+              "label": "Controversial"
+            }
+          ]
+        },
+        "subreddit": {
+          "label": "Subreddit",
+          "description": "The subreddit to fetch posts from.",
+          "required": true
+        },
+        "size": {
+          "label": "Number of Posts",
+          "description": "Number of posts to fetch (max 100).",
+          "type": "number",
+          "defaultValue": "10"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://oauth.reddit.com/r/{{subreddit}}/{{post_category}}",
+        "query": {
+          "raw_json": "1"
+        }
+      },
+      "beforeRequest": "var address = (raw) => { var form = (value) => encodeURIComponent(value).replace(/%20/g, '+').replace(/[!'()~]/g, (character) => '%' + character.charCodeAt(0).toString(16).toUpperCase()); var decode = (value) => value.replace(/\\+/g, ' ').replace(/(%[0-9A-Fa-f]{2})+/g, (run) => { try { return decodeURIComponent(run); } catch (error) { return run.match(/%../g).map((byte) => parseInt(byte.slice(1), 16) < 128 ? String.fromCharCode(parseInt(byte.slice(1), 16)) : '\\uFFFD').join(''); } }); var text = raw.replace(/[\\u0000- ]+$/, '').replace(/[\\t\\n\\r]/g, ''); if (text.indexOf('#') >= 0) text = text.slice(0, text.indexOf('#')); var mark = text.indexOf('?'); var search = mark >= 0 ? text.slice(mark + 1) : ''; var parts = (mark >= 0 ? text.slice(0, mark) : text).replace(/\\\\/g, '/').split('/').slice(1); var segments = []; parts.forEach((part, index) => { var last = index === parts.length - 1; var lower = part.toLowerCase(); if (['..', '.%2e', '%2e.', '%2e%2e'].includes(lower)) { segments.pop(); if (last) segments.push(''); } else if (['.', '%2e'].includes(lower)) { if (last) segments.push(''); } else segments.push(part.replace(/[\\u0000- \"<>`{}|^[\\]\\u007f]|[^\\u0000-\\u007f]+|%(?![0-9A-Fa-f]{2})/gu, (character) => encodeURIComponent(character))); }); var pairs = search.split('&').filter((pair) => pair !== '').map((pair) => { var equals = pair.indexOf('='); return equals >= 0 ? form(decode(pair.slice(0, equals))) + '=' + form(decode(pair.slice(equals + 1))) : form(decode(pair)) + '='; }); return '/' + segments.join('/') + (pairs.length ? '?' + pairs.join('&') : ''); };\nrequest.url = address('/r/' + inputs.subreddit + '/' + inputs.post_category);\nrequest.query.limit = String(Number(inputs.size) || 10);\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nreturn response;"
+    },
+    "getRedditPostDetails": {
+      "label": "Get Post Details with Media",
+      "description": "Gets one post's details by its ID, with its media and gallery when it has them.",
+      "inputs": {
+        "post_id": {
+          "label": "Post ID",
+          "description": "The ID of the Reddit post (e.g. \"t3_abc123\" or \"abc123\").",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://oauth.reddit.com/api/info",
+        "query": {
+          "raw_json": "1"
+        }
+      },
+      "beforeRequest": "var full = (value, prefix, accept = [prefix]) => { var text = String(value).trim(); if (!/^t[1-6]_/.test(text)) return prefix + text; if (!accept.some((start) => text.startsWith(start))) throw new Error('Expected a ' + accept.join(' or ') + ' fullname, got \"' + text + '\".'); return text; };\nrequest.query.id = full(inputs.post_id, 't3_');\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nvar found = response.data.children[0];\nif (!found) return { error: 'No post found with the given ID' };\nvar data = found.data;\nvar KEYS_POST = ['id', 'title', 'author', 'author_fullname', 'subreddit', 'subreddit_id', 'selftext', 'selftext_html', 'score', 'upvote_ratio', 'created_utc', 'permalink', 'url', 'domain', 'num_comments', 'is_self', 'is_video', 'is_original_content', 'over_18', 'spoiler', 'locked', 'stickied', 'post_hint'];\nreturn { ...Object.fromEntries(KEYS_POST.map((key) => [key, data[key]])), ...(data.media ? { media: data.media } : {}), ...(data.gallery_data ? { gallery_data: data.gallery_data } : {}) };"
+    },
+    "fetchPostComments": {
+      "label": "List Post Comments as Tree, Up to 500",
+      "description": "Gets a post's comments, each with its replies nested under it.",
+      "inputs": {
+        "post_id": {
+          "label": "Post ID",
+          "description": "The ID of the Reddit post (e.g. \"abc123\" or \"t3_abc123\").",
+          "required": true
+        },
+        "sort": {
+          "label": "Sort By",
+          "description": "Sorting method for comments.",
+          "type": "select",
+          "defaultValue": "new",
+          "options": [
+            {
+              "value": "new",
+              "label": "New"
+            },
+            {
+              "value": "top",
+              "label": "Top"
+            },
+            {
+              "value": "hot",
+              "label": "Hot"
+            },
+            {
+              "value": "best",
+              "label": "Best"
+            },
+            {
+              "value": "old",
+              "label": "Old"
+            },
+            {
+              "value": "controversial",
+              "label": "Controversial"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of top-level comments to fetch.",
+          "type": "number",
+          "defaultValue": "10"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://oauth.reddit.com/comments/{{post_id}}",
+        "query": {
+          "raw_json": "1"
+        }
+      },
+      "beforeRequest": "var address = (raw) => { var form = (value) => encodeURIComponent(value).replace(/%20/g, '+').replace(/[!'()~]/g, (character) => '%' + character.charCodeAt(0).toString(16).toUpperCase()); var decode = (value) => value.replace(/\\+/g, ' ').replace(/(%[0-9A-Fa-f]{2})+/g, (run) => { try { return decodeURIComponent(run); } catch (error) { return run.match(/%../g).map((byte) => parseInt(byte.slice(1), 16) < 128 ? String.fromCharCode(parseInt(byte.slice(1), 16)) : '\\uFFFD').join(''); } }); var text = raw.replace(/[\\u0000- ]+$/, '').replace(/[\\t\\n\\r]/g, ''); if (text.indexOf('#') >= 0) text = text.slice(0, text.indexOf('#')); var mark = text.indexOf('?'); var search = mark >= 0 ? text.slice(mark + 1) : ''; var parts = (mark >= 0 ? text.slice(0, mark) : text).replace(/\\\\/g, '/').split('/').slice(1); var segments = []; parts.forEach((part, index) => { var last = index === parts.length - 1; var lower = part.toLowerCase(); if (['..', '.%2e', '%2e.', '%2e%2e'].includes(lower)) { segments.pop(); if (last) segments.push(''); } else if (['.', '%2e'].includes(lower)) { if (last) segments.push(''); } else segments.push(part.replace(/[\\u0000- \"<>`{}|^[\\]\\u007f]|[^\\u0000-\\u007f]+|%(?![0-9A-Fa-f]{2})/gu, (character) => encodeURIComponent(character))); }); var pairs = search.split('&').filter((pair) => pair !== '').map((pair) => { var equals = pair.indexOf('='); return equals >= 0 ? form(decode(pair.slice(0, equals))) + '=' + form(decode(pair.slice(equals + 1))) : form(decode(pair)) + '='; }); return '/' + segments.join('/') + (pairs.length ? '?' + pairs.join('&') : ''); };\nvar base = (value) => String(value).trim().replace(/^t[1-6]_/, '');\nrequest.url = address('/comments/' + base(inputs.post_id));\nrequest.query.sort = inputs.sort === '' ? 'new' : inputs.sort;\nrequest.query.limit = inputs.limit === '' ? '10' : String(Number(inputs.limit));\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nvar isReplies = (value) => typeof value === 'object' && value !== null && 'data' in value && typeof value.data === 'object' && value.data !== null && 'children' in value.data && Array.isArray(value.data.children);\nvar comments = (children) => children.filter((child) => child.kind === 't1').map((child) => { var data = child.data; return { id: data.id, author: data.author, body: data.body, score: data.score, created_utc: data.created_utc, permalink: data.permalink, edited: data.edited, is_submitter: data.is_submitter, stickied: data.stickied, replies: isReplies(data.replies) ? comments(data.replies.data.children) : [] }; });\nreturn comments(response[1]?.data?.children ?? []);"
+    },
+    "reddit_create_comment": {
+      "label": "Create Comment",
+      "description": "Replies to a post, a comment or a private message.",
+      "inputs": {
+        "parent_id": {
+          "label": "Parent Fullname",
+          "description": "Fullname to reply to, e.g. \"t3_abc123\", \"t1_def456\" or \"t4_ghi789\".",
+          "required": true
+        },
+        "text": {
+          "label": "Text",
+          "description": "Markdown body of the reply.",
+          "required": true,
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://oauth.reddit.com/api/comment",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "query": {
+          "raw_json": "1"
+        },
+        "body": {
+          "api_type": "json",
+          "thing_id": "{{parent_id}}",
+          "text": "{{text}}"
+        }
+      },
+      "beforeRequest": "var need = (value, label) => { var text = String(value).trim(); if (!/^t[1-6]_/.test(text)) throw new Error(label + ' must be a Reddit fullname with its type prefix (t1_ comment, t3_ post, t4_ message), got \"' + text + '\".'); return text; };\nrequest.body.thing_id = need(inputs.parent_id, 'Parent Fullname');\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\nvar KEYS = { t1: ['id', 'name', 'author', 'body', 'score', 'created_utc', 'edited', 'permalink', 'parent_id', 'link_id', 'link_title', 'subreddit', 'depth', 'is_submitter', 'stickied', 'distinguished'], t2: ['id', 'name', 'link_karma', 'comment_karma', 'total_karma', 'created_utc', 'is_gold', 'is_mod', 'verified', 'has_verified_email', 'is_employee', 'icon_img'], t3: ['id', 'name', 'title', 'author', 'subreddit', 'subreddit_name_prefixed', 'selftext', 'url', 'permalink', 'domain', 'score', 'upvote_ratio', 'num_comments', 'num_crossposts', 'created_utc', 'edited', 'is_self', 'over_18', 'spoiler', 'stickied', 'locked', 'archived', 'link_flair_text', 'link_flair_template_id', 'crosspost_parent'], t4: ['id', 'name', 'author', 'dest', 'subject', 'body', 'created_utc', 'new', 'was_comment', 'parent_id', 'first_message_name', 'context', 'subreddit', 'distinguished'], t5: ['id', 'name', 'display_name', 'display_name_prefixed', 'title', 'public_description', 'subscribers', 'active_user_count', 'subreddit_type', 'submission_type', 'over18', 'lang', 'created_utc', 'url', 'user_is_subscriber', 'user_is_moderator'] };\nvar pick = (data, keys) => Object.fromEntries(keys.map((key) => [key, data[key] ?? null]));\nvar thing = (item) => KEYS[item.kind] === undefined ? { kind: item.kind, ...item.data } : { kind: item.kind, ...pick(item.data, KEYS[item.kind]) };\ncheck(response);\nvar created = response.json.data?.things?.[0];\nreturn created ? thing(created) : { success: true };"
+    },
+    "reddit_create_post": {
+      "label": "Create Post",
+      "description": "Publishes a text or link post to a subreddit.",
+      "inputs": {
+        "subreddit": {
+          "label": "Subreddit",
+          "description": "Subreddit name without the r/ prefix (e.g. \"programming\").",
+          "required": true
+        },
+        "title": {
+          "label": "Title",
+          "description": "Post title (max 300 characters).",
+          "required": true
+        },
+        "text": {
+          "label": "Text",
+          "description": "Markdown body for a text post. Leave empty for a link post.",
+          "type": "multiline"
+        },
+        "url": {
+          "label": "URL",
+          "description": "Link for a link post. Leave empty for a text post."
+        },
+        "flair_id": {
+          "label": "Flair ID",
+          "description": "Flair template id from List Post Flairs."
+        },
+        "flair_text": {
+          "label": "Flair Text",
+          "description": "Custom flair text, when the flair template allows editing."
+        },
+        "nsfw": {
+          "label": "NSFW",
+          "description": "Mark the post as not safe for work.",
+          "type": "select",
+          "options": [
+            {
+              "value": "true",
+              "label": "Yes"
+            },
+            {
+              "value": "false",
+              "label": "No"
+            }
+          ]
+        },
+        "spoiler": {
+          "label": "Spoiler",
+          "description": "Mark the post as a spoiler.",
+          "type": "select",
+          "options": [
+            {
+              "value": "true",
+              "label": "Yes"
+            },
+            {
+              "value": "false",
+              "label": "No"
+            }
+          ]
+        },
+        "send_replies": {
+          "label": "Send Replies to Inbox",
+          "description": "Receive inbox notifications for replies (Reddit default: yes).",
+          "type": "select",
+          "options": [
+            {
+              "value": "true",
+              "label": "Yes"
+            },
+            {
+              "value": "false",
+              "label": "No"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://oauth.reddit.com/api/submit",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "query": {
+          "raw_json": "1"
+        }
+      },
+      "outputs": {
+        "id": "$.id",
+        "name": "$.name",
+        "url": "$.url"
+      },
+      "beforeRequest": "var sub = (value) => String(value).trim().replace(/^\\/?r\\//i, '');\nif (inputs.text && inputs.url) throw new Error('Provide either Text (text post) or URL (link post), not both.');\nrequest.body = { api_type: 'json', sr: sub(inputs.subreddit), title: inputs.title, kind: inputs.url ? 'link' : 'self', text: inputs.text, url: inputs.url, flair_id: inputs.flair_id, flair_text: inputs.flair_text, nsfw: inputs.nsfw, spoiler: inputs.spoiler, sendreplies: inputs.send_replies };\nObject.keys(request.body).forEach((key) => { if (request.body[key] === '') delete request.body[key]; });\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nvar data = response.json.data;\nreturn { id: data?.id ?? null, name: data?.name ?? null, url: data?.url ?? null };"
+    },
+    "reddit_crosspost": {
+      "label": "Crosspost",
+      "description": "Shares an existing post into another subreddit as a crosspost.",
+      "inputs": {
+        "post_id": {
+          "label": "Original Post ID",
+          "description": "Post to crosspost, e.g. \"abc123\" or \"t3_abc123\".",
+          "required": true
+        },
+        "subreddit": {
+          "label": "Subreddit",
+          "description": "Target subreddit without r/.",
+          "required": true
+        },
+        "title": {
+          "label": "Title",
+          "description": "Title for the crosspost (max 300 characters).",
+          "required": true
+        },
+        "flair_id": {
+          "label": "Flair ID",
+          "description": "Flair template id from List Post Flairs for the target subreddit."
+        },
+        "nsfw": {
+          "label": "NSFW",
+          "description": "Mark the crosspost as not safe for work.",
+          "type": "select",
+          "options": [
+            {
+              "value": "true",
+              "label": "Yes"
+            },
+            {
+              "value": "false",
+              "label": "No"
+            }
+          ]
+        },
+        "spoiler": {
+          "label": "Spoiler",
+          "description": "Mark the crosspost as a spoiler.",
+          "type": "select",
+          "options": [
+            {
+              "value": "true",
+              "label": "Yes"
+            },
+            {
+              "value": "false",
+              "label": "No"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://oauth.reddit.com/api/submit",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "query": {
+          "raw_json": "1"
+        },
+        "body": {
+          "api_type": "json",
+          "kind": "crosspost",
+          "sr": "{{subreddit}}",
+          "title": "{{title}}",
+          "crosspost_fullname": "{{post_id}}",
+          "flair_id": "{{flair_id}}",
+          "nsfw": "{{nsfw}}",
+          "spoiler": "{{spoiler}}"
+        }
+      },
+      "outputs": {
+        "id": "$.id",
+        "name": "$.name",
+        "url": "$.url"
+      },
+      "beforeRequest": "var full = (value, prefix, accept = [prefix]) => { var text = String(value).trim(); if (!/^t[1-6]_/.test(text)) return prefix + text; if (!accept.some((start) => text.startsWith(start))) throw new Error('Expected a ' + accept.join(' or ') + ' fullname, got \"' + text + '\".'); return text; };\nvar sub = (value) => String(value).trim().replace(/^\\/?r\\//i, '');\nrequest.body.sr = sub(inputs.subreddit);\nrequest.body.crosspost_fullname = full(inputs.post_id, 't3_');\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nvar data = response.json.data;\nreturn { id: data?.id ?? null, name: data?.name ?? null, url: data?.url ?? null };"
+    },
+    "reddit_delete_comment": {
+      "label": "Delete Comment",
+      "description": "Permanently deletes one of your comments.",
+      "inputs": {
+        "comment_id": {
+          "label": "Comment ID",
+          "description": "Comment id, e.g. \"def456\" or \"t1_def456\".",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://oauth.reddit.com/api/del",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "query": {
+          "raw_json": "1"
+        },
+        "body": {
+          "id": "{{comment_id}}"
+        }
+      },
+      "beforeRequest": "var full = (value, prefix, accept = [prefix]) => { var text = String(value).trim(); if (!/^t[1-6]_/.test(text)) return prefix + text; if (!accept.some((start) => text.startsWith(start))) throw new Error('Expected a ' + accept.join(' or ') + ' fullname, got \"' + text + '\".'); return text; };\nrequest.body.id = full(inputs.comment_id, 't1_');\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nreturn { success: true, id: request.body.id };"
+    },
+    "reddit_delete_message": {
+      "label": "Delete Message",
+      "description": "Deletes a private message from your inbox.",
+      "inputs": {
+        "message_id": {
+          "label": "Message ID",
+          "description": "Message id, e.g. \"abc123\" or \"t4_abc123\".",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://oauth.reddit.com/api/del_msg",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "query": {
+          "raw_json": "1"
+        },
+        "body": {
+          "id": "{{message_id}}"
+        }
+      },
+      "beforeRequest": "var full = (value, prefix, accept = [prefix]) => { var text = String(value).trim(); if (!/^t[1-6]_/.test(text)) return prefix + text; if (!accept.some((start) => text.startsWith(start))) throw new Error('Expected a ' + accept.join(' or ') + ' fullname, got \"' + text + '\".'); return text; };\nrequest.body.id = full(inputs.message_id, 't4_');\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nreturn { success: true, id: request.body.id };"
+    },
+    "reddit_delete_post": {
+      "label": "Delete Post",
+      "description": "Permanently deletes one of your posts.",
+      "inputs": {
+        "post_id": {
+          "label": "Post ID",
+          "description": "Post id, e.g. \"abc123\" or \"t3_abc123\".",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://oauth.reddit.com/api/del",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "query": {
+          "raw_json": "1"
+        },
+        "body": {
+          "id": "{{post_id}}"
+        }
+      },
+      "beforeRequest": "var full = (value, prefix, accept = [prefix]) => { var text = String(value).trim(); if (!/^t[1-6]_/.test(text)) return prefix + text; if (!accept.some((start) => text.startsWith(start))) throw new Error('Expected a ' + accept.join(' or ') + ' fullname, got \"' + text + '\".'); return text; };\nrequest.body.id = full(inputs.post_id, 't3_');\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nreturn { success: true, id: request.body.id };"
+    },
+    "reddit_edit_text": {
+      "label": "Edit Post or Comment Text",
+      "description": "Replaces the body text of one of your text posts or comments.",
+      "inputs": {
+        "thing_id": {
+          "label": "Fullname",
+          "description": "Fullname of your post or comment, e.g. \"t3_abc123\" or \"t1_def456\".",
+          "required": true
+        },
+        "text": {
+          "label": "New Text",
+          "description": "New markdown body; replaces the existing text.",
+          "required": true,
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://oauth.reddit.com/api/editusertext",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "query": {
+          "raw_json": "1"
+        },
+        "body": {
+          "api_type": "json",
+          "thing_id": "{{thing_id}}",
+          "text": "{{text}}"
+        }
+      },
+      "beforeRequest": "var need = (value, label) => { var text = String(value).trim(); if (!/^t[1-6]_/.test(text)) throw new Error(label + ' must be a Reddit fullname with its type prefix (t1_ comment, t3_ post, t4_ message), got \"' + text + '\".'); return text; };\nrequest.body.thing_id = need(inputs.thing_id, 'Fullname');\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\nvar KEYS = { t1: ['id', 'name', 'author', 'body', 'score', 'created_utc', 'edited', 'permalink', 'parent_id', 'link_id', 'link_title', 'subreddit', 'depth', 'is_submitter', 'stickied', 'distinguished'], t2: ['id', 'name', 'link_karma', 'comment_karma', 'total_karma', 'created_utc', 'is_gold', 'is_mod', 'verified', 'has_verified_email', 'is_employee', 'icon_img'], t3: ['id', 'name', 'title', 'author', 'subreddit', 'subreddit_name_prefixed', 'selftext', 'url', 'permalink', 'domain', 'score', 'upvote_ratio', 'num_comments', 'num_crossposts', 'created_utc', 'edited', 'is_self', 'over_18', 'spoiler', 'stickied', 'locked', 'archived', 'link_flair_text', 'link_flair_template_id', 'crosspost_parent'], t4: ['id', 'name', 'author', 'dest', 'subject', 'body', 'created_utc', 'new', 'was_comment', 'parent_id', 'first_message_name', 'context', 'subreddit', 'distinguished'], t5: ['id', 'name', 'display_name', 'display_name_prefixed', 'title', 'public_description', 'subscribers', 'active_user_count', 'subreddit_type', 'submission_type', 'over18', 'lang', 'created_utc', 'url', 'user_is_subscriber', 'user_is_moderator'] };\nvar pick = (data, keys) => Object.fromEntries(keys.map((key) => [key, data[key] ?? null]));\nvar thing = (item) => KEYS[item.kind] === undefined ? { kind: item.kind, ...item.data } : { kind: item.kind, ...pick(item.data, KEYS[item.kind]) };\ncheck(response);\nvar edited = response.json.data?.things?.[0];\nreturn edited ? thing(edited) : { success: true };"
+    },
+    "reddit_expand_more_comments": {
+      "label": "Expand More Comments",
+      "description": "Loads comments hidden behind a \"load more comments\" placeholder.",
+      "inputs": {
+        "post_id": {
+          "label": "Post ID",
+          "description": "Post id, e.g. \"abc123\" or \"t3_abc123\".",
+          "required": true
+        },
+        "children": {
+          "label": "Comment IDs",
+          "description": "Comma-separated ids from a `more` placeholder's `children`.",
+          "required": true
+        },
+        "sort": {
+          "label": "Sort",
+          "description": "Comment sort order (default best).",
+          "type": "select",
+          "options": [
+            {
+              "value": "confidence",
+              "label": "Best"
+            },
+            {
+              "value": "top",
+              "label": "Top"
+            },
+            {
+              "value": "new",
+              "label": "New"
+            },
+            {
+              "value": "controversial",
+              "label": "Controversial"
+            },
+            {
+              "value": "old",
+              "label": "Old"
+            },
+            {
+              "value": "qa",
+              "label": "Q&A"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://oauth.reddit.com/api/morechildren",
+        "query": {
+          "raw_json": "1",
+          "api_type": "json",
+          "link_id": "{{post_id}}",
+          "children": "{{children}}",
+          "sort": "{{sort}}"
+        }
+      },
+      "beforeRequest": "var full = (value, prefix, accept = [prefix]) => { var text = String(value).trim(); if (!/^t[1-6]_/.test(text)) return prefix + text; if (!accept.some((start) => text.startsWith(start))) throw new Error('Expected a ' + accept.join(' or ') + ' fullname, got \"' + text + '\".'); return text; };\nvar base = (value) => String(value).trim().replace(/^t[1-6]_/, '');\nvar ids = inputs.children.split(',').map(base).filter((id) => id !== '');\nif (ids.length === 0 || ids.length > 100) throw new Error('Provide between 1 and 100 comment ids.');\nrequest.query.link_id = full(inputs.post_id, 't3_');\nrequest.query.children = ids.join(',');\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\nvar KEYS = { t1: ['id', 'name', 'author', 'body', 'score', 'created_utc', 'edited', 'permalink', 'parent_id', 'link_id', 'link_title', 'subreddit', 'depth', 'is_submitter', 'stickied', 'distinguished'], t2: ['id', 'name', 'link_karma', 'comment_karma', 'total_karma', 'created_utc', 'is_gold', 'is_mod', 'verified', 'has_verified_email', 'is_employee', 'icon_img'], t3: ['id', 'name', 'title', 'author', 'subreddit', 'subreddit_name_prefixed', 'selftext', 'url', 'permalink', 'domain', 'score', 'upvote_ratio', 'num_comments', 'num_crossposts', 'created_utc', 'edited', 'is_self', 'over_18', 'spoiler', 'stickied', 'locked', 'archived', 'link_flair_text', 'link_flair_template_id', 'crosspost_parent'], t4: ['id', 'name', 'author', 'dest', 'subject', 'body', 'created_utc', 'new', 'was_comment', 'parent_id', 'first_message_name', 'context', 'subreddit', 'distinguished'], t5: ['id', 'name', 'display_name', 'display_name_prefixed', 'title', 'public_description', 'subscribers', 'active_user_count', 'subreddit_type', 'submission_type', 'over18', 'lang', 'created_utc', 'url', 'user_is_subscriber', 'user_is_moderator'] };\nvar pick = (data, keys) => Object.fromEntries(keys.map((key) => [key, data[key] ?? null]));\nvar thing = (item) => KEYS[item.kind] === undefined ? { kind: item.kind, ...item.data } : { kind: item.kind, ...pick(item.data, KEYS[item.kind]) };\ncheck(response);\nvar things = response.json.data?.things ?? [];\nvar comments = things.filter((item) => item.kind !== 'more').map(thing);\nreturn { comments, count: comments.length, more: things.filter((item) => item.kind === 'more').map(thing) };"
+    },
+    "reddit_get_content": {
+      "label": "Get Posts or Comments by ID",
+      "description": "Gets one or more posts, comments or subreddits by their Reddit fullname.",
+      "inputs": {
+        "ids": {
+          "label": "Fullnames",
+          "description": "Comma-separated fullnames, e.g. \"t3_abc123,t1_def456\".",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://oauth.reddit.com/api/info",
+        "query": {
+          "raw_json": "1"
+        }
+      },
+      "beforeRequest": "var need = (value, label) => { var text = String(value).trim(); if (!/^t[1-6]_/.test(text)) throw new Error(label + ' must be a Reddit fullname with its type prefix (t1_ comment, t3_ post, t4_ message), got \"' + text + '\".'); return text; };\nvar ids = inputs.ids.split(',').filter((id) => id.trim() !== '').map((id) => need(id, 'Each id'));\nif (ids.length === 0 || ids.length > 100) throw new Error('Provide between 1 and 100 fullnames.');\nrequest.query.id = ids.join(',');\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nvar KEYS = { t1: ['id', 'name', 'author', 'body', 'score', 'created_utc', 'edited', 'permalink', 'parent_id', 'link_id', 'link_title', 'subreddit', 'depth', 'is_submitter', 'stickied', 'distinguished'], t2: ['id', 'name', 'link_karma', 'comment_karma', 'total_karma', 'created_utc', 'is_gold', 'is_mod', 'verified', 'has_verified_email', 'is_employee', 'icon_img'], t3: ['id', 'name', 'title', 'author', 'subreddit', 'subreddit_name_prefixed', 'selftext', 'url', 'permalink', 'domain', 'score', 'upvote_ratio', 'num_comments', 'num_crossposts', 'created_utc', 'edited', 'is_self', 'over_18', 'spoiler', 'stickied', 'locked', 'archived', 'link_flair_text', 'link_flair_template_id', 'crosspost_parent'], t4: ['id', 'name', 'author', 'dest', 'subject', 'body', 'created_utc', 'new', 'was_comment', 'parent_id', 'first_message_name', 'context', 'subreddit', 'distinguished'], t5: ['id', 'name', 'display_name', 'display_name_prefixed', 'title', 'public_description', 'subscribers', 'active_user_count', 'subreddit_type', 'submission_type', 'over18', 'lang', 'created_utc', 'url', 'user_is_subscriber', 'user_is_moderator'] };\nvar pick = (data, keys) => Object.fromEntries(keys.map((key) => [key, data[key] ?? null]));\nvar thing = (item) => KEYS[item.kind] === undefined ? { kind: item.kind, ...item.data } : { kind: item.kind, ...pick(item.data, KEYS[item.kind]) };\nvar list = (listing) => { var items = listing.data.children.map(thing); return { items, count: items.length, after: listing.data.after ?? null, before: listing.data.before ?? null }; };\nvar { items, count } = list(response);\nreturn { items, count };"
+    },
+    "reddit_get_me": {
+      "label": "Get My Account",
+      "description": "Gets the connected Reddit account: username, karma and inbox status.",
+      "request": {
+        "method": "GET",
+        "url": "https://oauth.reddit.com/api/v1/me",
+        "query": {
+          "raw_json": "1"
+        }
+      },
+      "outputs": {
+        "name": "$.name",
+        "id": "$.id"
+      },
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nvar KEYS = { t1: ['id', 'name', 'author', 'body', 'score', 'created_utc', 'edited', 'permalink', 'parent_id', 'link_id', 'link_title', 'subreddit', 'depth', 'is_submitter', 'stickied', 'distinguished'], t2: ['id', 'name', 'link_karma', 'comment_karma', 'total_karma', 'created_utc', 'is_gold', 'is_mod', 'verified', 'has_verified_email', 'is_employee', 'icon_img'], t3: ['id', 'name', 'title', 'author', 'subreddit', 'subreddit_name_prefixed', 'selftext', 'url', 'permalink', 'domain', 'score', 'upvote_ratio', 'num_comments', 'num_crossposts', 'created_utc', 'edited', 'is_self', 'over_18', 'spoiler', 'stickied', 'locked', 'archived', 'link_flair_text', 'link_flair_template_id', 'crosspost_parent'], t4: ['id', 'name', 'author', 'dest', 'subject', 'body', 'created_utc', 'new', 'was_comment', 'parent_id', 'first_message_name', 'context', 'subreddit', 'distinguished'], t5: ['id', 'name', 'display_name', 'display_name_prefixed', 'title', 'public_description', 'subscribers', 'active_user_count', 'subreddit_type', 'submission_type', 'over18', 'lang', 'created_utc', 'url', 'user_is_subscriber', 'user_is_moderator'] };\nvar pick = (data, keys) => Object.fromEntries(keys.map((key) => [key, data[key] ?? null]));\nvar thing = (item) => KEYS[item.kind] === undefined ? { kind: item.kind, ...item.data } : { kind: item.kind, ...pick(item.data, KEYS[item.kind]) };\nvar { kind, ...profile } = thing({ kind: 't2', data: response });\nreturn { ...profile, inbox_count: response.inbox_count ?? null, has_mail: response.has_mail ?? null, over_18: response.over_18 ?? null };"
+    },
+    "reddit_get_my_karma": {
+      "label": "Get My Karma by Subreddit",
+      "description": "Breaks down the connected account's karma by subreddit.",
+      "request": {
+        "method": "GET",
+        "url": "https://oauth.reddit.com/api/v1/me/karma",
+        "query": {
+          "raw_json": "1"
+        }
+      },
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nvar karma = (response.data ?? []).map((entry) => ({ subreddit: entry.sr ?? null, link_karma: entry.link_karma ?? 0, comment_karma: entry.comment_karma ?? 0 }));\nreturn { karma, count: karma.length };"
+    },
+    "reddit_get_my_preferences": {
+      "label": "Get My Preferences",
+      "description": "Gets the connected account's Reddit preference settings.",
+      "request": {
+        "method": "GET",
+        "url": "https://oauth.reddit.com/api/v1/me/prefs",
+        "query": {
+          "raw_json": "1"
+        }
+      },
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nreturn response;"
+    },
+    "reddit_get_post_requirements": {
+      "label": "Get Post Requirements",
+      "description": "Gets the validation rules a new post in a subreddit must meet.",
+      "inputs": {
+        "subreddit": {
+          "label": "Subreddit",
+          "description": "Subreddit name without the r/ prefix (e.g. \"programming\").",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://oauth.reddit.com/api/v1/{{subreddit}}/post_requirements",
+        "query": {
+          "raw_json": "1"
+        }
+      },
+      "beforeRequest": "var address = (raw) => { var form = (value) => encodeURIComponent(value).replace(/%20/g, '+').replace(/[!'()~]/g, (character) => '%' + character.charCodeAt(0).toString(16).toUpperCase()); var decode = (value) => value.replace(/\\+/g, ' ').replace(/(%[0-9A-Fa-f]{2})+/g, (run) => { try { return decodeURIComponent(run); } catch (error) { return run.match(/%../g).map((byte) => parseInt(byte.slice(1), 16) < 128 ? String.fromCharCode(parseInt(byte.slice(1), 16)) : '\\uFFFD').join(''); } }); var text = raw.replace(/[\\u0000- ]+$/, '').replace(/[\\t\\n\\r]/g, ''); if (text.indexOf('#') >= 0) text = text.slice(0, text.indexOf('#')); var mark = text.indexOf('?'); var search = mark >= 0 ? text.slice(mark + 1) : ''; var parts = (mark >= 0 ? text.slice(0, mark) : text).replace(/\\\\/g, '/').split('/').slice(1); var segments = []; parts.forEach((part, index) => { var last = index === parts.length - 1; var lower = part.toLowerCase(); if (['..', '.%2e', '%2e.', '%2e%2e'].includes(lower)) { segments.pop(); if (last) segments.push(''); } else if (['.', '%2e'].includes(lower)) { if (last) segments.push(''); } else segments.push(part.replace(/[\\u0000- \"<>`{}|^[\\]\\u007f]|[^\\u0000-\\u007f]+|%(?![0-9A-Fa-f]{2})/gu, (character) => encodeURIComponent(character))); }); var pairs = search.split('&').filter((pair) => pair !== '').map((pair) => { var equals = pair.indexOf('='); return equals >= 0 ? form(decode(pair.slice(0, equals))) + '=' + form(decode(pair.slice(equals + 1))) : form(decode(pair)) + '='; }); return '/' + segments.join('/') + (pairs.length ? '?' + pairs.join('&') : ''); };\nvar sub = (value) => String(value).trim().replace(/^\\/?r\\//i, '');\nrequest.url = address('/api/v1/' + sub(inputs.subreddit) + '/post_requirements');\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nreturn response;"
+    },
+    "reddit_get_submit_text": {
+      "label": "Get Submission Guidelines",
+      "description": "Gets the guideline text a subreddit shows on its submit page.",
+      "inputs": {
+        "subreddit": {
+          "label": "Subreddit",
+          "description": "Subreddit name without the r/ prefix (e.g. \"programming\").",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://oauth.reddit.com/r/{{subreddit}}/api/submit_text",
+        "query": {
+          "raw_json": "1"
+        }
+      },
+      "beforeRequest": "var address = (raw) => { var form = (value) => encodeURIComponent(value).replace(/%20/g, '+').replace(/[!'()~]/g, (character) => '%' + character.charCodeAt(0).toString(16).toUpperCase()); var decode = (value) => value.replace(/\\+/g, ' ').replace(/(%[0-9A-Fa-f]{2})+/g, (run) => { try { return decodeURIComponent(run); } catch (error) { return run.match(/%../g).map((byte) => parseInt(byte.slice(1), 16) < 128 ? String.fromCharCode(parseInt(byte.slice(1), 16)) : '\\uFFFD').join(''); } }); var text = raw.replace(/[\\u0000- ]+$/, '').replace(/[\\t\\n\\r]/g, ''); if (text.indexOf('#') >= 0) text = text.slice(0, text.indexOf('#')); var mark = text.indexOf('?'); var search = mark >= 0 ? text.slice(mark + 1) : ''; var parts = (mark >= 0 ? text.slice(0, mark) : text).replace(/\\\\/g, '/').split('/').slice(1); var segments = []; parts.forEach((part, index) => { var last = index === parts.length - 1; var lower = part.toLowerCase(); if (['..', '.%2e', '%2e.', '%2e%2e'].includes(lower)) { segments.pop(); if (last) segments.push(''); } else if (['.', '%2e'].includes(lower)) { if (last) segments.push(''); } else segments.push(part.replace(/[\\u0000- \"<>`{}|^[\\]\\u007f]|[^\\u0000-\\u007f]+|%(?![0-9A-Fa-f]{2})/gu, (character) => encodeURIComponent(character))); }); var pairs = search.split('&').filter((pair) => pair !== '').map((pair) => { var equals = pair.indexOf('='); return equals >= 0 ? form(decode(pair.slice(0, equals))) + '=' + form(decode(pair.slice(equals + 1))) : form(decode(pair)) + '='; }); return '/' + segments.join('/') + (pairs.length ? '?' + pairs.join('&') : ''); };\nvar sub = (value) => String(value).trim().replace(/^\\/?r\\//i, '');\nrequest.url = address('/r/' + sub(inputs.subreddit) + '/api/submit_text');\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nvar sub = (value) => String(value).trim().replace(/^\\/?r\\//i, '');\nreturn { subreddit: sub(inputs.subreddit), submit_text: response.submit_text ?? '', submit_text_html: response.submit_text_html ?? null };"
+    },
+    "reddit_get_subreddit_rules": {
+      "label": "Get Subreddit Rules",
+      "description": "Gets a subreddit's posting rules.",
+      "inputs": {
+        "subreddit": {
+          "label": "Subreddit",
+          "description": "Subreddit name without the r/ prefix (e.g. \"programming\").",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://oauth.reddit.com/r/{{subreddit}}/about/rules",
+        "query": {
+          "raw_json": "1"
+        }
+      },
+      "beforeRequest": "var address = (raw) => { var form = (value) => encodeURIComponent(value).replace(/%20/g, '+').replace(/[!'()~]/g, (character) => '%' + character.charCodeAt(0).toString(16).toUpperCase()); var decode = (value) => value.replace(/\\+/g, ' ').replace(/(%[0-9A-Fa-f]{2})+/g, (run) => { try { return decodeURIComponent(run); } catch (error) { return run.match(/%../g).map((byte) => parseInt(byte.slice(1), 16) < 128 ? String.fromCharCode(parseInt(byte.slice(1), 16)) : '\\uFFFD').join(''); } }); var text = raw.replace(/[\\u0000- ]+$/, '').replace(/[\\t\\n\\r]/g, ''); if (text.indexOf('#') >= 0) text = text.slice(0, text.indexOf('#')); var mark = text.indexOf('?'); var search = mark >= 0 ? text.slice(mark + 1) : ''; var parts = (mark >= 0 ? text.slice(0, mark) : text).replace(/\\\\/g, '/').split('/').slice(1); var segments = []; parts.forEach((part, index) => { var last = index === parts.length - 1; var lower = part.toLowerCase(); if (['..', '.%2e', '%2e.', '%2e%2e'].includes(lower)) { segments.pop(); if (last) segments.push(''); } else if (['.', '%2e'].includes(lower)) { if (last) segments.push(''); } else segments.push(part.replace(/[\\u0000- \"<>`{}|^[\\]\\u007f]|[^\\u0000-\\u007f]+|%(?![0-9A-Fa-f]{2})/gu, (character) => encodeURIComponent(character))); }); var pairs = search.split('&').filter((pair) => pair !== '').map((pair) => { var equals = pair.indexOf('='); return equals >= 0 ? form(decode(pair.slice(0, equals))) + '=' + form(decode(pair.slice(equals + 1))) : form(decode(pair)) + '='; }); return '/' + segments.join('/') + (pairs.length ? '?' + pairs.join('&') : ''); };\nvar sub = (value) => String(value).trim().replace(/^\\/?r\\//i, '');\nrequest.url = address('/r/' + sub(inputs.subreddit) + '/about/rules');\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nvar rules = (response.rules ?? []).map((rule) => ({ short_name: rule.short_name ?? null, description: rule.description ?? null, kind: rule.kind ?? null, priority: rule.priority ?? null, violation_reason: rule.violation_reason ?? null, created_utc: rule.created_utc ?? null }));\nreturn { rules, count: rules.length, site_rules: response.site_rules ?? [] };"
+    },
+    "reddit_get_subreddit": {
+      "label": "Get Subreddit",
+      "description": "Gets a subreddit's details: title, description, subscribers and settings.",
+      "inputs": {
+        "subreddit": {
+          "label": "Subreddit",
+          "description": "Subreddit name without the r/ prefix (e.g. \"programming\").",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://oauth.reddit.com/r/{{subreddit}}/about",
+        "query": {
+          "raw_json": "1"
+        }
+      },
+      "beforeRequest": "var address = (raw) => { var form = (value) => encodeURIComponent(value).replace(/%20/g, '+').replace(/[!'()~]/g, (character) => '%' + character.charCodeAt(0).toString(16).toUpperCase()); var decode = (value) => value.replace(/\\+/g, ' ').replace(/(%[0-9A-Fa-f]{2})+/g, (run) => { try { return decodeURIComponent(run); } catch (error) { return run.match(/%../g).map((byte) => parseInt(byte.slice(1), 16) < 128 ? String.fromCharCode(parseInt(byte.slice(1), 16)) : '\\uFFFD').join(''); } }); var text = raw.replace(/[\\u0000- ]+$/, '').replace(/[\\t\\n\\r]/g, ''); if (text.indexOf('#') >= 0) text = text.slice(0, text.indexOf('#')); var mark = text.indexOf('?'); var search = mark >= 0 ? text.slice(mark + 1) : ''; var parts = (mark >= 0 ? text.slice(0, mark) : text).replace(/\\\\/g, '/').split('/').slice(1); var segments = []; parts.forEach((part, index) => { var last = index === parts.length - 1; var lower = part.toLowerCase(); if (['..', '.%2e', '%2e.', '%2e%2e'].includes(lower)) { segments.pop(); if (last) segments.push(''); } else if (['.', '%2e'].includes(lower)) { if (last) segments.push(''); } else segments.push(part.replace(/[\\u0000- \"<>`{}|^[\\]\\u007f]|[^\\u0000-\\u007f]+|%(?![0-9A-Fa-f]{2})/gu, (character) => encodeURIComponent(character))); }); var pairs = search.split('&').filter((pair) => pair !== '').map((pair) => { var equals = pair.indexOf('='); return equals >= 0 ? form(decode(pair.slice(0, equals))) + '=' + form(decode(pair.slice(equals + 1))) : form(decode(pair)) + '='; }); return '/' + segments.join('/') + (pairs.length ? '?' + pairs.join('&') : ''); };\nvar sub = (value) => String(value).trim().replace(/^\\/?r\\//i, '');\nrequest.url = address('/r/' + sub(inputs.subreddit) + '/about');\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nvar KEYS = { t1: ['id', 'name', 'author', 'body', 'score', 'created_utc', 'edited', 'permalink', 'parent_id', 'link_id', 'link_title', 'subreddit', 'depth', 'is_submitter', 'stickied', 'distinguished'], t2: ['id', 'name', 'link_karma', 'comment_karma', 'total_karma', 'created_utc', 'is_gold', 'is_mod', 'verified', 'has_verified_email', 'is_employee', 'icon_img'], t3: ['id', 'name', 'title', 'author', 'subreddit', 'subreddit_name_prefixed', 'selftext', 'url', 'permalink', 'domain', 'score', 'upvote_ratio', 'num_comments', 'num_crossposts', 'created_utc', 'edited', 'is_self', 'over_18', 'spoiler', 'stickied', 'locked', 'archived', 'link_flair_text', 'link_flair_template_id', 'crosspost_parent'], t4: ['id', 'name', 'author', 'dest', 'subject', 'body', 'created_utc', 'new', 'was_comment', 'parent_id', 'first_message_name', 'context', 'subreddit', 'distinguished'], t5: ['id', 'name', 'display_name', 'display_name_prefixed', 'title', 'public_description', 'subscribers', 'active_user_count', 'subreddit_type', 'submission_type', 'over18', 'lang', 'created_utc', 'url', 'user_is_subscriber', 'user_is_moderator'] };\nvar pick = (data, keys) => Object.fromEntries(keys.map((key) => [key, data[key] ?? null]));\nvar thing = (item) => KEYS[item.kind] === undefined ? { kind: item.kind, ...item.data } : { kind: item.kind, ...pick(item.data, KEYS[item.kind]) };\nreturn thing(response);"
+    },
+    "reddit_get_user_trophies": {
+      "label": "Get User Trophies",
+      "description": "Lists the trophies shown on a user's profile.",
+      "inputs": {
+        "username": {
+          "label": "Username",
+          "description": "Reddit username without the u/ prefix.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://oauth.reddit.com/api/v1/user/{{username}}/trophies",
+        "query": {
+          "raw_json": "1"
+        }
+      },
+      "beforeRequest": "var address = (raw) => { var form = (value) => encodeURIComponent(value).replace(/%20/g, '+').replace(/[!'()~]/g, (character) => '%' + character.charCodeAt(0).toString(16).toUpperCase()); var decode = (value) => value.replace(/\\+/g, ' ').replace(/(%[0-9A-Fa-f]{2})+/g, (run) => { try { return decodeURIComponent(run); } catch (error) { return run.match(/%../g).map((byte) => parseInt(byte.slice(1), 16) < 128 ? String.fromCharCode(parseInt(byte.slice(1), 16)) : '\\uFFFD').join(''); } }); var text = raw.replace(/[\\u0000- ]+$/, '').replace(/[\\t\\n\\r]/g, ''); if (text.indexOf('#') >= 0) text = text.slice(0, text.indexOf('#')); var mark = text.indexOf('?'); var search = mark >= 0 ? text.slice(mark + 1) : ''; var parts = (mark >= 0 ? text.slice(0, mark) : text).replace(/\\\\/g, '/').split('/').slice(1); var segments = []; parts.forEach((part, index) => { var last = index === parts.length - 1; var lower = part.toLowerCase(); if (['..', '.%2e', '%2e.', '%2e%2e'].includes(lower)) { segments.pop(); if (last) segments.push(''); } else if (['.', '%2e'].includes(lower)) { if (last) segments.push(''); } else segments.push(part.replace(/[\\u0000- \"<>`{}|^[\\]\\u007f]|[^\\u0000-\\u007f]+|%(?![0-9A-Fa-f]{2})/gu, (character) => encodeURIComponent(character))); }); var pairs = search.split('&').filter((pair) => pair !== '').map((pair) => { var equals = pair.indexOf('='); return equals >= 0 ? form(decode(pair.slice(0, equals))) + '=' + form(decode(pair.slice(equals + 1))) : form(decode(pair)) + '='; }); return '/' + segments.join('/') + (pairs.length ? '?' + pairs.join('&') : ''); };\nvar user = (value) => String(value).trim().replace(/^\\/?u(ser)?\\//i, '');\nrequest.url = address('/api/v1/user/' + user(inputs.username) + '/trophies');\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nvar KEYS_TROPHY = ['id', 'name', 'description', 'award_id', 'granted_at', 'url', 'icon_70'];\nvar trophies = (response.data?.trophies ?? []).map((trophy) => Object.fromEntries(KEYS_TROPHY.map((key) => [key, trophy.data[key] ?? null])));\nreturn { trophies, count: trophies.length };"
+    },
+    "reddit_get_user": {
+      "label": "Get User",
+      "description": "Gets a Reddit user's public profile and karma.",
+      "inputs": {
+        "username": {
+          "label": "Username",
+          "description": "Reddit username without the u/ prefix.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://oauth.reddit.com/user/{{username}}/about",
+        "query": {
+          "raw_json": "1"
+        }
+      },
+      "beforeRequest": "var address = (raw) => { var form = (value) => encodeURIComponent(value).replace(/%20/g, '+').replace(/[!'()~]/g, (character) => '%' + character.charCodeAt(0).toString(16).toUpperCase()); var decode = (value) => value.replace(/\\+/g, ' ').replace(/(%[0-9A-Fa-f]{2})+/g, (run) => { try { return decodeURIComponent(run); } catch (error) { return run.match(/%../g).map((byte) => parseInt(byte.slice(1), 16) < 128 ? String.fromCharCode(parseInt(byte.slice(1), 16)) : '\\uFFFD').join(''); } }); var text = raw.replace(/[\\u0000- ]+$/, '').replace(/[\\t\\n\\r]/g, ''); if (text.indexOf('#') >= 0) text = text.slice(0, text.indexOf('#')); var mark = text.indexOf('?'); var search = mark >= 0 ? text.slice(mark + 1) : ''; var parts = (mark >= 0 ? text.slice(0, mark) : text).replace(/\\\\/g, '/').split('/').slice(1); var segments = []; parts.forEach((part, index) => { var last = index === parts.length - 1; var lower = part.toLowerCase(); if (['..', '.%2e', '%2e.', '%2e%2e'].includes(lower)) { segments.pop(); if (last) segments.push(''); } else if (['.', '%2e'].includes(lower)) { if (last) segments.push(''); } else segments.push(part.replace(/[\\u0000- \"<>`{}|^[\\]\\u007f]|[^\\u0000-\\u007f]+|%(?![0-9A-Fa-f]{2})/gu, (character) => encodeURIComponent(character))); }); var pairs = search.split('&').filter((pair) => pair !== '').map((pair) => { var equals = pair.indexOf('='); return equals >= 0 ? form(decode(pair.slice(0, equals))) + '=' + form(decode(pair.slice(equals + 1))) : form(decode(pair)) + '='; }); return '/' + segments.join('/') + (pairs.length ? '?' + pairs.join('&') : ''); };\nvar user = (value) => String(value).trim().replace(/^\\/?u(ser)?\\//i, '');\nrequest.url = address('/user/' + user(inputs.username) + '/about');\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nvar KEYS = { t1: ['id', 'name', 'author', 'body', 'score', 'created_utc', 'edited', 'permalink', 'parent_id', 'link_id', 'link_title', 'subreddit', 'depth', 'is_submitter', 'stickied', 'distinguished'], t2: ['id', 'name', 'link_karma', 'comment_karma', 'total_karma', 'created_utc', 'is_gold', 'is_mod', 'verified', 'has_verified_email', 'is_employee', 'icon_img'], t3: ['id', 'name', 'title', 'author', 'subreddit', 'subreddit_name_prefixed', 'selftext', 'url', 'permalink', 'domain', 'score', 'upvote_ratio', 'num_comments', 'num_crossposts', 'created_utc', 'edited', 'is_self', 'over_18', 'spoiler', 'stickied', 'locked', 'archived', 'link_flair_text', 'link_flair_template_id', 'crosspost_parent'], t4: ['id', 'name', 'author', 'dest', 'subject', 'body', 'created_utc', 'new', 'was_comment', 'parent_id', 'first_message_name', 'context', 'subreddit', 'distinguished'], t5: ['id', 'name', 'display_name', 'display_name_prefixed', 'title', 'public_description', 'subscribers', 'active_user_count', 'subreddit_type', 'submission_type', 'over18', 'lang', 'created_utc', 'url', 'user_is_subscriber', 'user_is_moderator'] };\nvar pick = (data, keys) => Object.fromEntries(keys.map((key) => [key, data[key] ?? null]));\nvar thing = (item) => KEYS[item.kind] === undefined ? { kind: item.kind, ...item.data } : { kind: item.kind, ...pick(item.data, KEYS[item.kind]) };\nreturn thing(response);"
+    },
+    "reddit_get_wiki_page": {
+      "label": "Get Wiki Page",
+      "description": "Gets the content of a subreddit wiki page.",
+      "inputs": {
+        "subreddit": {
+          "label": "Subreddit",
+          "description": "Subreddit name without the r/ prefix (e.g. \"programming\").",
+          "required": true
+        },
+        "page": {
+          "label": "Page",
+          "description": "Wiki page name, e.g. \"index\" or \"faq\".",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://oauth.reddit.com/r/{{subreddit}}/wiki/{{page}}",
+        "query": {
+          "raw_json": "1"
+        }
+      },
+      "beforeRequest": "var address = (raw) => { var form = (value) => encodeURIComponent(value).replace(/%20/g, '+').replace(/[!'()~]/g, (character) => '%' + character.charCodeAt(0).toString(16).toUpperCase()); var decode = (value) => value.replace(/\\+/g, ' ').replace(/(%[0-9A-Fa-f]{2})+/g, (run) => { try { return decodeURIComponent(run); } catch (error) { return run.match(/%../g).map((byte) => parseInt(byte.slice(1), 16) < 128 ? String.fromCharCode(parseInt(byte.slice(1), 16)) : '\\uFFFD').join(''); } }); var text = raw.replace(/[\\u0000- ]+$/, '').replace(/[\\t\\n\\r]/g, ''); if (text.indexOf('#') >= 0) text = text.slice(0, text.indexOf('#')); var mark = text.indexOf('?'); var search = mark >= 0 ? text.slice(mark + 1) : ''; var parts = (mark >= 0 ? text.slice(0, mark) : text).replace(/\\\\/g, '/').split('/').slice(1); var segments = []; parts.forEach((part, index) => { var last = index === parts.length - 1; var lower = part.toLowerCase(); if (['..', '.%2e', '%2e.', '%2e%2e'].includes(lower)) { segments.pop(); if (last) segments.push(''); } else if (['.', '%2e'].includes(lower)) { if (last) segments.push(''); } else segments.push(part.replace(/[\\u0000- \"<>`{}|^[\\]\\u007f]|[^\\u0000-\\u007f]+|%(?![0-9A-Fa-f]{2})/gu, (character) => encodeURIComponent(character))); }); var pairs = search.split('&').filter((pair) => pair !== '').map((pair) => { var equals = pair.indexOf('='); return equals >= 0 ? form(decode(pair.slice(0, equals))) + '=' + form(decode(pair.slice(equals + 1))) : form(decode(pair)) + '='; }); return '/' + segments.join('/') + (pairs.length ? '?' + pairs.join('&') : ''); };\nvar sub = (value) => String(value).trim().replace(/^\\/?r\\//i, '');\nvar page = inputs.page.trim().replace(/^\\/+|\\/+$/g, '');\nrequest.url = address('/r/' + sub(inputs.subreddit) + '/wiki/' + page.split('/').map(encodeURIComponent).join('/'));\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nvar sub = (value) => String(value).trim().replace(/^\\/?r\\//i, '');\nvar data = response.data ?? {};\nreturn { subreddit: sub(inputs.subreddit), page: inputs.page.trim().replace(/^\\/+|\\/+$/g, ''), content_md: data.content_md ?? '', revision_id: data.revision_id ?? null, revision_date: data.revision_date ?? null, revision_by: data.revision_by?.data.name ?? null, may_revise: data.may_revise ?? null };"
+    },
+    "reddit_hide_post": {
+      "label": "Hide Posts",
+      "description": "Hides one or more posts from your listings.",
+      "inputs": {
+        "post_ids": {
+          "label": "Post IDs",
+          "description": "Comma-separated post ids, e.g. \"abc123,t3_def456\".",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://oauth.reddit.com/api/hide",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "query": {
+          "raw_json": "1"
+        },
+        "body": {
+          "id": "{{post_ids}}"
+        }
+      },
+      "beforeRequest": "var full = (value, prefix, accept = [prefix]) => { var text = String(value).trim(); if (!/^t[1-6]_/.test(text)) return prefix + text; if (!accept.some((start) => text.startsWith(start))) throw new Error('Expected a ' + accept.join(' or ') + ' fullname, got \"' + text + '\".'); return text; };\nvar ids = inputs.post_ids.split(',').filter((id) => id.trim() !== '').map((id) => full(id, 't3_'));\nif (ids.length === 0) throw new Error('Provide at least one post id.');\nrequest.body.id = ids.join(',');\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nreturn { success: true, ids: request.body.id.split(','), hidden: true };"
+    },
+    "reddit_list_duplicates": {
+      "label": "List Duplicates and Crossposts",
+      "description": "Lists other submissions of the same link, including crossposts of a post.",
+      "inputs": {
+        "post_id": {
+          "label": "Post ID",
+          "description": "Post id, e.g. \"abc123\" or \"t3_abc123\".",
+          "required": true
+        },
+        "crossposts_only": {
+          "label": "Crossposts Only",
+          "description": "Only return crossposts of this post.",
+          "type": "select",
+          "options": [
+            {
+              "value": "true",
+              "label": "Yes"
+            },
+            {
+              "value": "false",
+              "label": "No"
+            }
+          ]
+        },
+        "sort": {
+          "label": "Sort",
+          "description": "Sort order (default most comments).",
+          "type": "select",
+          "options": [
+            {
+              "value": "num_comments",
+              "label": "Most Comments"
+            },
+            {
+              "value": "new",
+              "label": "New"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-100, default 25).",
+          "type": "number"
+        },
+        "after": {
+          "label": "After",
+          "description": "Pagination cursor: pass the `after` value from the previous response to get the next page."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://oauth.reddit.com/duplicates/{{post_id}}",
+        "query": {
+          "raw_json": "1",
+          "crossposts_only": "{{crossposts_only}}",
+          "sort": "{{sort}}",
+          "after": "{{after}}"
+        }
+      },
+      "beforeRequest": "var address = (raw) => { var form = (value) => encodeURIComponent(value).replace(/%20/g, '+').replace(/[!'()~]/g, (character) => '%' + character.charCodeAt(0).toString(16).toUpperCase()); var decode = (value) => value.replace(/\\+/g, ' ').replace(/(%[0-9A-Fa-f]{2})+/g, (run) => { try { return decodeURIComponent(run); } catch (error) { return run.match(/%../g).map((byte) => parseInt(byte.slice(1), 16) < 128 ? String.fromCharCode(parseInt(byte.slice(1), 16)) : '\\uFFFD').join(''); } }); var text = raw.replace(/[\\u0000- ]+$/, '').replace(/[\\t\\n\\r]/g, ''); if (text.indexOf('#') >= 0) text = text.slice(0, text.indexOf('#')); var mark = text.indexOf('?'); var search = mark >= 0 ? text.slice(mark + 1) : ''; var parts = (mark >= 0 ? text.slice(0, mark) : text).replace(/\\\\/g, '/').split('/').slice(1); var segments = []; parts.forEach((part, index) => { var last = index === parts.length - 1; var lower = part.toLowerCase(); if (['..', '.%2e', '%2e.', '%2e%2e'].includes(lower)) { segments.pop(); if (last) segments.push(''); } else if (['.', '%2e'].includes(lower)) { if (last) segments.push(''); } else segments.push(part.replace(/[\\u0000- \"<>`{}|^[\\]\\u007f]|[^\\u0000-\\u007f]+|%(?![0-9A-Fa-f]{2})/gu, (character) => encodeURIComponent(character))); }); var pairs = search.split('&').filter((pair) => pair !== '').map((pair) => { var equals = pair.indexOf('='); return equals >= 0 ? form(decode(pair.slice(0, equals))) + '=' + form(decode(pair.slice(equals + 1))) : form(decode(pair)) + '='; }); return '/' + segments.join('/') + (pairs.length ? '?' + pairs.join('&') : ''); };\nvar base = (value) => String(value).trim().replace(/^t[1-6]_/, '');\nvar clamp = (value) => value === '' || value == null ? undefined : String(Math.min(Math.max(Math.trunc(Number(value)), 1), 100));\nrequest.url = address('/duplicates/' + base(inputs.post_id));\nrequest.query.limit = clamp(inputs.limit);\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nvar KEYS = { t1: ['id', 'name', 'author', 'body', 'score', 'created_utc', 'edited', 'permalink', 'parent_id', 'link_id', 'link_title', 'subreddit', 'depth', 'is_submitter', 'stickied', 'distinguished'], t2: ['id', 'name', 'link_karma', 'comment_karma', 'total_karma', 'created_utc', 'is_gold', 'is_mod', 'verified', 'has_verified_email', 'is_employee', 'icon_img'], t3: ['id', 'name', 'title', 'author', 'subreddit', 'subreddit_name_prefixed', 'selftext', 'url', 'permalink', 'domain', 'score', 'upvote_ratio', 'num_comments', 'num_crossposts', 'created_utc', 'edited', 'is_self', 'over_18', 'spoiler', 'stickied', 'locked', 'archived', 'link_flair_text', 'link_flair_template_id', 'crosspost_parent'], t4: ['id', 'name', 'author', 'dest', 'subject', 'body', 'created_utc', 'new', 'was_comment', 'parent_id', 'first_message_name', 'context', 'subreddit', 'distinguished'], t5: ['id', 'name', 'display_name', 'display_name_prefixed', 'title', 'public_description', 'subscribers', 'active_user_count', 'subreddit_type', 'submission_type', 'over18', 'lang', 'created_utc', 'url', 'user_is_subscriber', 'user_is_moderator'] };\nvar pick = (data, keys) => Object.fromEntries(keys.map((key) => [key, data[key] ?? null]));\nvar thing = (item) => KEYS[item.kind] === undefined ? { kind: item.kind, ...item.data } : { kind: item.kind, ...pick(item.data, KEYS[item.kind]) };\nvar list = (listing) => { var items = listing.data.children.map(thing); return { items, count: items.length, after: listing.data.after ?? null, before: listing.data.before ?? null }; };\nvar original = response[0].data.children[0];\nvar { items, ...page } = list(response[1]);\nreturn { post: original ? thing(original) : null, duplicates: items, ...page };"
+    },
+    "reddit_list_messages": {
+      "label": "List Messages",
+      "description": "Lists private messages, comment replies and mentions from your inbox.",
+      "inputs": {
+        "folder": {
+          "label": "Folder",
+          "description": "Inbox folder (default inbox).",
+          "type": "select",
+          "options": [
+            {
+              "value": "inbox",
+              "label": "Inbox (all)"
+            },
+            {
+              "value": "unread",
+              "label": "Unread"
+            },
+            {
+              "value": "sent",
+              "label": "Sent"
+            },
+            {
+              "value": "messages",
+              "label": "Private Messages"
+            },
+            {
+              "value": "comments",
+              "label": "Comment Replies"
+            },
+            {
+              "value": "selfreply",
+              "label": "Post Replies"
+            },
+            {
+              "value": "mentions",
+              "label": "Username Mentions"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-100, default 25).",
+          "type": "number"
+        },
+        "after": {
+          "label": "After",
+          "description": "Pagination cursor: pass the `after` value from the previous response to get the next page."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://oauth.reddit.com/message/{{folder}}",
+        "query": {
+          "raw_json": "1",
+          "mark": "false",
+          "after": "{{after}}"
+        }
+      },
+      "beforeRequest": "var address = (raw) => { var form = (value) => encodeURIComponent(value).replace(/%20/g, '+').replace(/[!'()~]/g, (character) => '%' + character.charCodeAt(0).toString(16).toUpperCase()); var decode = (value) => value.replace(/\\+/g, ' ').replace(/(%[0-9A-Fa-f]{2})+/g, (run) => { try { return decodeURIComponent(run); } catch (error) { return run.match(/%../g).map((byte) => parseInt(byte.slice(1), 16) < 128 ? String.fromCharCode(parseInt(byte.slice(1), 16)) : '\\uFFFD').join(''); } }); var text = raw.replace(/[\\u0000- ]+$/, '').replace(/[\\t\\n\\r]/g, ''); if (text.indexOf('#') >= 0) text = text.slice(0, text.indexOf('#')); var mark = text.indexOf('?'); var search = mark >= 0 ? text.slice(mark + 1) : ''; var parts = (mark >= 0 ? text.slice(0, mark) : text).replace(/\\\\/g, '/').split('/').slice(1); var segments = []; parts.forEach((part, index) => { var last = index === parts.length - 1; var lower = part.toLowerCase(); if (['..', '.%2e', '%2e.', '%2e%2e'].includes(lower)) { segments.pop(); if (last) segments.push(''); } else if (['.', '%2e'].includes(lower)) { if (last) segments.push(''); } else segments.push(part.replace(/[\\u0000- \"<>`{}|^[\\]\\u007f]|[^\\u0000-\\u007f]+|%(?![0-9A-Fa-f]{2})/gu, (character) => encodeURIComponent(character))); }); var pairs = search.split('&').filter((pair) => pair !== '').map((pair) => { var equals = pair.indexOf('='); return equals >= 0 ? form(decode(pair.slice(0, equals))) + '=' + form(decode(pair.slice(equals + 1))) : form(decode(pair)) + '='; }); return '/' + segments.join('/') + (pairs.length ? '?' + pairs.join('&') : ''); };\nvar clamp = (value) => value === '' || value == null ? undefined : String(Math.min(Math.max(Math.trunc(Number(value)), 1), 100));\nrequest.url = address('/message/' + (inputs.folder || 'inbox'));\nrequest.query.limit = clamp(inputs.limit);\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nvar KEYS = { t1: ['id', 'name', 'author', 'body', 'score', 'created_utc', 'edited', 'permalink', 'parent_id', 'link_id', 'link_title', 'subreddit', 'depth', 'is_submitter', 'stickied', 'distinguished'], t2: ['id', 'name', 'link_karma', 'comment_karma', 'total_karma', 'created_utc', 'is_gold', 'is_mod', 'verified', 'has_verified_email', 'is_employee', 'icon_img'], t3: ['id', 'name', 'title', 'author', 'subreddit', 'subreddit_name_prefixed', 'selftext', 'url', 'permalink', 'domain', 'score', 'upvote_ratio', 'num_comments', 'num_crossposts', 'created_utc', 'edited', 'is_self', 'over_18', 'spoiler', 'stickied', 'locked', 'archived', 'link_flair_text', 'link_flair_template_id', 'crosspost_parent'], t4: ['id', 'name', 'author', 'dest', 'subject', 'body', 'created_utc', 'new', 'was_comment', 'parent_id', 'first_message_name', 'context', 'subreddit', 'distinguished'], t5: ['id', 'name', 'display_name', 'display_name_prefixed', 'title', 'public_description', 'subscribers', 'active_user_count', 'subreddit_type', 'submission_type', 'over18', 'lang', 'created_utc', 'url', 'user_is_subscriber', 'user_is_moderator'] };\nvar pick = (data, keys) => Object.fromEntries(keys.map((key) => [key, data[key] ?? null]));\nvar thing = (item) => KEYS[item.kind] === undefined ? { kind: item.kind, ...item.data } : { kind: item.kind, ...pick(item.data, KEYS[item.kind]) };\nvar list = (listing) => { var items = listing.data.children.map(thing); return { items, count: items.length, after: listing.data.after ?? null, before: listing.data.before ?? null }; };\nvar { items, ...page } = list(response);\nreturn { messages: items, ...page };"
+    },
+    "reddit_list_my_subreddits": {
+      "label": "List My Subreddits",
+      "description": "Lists the subreddits you subscribe to, moderate or contribute to.",
+      "inputs": {
+        "where": {
+          "label": "Relationship",
+          "description": "Which subreddits to list (default subscriber).",
+          "type": "select",
+          "options": [
+            {
+              "value": "subscriber",
+              "label": "Subscribed"
+            },
+            {
+              "value": "moderator",
+              "label": "Moderated"
+            },
+            {
+              "value": "contributor",
+              "label": "Approved Contributor"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-100, default 25).",
+          "type": "number"
+        },
+        "after": {
+          "label": "After",
+          "description": "Pagination cursor: pass the `after` value from the previous response to get the next page."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://oauth.reddit.com/subreddits/mine/{{where}}",
+        "query": {
+          "raw_json": "1",
+          "after": "{{after}}"
+        }
+      },
+      "beforeRequest": "var address = (raw) => { var form = (value) => encodeURIComponent(value).replace(/%20/g, '+').replace(/[!'()~]/g, (character) => '%' + character.charCodeAt(0).toString(16).toUpperCase()); var decode = (value) => value.replace(/\\+/g, ' ').replace(/(%[0-9A-Fa-f]{2})+/g, (run) => { try { return decodeURIComponent(run); } catch (error) { return run.match(/%../g).map((byte) => parseInt(byte.slice(1), 16) < 128 ? String.fromCharCode(parseInt(byte.slice(1), 16)) : '\\uFFFD').join(''); } }); var text = raw.replace(/[\\u0000- ]+$/, '').replace(/[\\t\\n\\r]/g, ''); if (text.indexOf('#') >= 0) text = text.slice(0, text.indexOf('#')); var mark = text.indexOf('?'); var search = mark >= 0 ? text.slice(mark + 1) : ''; var parts = (mark >= 0 ? text.slice(0, mark) : text).replace(/\\\\/g, '/').split('/').slice(1); var segments = []; parts.forEach((part, index) => { var last = index === parts.length - 1; var lower = part.toLowerCase(); if (['..', '.%2e', '%2e.', '%2e%2e'].includes(lower)) { segments.pop(); if (last) segments.push(''); } else if (['.', '%2e'].includes(lower)) { if (last) segments.push(''); } else segments.push(part.replace(/[\\u0000- \"<>`{}|^[\\]\\u007f]|[^\\u0000-\\u007f]+|%(?![0-9A-Fa-f]{2})/gu, (character) => encodeURIComponent(character))); }); var pairs = search.split('&').filter((pair) => pair !== '').map((pair) => { var equals = pair.indexOf('='); return equals >= 0 ? form(decode(pair.slice(0, equals))) + '=' + form(decode(pair.slice(equals + 1))) : form(decode(pair)) + '='; }); return '/' + segments.join('/') + (pairs.length ? '?' + pairs.join('&') : ''); };\nvar clamp = (value) => value === '' || value == null ? undefined : String(Math.min(Math.max(Math.trunc(Number(value)), 1), 100));\nrequest.url = address('/subreddits/mine/' + (inputs.where || 'subscriber'));\nrequest.query.limit = clamp(inputs.limit);\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nvar KEYS = { t1: ['id', 'name', 'author', 'body', 'score', 'created_utc', 'edited', 'permalink', 'parent_id', 'link_id', 'link_title', 'subreddit', 'depth', 'is_submitter', 'stickied', 'distinguished'], t2: ['id', 'name', 'link_karma', 'comment_karma', 'total_karma', 'created_utc', 'is_gold', 'is_mod', 'verified', 'has_verified_email', 'is_employee', 'icon_img'], t3: ['id', 'name', 'title', 'author', 'subreddit', 'subreddit_name_prefixed', 'selftext', 'url', 'permalink', 'domain', 'score', 'upvote_ratio', 'num_comments', 'num_crossposts', 'created_utc', 'edited', 'is_self', 'over_18', 'spoiler', 'stickied', 'locked', 'archived', 'link_flair_text', 'link_flair_template_id', 'crosspost_parent'], t4: ['id', 'name', 'author', 'dest', 'subject', 'body', 'created_utc', 'new', 'was_comment', 'parent_id', 'first_message_name', 'context', 'subreddit', 'distinguished'], t5: ['id', 'name', 'display_name', 'display_name_prefixed', 'title', 'public_description', 'subscribers', 'active_user_count', 'subreddit_type', 'submission_type', 'over18', 'lang', 'created_utc', 'url', 'user_is_subscriber', 'user_is_moderator'] };\nvar pick = (data, keys) => Object.fromEntries(keys.map((key) => [key, data[key] ?? null]));\nvar thing = (item) => KEYS[item.kind] === undefined ? { kind: item.kind, ...item.data } : { kind: item.kind, ...pick(item.data, KEYS[item.kind]) };\nvar list = (listing) => { var items = listing.data.children.map(thing); return { items, count: items.length, after: listing.data.after ?? null, before: listing.data.before ?? null }; };\nvar { items, ...page } = list(response);\nreturn { subreddits: items, ...page };"
+    },
+    "reddit_list_post_comments": {
+      "label": "List Post Comments, Flat, Up to 100",
+      "description": "Gets a post and its comment thread, flattened with depth and parent ids.",
+      "inputs": {
+        "post_id": {
+          "label": "Post ID",
+          "description": "Post id, e.g. \"abc123\" or \"t3_abc123\".",
+          "required": true
+        },
+        "sort": {
+          "label": "Sort",
+          "description": "Comment sort order (default best).",
+          "type": "select",
+          "options": [
+            {
+              "value": "confidence",
+              "label": "Best"
+            },
+            {
+              "value": "top",
+              "label": "Top"
+            },
+            {
+              "value": "new",
+              "label": "New"
+            },
+            {
+              "value": "controversial",
+              "label": "Controversial"
+            },
+            {
+              "value": "old",
+              "label": "Old"
+            },
+            {
+              "value": "qa",
+              "label": "Q&A"
+            }
+          ]
+        },
+        "comment_id": {
+          "label": "Comment ID",
+          "description": "Only return this comment and its replies, e.g. \"def456\" or \"t1_def456\"."
+        },
+        "depth": {
+          "label": "Depth",
+          "description": "Maximum reply depth to include.",
+          "type": "number"
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of comments to load.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://oauth.reddit.com/comments/{{post_id}}",
+        "query": {
+          "raw_json": "1",
+          "sort": "{{sort}}"
+        }
+      },
+      "beforeRequest": "var address = (raw) => { var form = (value) => encodeURIComponent(value).replace(/%20/g, '+').replace(/[!'()~]/g, (character) => '%' + character.charCodeAt(0).toString(16).toUpperCase()); var decode = (value) => value.replace(/\\+/g, ' ').replace(/(%[0-9A-Fa-f]{2})+/g, (run) => { try { return decodeURIComponent(run); } catch (error) { return run.match(/%../g).map((byte) => parseInt(byte.slice(1), 16) < 128 ? String.fromCharCode(parseInt(byte.slice(1), 16)) : '\\uFFFD').join(''); } }); var text = raw.replace(/[\\u0000- ]+$/, '').replace(/[\\t\\n\\r]/g, ''); if (text.indexOf('#') >= 0) text = text.slice(0, text.indexOf('#')); var mark = text.indexOf('?'); var search = mark >= 0 ? text.slice(mark + 1) : ''; var parts = (mark >= 0 ? text.slice(0, mark) : text).replace(/\\\\/g, '/').split('/').slice(1); var segments = []; parts.forEach((part, index) => { var last = index === parts.length - 1; var lower = part.toLowerCase(); if (['..', '.%2e', '%2e.', '%2e%2e'].includes(lower)) { segments.pop(); if (last) segments.push(''); } else if (['.', '%2e'].includes(lower)) { if (last) segments.push(''); } else segments.push(part.replace(/[\\u0000- \"<>`{}|^[\\]\\u007f]|[^\\u0000-\\u007f]+|%(?![0-9A-Fa-f]{2})/gu, (character) => encodeURIComponent(character))); }); var pairs = search.split('&').filter((pair) => pair !== '').map((pair) => { var equals = pair.indexOf('='); return equals >= 0 ? form(decode(pair.slice(0, equals))) + '=' + form(decode(pair.slice(equals + 1))) : form(decode(pair)) + '='; }); return '/' + segments.join('/') + (pairs.length ? '?' + pairs.join('&') : ''); };\nvar base = (value) => String(value).trim().replace(/^t[1-6]_/, '');\nvar clamp = (value) => value === '' || value == null ? undefined : String(Math.min(Math.max(Math.trunc(Number(value)), 1), 100));\nrequest.url = address('/comments/' + base(inputs.post_id));\nvar comment = inputs.comment_id ? base(inputs.comment_id) : '';\nif (comment !== '') request.query.comment = comment;\nif (inputs.depth !== '') request.query.depth = String(Number(inputs.depth));\nrequest.query.limit = clamp(inputs.limit);\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nvar KEYS = { t1: ['id', 'name', 'author', 'body', 'score', 'created_utc', 'edited', 'permalink', 'parent_id', 'link_id', 'link_title', 'subreddit', 'depth', 'is_submitter', 'stickied', 'distinguished'], t2: ['id', 'name', 'link_karma', 'comment_karma', 'total_karma', 'created_utc', 'is_gold', 'is_mod', 'verified', 'has_verified_email', 'is_employee', 'icon_img'], t3: ['id', 'name', 'title', 'author', 'subreddit', 'subreddit_name_prefixed', 'selftext', 'url', 'permalink', 'domain', 'score', 'upvote_ratio', 'num_comments', 'num_crossposts', 'created_utc', 'edited', 'is_self', 'over_18', 'spoiler', 'stickied', 'locked', 'archived', 'link_flair_text', 'link_flair_template_id', 'crosspost_parent'], t4: ['id', 'name', 'author', 'dest', 'subject', 'body', 'created_utc', 'new', 'was_comment', 'parent_id', 'first_message_name', 'context', 'subreddit', 'distinguished'], t5: ['id', 'name', 'display_name', 'display_name_prefixed', 'title', 'public_description', 'subscribers', 'active_user_count', 'subreddit_type', 'submission_type', 'over18', 'lang', 'created_utc', 'url', 'user_is_subscriber', 'user_is_moderator'] };\nvar pick = (data, keys) => Object.fromEntries(keys.map((key) => [key, data[key] ?? null]));\nvar thing = (item) => KEYS[item.kind] === undefined ? { kind: item.kind, ...item.data } : { kind: item.kind, ...pick(item.data, KEYS[item.kind]) };\nvar isListing = (value) => typeof value === 'object' && value !== null && 'data' in value && typeof value.data === 'object' && value.data !== null && 'children' in value.data && Array.isArray(value.data.children);\nvar flat = (children) => children.reduce((all, child) => { if (child.kind === 'more') return { comments: all.comments, more: [...all.more, pick(child.data, ['id', 'name', 'parent_id', 'count', 'depth', 'children'])] }; var below = isListing(child.data.replies) ? flat(child.data.replies.data.children) : { comments: [], more: [] }; return { comments: [...all.comments, thing(child), ...below.comments], more: [...all.more, ...below.more] }; }, { comments: [], more: [] });\nvar original = response[0].data.children[0];\nvar { comments, more } = flat(response[1].data.children);\nreturn { post: original ? thing(original) : null, comments, count: comments.length, more };"
+    },
+    "reddit_list_post_flairs": {
+      "label": "List Post Flairs",
+      "description": "Lists the post flair templates available in a subreddit.",
+      "inputs": {
+        "subreddit": {
+          "label": "Subreddit",
+          "description": "Subreddit name without the r/ prefix (e.g. \"programming\").",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://oauth.reddit.com/r/{{subreddit}}/api/link_flair_v2",
+        "query": {
+          "raw_json": "1"
+        }
+      },
+      "beforeRequest": "var address = (raw) => { var form = (value) => encodeURIComponent(value).replace(/%20/g, '+').replace(/[!'()~]/g, (character) => '%' + character.charCodeAt(0).toString(16).toUpperCase()); var decode = (value) => value.replace(/\\+/g, ' ').replace(/(%[0-9A-Fa-f]{2})+/g, (run) => { try { return decodeURIComponent(run); } catch (error) { return run.match(/%../g).map((byte) => parseInt(byte.slice(1), 16) < 128 ? String.fromCharCode(parseInt(byte.slice(1), 16)) : '\\uFFFD').join(''); } }); var text = raw.replace(/[\\u0000- ]+$/, '').replace(/[\\t\\n\\r]/g, ''); if (text.indexOf('#') >= 0) text = text.slice(0, text.indexOf('#')); var mark = text.indexOf('?'); var search = mark >= 0 ? text.slice(mark + 1) : ''; var parts = (mark >= 0 ? text.slice(0, mark) : text).replace(/\\\\/g, '/').split('/').slice(1); var segments = []; parts.forEach((part, index) => { var last = index === parts.length - 1; var lower = part.toLowerCase(); if (['..', '.%2e', '%2e.', '%2e%2e'].includes(lower)) { segments.pop(); if (last) segments.push(''); } else if (['.', '%2e'].includes(lower)) { if (last) segments.push(''); } else segments.push(part.replace(/[\\u0000- \"<>`{}|^[\\]\\u007f]|[^\\u0000-\\u007f]+|%(?![0-9A-Fa-f]{2})/gu, (character) => encodeURIComponent(character))); }); var pairs = search.split('&').filter((pair) => pair !== '').map((pair) => { var equals = pair.indexOf('='); return equals >= 0 ? form(decode(pair.slice(0, equals))) + '=' + form(decode(pair.slice(equals + 1))) : form(decode(pair)) + '='; }); return '/' + segments.join('/') + (pairs.length ? '?' + pairs.join('&') : ''); };\nvar sub = (value) => String(value).trim().replace(/^\\/?r\\//i, '');\nrequest.url = address('/r/' + sub(inputs.subreddit) + '/api/link_flair_v2');\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nvar KEYS_FLAIR = ['id', 'text', 'text_editable', 'type', 'mod_only', 'allowable_content', 'max_emojis', 'background_color', 'text_color', 'css_class'];\nvar flairs = response.map((flair) => Object.fromEntries(KEYS_FLAIR.map((key) => [key, flair[key] ?? null])));\nreturn { flairs, count: flairs.length };"
+    },
+    "reddit_list_posts": {
+      "label": "List Posts",
+      "description": "Lists posts from a subreddit or the front page, sorted by hot, new, top, rising, controversial or best.",
+      "inputs": {
+        "subreddit": {
+          "label": "Subreddit",
+          "description": "Subreddit name without r/. Leave empty for the front page."
+        },
+        "sort": {
+          "label": "Sort",
+          "description": "Sort order (default hot).",
+          "type": "select",
+          "options": [
+            {
+              "value": "hot",
+              "label": "Hot"
+            },
+            {
+              "value": "new",
+              "label": "New"
+            },
+            {
+              "value": "top",
+              "label": "Top"
+            },
+            {
+              "value": "rising",
+              "label": "Rising"
+            },
+            {
+              "value": "controversial",
+              "label": "Controversial"
+            },
+            {
+              "value": "best",
+              "label": "Best (front page only)"
+            }
+          ]
+        },
+        "time": {
+          "label": "Time Range",
+          "description": "Time window for \"top\" and \"controversial\" sorts.",
+          "type": "select",
+          "options": [
+            {
+              "value": "hour",
+              "label": "Past Hour"
+            },
+            {
+              "value": "day",
+              "label": "Past 24 Hours"
+            },
+            {
+              "value": "week",
+              "label": "Past Week"
+            },
+            {
+              "value": "month",
+              "label": "Past Month"
+            },
+            {
+              "value": "year",
+              "label": "Past Year"
+            },
+            {
+              "value": "all",
+              "label": "All Time"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-100, default 25).",
+          "type": "number"
+        },
+        "after": {
+          "label": "After",
+          "description": "Pagination cursor: pass the `after` value from the previous response to get the next page."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://oauth.reddit.com/{{sort}}",
+        "query": {
+          "raw_json": "1",
+          "t": "{{time}}",
+          "after": "{{after}}"
+        }
+      },
+      "beforeRequest": "var address = (raw) => { var form = (value) => encodeURIComponent(value).replace(/%20/g, '+').replace(/[!'()~]/g, (character) => '%' + character.charCodeAt(0).toString(16).toUpperCase()); var decode = (value) => value.replace(/\\+/g, ' ').replace(/(%[0-9A-Fa-f]{2})+/g, (run) => { try { return decodeURIComponent(run); } catch (error) { return run.match(/%../g).map((byte) => parseInt(byte.slice(1), 16) < 128 ? String.fromCharCode(parseInt(byte.slice(1), 16)) : '\\uFFFD').join(''); } }); var text = raw.replace(/[\\u0000- ]+$/, '').replace(/[\\t\\n\\r]/g, ''); if (text.indexOf('#') >= 0) text = text.slice(0, text.indexOf('#')); var mark = text.indexOf('?'); var search = mark >= 0 ? text.slice(mark + 1) : ''; var parts = (mark >= 0 ? text.slice(0, mark) : text).replace(/\\\\/g, '/').split('/').slice(1); var segments = []; parts.forEach((part, index) => { var last = index === parts.length - 1; var lower = part.toLowerCase(); if (['..', '.%2e', '%2e.', '%2e%2e'].includes(lower)) { segments.pop(); if (last) segments.push(''); } else if (['.', '%2e'].includes(lower)) { if (last) segments.push(''); } else segments.push(part.replace(/[\\u0000- \"<>`{}|^[\\]\\u007f]|[^\\u0000-\\u007f]+|%(?![0-9A-Fa-f]{2})/gu, (character) => encodeURIComponent(character))); }); var pairs = search.split('&').filter((pair) => pair !== '').map((pair) => { var equals = pair.indexOf('='); return equals >= 0 ? form(decode(pair.slice(0, equals))) + '=' + form(decode(pair.slice(equals + 1))) : form(decode(pair)) + '='; }); return '/' + segments.join('/') + (pairs.length ? '?' + pairs.join('&') : ''); };\nvar sub = (value) => String(value).trim().replace(/^\\/?r\\//i, '');\nvar clamp = (value) => value === '' || value == null ? undefined : String(Math.min(Math.max(Math.trunc(Number(value)), 1), 100));\nvar sort = inputs.sort || 'hot';\nvar name = inputs.subreddit ? sub(inputs.subreddit) : undefined;\nif (name && sort === 'best') throw new Error('The \"best\" sort is only available on the front page; leave Subreddit empty or pick another sort.');\nrequest.url = address(name ? '/r/' + name + '/' + sort : '/' + sort);\nrequest.query.limit = clamp(inputs.limit);\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nvar KEYS = { t1: ['id', 'name', 'author', 'body', 'score', 'created_utc', 'edited', 'permalink', 'parent_id', 'link_id', 'link_title', 'subreddit', 'depth', 'is_submitter', 'stickied', 'distinguished'], t2: ['id', 'name', 'link_karma', 'comment_karma', 'total_karma', 'created_utc', 'is_gold', 'is_mod', 'verified', 'has_verified_email', 'is_employee', 'icon_img'], t3: ['id', 'name', 'title', 'author', 'subreddit', 'subreddit_name_prefixed', 'selftext', 'url', 'permalink', 'domain', 'score', 'upvote_ratio', 'num_comments', 'num_crossposts', 'created_utc', 'edited', 'is_self', 'over_18', 'spoiler', 'stickied', 'locked', 'archived', 'link_flair_text', 'link_flair_template_id', 'crosspost_parent'], t4: ['id', 'name', 'author', 'dest', 'subject', 'body', 'created_utc', 'new', 'was_comment', 'parent_id', 'first_message_name', 'context', 'subreddit', 'distinguished'], t5: ['id', 'name', 'display_name', 'display_name_prefixed', 'title', 'public_description', 'subscribers', 'active_user_count', 'subreddit_type', 'submission_type', 'over18', 'lang', 'created_utc', 'url', 'user_is_subscriber', 'user_is_moderator'] };\nvar pick = (data, keys) => Object.fromEntries(keys.map((key) => [key, data[key] ?? null]));\nvar thing = (item) => KEYS[item.kind] === undefined ? { kind: item.kind, ...item.data } : { kind: item.kind, ...pick(item.data, KEYS[item.kind]) };\nvar list = (listing) => { var items = listing.data.children.map(thing); return { items, count: items.length, after: listing.data.after ?? null, before: listing.data.before ?? null }; };\nvar { items, ...page } = list(response);\nreturn { posts: items, ...page };"
+    },
+    "reddit_list_subreddit_comments": {
+      "label": "List Subreddit Comments",
+      "description": "Lists the newest comments across all posts in a subreddit.",
+      "inputs": {
+        "subreddit": {
+          "label": "Subreddit",
+          "description": "Subreddit name without the r/ prefix (e.g. \"programming\").",
+          "required": true
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-100, default 25).",
+          "type": "number"
+        },
+        "after": {
+          "label": "After",
+          "description": "Pagination cursor: pass the `after` value from the previous response to get the next page."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://oauth.reddit.com/r/{{subreddit}}/comments",
+        "query": {
+          "raw_json": "1",
+          "after": "{{after}}"
+        }
+      },
+      "beforeRequest": "var address = (raw) => { var form = (value) => encodeURIComponent(value).replace(/%20/g, '+').replace(/[!'()~]/g, (character) => '%' + character.charCodeAt(0).toString(16).toUpperCase()); var decode = (value) => value.replace(/\\+/g, ' ').replace(/(%[0-9A-Fa-f]{2})+/g, (run) => { try { return decodeURIComponent(run); } catch (error) { return run.match(/%../g).map((byte) => parseInt(byte.slice(1), 16) < 128 ? String.fromCharCode(parseInt(byte.slice(1), 16)) : '\\uFFFD').join(''); } }); var text = raw.replace(/[\\u0000- ]+$/, '').replace(/[\\t\\n\\r]/g, ''); if (text.indexOf('#') >= 0) text = text.slice(0, text.indexOf('#')); var mark = text.indexOf('?'); var search = mark >= 0 ? text.slice(mark + 1) : ''; var parts = (mark >= 0 ? text.slice(0, mark) : text).replace(/\\\\/g, '/').split('/').slice(1); var segments = []; parts.forEach((part, index) => { var last = index === parts.length - 1; var lower = part.toLowerCase(); if (['..', '.%2e', '%2e.', '%2e%2e'].includes(lower)) { segments.pop(); if (last) segments.push(''); } else if (['.', '%2e'].includes(lower)) { if (last) segments.push(''); } else segments.push(part.replace(/[\\u0000- \"<>`{}|^[\\]\\u007f]|[^\\u0000-\\u007f]+|%(?![0-9A-Fa-f]{2})/gu, (character) => encodeURIComponent(character))); }); var pairs = search.split('&').filter((pair) => pair !== '').map((pair) => { var equals = pair.indexOf('='); return equals >= 0 ? form(decode(pair.slice(0, equals))) + '=' + form(decode(pair.slice(equals + 1))) : form(decode(pair)) + '='; }); return '/' + segments.join('/') + (pairs.length ? '?' + pairs.join('&') : ''); };\nvar sub = (value) => String(value).trim().replace(/^\\/?r\\//i, '');\nvar clamp = (value) => value === '' || value == null ? undefined : String(Math.min(Math.max(Math.trunc(Number(value)), 1), 100));\nrequest.url = address('/r/' + sub(inputs.subreddit) + '/comments');\nrequest.query.limit = clamp(inputs.limit);\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nvar KEYS = { t1: ['id', 'name', 'author', 'body', 'score', 'created_utc', 'edited', 'permalink', 'parent_id', 'link_id', 'link_title', 'subreddit', 'depth', 'is_submitter', 'stickied', 'distinguished'], t2: ['id', 'name', 'link_karma', 'comment_karma', 'total_karma', 'created_utc', 'is_gold', 'is_mod', 'verified', 'has_verified_email', 'is_employee', 'icon_img'], t3: ['id', 'name', 'title', 'author', 'subreddit', 'subreddit_name_prefixed', 'selftext', 'url', 'permalink', 'domain', 'score', 'upvote_ratio', 'num_comments', 'num_crossposts', 'created_utc', 'edited', 'is_self', 'over_18', 'spoiler', 'stickied', 'locked', 'archived', 'link_flair_text', 'link_flair_template_id', 'crosspost_parent'], t4: ['id', 'name', 'author', 'dest', 'subject', 'body', 'created_utc', 'new', 'was_comment', 'parent_id', 'first_message_name', 'context', 'subreddit', 'distinguished'], t5: ['id', 'name', 'display_name', 'display_name_prefixed', 'title', 'public_description', 'subscribers', 'active_user_count', 'subreddit_type', 'submission_type', 'over18', 'lang', 'created_utc', 'url', 'user_is_subscriber', 'user_is_moderator'] };\nvar pick = (data, keys) => Object.fromEntries(keys.map((key) => [key, data[key] ?? null]));\nvar thing = (item) => KEYS[item.kind] === undefined ? { kind: item.kind, ...item.data } : { kind: item.kind, ...pick(item.data, KEYS[item.kind]) };\nvar list = (listing) => { var items = listing.data.children.map(thing); return { items, count: items.length, after: listing.data.after ?? null, before: listing.data.before ?? null }; };\nvar { items, ...page } = list(response);\nreturn { comments: items, ...page };"
+    },
+    "reddit_list_subreddit_moderators": {
+      "label": "List Subreddit Moderators",
+      "description": "Lists a subreddit's moderators.",
+      "inputs": {
+        "subreddit": {
+          "label": "Subreddit",
+          "description": "Subreddit name without the r/ prefix (e.g. \"programming\").",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://oauth.reddit.com/r/{{subreddit}}/about/moderators",
+        "query": {
+          "raw_json": "1"
+        }
+      },
+      "beforeRequest": "var address = (raw) => { var form = (value) => encodeURIComponent(value).replace(/%20/g, '+').replace(/[!'()~]/g, (character) => '%' + character.charCodeAt(0).toString(16).toUpperCase()); var decode = (value) => value.replace(/\\+/g, ' ').replace(/(%[0-9A-Fa-f]{2})+/g, (run) => { try { return decodeURIComponent(run); } catch (error) { return run.match(/%../g).map((byte) => parseInt(byte.slice(1), 16) < 128 ? String.fromCharCode(parseInt(byte.slice(1), 16)) : '\\uFFFD').join(''); } }); var text = raw.replace(/[\\u0000- ]+$/, '').replace(/[\\t\\n\\r]/g, ''); if (text.indexOf('#') >= 0) text = text.slice(0, text.indexOf('#')); var mark = text.indexOf('?'); var search = mark >= 0 ? text.slice(mark + 1) : ''; var parts = (mark >= 0 ? text.slice(0, mark) : text).replace(/\\\\/g, '/').split('/').slice(1); var segments = []; parts.forEach((part, index) => { var last = index === parts.length - 1; var lower = part.toLowerCase(); if (['..', '.%2e', '%2e.', '%2e%2e'].includes(lower)) { segments.pop(); if (last) segments.push(''); } else if (['.', '%2e'].includes(lower)) { if (last) segments.push(''); } else segments.push(part.replace(/[\\u0000- \"<>`{}|^[\\]\\u007f]|[^\\u0000-\\u007f]+|%(?![0-9A-Fa-f]{2})/gu, (character) => encodeURIComponent(character))); }); var pairs = search.split('&').filter((pair) => pair !== '').map((pair) => { var equals = pair.indexOf('='); return equals >= 0 ? form(decode(pair.slice(0, equals))) + '=' + form(decode(pair.slice(equals + 1))) : form(decode(pair)) + '='; }); return '/' + segments.join('/') + (pairs.length ? '?' + pairs.join('&') : ''); };\nvar sub = (value) => String(value).trim().replace(/^\\/?r\\//i, '');\nrequest.url = address('/r/' + sub(inputs.subreddit) + '/about/moderators');\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nvar moderators = (response.data?.children ?? []).map((moderator) => ({ name: moderator.name ?? null, id: moderator.id ?? null, mod_permissions: moderator.mod_permissions ?? [], date: moderator.date ?? null }));\nreturn { moderators, count: moderators.length };"
+    },
+    "reddit_list_subreddits": {
+      "label": "List Subreddits",
+      "description": "Lists popular, new or default subreddits.",
+      "inputs": {
+        "where": {
+          "label": "Type",
+          "description": "Which subreddits to list (default popular).",
+          "type": "select",
+          "options": [
+            {
+              "value": "popular",
+              "label": "Popular"
+            },
+            {
+              "value": "new",
+              "label": "New"
+            },
+            {
+              "value": "default",
+              "label": "Default"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-100, default 25).",
+          "type": "number"
+        },
+        "after": {
+          "label": "After",
+          "description": "Pagination cursor: pass the `after` value from the previous response to get the next page."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://oauth.reddit.com/subreddits/{{where}}",
+        "query": {
+          "raw_json": "1",
+          "after": "{{after}}"
+        }
+      },
+      "beforeRequest": "var address = (raw) => { var form = (value) => encodeURIComponent(value).replace(/%20/g, '+').replace(/[!'()~]/g, (character) => '%' + character.charCodeAt(0).toString(16).toUpperCase()); var decode = (value) => value.replace(/\\+/g, ' ').replace(/(%[0-9A-Fa-f]{2})+/g, (run) => { try { return decodeURIComponent(run); } catch (error) { return run.match(/%../g).map((byte) => parseInt(byte.slice(1), 16) < 128 ? String.fromCharCode(parseInt(byte.slice(1), 16)) : '\\uFFFD').join(''); } }); var text = raw.replace(/[\\u0000- ]+$/, '').replace(/[\\t\\n\\r]/g, ''); if (text.indexOf('#') >= 0) text = text.slice(0, text.indexOf('#')); var mark = text.indexOf('?'); var search = mark >= 0 ? text.slice(mark + 1) : ''; var parts = (mark >= 0 ? text.slice(0, mark) : text).replace(/\\\\/g, '/').split('/').slice(1); var segments = []; parts.forEach((part, index) => { var last = index === parts.length - 1; var lower = part.toLowerCase(); if (['..', '.%2e', '%2e.', '%2e%2e'].includes(lower)) { segments.pop(); if (last) segments.push(''); } else if (['.', '%2e'].includes(lower)) { if (last) segments.push(''); } else segments.push(part.replace(/[\\u0000- \"<>`{}|^[\\]\\u007f]|[^\\u0000-\\u007f]+|%(?![0-9A-Fa-f]{2})/gu, (character) => encodeURIComponent(character))); }); var pairs = search.split('&').filter((pair) => pair !== '').map((pair) => { var equals = pair.indexOf('='); return equals >= 0 ? form(decode(pair.slice(0, equals))) + '=' + form(decode(pair.slice(equals + 1))) : form(decode(pair)) + '='; }); return '/' + segments.join('/') + (pairs.length ? '?' + pairs.join('&') : ''); };\nvar clamp = (value) => value === '' || value == null ? undefined : String(Math.min(Math.max(Math.trunc(Number(value)), 1), 100));\nrequest.url = address('/subreddits/' + (inputs.where || 'popular'));\nrequest.query.limit = clamp(inputs.limit);\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nvar KEYS = { t1: ['id', 'name', 'author', 'body', 'score', 'created_utc', 'edited', 'permalink', 'parent_id', 'link_id', 'link_title', 'subreddit', 'depth', 'is_submitter', 'stickied', 'distinguished'], t2: ['id', 'name', 'link_karma', 'comment_karma', 'total_karma', 'created_utc', 'is_gold', 'is_mod', 'verified', 'has_verified_email', 'is_employee', 'icon_img'], t3: ['id', 'name', 'title', 'author', 'subreddit', 'subreddit_name_prefixed', 'selftext', 'url', 'permalink', 'domain', 'score', 'upvote_ratio', 'num_comments', 'num_crossposts', 'created_utc', 'edited', 'is_self', 'over_18', 'spoiler', 'stickied', 'locked', 'archived', 'link_flair_text', 'link_flair_template_id', 'crosspost_parent'], t4: ['id', 'name', 'author', 'dest', 'subject', 'body', 'created_utc', 'new', 'was_comment', 'parent_id', 'first_message_name', 'context', 'subreddit', 'distinguished'], t5: ['id', 'name', 'display_name', 'display_name_prefixed', 'title', 'public_description', 'subscribers', 'active_user_count', 'subreddit_type', 'submission_type', 'over18', 'lang', 'created_utc', 'url', 'user_is_subscriber', 'user_is_moderator'] };\nvar pick = (data, keys) => Object.fromEntries(keys.map((key) => [key, data[key] ?? null]));\nvar thing = (item) => KEYS[item.kind] === undefined ? { kind: item.kind, ...item.data } : { kind: item.kind, ...pick(item.data, KEYS[item.kind]) };\nvar list = (listing) => { var items = listing.data.children.map(thing); return { items, count: items.length, after: listing.data.after ?? null, before: listing.data.before ?? null }; };\nvar { items, ...page } = list(response);\nreturn { subreddits: items, ...page };"
+    },
+    "reddit_list_user_content": {
+      "label": "List User Content",
+      "description": "Lists a user's posts and comments, or your own saved, upvoted or hidden items.",
+      "inputs": {
+        "username": {
+          "label": "Username",
+          "description": "Reddit username without the u/ prefix.",
+          "required": true
+        },
+        "where": {
+          "label": "Content",
+          "description": "What to list (default overview).",
+          "type": "select",
+          "options": [
+            {
+              "value": "overview",
+              "label": "Overview (posts and comments)"
+            },
+            {
+              "value": "submitted",
+              "label": "Posts"
+            },
+            {
+              "value": "comments",
+              "label": "Comments"
+            },
+            {
+              "value": "saved",
+              "label": "Saved (own account)"
+            },
+            {
+              "value": "upvoted",
+              "label": "Upvoted (own account)"
+            },
+            {
+              "value": "downvoted",
+              "label": "Downvoted (own account)"
+            },
+            {
+              "value": "hidden",
+              "label": "Hidden (own account)"
+            },
+            {
+              "value": "gilded",
+              "label": "Gilded"
+            }
+          ]
+        },
+        "sort": {
+          "label": "Sort",
+          "description": "Sort order (default new).",
+          "type": "select",
+          "options": [
+            {
+              "value": "new",
+              "label": "New"
+            },
+            {
+              "value": "hot",
+              "label": "Hot"
+            },
+            {
+              "value": "top",
+              "label": "Top"
+            },
+            {
+              "value": "controversial",
+              "label": "Controversial"
+            }
+          ]
+        },
+        "time": {
+          "label": "Time Range",
+          "description": "Time window for \"top\" and \"controversial\" sorts.",
+          "type": "select",
+          "options": [
+            {
+              "value": "hour",
+              "label": "Past Hour"
+            },
+            {
+              "value": "day",
+              "label": "Past 24 Hours"
+            },
+            {
+              "value": "week",
+              "label": "Past Week"
+            },
+            {
+              "value": "month",
+              "label": "Past Month"
+            },
+            {
+              "value": "year",
+              "label": "Past Year"
+            },
+            {
+              "value": "all",
+              "label": "All Time"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-100, default 25).",
+          "type": "number"
+        },
+        "after": {
+          "label": "After",
+          "description": "Pagination cursor: pass the `after` value from the previous response to get the next page."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://oauth.reddit.com/user/{{username}}/{{where}}",
+        "query": {
+          "raw_json": "1",
+          "sort": "{{sort}}",
+          "t": "{{time}}",
+          "after": "{{after}}"
+        }
+      },
+      "beforeRequest": "var address = (raw) => { var form = (value) => encodeURIComponent(value).replace(/%20/g, '+').replace(/[!'()~]/g, (character) => '%' + character.charCodeAt(0).toString(16).toUpperCase()); var decode = (value) => value.replace(/\\+/g, ' ').replace(/(%[0-9A-Fa-f]{2})+/g, (run) => { try { return decodeURIComponent(run); } catch (error) { return run.match(/%../g).map((byte) => parseInt(byte.slice(1), 16) < 128 ? String.fromCharCode(parseInt(byte.slice(1), 16)) : '\\uFFFD').join(''); } }); var text = raw.replace(/[\\u0000- ]+$/, '').replace(/[\\t\\n\\r]/g, ''); if (text.indexOf('#') >= 0) text = text.slice(0, text.indexOf('#')); var mark = text.indexOf('?'); var search = mark >= 0 ? text.slice(mark + 1) : ''; var parts = (mark >= 0 ? text.slice(0, mark) : text).replace(/\\\\/g, '/').split('/').slice(1); var segments = []; parts.forEach((part, index) => { var last = index === parts.length - 1; var lower = part.toLowerCase(); if (['..', '.%2e', '%2e.', '%2e%2e'].includes(lower)) { segments.pop(); if (last) segments.push(''); } else if (['.', '%2e'].includes(lower)) { if (last) segments.push(''); } else segments.push(part.replace(/[\\u0000- \"<>`{}|^[\\]\\u007f]|[^\\u0000-\\u007f]+|%(?![0-9A-Fa-f]{2})/gu, (character) => encodeURIComponent(character))); }); var pairs = search.split('&').filter((pair) => pair !== '').map((pair) => { var equals = pair.indexOf('='); return equals >= 0 ? form(decode(pair.slice(0, equals))) + '=' + form(decode(pair.slice(equals + 1))) : form(decode(pair)) + '='; }); return '/' + segments.join('/') + (pairs.length ? '?' + pairs.join('&') : ''); };\nvar user = (value) => String(value).trim().replace(/^\\/?u(ser)?\\//i, '');\nvar clamp = (value) => value === '' || value == null ? undefined : String(Math.min(Math.max(Math.trunc(Number(value)), 1), 100));\nrequest.url = address('/user/' + user(inputs.username) + '/' + (inputs.where || 'overview'));\nrequest.query.limit = clamp(inputs.limit);\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nvar KEYS = { t1: ['id', 'name', 'author', 'body', 'score', 'created_utc', 'edited', 'permalink', 'parent_id', 'link_id', 'link_title', 'subreddit', 'depth', 'is_submitter', 'stickied', 'distinguished'], t2: ['id', 'name', 'link_karma', 'comment_karma', 'total_karma', 'created_utc', 'is_gold', 'is_mod', 'verified', 'has_verified_email', 'is_employee', 'icon_img'], t3: ['id', 'name', 'title', 'author', 'subreddit', 'subreddit_name_prefixed', 'selftext', 'url', 'permalink', 'domain', 'score', 'upvote_ratio', 'num_comments', 'num_crossposts', 'created_utc', 'edited', 'is_self', 'over_18', 'spoiler', 'stickied', 'locked', 'archived', 'link_flair_text', 'link_flair_template_id', 'crosspost_parent'], t4: ['id', 'name', 'author', 'dest', 'subject', 'body', 'created_utc', 'new', 'was_comment', 'parent_id', 'first_message_name', 'context', 'subreddit', 'distinguished'], t5: ['id', 'name', 'display_name', 'display_name_prefixed', 'title', 'public_description', 'subscribers', 'active_user_count', 'subreddit_type', 'submission_type', 'over18', 'lang', 'created_utc', 'url', 'user_is_subscriber', 'user_is_moderator'] };\nvar pick = (data, keys) => Object.fromEntries(keys.map((key) => [key, data[key] ?? null]));\nvar thing = (item) => KEYS[item.kind] === undefined ? { kind: item.kind, ...item.data } : { kind: item.kind, ...pick(item.data, KEYS[item.kind]) };\nvar list = (listing) => { var items = listing.data.children.map(thing); return { items, count: items.length, after: listing.data.after ?? null, before: listing.data.before ?? null }; };\nvar { items, ...page } = list(response);\nreturn { items: items, ...page };"
+    },
+    "reddit_list_user_flairs": {
+      "label": "List User Flairs",
+      "description": "Lists the user flair templates available in a subreddit.",
+      "inputs": {
+        "subreddit": {
+          "label": "Subreddit",
+          "description": "Subreddit name without the r/ prefix (e.g. \"programming\").",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://oauth.reddit.com/r/{{subreddit}}/api/user_flair_v2",
+        "query": {
+          "raw_json": "1"
+        }
+      },
+      "beforeRequest": "var address = (raw) => { var form = (value) => encodeURIComponent(value).replace(/%20/g, '+').replace(/[!'()~]/g, (character) => '%' + character.charCodeAt(0).toString(16).toUpperCase()); var decode = (value) => value.replace(/\\+/g, ' ').replace(/(%[0-9A-Fa-f]{2})+/g, (run) => { try { return decodeURIComponent(run); } catch (error) { return run.match(/%../g).map((byte) => parseInt(byte.slice(1), 16) < 128 ? String.fromCharCode(parseInt(byte.slice(1), 16)) : '\\uFFFD').join(''); } }); var text = raw.replace(/[\\u0000- ]+$/, '').replace(/[\\t\\n\\r]/g, ''); if (text.indexOf('#') >= 0) text = text.slice(0, text.indexOf('#')); var mark = text.indexOf('?'); var search = mark >= 0 ? text.slice(mark + 1) : ''; var parts = (mark >= 0 ? text.slice(0, mark) : text).replace(/\\\\/g, '/').split('/').slice(1); var segments = []; parts.forEach((part, index) => { var last = index === parts.length - 1; var lower = part.toLowerCase(); if (['..', '.%2e', '%2e.', '%2e%2e'].includes(lower)) { segments.pop(); if (last) segments.push(''); } else if (['.', '%2e'].includes(lower)) { if (last) segments.push(''); } else segments.push(part.replace(/[\\u0000- \"<>`{}|^[\\]\\u007f]|[^\\u0000-\\u007f]+|%(?![0-9A-Fa-f]{2})/gu, (character) => encodeURIComponent(character))); }); var pairs = search.split('&').filter((pair) => pair !== '').map((pair) => { var equals = pair.indexOf('='); return equals >= 0 ? form(decode(pair.slice(0, equals))) + '=' + form(decode(pair.slice(equals + 1))) : form(decode(pair)) + '='; }); return '/' + segments.join('/') + (pairs.length ? '?' + pairs.join('&') : ''); };\nvar sub = (value) => String(value).trim().replace(/^\\/?r\\//i, '');\nrequest.url = address('/r/' + sub(inputs.subreddit) + '/api/user_flair_v2');\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nvar KEYS_FLAIR = ['id', 'text', 'text_editable', 'type', 'mod_only', 'allowable_content', 'max_emojis', 'background_color', 'text_color', 'css_class'];\nvar flairs = response.map((flair) => Object.fromEntries(KEYS_FLAIR.map((key) => [key, flair[key] ?? null])));\nreturn { flairs, count: flairs.length };"
+    },
+    "reddit_list_wiki_pages": {
+      "label": "List Wiki Pages",
+      "description": "Lists the wiki pages of a subreddit.",
+      "inputs": {
+        "subreddit": {
+          "label": "Subreddit",
+          "description": "Subreddit name without the r/ prefix (e.g. \"programming\").",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://oauth.reddit.com/r/{{subreddit}}/wiki/pages",
+        "query": {
+          "raw_json": "1"
+        }
+      },
+      "beforeRequest": "var address = (raw) => { var form = (value) => encodeURIComponent(value).replace(/%20/g, '+').replace(/[!'()~]/g, (character) => '%' + character.charCodeAt(0).toString(16).toUpperCase()); var decode = (value) => value.replace(/\\+/g, ' ').replace(/(%[0-9A-Fa-f]{2})+/g, (run) => { try { return decodeURIComponent(run); } catch (error) { return run.match(/%../g).map((byte) => parseInt(byte.slice(1), 16) < 128 ? String.fromCharCode(parseInt(byte.slice(1), 16)) : '\\uFFFD').join(''); } }); var text = raw.replace(/[\\u0000- ]+$/, '').replace(/[\\t\\n\\r]/g, ''); if (text.indexOf('#') >= 0) text = text.slice(0, text.indexOf('#')); var mark = text.indexOf('?'); var search = mark >= 0 ? text.slice(mark + 1) : ''; var parts = (mark >= 0 ? text.slice(0, mark) : text).replace(/\\\\/g, '/').split('/').slice(1); var segments = []; parts.forEach((part, index) => { var last = index === parts.length - 1; var lower = part.toLowerCase(); if (['..', '.%2e', '%2e.', '%2e%2e'].includes(lower)) { segments.pop(); if (last) segments.push(''); } else if (['.', '%2e'].includes(lower)) { if (last) segments.push(''); } else segments.push(part.replace(/[\\u0000- \"<>`{}|^[\\]\\u007f]|[^\\u0000-\\u007f]+|%(?![0-9A-Fa-f]{2})/gu, (character) => encodeURIComponent(character))); }); var pairs = search.split('&').filter((pair) => pair !== '').map((pair) => { var equals = pair.indexOf('='); return equals >= 0 ? form(decode(pair.slice(0, equals))) + '=' + form(decode(pair.slice(equals + 1))) : form(decode(pair)) + '='; }); return '/' + segments.join('/') + (pairs.length ? '?' + pairs.join('&') : ''); };\nvar sub = (value) => String(value).trim().replace(/^\\/?r\\//i, '');\nrequest.url = address('/r/' + sub(inputs.subreddit) + '/wiki/pages');\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nvar pages = response.data ?? [];\nreturn { pages, count: pages.length };"
+    },
+    "reddit_mark_all_messages_read": {
+      "label": "Mark All Messages Read",
+      "description": "Marks every item in your inbox as read.",
+      "request": {
+        "method": "POST",
+        "url": "https://oauth.reddit.com/api/read_all_messages",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "query": {
+          "raw_json": "1"
+        },
+        "body": {}
+      },
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nreturn { success: true };"
+    },
+    "reddit_mark_message_read": {
+      "label": "Mark Messages Read",
+      "description": "Marks inbox items as read.",
+      "inputs": {
+        "ids": {
+          "label": "Fullnames",
+          "description": "Comma-separated fullnames, e.g. \"t4_abc123,t1_def456\".",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://oauth.reddit.com/api/read_message",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "query": {
+          "raw_json": "1"
+        },
+        "body": {
+          "id": "{{ids}}"
+        }
+      },
+      "beforeRequest": "var need = (value, label) => { var text = String(value).trim(); if (!/^t[1-6]_/.test(text)) throw new Error(label + ' must be a Reddit fullname with its type prefix (t1_ comment, t3_ post, t4_ message), got \"' + text + '\".'); return text; };\nvar ids = inputs.ids.split(',').filter((id) => id.trim() !== '').map((id) => need(id, 'Each id'));\nif (ids.length === 0) throw new Error('Provide at least one fullname.');\nrequest.body.id = ids.join(',');\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nreturn { success: true, ids: request.body.id.split(','), read: true };"
+    },
+    "reddit_report_content": {
+      "label": "Report Post, Comment or Message",
+      "description": "Reports a post, comment or message to the subreddit moderators.",
+      "inputs": {
+        "thing_id": {
+          "label": "Fullname",
+          "description": "Fullname of the item to report, e.g. \"t3_abc123\".",
+          "required": true
+        },
+        "reason": {
+          "label": "Reason",
+          "description": "Report reason, max 100 characters (e.g. a subreddit rule name).",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://oauth.reddit.com/api/report",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "query": {
+          "raw_json": "1"
+        },
+        "body": {
+          "api_type": "json",
+          "thing_id": "{{thing_id}}",
+          "reason": "{{reason}}"
+        }
+      },
+      "beforeRequest": "var need = (value, label) => { var text = String(value).trim(); if (!/^t[1-6]_/.test(text)) throw new Error(label + ' must be a Reddit fullname with its type prefix (t1_ comment, t3_ post, t4_ message), got \"' + text + '\".'); return text; };\nrequest.body.thing_id = need(inputs.thing_id, 'Fullname');\nif (inputs.reason.length > 100) throw new Error('Reason must be at most 100 characters.');\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nreturn { success: true, id: request.body.thing_id, reason: inputs.reason };"
+    },
+    "reddit_save_content": {
+      "label": "Save Post or Comment",
+      "description": "Saves a post or comment to your saved items.",
+      "inputs": {
+        "thing_id": {
+          "label": "Fullname",
+          "description": "Fullname of the post or comment, e.g. \"t3_abc123\".",
+          "required": true
+        },
+        "category": {
+          "label": "Category",
+          "description": "Saved category (Reddit Premium only)."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://oauth.reddit.com/api/save",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "query": {
+          "raw_json": "1"
+        },
+        "body": {
+          "id": "{{thing_id}}",
+          "category": "{{category}}"
+        }
+      },
+      "beforeRequest": "var need = (value, label) => { var text = String(value).trim(); if (!/^t[1-6]_/.test(text)) throw new Error(label + ' must be a Reddit fullname with its type prefix (t1_ comment, t3_ post, t4_ message), got \"' + text + '\".'); return text; };\nrequest.body.id = need(inputs.thing_id, 'Fullname');\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nreturn { success: true, id: request.body.id, saved: true };"
+    },
+    "reddit_search_posts": {
+      "label": "Search Posts",
+      "description": "Searches Reddit posts by keyword, across Reddit or within one subreddit.",
+      "inputs": {
+        "query": {
+          "label": "Query",
+          "description": "Search terms (Reddit search syntax supported).",
+          "required": true
+        },
+        "subreddit": {
+          "label": "Subreddit",
+          "description": "Limit the search to this subreddit (without r/)."
+        },
+        "sort": {
+          "label": "Sort",
+          "description": "Sort order (default relevance).",
+          "type": "select",
+          "options": [
+            {
+              "value": "relevance",
+              "label": "Relevance"
+            },
+            {
+              "value": "hot",
+              "label": "Hot"
+            },
+            {
+              "value": "top",
+              "label": "Top"
+            },
+            {
+              "value": "new",
+              "label": "New"
+            },
+            {
+              "value": "comments",
+              "label": "Most Comments"
+            }
+          ]
+        },
+        "time": {
+          "label": "Time Range",
+          "description": "Time window for \"top\" and \"controversial\" sorts.",
+          "type": "select",
+          "options": [
+            {
+              "value": "hour",
+              "label": "Past Hour"
+            },
+            {
+              "value": "day",
+              "label": "Past 24 Hours"
+            },
+            {
+              "value": "week",
+              "label": "Past Week"
+            },
+            {
+              "value": "month",
+              "label": "Past Month"
+            },
+            {
+              "value": "year",
+              "label": "Past Year"
+            },
+            {
+              "value": "all",
+              "label": "All Time"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-100, default 25).",
+          "type": "number"
+        },
+        "after": {
+          "label": "After",
+          "description": "Pagination cursor: pass the `after` value from the previous response to get the next page."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://oauth.reddit.com/search"
+      },
+      "beforeRequest": "var address = (raw) => { var form = (value) => encodeURIComponent(value).replace(/%20/g, '+').replace(/[!'()~]/g, (character) => '%' + character.charCodeAt(0).toString(16).toUpperCase()); var decode = (value) => value.replace(/\\+/g, ' ').replace(/(%[0-9A-Fa-f]{2})+/g, (run) => { try { return decodeURIComponent(run); } catch (error) { return run.match(/%../g).map((byte) => parseInt(byte.slice(1), 16) < 128 ? String.fromCharCode(parseInt(byte.slice(1), 16)) : '\\uFFFD').join(''); } }); var text = raw.replace(/[\\u0000- ]+$/, '').replace(/[\\t\\n\\r]/g, ''); if (text.indexOf('#') >= 0) text = text.slice(0, text.indexOf('#')); var mark = text.indexOf('?'); var search = mark >= 0 ? text.slice(mark + 1) : ''; var parts = (mark >= 0 ? text.slice(0, mark) : text).replace(/\\\\/g, '/').split('/').slice(1); var segments = []; parts.forEach((part, index) => { var last = index === parts.length - 1; var lower = part.toLowerCase(); if (['..', '.%2e', '%2e.', '%2e%2e'].includes(lower)) { segments.pop(); if (last) segments.push(''); } else if (['.', '%2e'].includes(lower)) { if (last) segments.push(''); } else segments.push(part.replace(/[\\u0000- \"<>`{}|^[\\]\\u007f]|[^\\u0000-\\u007f]+|%(?![0-9A-Fa-f]{2})/gu, (character) => encodeURIComponent(character))); }); var pairs = search.split('&').filter((pair) => pair !== '').map((pair) => { var equals = pair.indexOf('='); return equals >= 0 ? form(decode(pair.slice(0, equals))) + '=' + form(decode(pair.slice(equals + 1))) : form(decode(pair)) + '='; }); return '/' + segments.join('/') + (pairs.length ? '?' + pairs.join('&') : ''); };\nvar sub = (value) => String(value).trim().replace(/^\\/?r\\//i, '');\nvar clamp = (value) => value === '' || value == null ? undefined : String(Math.min(Math.max(Math.trunc(Number(value)), 1), 100));\nvar encode = (value) => encodeURIComponent(value).replace(/%20/g, '+').replace(/[!'()~]/g, (character) => '%' + character.charCodeAt(0).toString(16).toUpperCase());\nvar withQuery = (path, query) => path + (path.includes('?') ? '&' : '?') + Object.entries(query).filter((entry) => entry[1] !== undefined && entry[1] !== null && entry[1] !== '').map((entry) => encode(entry[0]) + '=' + encode(entry[1])).join('&');\nvar name = inputs.subreddit ? sub(inputs.subreddit) : undefined;\nrequest.url = withQuery(address(name ? '/r/' + name + '/search' : '/search'), { raw_json: '1', q: inputs.query, type: 'link', restrict_sr: name ? 'true' : undefined, sort: inputs.sort, t: inputs.time, limit: clamp(inputs.limit), after: inputs.after });\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nvar KEYS = { t1: ['id', 'name', 'author', 'body', 'score', 'created_utc', 'edited', 'permalink', 'parent_id', 'link_id', 'link_title', 'subreddit', 'depth', 'is_submitter', 'stickied', 'distinguished'], t2: ['id', 'name', 'link_karma', 'comment_karma', 'total_karma', 'created_utc', 'is_gold', 'is_mod', 'verified', 'has_verified_email', 'is_employee', 'icon_img'], t3: ['id', 'name', 'title', 'author', 'subreddit', 'subreddit_name_prefixed', 'selftext', 'url', 'permalink', 'domain', 'score', 'upvote_ratio', 'num_comments', 'num_crossposts', 'created_utc', 'edited', 'is_self', 'over_18', 'spoiler', 'stickied', 'locked', 'archived', 'link_flair_text', 'link_flair_template_id', 'crosspost_parent'], t4: ['id', 'name', 'author', 'dest', 'subject', 'body', 'created_utc', 'new', 'was_comment', 'parent_id', 'first_message_name', 'context', 'subreddit', 'distinguished'], t5: ['id', 'name', 'display_name', 'display_name_prefixed', 'title', 'public_description', 'subscribers', 'active_user_count', 'subreddit_type', 'submission_type', 'over18', 'lang', 'created_utc', 'url', 'user_is_subscriber', 'user_is_moderator'] };\nvar pick = (data, keys) => Object.fromEntries(keys.map((key) => [key, data[key] ?? null]));\nvar thing = (item) => KEYS[item.kind] === undefined ? { kind: item.kind, ...item.data } : { kind: item.kind, ...pick(item.data, KEYS[item.kind]) };\nvar list = (listing) => { var items = listing.data.children.map(thing); return { items, count: items.length, after: listing.data.after ?? null, before: listing.data.before ?? null }; };\nvar { items, ...page } = list(response);\nreturn { posts: items, ...page };"
+    },
+    "reddit_search_subreddits": {
+      "label": "Search Subreddits",
+      "description": "Searches subreddits by name, title and description.",
+      "inputs": {
+        "query": {
+          "label": "Query",
+          "description": "Topic or keyword to search for.",
+          "required": true
+        },
+        "sort": {
+          "label": "Sort",
+          "description": "Sort order (default relevance).",
+          "type": "select",
+          "options": [
+            {
+              "value": "relevance",
+              "label": "Relevance"
+            },
+            {
+              "value": "activity",
+              "label": "Activity"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-100, default 25).",
+          "type": "number"
+        },
+        "after": {
+          "label": "After",
+          "description": "Pagination cursor: pass the `after` value from the previous response to get the next page."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://oauth.reddit.com/subreddits/search"
+      },
+      "beforeRequest": "var clamp = (value) => value === '' || value == null ? undefined : String(Math.min(Math.max(Math.trunc(Number(value)), 1), 100));\nvar encode = (value) => encodeURIComponent(value).replace(/%20/g, '+').replace(/[!'()~]/g, (character) => '%' + character.charCodeAt(0).toString(16).toUpperCase());\nvar withQuery = (path, query) => path + '?' + Object.entries(query).filter((entry) => entry[1] !== undefined && entry[1] !== null && entry[1] !== '').map((entry) => encode(entry[0]) + '=' + encode(entry[1])).join('&');\nrequest.url = withQuery('/subreddits/search', { raw_json: '1', q: inputs.query, sort: inputs.sort, limit: clamp(inputs.limit), after: inputs.after });\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nvar KEYS = { t1: ['id', 'name', 'author', 'body', 'score', 'created_utc', 'edited', 'permalink', 'parent_id', 'link_id', 'link_title', 'subreddit', 'depth', 'is_submitter', 'stickied', 'distinguished'], t2: ['id', 'name', 'link_karma', 'comment_karma', 'total_karma', 'created_utc', 'is_gold', 'is_mod', 'verified', 'has_verified_email', 'is_employee', 'icon_img'], t3: ['id', 'name', 'title', 'author', 'subreddit', 'subreddit_name_prefixed', 'selftext', 'url', 'permalink', 'domain', 'score', 'upvote_ratio', 'num_comments', 'num_crossposts', 'created_utc', 'edited', 'is_self', 'over_18', 'spoiler', 'stickied', 'locked', 'archived', 'link_flair_text', 'link_flair_template_id', 'crosspost_parent'], t4: ['id', 'name', 'author', 'dest', 'subject', 'body', 'created_utc', 'new', 'was_comment', 'parent_id', 'first_message_name', 'context', 'subreddit', 'distinguished'], t5: ['id', 'name', 'display_name', 'display_name_prefixed', 'title', 'public_description', 'subscribers', 'active_user_count', 'subreddit_type', 'submission_type', 'over18', 'lang', 'created_utc', 'url', 'user_is_subscriber', 'user_is_moderator'] };\nvar pick = (data, keys) => Object.fromEntries(keys.map((key) => [key, data[key] ?? null]));\nvar thing = (item) => KEYS[item.kind] === undefined ? { kind: item.kind, ...item.data } : { kind: item.kind, ...pick(item.data, KEYS[item.kind]) };\nvar list = (listing) => { var items = listing.data.children.map(thing); return { items, count: items.length, after: listing.data.after ?? null, before: listing.data.before ?? null }; };\nvar { items, ...page } = list(response);\nreturn { subreddits: items, ...page };"
+    },
+    "reddit_search_users": {
+      "label": "Search Users",
+      "description": "Searches Reddit users by name.",
+      "inputs": {
+        "query": {
+          "label": "Query",
+          "description": "Name or keyword to search for.",
+          "required": true
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-100, default 25).",
+          "type": "number"
+        },
+        "after": {
+          "label": "After",
+          "description": "Pagination cursor: pass the `after` value from the previous response to get the next page."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://oauth.reddit.com/users/search"
+      },
+      "beforeRequest": "var clamp = (value) => value === '' || value == null ? undefined : String(Math.min(Math.max(Math.trunc(Number(value)), 1), 100));\nvar encode = (value) => encodeURIComponent(value).replace(/%20/g, '+').replace(/[!'()~]/g, (character) => '%' + character.charCodeAt(0).toString(16).toUpperCase());\nvar withQuery = (path, query) => path + '?' + Object.entries(query).filter((entry) => entry[1] !== undefined && entry[1] !== null && entry[1] !== '').map((entry) => encode(entry[0]) + '=' + encode(entry[1])).join('&');\nrequest.url = withQuery('/users/search', { raw_json: '1', q: inputs.query, limit: clamp(inputs.limit), after: inputs.after });\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nvar KEYS = { t1: ['id', 'name', 'author', 'body', 'score', 'created_utc', 'edited', 'permalink', 'parent_id', 'link_id', 'link_title', 'subreddit', 'depth', 'is_submitter', 'stickied', 'distinguished'], t2: ['id', 'name', 'link_karma', 'comment_karma', 'total_karma', 'created_utc', 'is_gold', 'is_mod', 'verified', 'has_verified_email', 'is_employee', 'icon_img'], t3: ['id', 'name', 'title', 'author', 'subreddit', 'subreddit_name_prefixed', 'selftext', 'url', 'permalink', 'domain', 'score', 'upvote_ratio', 'num_comments', 'num_crossposts', 'created_utc', 'edited', 'is_self', 'over_18', 'spoiler', 'stickied', 'locked', 'archived', 'link_flair_text', 'link_flair_template_id', 'crosspost_parent'], t4: ['id', 'name', 'author', 'dest', 'subject', 'body', 'created_utc', 'new', 'was_comment', 'parent_id', 'first_message_name', 'context', 'subreddit', 'distinguished'], t5: ['id', 'name', 'display_name', 'display_name_prefixed', 'title', 'public_description', 'subscribers', 'active_user_count', 'subreddit_type', 'submission_type', 'over18', 'lang', 'created_utc', 'url', 'user_is_subscriber', 'user_is_moderator'] };\nvar pick = (data, keys) => Object.fromEntries(keys.map((key) => [key, data[key] ?? null]));\nvar thing = (item) => KEYS[item.kind] === undefined ? { kind: item.kind, ...item.data } : { kind: item.kind, ...pick(item.data, KEYS[item.kind]) };\nvar list = (listing) => { var items = listing.data.children.map(thing); return { items, count: items.length, after: listing.data.after ?? null, before: listing.data.before ?? null }; };\nvar { items, ...page } = list(response);\nreturn { users: items, ...page };"
+    },
+    "reddit_send_message": {
+      "label": "Send Private Message",
+      "description": "Sends a private message to a Reddit user or a subreddit's moderators.",
+      "inputs": {
+        "to": {
+          "label": "To",
+          "description": "Recipient username without u/, or \"/r/<subreddit>\" for its moderators.",
+          "required": true
+        },
+        "subject": {
+          "label": "Subject",
+          "description": "Message subject (max 100 characters).",
+          "required": true
+        },
+        "text": {
+          "label": "Text",
+          "description": "Markdown message body.",
+          "required": true,
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://oauth.reddit.com/api/compose",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "query": {
+          "raw_json": "1"
+        },
+        "body": {
+          "api_type": "json",
+          "to": "{{to}}",
+          "subject": "{{subject}}",
+          "text": "{{text}}"
+        }
+      },
+      "beforeRequest": "var user = (value) => String(value).trim().replace(/^\\/?u(ser)?\\//i, '');\nrequest.body.to = inputs.to.trim().startsWith('/r/') ? inputs.to.trim() : user(inputs.to);\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nreturn { success: true, to: request.body.to, subject: inputs.subject };"
+    },
+    "reddit_set_inbox_replies": {
+      "label": "Set Inbox Replies",
+      "description": "Turns inbox notifications for replies to one of your posts or comments on or off.",
+      "inputs": {
+        "thing_id": {
+          "label": "Fullname",
+          "description": "Fullname of your post or comment, e.g. \"t3_abc123\".",
+          "required": true
+        },
+        "enabled": {
+          "label": "Inbox Replies",
+          "description": "Whether replies should notify your inbox.",
+          "required": true,
+          "type": "select",
+          "options": [
+            {
+              "value": "true",
+              "label": "Enabled"
+            },
+            {
+              "value": "false",
+              "label": "Disabled"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://oauth.reddit.com/api/sendreplies",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "query": {
+          "raw_json": "1"
+        },
+        "body": {
+          "id": "{{thing_id}}",
+          "state": "{{enabled}}"
+        }
+      },
+      "beforeRequest": "var need = (value, label) => { var text = String(value).trim(); if (!/^t[1-6]_/.test(text)) throw new Error(label + ' must be a Reddit fullname with its type prefix (t1_ comment, t3_ post, t4_ message), got \"' + text + '\".'); return text; };\nrequest.body.id = need(inputs.thing_id, 'Fullname');\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nreturn { success: true, id: request.body.id, inbox_replies: inputs.enabled === 'true' };"
+    },
+    "reddit_set_post_flair": {
+      "label": "Set Post Flair",
+      "description": "Sets or clears the flair on one of your posts.",
+      "inputs": {
+        "subreddit": {
+          "label": "Subreddit",
+          "description": "Subreddit the post is in, without r/.",
+          "required": true
+        },
+        "post_id": {
+          "label": "Post ID",
+          "description": "Post id, e.g. \"abc123\" or \"t3_abc123\".",
+          "required": true
+        },
+        "flair_template_id": {
+          "label": "Flair Template ID",
+          "description": "Flair template id from List Post Flairs."
+        },
+        "text": {
+          "label": "Text",
+          "description": "Flair label (max 64 characters), for editable templates."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://oauth.reddit.com/r/{{subreddit}}/api/selectflair",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "query": {
+          "raw_json": "1"
+        },
+        "body": {
+          "api_type": "json",
+          "link": "{{post_id}}",
+          "flair_template_id": "{{flair_template_id}}",
+          "text": "{{text}}"
+        }
+      },
+      "beforeRequest": "var address = (raw) => { var form = (value) => encodeURIComponent(value).replace(/%20/g, '+').replace(/[!'()~]/g, (character) => '%' + character.charCodeAt(0).toString(16).toUpperCase()); var decode = (value) => value.replace(/\\+/g, ' ').replace(/(%[0-9A-Fa-f]{2})+/g, (run) => { try { return decodeURIComponent(run); } catch (error) { return run.match(/%../g).map((byte) => parseInt(byte.slice(1), 16) < 128 ? String.fromCharCode(parseInt(byte.slice(1), 16)) : '\\uFFFD').join(''); } }); var text = raw.replace(/[\\u0000- ]+$/, '').replace(/[\\t\\n\\r]/g, ''); if (text.indexOf('#') >= 0) text = text.slice(0, text.indexOf('#')); var mark = text.indexOf('?'); var search = mark >= 0 ? text.slice(mark + 1) : ''; var parts = (mark >= 0 ? text.slice(0, mark) : text).replace(/\\\\/g, '/').split('/').slice(1); var segments = []; parts.forEach((part, index) => { var last = index === parts.length - 1; var lower = part.toLowerCase(); if (['..', '.%2e', '%2e.', '%2e%2e'].includes(lower)) { segments.pop(); if (last) segments.push(''); } else if (['.', '%2e'].includes(lower)) { if (last) segments.push(''); } else segments.push(part.replace(/[\\u0000- \"<>`{}|^[\\]\\u007f]|[^\\u0000-\\u007f]+|%(?![0-9A-Fa-f]{2})/gu, (character) => encodeURIComponent(character))); }); var pairs = search.split('&').filter((pair) => pair !== '').map((pair) => { var equals = pair.indexOf('='); return equals >= 0 ? form(decode(pair.slice(0, equals))) + '=' + form(decode(pair.slice(equals + 1))) : form(decode(pair)) + '='; }); return '/' + segments.join('/') + (pairs.length ? '?' + pairs.join('&') : ''); };\nvar full = (value, prefix, accept = [prefix]) => { var text = String(value).trim(); if (!/^t[1-6]_/.test(text)) return prefix + text; if (!accept.some((start) => text.startsWith(start))) throw new Error('Expected a ' + accept.join(' or ') + ' fullname, got \"' + text + '\".'); return text; };\nvar sub = (value) => String(value).trim().replace(/^\\/?r\\//i, '');\nrequest.url = address('/r/' + sub(inputs.subreddit) + '/api/selectflair');\nrequest.body.link = full(inputs.post_id, 't3_');\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nreturn { success: true, post: request.body.link, flair_template_id: inputs.flair_template_id || null, text: inputs.text || null };"
+    },
+    "reddit_subscribe_subreddit": {
+      "label": "Join Subreddit",
+      "description": "Subscribes your account to a subreddit.",
+      "inputs": {
+        "subreddit": {
+          "label": "Subreddit",
+          "description": "Subreddit name without the r/ prefix (e.g. \"programming\").",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://oauth.reddit.com/api/subscribe",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "query": {
+          "raw_json": "1"
+        },
+        "body": {
+          "action": "sub",
+          "sr_name": "{{subreddit}}",
+          "skip_initial_defaults": "true"
+        }
+      },
+      "beforeRequest": "var sub = (value) => String(value).trim().replace(/^\\/?r\\//i, '');\nrequest.body.sr_name = sub(inputs.subreddit);\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nreturn { success: true, subreddit: request.body.sr_name, subscribed: true };"
+    },
+    "reddit_unhide_post": {
+      "label": "Unhide Posts",
+      "description": "Unhides one or more posts you previously hid.",
+      "inputs": {
+        "post_ids": {
+          "label": "Post IDs",
+          "description": "Comma-separated post ids, e.g. \"abc123,t3_def456\".",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://oauth.reddit.com/api/unhide",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "query": {
+          "raw_json": "1"
+        },
+        "body": {
+          "id": "{{post_ids}}"
+        }
+      },
+      "beforeRequest": "var full = (value, prefix, accept = [prefix]) => { var text = String(value).trim(); if (!/^t[1-6]_/.test(text)) return prefix + text; if (!accept.some((start) => text.startsWith(start))) throw new Error('Expected a ' + accept.join(' or ') + ' fullname, got \"' + text + '\".'); return text; };\nvar ids = inputs.post_ids.split(',').filter((id) => id.trim() !== '').map((id) => full(id, 't3_'));\nif (ids.length === 0) throw new Error('Provide at least one post id.');\nrequest.body.id = ids.join(',');\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nreturn { success: true, ids: request.body.id.split(','), hidden: false };"
+    },
+    "reddit_unsave_content": {
+      "label": "Unsave Post or Comment",
+      "description": "Removes a post or comment from your saved items.",
+      "inputs": {
+        "thing_id": {
+          "label": "Fullname",
+          "description": "Fullname of the post or comment, e.g. \"t3_abc123\".",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://oauth.reddit.com/api/unsave",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "query": {
+          "raw_json": "1"
+        },
+        "body": {
+          "id": "{{thing_id}}"
+        }
+      },
+      "beforeRequest": "var need = (value, label) => { var text = String(value).trim(); if (!/^t[1-6]_/.test(text)) throw new Error(label + ' must be a Reddit fullname with its type prefix (t1_ comment, t3_ post, t4_ message), got \"' + text + '\".'); return text; };\nrequest.body.id = need(inputs.thing_id, 'Fullname');\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nreturn { success: true, id: request.body.id, saved: false };"
+    },
+    "reddit_unsubscribe_subreddit": {
+      "label": "Leave Subreddit",
+      "description": "Unsubscribes your account from a subreddit.",
+      "inputs": {
+        "subreddit": {
+          "label": "Subreddit",
+          "description": "Subreddit name without the r/ prefix (e.g. \"programming\").",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://oauth.reddit.com/api/subscribe",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "query": {
+          "raw_json": "1"
+        },
+        "body": {
+          "action": "unsub",
+          "sr_name": "{{subreddit}}"
+        }
+      },
+      "beforeRequest": "var sub = (value) => String(value).trim().replace(/^\\/?r\\//i, '');\nrequest.body.sr_name = sub(inputs.subreddit);\nreturn request;",
+      "afterResponse": "var check = (body) => { var errors = body && body.json && body.json.errors; if (Array.isArray(errors) && errors.length > 0) throw new Error('Reddit rejected the request: ' + errors.map((error) => Array.isArray(error) ? error.join(': ') : String(error)).join('; ')); };\ncheck(response);\nreturn { success: true, subreddit: request.body.sr_name, subscribed: false };"
+    }
+  }
+}

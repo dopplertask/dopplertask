@@ -148,7 +148,7 @@ export default function boot() {
     return `
       ${node.type === 'start' || ACTIONS[node.type].trigger ? '' : '<span class="port-in"></span>'}
       <div class="node-head">
-        <span class="node-icon" data-category="${categoryOf(node)}">${icon(ACTIONS[node.type].icon)}</span>
+        <span class="node-icon" data-category="${categoryOf(node)}">${icon(DT.iconOf(node))}</span>
         <span class="node-text"><div class="node-kind">${node.type === 'start' ? 'Trigger' : CATEGORIES.find((category) => category.id === categoryOf(node)).label}</div><div class="node-name">${escapeHtml(node.name)}</div><div class="node-summary">${summaryHtml(node)}</div></span>
       </div>
       ${hasBranches(node) ? portsOf(node).map((port) => `<div class="branch-row" data-branch="${escapeHtml(port.id)}"><span>${escapeHtml(port.label)}</span></div>`).join('') : ''}
@@ -554,6 +554,7 @@ export default function boot() {
     if (inspectorAction === 'close') store.select(null);
     if (inspectorAction === 'delete') DT.ui.removeWithUndo(store, store.selectedId);
     if (inspectorAction === 'duplicate') store.duplicateNode(store.selectedId);
+    if (inspectorAction === 'add-trigger') DT.ui.openTriggerPicker(store, event.target.closest('[data-inspector]'));
     if (event.target.closest('[data-run-action="close"]')) runner.clear();
     if (event.target.closest('[data-try-example]')) {
       store.addExample();

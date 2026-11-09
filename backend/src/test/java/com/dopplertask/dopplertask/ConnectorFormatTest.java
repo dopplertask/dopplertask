@@ -1,0 +1,227 @@
+package com.dopplertask.dopplertask;
+
+import com.dopplertask.dopplertask.domain.action.connector.Connector;
+import com.dopplertask.dopplertask.domain.action.connector.ConnectorRequests;
+import com.dopplertask.dopplertask.domain.action.connector.Connectors;
+import com.dopplertask.dopplertask.domain.action.integration.JsonApi;
+import org.junit.Assert;
+import org.junit.Test;
+
+import java.util.Base64;
+import java.util.Map;
+
+/** Each word of the connector format, and the rules that keep a credential with its own service. */
+public class ConnectorFormatTest {
+
+    private static final String SERVICE = """
+            {"name": "sample", "label": "Sample", "hosts": ["{{credential.subdomain}}.sample.com"], "baseUrl": "https://{{credential.subdomain}}.sample.com/api",
+             "credential": {"fields": {"subdomain": {"label": "Subdomain"}, "user": {"label": "User"}, "key": {"label": "Key", "secret": true}},
+                            "basic": {"username": "{{credential.user}}", "password": "{{credential.key}}"}},
+             "actions": {"create": {"label": "Create",
+                 "inputs": {"name": {"label": "Name"}, "size": {"label": "Size", "type": "number"}, "note": {"label": "Note"}},
+                 "request": {"method": "POST", "url": "https://{{credential.subdomain}}.sample.com/api/items/{{name}}", "body": {"size": "{{size}}", "note": "{{note}}"}},
+                 "beforeRequest": "request.headers['X-Size'] = String(request.body.size * 2); return request;",
+                 "afterResponse": "return {id: response.data.id};"}}}
+            """;
+
+    private static final Map<String, String> CREDENTIAL = Map.of("subdomain", "acme", "user", "ada", "key", "secret-key");
+
+    @Test
+    public void testRequestIsFilledScriptedAndSignedSuccess() {
+        Connector connector = connector(SERVICE);
+        ConnectorRequests.Built request = ConnectorRequests.INSTANCE.build(connector, connector.getActions().get("create"), Map.of("name", "a/b c", "size", "3", "note", ""), CREDENTIAL);
+        Assert.assertEquals("https://acme.sample.com/api/items/a%2Fb%20c", request.getUrl());
+        Assert.assertEquals("{\"size\":3}", request.getBody().toString());
+        Assert.assertEquals("6", request.getHeaders().get("X-Size"));
+        Assert.assertEquals("Basic " + Base64.getEncoder().encodeToString("ada:secret-key".getBytes()), request.getHeaders().get("Authorization"));
+        Assert.assertTrue(Connectors.INSTANCE.allows(connector, "acme.sample.com", CREDENTIAL));
+    }
+
+    @Test
+    public void testACredentialHostThatIsNotAHostIsRefusedFail() {
+        Connector connector = connector(SERVICE);
+        try {
+            ConnectorRequests.INSTANCE.build(connector, connector.getActions().get("create"), Map.of("name", "x"), Map.of("subdomain", "evil.com/steal?", "user", "u", "key", "k"));
+            Assert.fail();
+        } catch (IllegalArgumentException e) {
+            Assert.assertTrue(e.getMessage(), e.getMessage().contains("should be a host name"));
+        }
+        Assert.assertFalse(Connectors.INSTANCE.allows(connector, "evil.com", CREDENTIAL));
+    }
+
+    @Test
+    public void testCustomCallStaysOnTheServiceSuccess() {
+        Connector connector = connector(SERVICE);
+        ConnectorRequests.Built request = ConnectorRequests.INSTANCE.customCall(connector, Map.of("method", "PATCH", "path", "/items/7", "query", "{\"limit\": 2}", "body", "{\"a\": 1}"), CREDENTIAL);
+        Assert.assertEquals("PATCH", request.getMethod());
+        Assert.assertEquals("https://acme.sample.com/api/items/7?limit=2", request.getUrl());
+        try {
+            ConnectorRequests.INSTANCE.customCall(connector, Map.of("path", "https://evil.com/x"), CREDENTIAL);
+            Assert.fail();
+        } catch (IllegalArgumentException e) {
+            Assert.assertTrue(e.getMessage().contains("should start after the address"));
+        }
+    }
+
+    @Test
+    public void testAScriptAsksForEveryPageSuccess() {
+        java.util.List<String> asked = new java.util.ArrayList<>();
+        String script = "let items = response.items, cursor = response.next;\n"
+                + "while (cursor) { const page = call({method: 'GET', url: '/items', query: {cursor}}); items = items.concat(page.items); cursor = page.next; }\n"
+                + "return items;";
+        var result = com.dopplertask.dopplertask.domain.action.connector.ConnectorScripts.INSTANCE.run(script, Map.of(), null,
+                JsonApi.INSTANCE.getMapper().readTree("{\"items\": [1], \"next\": \"b\"}"), spec -> {
+                    asked.add(spec.path("query").path("cursor").asText());
+                    return JsonApi.INSTANCE.getMapper().readTree(spec.path("query").path("cursor").asText().equals("b") ? "{\"items\": [2], \"next\": \"c\"}" : "{\"items\": [3]}");
+                });
+        Assert.assertEquals("[1,2,3]", result.toString());
+        Assert.assertEquals(java.util.List.of("b", "c"), asked);
+    }
+
+    @Test
+    public void testAScriptCannotReachJavaFail() {
+        try {
+            com.dopplertask.dopplertask.domain.action.connector.ConnectorScripts.INSTANCE.run("return Java.type('java.lang.System').getenv();", Map.of(), null, null,
+                    spec -> { throw new AssertionError("no request expected"); });
+            Assert.fail();
+        } catch (IllegalArgumentException e) {
+            Assert.assertTrue(e.getMessage(), e.getMessage().startsWith("The connector's script failed"));
+        }
+    }
+
+    @Test
+    public void testHeaderWithALineBreakIsRefusedFail() {
+        Connector connector = connector("""
+                {"name": "lines", "label": "Lines", "hosts": ["api.lines.com"],
+                 "actions": {"go": {"label": "Go", "inputs": {"tag": {"label": "Tag"}}, "request": {"url": "https://api.lines.com/x", "headers": {"X-Tag": "{{tag}}"}}}}}
+                """);
+        try {
+            ConnectorRequests.INSTANCE.build(connector, connector.getActions().get("go"), Map.of("tag", "a\r\nX-Injected: 1"), Map.of());
+            Assert.fail();
+        } catch (IllegalArgumentException e) {
+            Assert.assertTrue(e.getMessage().contains("line break"));
+        }
+    }
+
+    @Test
+    public void testFilesThatCouldSendACredentialElsewhereAreRefusedFail() {
+        Assert.assertEquals(java.util.List.of(), Connectors.INSTANCE.problemsOf(connector(SERVICE)));
+        String unsafe = """
+                {"name": "unsafe", "label": "Unsafe", "hosts": ["api.unsafe.com"],
+                 "credential": {"fields": {"key": {"label": "Key", "secret": true}}},
+                 "actions": {
+                   "plain": {"label": "Plain", "request": {"url": "http://api.unsafe.com/x"}},
+                   "steered": {"label": "Steered", "inputs": {"host": {"label": "Host"}}, "request": {"url": "https://{{host}}/x"}},
+                   "elsewhere": {"label": "Elsewhere", "request": {"url": "https://other.com/x"}},
+                   "leaky": {"label": "Leaky", "request": {"url": "https://api.unsafe.com/x", "body": {"k": "{{credential.key}}"}}}}}
+                """;
+        String problems = String.join(" ", Connectors.INSTANCE.problemsOf(connector(unsafe)));
+        Assert.assertTrue(problems, problems.contains("plain should use https"));
+        Assert.assertTrue(problems, problems.contains("steered has an input in its host"));
+        Assert.assertTrue(problems, problems.contains("other.com, which is not in the connector's hosts"));
+        Assert.assertTrue(problems, problems.contains("Credential values belong in the credential's headers or query"));
+    }
+
+    @Test
+    public void testAListMustExistAndBeReadableFromTheActionFail() {
+        String lists = """
+                {"name": "lists", "label": "Lists", "hosts": ["api.lists.com"],
+                 "lists": {"tables": {"request": {"url": "https://api.lists.com/bases/{{base}}/tables"}},
+                           "elsewhere": {"request": {"url": "https://other.com/x"}}},
+                 "actions": {
+                   "fine": {"label": "Fine", "inputs": {"base": {"label": "Base"}, "table": {"label": "Table", "list": "tables"}}, "request": {"url": "https://api.lists.com/x"}},
+                   "orphan": {"label": "Orphan", "inputs": {"table": {"label": "Table", "list": "tables"}}, "request": {"url": "https://api.lists.com/x"}},
+                   "missing": {"label": "Missing", "inputs": {"table": {"label": "Table", "list": "views"}}, "request": {"url": "https://api.lists.com/x"}}}}
+                """;
+        String problems = String.join(" ", Connectors.INSTANCE.problemsOf(connector(lists)));
+        Assert.assertFalse(problems, problems.contains("action fine"));
+        Assert.assertTrue(problems, problems.contains("orphan chooses table from the list tables, which needs {{base}}"));
+        Assert.assertTrue(problems, problems.contains("missing chooses table from the list views, which the connector does not have"));
+        Assert.assertTrue(problems, problems.contains("The list elsewhere"));
+    }
+
+    @Test
+    public void testASessionNeedsItsInputsInEveryStepAndSendsOnlyItsTokenFail() {
+        String sessions = """
+                {"name": "sessions", "label": "Sessions", "hosts": ["api.sessions.com"],
+                 "credential": {"fields": {"token": {"label": "Token"}},
+                   "session": {"request": {"url": "https://api.sessions.com/{{page}}", "body": {"t": "{{credential.token}}", "u": "{{credential.user}}"}},
+                               "headers": {"Authorization": "{{session}} {{page}}"}}},
+                 "actions": {"post": {"label": "Post", "inputs": {"page": {"label": "Page"}}, "request": {"url": "https://api.sessions.com/x"}},
+                             "orphan": {"label": "Orphan", "request": {"url": "https://api.sessions.com/x"}}}}
+                """;
+        String problems = String.join(" ", Connectors.INSTANCE.problemsOf(connector(sessions)));
+        Assert.assertTrue(problems, problems.contains("orphan has no input {{page}}, which the credential's session needs"));
+        Assert.assertFalse(problems, problems.contains("action post"));
+        Assert.assertTrue(problems, problems.contains("refers to {{credential.user}}, which is not one of the credential's fields"));
+        Assert.assertTrue(problems, problems.contains("sends {{page}}; only {{session}} and credential values can go there"));
+    }
+
+    @Test
+    public void testAScriptNeverSeesACredentialInTheAddressSuccess() {
+        Connector connector = connector("""
+                {"name": "bots", "label": "Bots", "hosts": ["api.bots.com"], "baseUrl": "https://api.bots.com/bot{{credential.token}}",
+                 "credential": {"fields": {"token": {"label": "Token", "secret": true}}},
+                 "actions": {"send": {"label": "Send", "inputs": {"chat": {"label": "Chat"}}, "request": {"method": "POST", "url": "/send/{{chat}}"},
+                   "beforeRequest": "request.headers['X-Seen'] = request.url; call({url: request.url + '?page=2'}); call({url: 'https://api.bots.com/x/' + inputs.chat}); return request;"}}}
+                """);
+        java.util.List<String> called = new java.util.ArrayList<>();
+        ConnectorRequests.Built request = ConnectorRequests.INSTANCE.build(connector, connector.getActions().get("send"), Map.of("chat", "{{credential.token}}"), Map.of("token", "s3cret/1"),
+                spec -> { called.add(spec.path("url").asText()); return JsonApi.INSTANCE.getMapper().createObjectNode(); });
+        // A call to the address the script was shown gets the value back, and one the script builds from an input does not.
+        Assert.assertEquals(java.util.List.of("https://api.bots.com/bots3cret%2F1/send/%7B%7Bcredential.token%7D%7D?page=2", "https://api.bots.com/x/{{credential.token}}"), called);
+        Assert.assertEquals("https://api.bots.com/bot{{credential.token}}/send/%7B%7Bcredential.token%7D%7D", request.getHeaders().get("X-Seen"));
+        Assert.assertEquals("https://api.bots.com/bots3cret%2F1/send/%7B%7Bcredential.token%7D%7D", request.getUrl());
+        Assert.assertFalse(request.getUnsigned().toString().contains("s3cret"));
+        // A path the person writes is only a path, also when it names the credential.
+        Assert.assertEquals("https://api.bots.com/bots3cret%2F1/{{credential.token}}",
+                ConnectorRequests.INSTANCE.customCall(connector, Map.of("path", "{{credential.token}}"), Map.of("token", "s3cret/1")).getUrl());
+        String problems = String.join(" ", Connectors.INSTANCE.problemsOf(connector("""
+                {"name": "paths", "label": "Paths", "hosts": ["api.paths.com"], "credential": {"fields": {"token": {"label": "Token", "secret": true}}},
+                 "actions": {"leak": {"label": "Leak", "request": {"url": "https://api.paths.com/{{credential.token}}/x"}}}}
+                """)));
+        Assert.assertTrue(problems, problems.contains("The action leak puts a secret credential value in its path."));
+    }
+
+    @Test
+    public void testAMessageAboutARequestNeverHoldsASecretFail() {
+        Connector connector = connector("""
+                {"name": "bots", "label": "Bots", "hosts": ["api.bots.com"], "baseUrl": "https://api.bots.com/bot{{credential.token}}",
+                 "credential": {"fields": {"token": {"label": "Token", "secret": true}}}, "actions": {}}
+                """);
+        var sender = new com.dopplertask.dopplertask.domain.action.connector.ConnectorSender(com.dopplertask.dopplertask.domain.action.connector.ConnectorAction.of("bots"), connector, Map.of("token", "s3cret"));
+        try {
+            // A script can make an address that is not valid on purpose, to read the error.
+            sender.answerFor(JsonApi.INSTANCE.getMapper().readTree("{\"url\": \"/a b\"}"));
+            Assert.fail();
+        } catch (IllegalArgumentException e) {
+            Assert.assertFalse(e.getMessage(), e.getMessage().contains("s3cret"));
+        }
+    }
+
+    @Test
+    public void testOnlyAnActionThatWaitsHasAResumeAddressFail() {
+        String waiting = """
+                {"name": "waiting", "label": "Waiting", "hosts": ["api.waiting.com"],
+                 "actions": {"ask": {"label": "Ask", "request": {"url": "https://api.waiting.com/ask?link={{resumeUrl}}"}, "resume": "return response;"},
+                             "tell": {"label": "Tell", "request": {"url": "https://api.waiting.com/tell?link={{resumeUrl}}"}}}}
+                """;
+        String problems = String.join(" ", Connectors.INSTANCE.problemsOf(connector(waiting)));
+        Assert.assertFalse(problems, problems.contains("action ask"));
+        Assert.assertTrue(problems, problems.contains("The action tell refers to {{resumeUrl}}, which is not one of its inputs."));
+    }
+
+    @Test
+    public void testEveryConnectorFileIsValidAndItsLogoExistsSuccess() throws java.io.IOException {
+        String logos = java.nio.file.Files.readString(java.nio.file.Path.of("src/main/resources/static/js/flow/brand-icons.js"));
+        Connectors.INSTANCE.all().forEach(connector -> {
+            Assert.assertEquals(connector.getName(), java.util.List.of(), Connectors.INSTANCE.problemsOf(connector));
+            Assert.assertTrue(connector.getName() + " names the logo " + connector.getIcon() + ", which the editor does not have",
+                    connector.getIcon().isEmpty() || logos.contains("\"" + connector.getIcon() + "\": {"));
+        });
+    }
+
+    private static Connector connector(String json) {
+        return JsonApi.INSTANCE.getMapper().readValue(json, Connector.class);
+    }
+}

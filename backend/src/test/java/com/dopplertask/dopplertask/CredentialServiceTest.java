@@ -10,7 +10,7 @@ import com.dopplertask.dopplertask.domain.action.connection.HttpAction;
 import com.dopplertask.dopplertask.domain.action.connection.HttpHeader;
 import com.dopplertask.dopplertask.domain.action.connection.SSHAction;
 import com.dopplertask.dopplertask.domain.action.connection.SecureCopyAction;
-import com.dopplertask.dopplertask.domain.action.integration.chat.SlackAction;
+import com.dopplertask.dopplertask.domain.action.integration.chat.TelegramAction;
 import com.dopplertask.dopplertask.domain.action.integration.code.JiraAction;
 import com.dopplertask.dopplertask.domain.action.integration.mail.EmailAction;
 import com.dopplertask.dopplertask.domain.action.integration.mail.ReadEmailAction;
@@ -19,6 +19,7 @@ import com.dopplertask.dopplertask.service.CredentialCipher;
 import com.dopplertask.dopplertask.service.CredentialProblemException;
 import com.dopplertask.dopplertask.service.CredentialService;
 import tools.jackson.databind.ObjectMapper;
+import com.dopplertask.dopplertask.domain.action.StepTypes;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -68,44 +69,44 @@ public class CredentialServiceTest {
         credentials = new CredentialService(credentialDao, new CredentialCipher("a key for tests", folder.getRoot() + "/unused.key"));
     }
 
-    private SlackAction slackUsing(String credential) {
-        SlackAction slack = new SlackAction();
-        slack.setCredential(credential);
-        return slack;
+    private TelegramAction telegramUsing(String credential) {
+        TelegramAction telegram = new TelegramAction();
+        telegram.setCredential(credential);
+        return telegram;
     }
 
     @Test
     public void testAValueIsNotReadableInTheDatabaseOrTheListSuccess() throws Exception {
-        credentials.create("prod-slack", "SlackAction", Map.of("token", "xoxb-the-real-token"));
-        Credential stored = credentialDao.findByName("prod-slack").orElseThrow();
-        Assert.assertFalse(stored.getEncryptedValues().contains("xoxb-the-real-token"));
+        credentials.create("prod-telegram", "TelegramAction", Map.of("token", "123:the-real-token"));
+        Credential stored = credentialDao.findByName("prod-telegram").orElseThrow();
+        Assert.assertFalse(stored.getEncryptedValues().contains("123:the-real-token"));
         String listed = new ObjectMapper().writeValueAsString(credentials.list());
-        Assert.assertFalse(listed, listed.contains("xoxb-the-real-token"));
+        Assert.assertFalse(listed, listed.contains("123:the-real-token"));
         Assert.assertTrue(listed, listed.contains("\"fieldsSet\":[\"token\"]"));
     }
 
     @Test
     public void testAStepHasTheValuesOnlyWhileItRunsSuccess() throws IOException {
-        credentials.create("prod-slack", "SlackAction", Map.of("token", "xoxb-the-real-token"));
-        SlackAction slack = slackUsing("prod-slack");
+        credentials.create("prod-telegram", "TelegramAction", Map.of("token", "123:the-real-token"));
+        TelegramAction telegram = telegramUsing("prod-telegram");
         List<String> whileRunning = new ArrayList<>();
-        ActionResult result = credentials.runWith(slack, new TaskExecution(), () -> {
-            whileRunning.add(slack.getToken());
+        ActionResult result = credentials.runWith(telegram, new TaskExecution(), () -> {
+            whileRunning.add(telegram.getToken());
             return new ActionResult();
         });
         Assert.assertEquals(StatusCode.SUCCESS, result.getStatusCode());
-        Assert.assertEquals(List.of("xoxb-the-real-token"), whileRunning);
-        Assert.assertNull(slack.getToken());
+        Assert.assertEquals(List.of("123:the-real-token"), whileRunning);
+        Assert.assertNull(telegram.getToken());
     }
 
     @Test
     public void testTheValuesAreTakenAwayAlsoWhenAStepThrowsFail() {
-        credentials.create("prod-slack", "SlackAction", Map.of("token", "xoxb-the-real-token"));
-        SlackAction slack = slackUsing("prod-slack");
-        Assert.assertThrows(IOException.class, () -> credentials.runWith(slack, new TaskExecution(), () -> {
+        credentials.create("prod-telegram", "TelegramAction", Map.of("token", "123:the-real-token"));
+        TelegramAction telegram = telegramUsing("prod-telegram");
+        Assert.assertThrows(IOException.class, () -> credentials.runWith(telegram, new TaskExecution(), () -> {
             throw new IOException("broken");
         }));
-        Assert.assertNull(slack.getToken());
+        Assert.assertNull(telegram.getToken());
     }
 
     @Test
@@ -124,11 +125,11 @@ public class CredentialServiceTest {
     @Test
     public void testAMissingOrWrongCredentialFailsTheStepWithoutRunningItFail() throws IOException {
         credentials.create("prod-jira", "Atlassian account", Map.of("token", "t"));
-        ActionResult missing = credentials.runWith(slackUsing("gone"), new TaskExecution(), () -> {
+        ActionResult missing = credentials.runWith(telegramUsing("gone"), new TaskExecution(), () -> {
             throw new AssertionError("The step should not run.");
         });
         Assert.assertTrue(missing.getErrorMsg(), missing.getErrorMsg().contains("\"gone\" does not exist"));
-        ActionResult wrongKind = credentials.runWith(slackUsing("prod-jira"), new TaskExecution(), () -> {
+        ActionResult wrongKind = credentials.runWith(telegramUsing("prod-jira"), new TaskExecution(), () -> {
             throw new AssertionError("The step should not run.");
         });
         Assert.assertTrue(wrongKind.getErrorMsg(), wrongKind.getErrorMsg().contains("is of the kind Atlassian account"));
@@ -149,34 +150,34 @@ public class CredentialServiceTest {
 
     @Test
     public void testWhatDoesNotBelongInACredentialIsRefusedFail() {
-        Assert.assertThrows(CredentialProblemException.class, () -> credentials.create("has space", "SlackAction", Map.of("token", "t")));
+        Assert.assertThrows(CredentialProblemException.class, () -> credentials.create("has space", "TelegramAction", Map.of("token", "t")));
         Assert.assertThrows(CredentialProblemException.class, () -> credentials.create("x", "PrintAction", Map.of("message", "t")));
-        Assert.assertThrows(CredentialProblemException.class, () -> credentials.create("x", "SlackAction", Map.of("channel", "t")));
-        credentials.create("twice", "SlackAction", Map.of("token", "t"));
-        Assert.assertThrows(CredentialProblemException.class, () -> credentials.create("twice", "SlackAction", Map.of("token", "t")));
+        Assert.assertThrows(CredentialProblemException.class, () -> credentials.create("x", "TelegramAction", Map.of("chat", "t")));
+        credentials.create("twice", "TelegramAction", Map.of("token", "t"));
+        Assert.assertThrows(CredentialProblemException.class, () -> credentials.create("twice", "TelegramAction", Map.of("token", "t")));
     }
 
     @Test
     public void testASecretWrittenInAStepBecomesACredentialAndIsNotCopiedSuccess() {
-        SlackAction first = new SlackAction();
-        first.setToken("xoxb-inline");
-        SlackAction second = new SlackAction();
-        second.setToken("xoxb-inline");
-        SlackAction other = new SlackAction();
-        other.setToken("xoxb-other");
+        TelegramAction first = new TelegramAction();
+        first.setToken("123:inline");
+        TelegramAction second = new TelegramAction();
+        second.setToken("123:inline");
+        TelegramAction other = new TelegramAction();
+        other.setToken("456:other");
         credentials.adoptInlineSecrets(List.of(first, second, other), false);
-        Assert.assertEquals("slack-1", first.getCredential());
+        Assert.assertEquals("telegram-1", first.getCredential());
         Assert.assertNull(first.getToken());
-        Assert.assertEquals("slack-1", second.getCredential());
-        Assert.assertEquals("slack-2", other.getCredential());
+        Assert.assertEquals("telegram-1", second.getCredential());
+        Assert.assertEquals("telegram-2", other.getCredential());
         Assert.assertEquals(2, credentialDao.count());
     }
 
     @Test
     public void testAnAgentCannotSendASecretFail() {
-        SlackAction slack = new SlackAction();
-        slack.setToken("xoxb-inline");
-        CredentialProblemException refused = Assert.assertThrows(CredentialProblemException.class, () -> credentials.adoptInlineSecrets(List.<Action>of(slack), true));
+        TelegramAction telegram = new TelegramAction();
+        telegram.setToken("123:inline");
+        CredentialProblemException refused = Assert.assertThrows(CredentialProblemException.class, () -> credentials.adoptInlineSecrets(List.<Action>of(telegram), true));
         Assert.assertTrue(refused.getMessage(), refused.getMessage().contains("list_credentials"));
         Assert.assertEquals(0, credentialDao.count());
     }
@@ -203,11 +204,11 @@ public class CredentialServiceTest {
 
     @Test
     public void testEveryKindOfStepThatSignsInDeclaresItsSecretsSuccess() {
-        Assert.assertEquals(Boolean.TRUE, CredentialService.fieldsOf(SSHAction.class).get("password"));
-        Assert.assertEquals(Boolean.FALSE, CredentialService.fieldsOf(SSHAction.class).get("username"));
-        Assert.assertEquals(Boolean.TRUE, CredentialService.fieldsOf(Webhook.class).get("token"));
-        Assert.assertEquals(Boolean.TRUE, CredentialService.fieldsOf(HttpAction.class).get("authHeaderValue"));
-        CredentialService.stepTypes().values().forEach(stepClass -> CredentialService.fieldsOf(stepClass).keySet().forEach(field -> {
+        Assert.assertEquals(Boolean.TRUE, CredentialService.fieldsOf(new SSHAction()).get("password"));
+        Assert.assertEquals(Boolean.FALSE, CredentialService.fieldsOf(new SSHAction()).get("username"));
+        Assert.assertEquals(Boolean.TRUE, CredentialService.fieldsOf(new Webhook()).get("token"));
+        Assert.assertEquals(Boolean.TRUE, CredentialService.fieldsOf(new HttpAction()).get("authHeaderValue"));
+        StepTypes.INSTANCE.getClasses().values().forEach(stepClass -> CredentialService.fieldsOf(StepTypes.INSTANCE.newStep(stepClass.getSimpleName())).keySet().forEach(field -> {
             Assert.assertTrue(stepClass.getSimpleName() + " " + field + " cannot be filled in", new BeanWrapperImpl(stepClass).isWritableProperty(field));
             Assert.assertTrue(stepClass.getSimpleName() + " " + field + " is still stored in the step", CredentialService.isOnlyInCredentials(stepClass, field));
         }));
@@ -241,22 +242,21 @@ public class CredentialServiceTest {
 
     @Test
     public void testStepsThatShareACredentialTakeTheSameFieldsSuccess() {
-        Assert.assertEquals(CredentialService.fieldsOf(EmailAction.class), CredentialService.fieldsOf(ReadEmailAction.class));
-        Assert.assertEquals(CredentialService.fieldsOf(SSHAction.class), CredentialService.fieldsOf(SecureCopyAction.class));
+        Assert.assertEquals(CredentialService.fieldsOf(new EmailAction()), CredentialService.fieldsOf(new ReadEmailAction()));
+        Assert.assertEquals(CredentialService.fieldsOf(new SSHAction()), CredentialService.fieldsOf(new SecureCopyAction()));
         Map<String, Map<String, Boolean>> fieldsOfType = new java.util.HashMap<>();
-        CredentialService.stepTypes().values().stream().filter(stepClass -> !CredentialService.fieldsOf(stepClass).isEmpty()).forEach(stepClass -> {
-            Map<String, Boolean> earlier = fieldsOfType.putIfAbsent(CredentialService.credentialTypeOf(stepClass), CredentialService.fieldsOf(stepClass));
+        StepTypes.INSTANCE.all().stream().filter(step -> !CredentialService.fieldsOf(step).isEmpty()).forEach(step -> {
+            Map<String, Boolean> earlier = fieldsOfType.putIfAbsent(step.getCredentialType(), CredentialService.fieldsOf(step));
             if (earlier != null) {
-                Assert.assertEquals(stepClass.getSimpleName(), earlier, CredentialService.fieldsOf(stepClass));
+                Assert.assertEquals(step.getStepTypeName(), earlier, CredentialService.fieldsOf(step));
             }
         });
     }
 
     @Test
-    public void testGoogleAndAtlassianStepsShareTheirAccountsSuccess() {
-        Assert.assertEquals(CredentialService.credentialTypeOf(com.dopplertask.dopplertask.domain.action.integration.storage.GoogleSheetsAction.class), CredentialService.credentialTypeOf(com.dopplertask.dopplertask.domain.action.integration.storage.GoogleDriveAction.class));
-        Assert.assertEquals(CredentialService.credentialTypeOf(com.dopplertask.dopplertask.domain.action.integration.storage.GoogleSheetsAction.class), CredentialService.credentialTypeOf(com.dopplertask.dopplertask.domain.action.integration.storage.GoogleCalendarAction.class));
-        Assert.assertEquals(CredentialService.credentialTypeOf(JiraAction.class), CredentialService.credentialTypeOf(com.dopplertask.dopplertask.domain.action.integration.storage.ConfluenceAction.class));
+    public void testGoogleStepsShareTheirAccountSuccess() {
+        Assert.assertEquals(new com.dopplertask.dopplertask.domain.action.integration.storage.GoogleSheetsAction().getCredentialType(), new com.dopplertask.dopplertask.domain.action.integration.storage.GoogleDriveAction().getCredentialType());
+        Assert.assertEquals(new com.dopplertask.dopplertask.domain.action.integration.storage.GoogleSheetsAction().getCredentialType(), new com.dopplertask.dopplertask.domain.action.integration.storage.GoogleCalendarAction().getCredentialType());
     }
 
     @Test

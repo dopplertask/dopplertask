@@ -1,0 +1,1362 @@
+{
+  "name": "microsoft-outlook",
+  "label": "Microsoft Outlook",
+  "description": "Email service by Microsoft",
+  "icon": "",
+  "hosts": [
+    "graph.microsoft.com"
+  ],
+  "baseUrl": "https://graph.microsoft.com/v1.0",
+  "upstream": {
+    "package": "@activepieces/piece-microsoft-outlook",
+    "version": "0.7.6"
+  },
+  "credential": {
+    "oauth2": {
+      "authUrl": "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+      "tokenUrl": "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+      "scope": "Mail.ReadWrite Mail.Send offline_access User.Read openid email profile"
+    },
+    "headers": {
+      "SdkVersion": "graph-js/3.0.7 (featureUsage=7)"
+    }
+  },
+  "lists": {
+    "messages": {
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/messages?$top=50&$select=id,subject,from,receivedDateTime&$orderby=receivedDateTime%20desc"
+      },
+      "items": "$.value",
+      "label": "$.subject",
+      "value": "$.id"
+    },
+    "folders": {
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/mailFolders?$top=100&$select=id,displayName,childFolderCount"
+      },
+      "items": "$.value",
+      "label": "$.displayName",
+      "value": "$.id"
+    },
+    "draft_messages": {
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/mailFolders/drafts/messages?$top=50&$select=id,subject,from,toRecipients,receivedDateTime&$orderby=receivedDateTime%20desc"
+      },
+      "items": "$.value",
+      "label": "$.subject",
+      "value": "$.id"
+    }
+  },
+  "actions": {
+    "reply-email": {
+      "label": "Reply with Full Body",
+      "description": "Reply to an Outlook email, or save the reply as a draft.",
+      "inputs": {
+        "messageId": {
+          "label": "Message ID",
+          "description": "The message to reply to. Resolve one with List Messages or Search Messages.",
+          "required": true,
+          "list": "messages"
+        },
+        "bodyFormat": {
+          "label": "Body Format",
+          "description": "How the text in Body is interpreted.",
+          "required": true,
+          "defaultValue": "text",
+          "type": "select",
+          "options": [
+            {
+              "value": "html",
+              "label": "HTML"
+            },
+            {
+              "value": "text",
+              "label": "Text"
+            }
+          ]
+        },
+        "replyBody": {
+          "label": "Body",
+          "type": "multiline",
+          "required": true
+        },
+        "ccRecipients": {
+          "label": "CC Email(s)",
+          "description": "A JSON list of addresses, such as [\"ada@example.com\"].",
+          "type": "json"
+        },
+        "bccRecipients": {
+          "label": "BCC Email(s)",
+          "description": "A JSON list of addresses, such as [\"ada@example.com\"].",
+          "type": "json"
+        },
+        "draft": {
+          "label": "Save as Draft",
+          "description": "Save the reply to Drafts instead of sending it.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/createReply"
+      },
+      "beforeRequest": "const list = (v) => { if (v === undefined || v === null || v === '') return []; try { const p = JSON.parse(v); return Array.isArray(p) ? p : [p]; } catch (e) { return String(v).split(',').map((s) => s.trim()).filter((s) => s); } };\nconst to = (v) => list(v).filter((a) => a != null).map((a) => String(a).trim()).filter((a) => a.length > 0).map((a) => ({emailAddress: {address: a}}));\nrequest.url = '/me/messages/' + inputs.messageId + '/createReply';\nrequest.body = {message: {body: {content: inputs.replyBody, contentType: inputs.bodyFormat || 'text'}, ccRecipients: to(inputs.ccRecipients), bccRecipients: to(inputs.bccRecipients), attachments: []}};\nreturn request;",
+      "afterResponse": "const draftId = response.id;\nif (inputs.draft === 'true') return {success: true, message: 'Draft created successfully.', draftId, draftLink: 'https://outlook.office.com/mail/drafts/id/' + draftId};\ncall({method: 'POST', url: '/me/messages/' + draftId + '/send', body: {}});\nreturn {success: true, message: 'Reply sent successfully.', draftId};"
+    },
+    "outlook_list_messages": {
+      "label": "List Messages",
+      "description": "Lists messages from the mailbox or a single mail folder.",
+      "inputs": {
+        "folderId": {
+          "label": "Folder ID",
+          "description": "Limit the listing to one folder. Accepts a mail folder ID or a well-known name such as inbox, drafts, sentitems, deleteditems, archive or junkemail. Leave empty to list the whole mailbox.",
+          "list": "folders"
+        },
+        "filter": {
+          "label": "Filter",
+          "description": "Optional OData $filter expression, for example: isRead eq false, or receivedDateTime ge 2024-01-01T00:00:00Z."
+        },
+        "maxResults": {
+          "label": "Max Results",
+          "description": "Maximum number of messages to return (1-100).",
+          "type": "number",
+          "defaultValue": "25"
+        },
+        "skip": {
+          "label": "Skip",
+          "description": "Number of messages to skip before returning results, for paging.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/messages",
+        "headers": {
+          "Prefer": "outlook.body-content-type=\"text\""
+        }
+      },
+      "beforeRequest": "const id = (v) => encodeURIComponent(String(v).trim());\nconst num = (v, d) => v === undefined || v === null || v === '' ? d : Number(v);\nconst query = (s) => s.replace(/[\\ud800-\\udbff][\\udc00-\\udfff]|[^\\x21\\x24-\\x26\\x28-\\x3b\\x3d\\x3f-\\x5b\\x5d\\x5f\\x61-\\x7a\\x7e]/g, (c) => c === \"'\" ? '%27' : encodeURIComponent(c));\nconst parts = ['$select=id,subject,bodyPreview,from,sender,toRecipients,ccRecipients,bccRecipients,replyTo,receivedDateTime,sentDateTime,createdDateTime,lastModifiedDateTime,hasAttachments,isRead,isDraft,importance,categories,flag,webLink,parentFolderId,conversationId,internetMessageId', '$top=' + Math.min(Math.max(num(inputs.maxResults, 25), 1), 100)];\nparts.push(inputs.filter ? '$filter=' + encodeURIComponent(inputs.filter) : '$orderby=receivedDateTime%20desc');\nconst skip = num(inputs.skip);\nif (skip !== undefined && skip > 0) parts.push('$skip=' + Math.floor(skip));\nrequest.url = (inputs.folderId ? '/me/mailFolders/' + id(inputs.folderId) + '/messages' : '/me/messages') + '?' + query(parts.join('&'));\nreturn request;",
+      "afterResponse": "const messages = response.value || [];\nreturn {messages, count: messages.length, hasMore: !!response['@odata.nextLink'], nextLink: response['@odata.nextLink'] || null};"
+    },
+    "outlook_get_message": {
+      "label": "Get Message",
+      "description": "Retrieves a single message by its ID.",
+      "inputs": {
+        "messageId": {
+          "label": "Message ID",
+          "description": "Outlook message ID. Resolve one with List Messages or Search Messages.",
+          "required": true,
+          "list": "messages"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}",
+        "headers": {
+          "Prefer": "outlook.body-content-type=\"text\""
+        }
+      }
+    },
+    "outlook_search_messages": {
+      "label": "Search Messages",
+      "description": "Searches messages with a full-text query.",
+      "inputs": {
+        "searchQuery": {
+          "label": "Search Query",
+          "description": "Keywords or KQL terms to match, for example: from:john@example.com, subject:urgent, hasAttachments:true.",
+          "required": true
+        },
+        "folderId": {
+          "label": "Folder ID",
+          "description": "Search inside one folder only. Accepts a mail folder ID or a well-known name such as inbox, drafts, sentitems, deleteditems, archive or junkemail. Leave empty to search the whole mailbox.",
+          "list": "folders"
+        },
+        "maxResults": {
+          "label": "Max Results",
+          "description": "Maximum number of results to return (1-1000).",
+          "type": "number",
+          "defaultValue": "25"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/messages",
+        "headers": {
+          "ConsistencyLevel": "eventual",
+          "Prefer": "outlook.body-content-type=\"text\""
+        }
+      },
+      "beforeRequest": "const id = (v) => encodeURIComponent(String(v).trim());\nconst num = (v, d) => v === undefined || v === null || v === '' ? d : Number(v);\nconst query = (s) => s.replace(/[\\ud800-\\udbff][\\udc00-\\udfff]|[^\\x21\\x24-\\x26\\x28-\\x3b\\x3d\\x3f-\\x5b\\x5d\\x5f\\x61-\\x7a\\x7e]/g, (c) => c === \"'\" ? '%27' : encodeURIComponent(c));\nrequest.url = (inputs.folderId ? '/me/mailFolders/' + id(inputs.folderId) + '/messages' : '/me/messages') + '?' + query('$search=' + encodeURIComponent('\"' + inputs.searchQuery + '\"') + '&$top=' + Math.min(Math.max(num(inputs.maxResults, 25), 1), 1000));\nreturn request;",
+      "afterResponse": "const newest = (list) => list.sort((a, b) => Date.parse(b.receivedDateTime) - Date.parse(a.receivedDateTime));\nconst messages = newest(response.value || []);\nreturn {found: messages.length > 0, messages, count: messages.length, hasMore: !!response['@odata.nextLink'], nextLink: response['@odata.nextLink'] || null};"
+    },
+    "outlook_list_messages_delta": {
+      "label": "List Message Changes (Delta)",
+      "description": "Tracks created, updated and deleted messages in a folder.",
+      "inputs": {
+        "folderId": {
+          "label": "Folder ID",
+          "description": "Folder to track. Accepts a mail folder ID or a well-known name such as inbox, drafts, sentitems, deleteditems, archive or junkemail.",
+          "required": true,
+          "defaultValue": "inbox",
+          "list": "folders"
+        },
+        "deltaLink": {
+          "label": "Delta Link",
+          "description": "The deltaLink returned by a previous run. Leave empty to start a new sync from the current folder state. It must be a delta link returned by this action on this connection; links pointing at another mailbox or endpoint are rejected."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/mailFolders/{{folderId}}/messages/delta",
+        "headers": {
+          "Prefer": "odata.maxpagesize=50"
+        }
+      },
+      "beforeRequest": "const id = (v) => encodeURIComponent(String(v).trim());\nconst deltaUrl = (link, pattern, operation) => {\n  const text = String(link).trim();\n  const hint = 'Expected an absolute URL on https://graph.microsoft.com whose path is /{v1.0|beta}/' + pattern.join('/') + '. Only pass a delta link that this action returned.';\n  if (!/^[a-z][a-z0-9+.-]*:\\/\\//i.test(text)) throw new Error(operation + ' failed: the supplied delta link is not an absolute URL. ' + hint);\n  const match = /^https:\\/\\/graph\\.microsoft\\.com(?=[\\/?#]|$)([^?#]*)/i.exec(text);\n  if (!match) throw new Error(operation + ' failed: the supplied delta link does not point at the Microsoft Graph endpoint of this connection. ' + hint);\n  const parts = match[1].split('/').filter((s) => s.length > 0).map((s) => { try { return decodeURIComponent(s); } catch (e) { return s; } });\n  if (parts.length === 0 || !['v1.0', 'beta'].includes(parts[0])) throw new Error(operation + ' failed: the supplied delta link does not target a supported Microsoft Graph API version. ' + hint);\n  const rest = parts.slice(1);\n  if (rest.length !== pattern.length || !pattern.every((p, i) => p === '*' ? rest[i].length > 0 : rest[i] === p)) throw new Error(operation + ' failed: the supplied delta link addresses /' + rest.join('/') + ', which is outside the mailbox and endpoint this action is configured for. ' + hint);\n  return text;\n};\nrequest.url = inputs.deltaLink ? deltaUrl(inputs.deltaLink, ['me', 'mailFolders', '*', 'messages', 'delta'], 'Listing Outlook message changes') : '/me/mailFolders/' + id(inputs.folderId) + '/messages/delta?$select=id,subject,bodyPreview,from,sender,toRecipients,ccRecipients,bccRecipients,replyTo,receivedDateTime,sentDateTime,createdDateTime,lastModifiedDateTime,hasAttachments,isRead,isDraft,importance,categories,flag,webLink,parentFolderId,conversationId,internetMessageId';\nreturn request;",
+      "afterResponse": "const removal = (item) => { const {'@removed': gone, ...rest} = item; return {...rest, removed: gone !== undefined, removedReason: gone && gone.reason !== undefined ? gone.reason : null}; };\nconst changes = (response.value || []).map(removal);\nreturn {changes, count: changes.length, hasMore: !!response['@odata.nextLink'], nextLink: response['@odata.nextLink'] || null, deltaLink: response['@odata.deltaLink'] || null};"
+    },
+    "outlook_send_email": {
+      "label": "Send Email",
+      "description": "Composes and sends a new email.",
+      "inputs": {
+        "recipients": {
+          "label": "To Email(s)",
+          "description": "Email addresses of the primary recipients. A JSON list of addresses, such as [\"ada@example.com\"].",
+          "type": "json",
+          "required": true
+        },
+        "ccRecipients": {
+          "label": "CC Email(s)",
+          "description": "A JSON list of addresses, such as [\"ada@example.com\"].",
+          "type": "json"
+        },
+        "bccRecipients": {
+          "label": "BCC Email(s)",
+          "description": "A JSON list of addresses, such as [\"ada@example.com\"].",
+          "type": "json"
+        },
+        "subject": {
+          "label": "Subject",
+          "required": true
+        },
+        "bodyFormat": {
+          "label": "Body Format",
+          "required": true,
+          "defaultValue": "text",
+          "type": "select",
+          "options": [
+            {
+              "value": "html",
+              "label": "HTML"
+            },
+            {
+              "value": "text",
+              "label": "Text"
+            }
+          ]
+        },
+        "body": {
+          "label": "Body",
+          "type": "multiline",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/me/sendMail"
+      },
+      "beforeRequest": "const list = (v) => { if (v === undefined || v === null || v === '') return []; try { const p = JSON.parse(v); return Array.isArray(p) ? p : [p]; } catch (e) { return String(v).split(',').map((s) => s.trim()).filter((s) => s); } };\nconst to = (v) => list(v).map((a) => ({emailAddress: {address: a}}));\nconst message = {subject: inputs.subject, body: {content: inputs.body, contentType: inputs.bodyFormat || 'text'}, toRecipients: to(inputs.recipients), ccRecipients: to(inputs.ccRecipients), bccRecipients: to(inputs.bccRecipients), attachments: []};\nrequest.body = {message, saveToSentItems: 'true'};\nreturn request;",
+      "afterResponse": "const list = (v) => { if (v === undefined || v === null || v === '') return []; try { const p = JSON.parse(v); return Array.isArray(p) ? p : [p]; } catch (e) { return String(v).split(',').map((s) => s.trim()).filter((s) => s); } };\nreturn {success: true, message: 'Email sent successfully.', subject: inputs.subject, recipients: list(inputs.recipients)};"
+    },
+    "request_approval_in_mail": {
+      "label": "Request Approval in Email",
+      "description": "Send an email with an approval link and pause until it is answered.",
+      "inputs": {
+        "recipients": {
+          "label": "To",
+          "description": "Address that receives the approval request.",
+          "required": true
+        },
+        "subject": {
+          "label": "Subject",
+          "required": true
+        },
+        "body": {
+          "label": "Body",
+          "description": "Shown above the Review & Respond button. HTML tags are rendered.",
+          "type": "multiline",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/me/sendMail"
+      },
+      "beforeRequest": "const link = inputs.resumeUrl + '/confirm';\nconst content = `\n        <div>\n          <p>${inputs.body}</p>\n          <br />\n          <p>\n            <a href=\"${link}\" style=\"display: inline-block; padding: 10px 20px; background-color: #6e41e2; color: white; text-decoration: none; border-radius: 4px;\">Review &amp; Respond</a>\n          </p>\n        </div>\n      `;\nrequest.body = {message: {subject: inputs.subject, body: {content, contentType: 'html'}, toRecipients: [{emailAddress: {address: inputs.recipients}}]}, saveToSentItems: true};\nreturn request;",
+      "afterResponse": "return {approved: false};",
+      "resume": "return {approved: received.query.action === 'approve'};",
+      "outputs": {
+        "approved": "$.approved"
+      }
+    },
+    "outlook_create_draft": {
+      "label": "Create Draft",
+      "description": "Creates an unsent draft message.",
+      "inputs": {
+        "recipients": {
+          "label": "To Email(s)",
+          "description": "A JSON list of addresses, such as [\"ada@example.com\"].",
+          "type": "json"
+        },
+        "ccRecipients": {
+          "label": "CC Email(s)",
+          "description": "A JSON list of addresses, such as [\"ada@example.com\"].",
+          "type": "json"
+        },
+        "bccRecipients": {
+          "label": "BCC Email(s)",
+          "description": "A JSON list of addresses, such as [\"ada@example.com\"].",
+          "type": "json"
+        },
+        "subject": {
+          "label": "Subject",
+          "required": true
+        },
+        "bodyFormat": {
+          "label": "Body Format",
+          "required": true,
+          "defaultValue": "text",
+          "type": "select",
+          "options": [
+            {
+              "value": "html",
+              "label": "HTML"
+            },
+            {
+              "value": "text",
+              "label": "Text"
+            }
+          ]
+        },
+        "body": {
+          "label": "Body",
+          "type": "multiline",
+          "required": true
+        },
+        "folderId": {
+          "label": "Folder ID",
+          "description": "Create the draft inside a specific folder. Accepts a mail folder ID or a well-known name such as inbox, drafts, sentitems, deleteditems, archive or junkemail. Leave empty to use the Drafts folder.",
+          "list": "folders"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/me/messages"
+      },
+      "beforeRequest": "const id = (v) => encodeURIComponent(String(v).trim());\nconst list = (v) => { if (v === undefined || v === null || v === '') return []; try { const p = JSON.parse(v); return Array.isArray(p) ? p : [p]; } catch (e) { return String(v).split(',').map((s) => s.trim()).filter((s) => s); } };\nconst to = (v) => list(v).map((a) => ({emailAddress: {address: a}}));\nconst message = {subject: inputs.subject, body: {content: inputs.body, contentType: inputs.bodyFormat || 'text'}, toRecipients: to(inputs.recipients), ccRecipients: to(inputs.ccRecipients), bccRecipients: to(inputs.bccRecipients), attachments: []};\nrequest.url = inputs.folderId ? '/me/mailFolders/' + id(inputs.folderId) + '/messages' : '/me/messages';\nrequest.body = message;\nreturn request;"
+    },
+    "outlook_send_draft": {
+      "label": "Send Draft",
+      "description": "Sends an existing draft message.",
+      "inputs": {
+        "messageId": {
+          "label": "Draft Message ID",
+          "description": "ID of the draft to send. Obtain it from Create Draft or one of the Create ... Draft actions.",
+          "required": true,
+          "list": "draft_messages"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/send",
+        "body": {}
+      },
+      "afterResponse": "return {success: true, message: 'Draft sent successfully.', messageId: inputs.messageId};"
+    },
+    "outlook_reply_to_message": {
+      "label": "Reply with Comment",
+      "description": "Replies to the sender of a message.",
+      "inputs": {
+        "messageId": {
+          "label": "Message ID",
+          "description": "Outlook message ID. Resolve one with List Messages or Search Messages.",
+          "required": true,
+          "list": "messages"
+        },
+        "comment": {
+          "label": "Reply Text",
+          "description": "Text added above the quoted original message.",
+          "type": "multiline",
+          "required": true
+        },
+        "ccRecipients": {
+          "label": "Additional CC Email(s)",
+          "description": "A JSON list of addresses, such as [\"ada@example.com\"].",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/reply"
+      },
+      "beforeRequest": "const list = (v) => { if (v === undefined || v === null || v === '') return []; try { const p = JSON.parse(v); return Array.isArray(p) ? p : [p]; } catch (e) { return String(v).split(',').map((s) => s.trim()).filter((s) => s); } };\nconst to = (v) => list(v).map((a) => ({emailAddress: {address: a}}));\nconst cc = to(inputs.ccRecipients);\nrequest.body = {comment: inputs.comment};\nif (cc.length > 0) request.body.message = {ccRecipients: cc};\nreturn request;",
+      "afterResponse": "return {success: true, message: 'Reply sent successfully.', messageId: inputs.messageId};"
+    },
+    "outlook_reply_all_to_message": {
+      "label": "Reply All to Message",
+      "description": "Replies to the sender and all recipients of a message.",
+      "inputs": {
+        "messageId": {
+          "label": "Message ID",
+          "description": "Outlook message ID. Resolve one with List Messages or Search Messages.",
+          "required": true,
+          "list": "messages"
+        },
+        "comment": {
+          "label": "Reply Text",
+          "description": "Text added above the quoted original message.",
+          "type": "multiline",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/replyAll",
+        "body": {
+          "comment": "{{comment}}"
+        }
+      },
+      "afterResponse": "return {success: true, message: 'Reply-all sent successfully.', messageId: inputs.messageId};"
+    },
+    "outlook_forward_message": {
+      "label": "Forward Message",
+      "description": "Forwards a message to new recipients.",
+      "inputs": {
+        "messageId": {
+          "label": "Message ID",
+          "description": "Outlook message ID. Resolve one with List Messages or Search Messages.",
+          "required": true,
+          "list": "messages"
+        },
+        "recipients": {
+          "label": "To Email(s)",
+          "description": "Email addresses to forward the message to. A JSON list of addresses, such as [\"ada@example.com\"].",
+          "type": "json",
+          "required": true
+        },
+        "comment": {
+          "label": "Comment",
+          "description": "Optional text added above the forwarded message.",
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/forward"
+      },
+      "beforeRequest": "const list = (v) => { if (v === undefined || v === null || v === '') return []; try { const p = JSON.parse(v); return Array.isArray(p) ? p : [p]; } catch (e) { return String(v).split(',').map((s) => s.trim()).filter((s) => s); } };\nconst to = (v) => list(v).map((a) => ({emailAddress: {address: a}}));\nrequest.body = {comment: inputs.comment || '', toRecipients: to(inputs.recipients)};\nreturn request;",
+      "afterResponse": "const list = (v) => { if (v === undefined || v === null || v === '') return []; try { const p = JSON.parse(v); return Array.isArray(p) ? p : [p]; } catch (e) { return String(v).split(',').map((s) => s.trim()).filter((s) => s); } };\nreturn {success: true, message: 'Message forwarded successfully.', messageId: inputs.messageId, recipients: list(inputs.recipients)};"
+    },
+    "outlook_create_reply_draft": {
+      "label": "Create Reply Draft",
+      "description": "Creates an unsent reply draft for a message.",
+      "inputs": {
+        "messageId": {
+          "label": "Message ID",
+          "description": "Outlook message ID. Resolve one with List Messages or Search Messages.",
+          "required": true,
+          "list": "messages"
+        },
+        "comment": {
+          "label": "Reply Text",
+          "description": "Optional text added above the quoted original message.",
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/createReply"
+      },
+      "beforeRequest": "request.body = {comment: inputs.comment || ''};\nreturn request;"
+    },
+    "outlook_create_reply_all_draft": {
+      "label": "Create Reply-All Draft",
+      "description": "Creates an unsent reply-all draft for a message.",
+      "inputs": {
+        "messageId": {
+          "label": "Message ID",
+          "description": "Outlook message ID. Resolve one with List Messages or Search Messages.",
+          "required": true,
+          "list": "messages"
+        },
+        "comment": {
+          "label": "Reply Text",
+          "description": "Optional text added above the quoted original message.",
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/createReplyAll"
+      },
+      "beforeRequest": "request.body = {comment: inputs.comment || ''};\nreturn request;"
+    },
+    "outlook_create_forward_draft": {
+      "label": "Create Forward Draft",
+      "description": "Creates an unsent forward draft for a message.",
+      "inputs": {
+        "messageId": {
+          "label": "Message ID",
+          "description": "Outlook message ID. Resolve one with List Messages or Search Messages.",
+          "required": true,
+          "list": "messages"
+        },
+        "recipients": {
+          "label": "To Email(s)",
+          "description": "Email addresses the draft will forward the message to. A JSON list of addresses, such as [\"ada@example.com\"].",
+          "type": "json",
+          "required": true
+        },
+        "comment": {
+          "label": "Comment",
+          "description": "Optional text added above the forwarded message.",
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/createForward"
+      },
+      "beforeRequest": "const list = (v) => { if (v === undefined || v === null || v === '') return []; try { const p = JSON.parse(v); return Array.isArray(p) ? p : [p]; } catch (e) { return String(v).split(',').map((s) => s.trim()).filter((s) => s); } };\nconst to = (v) => list(v).map((a) => ({emailAddress: {address: a}}));\nrequest.body = {comment: inputs.comment || '', toRecipients: to(inputs.recipients)};\nreturn request;"
+    },
+    "outlook_update_message": {
+      "label": "Update Message",
+      "description": "Updates the writable properties of a message.",
+      "inputs": {
+        "messageId": {
+          "label": "Message ID",
+          "description": "Outlook message ID. Resolve one with List Messages or Search Messages.",
+          "required": true,
+          "list": "messages"
+        },
+        "isRead": {
+          "label": "Read State",
+          "description": "Leave unset to keep the current read state.",
+          "type": "select",
+          "options": [
+            {
+              "value": "true",
+              "label": "Mark as read"
+            },
+            {
+              "value": "false",
+              "label": "Mark as unread"
+            }
+          ]
+        },
+        "flagStatus": {
+          "label": "Flag State",
+          "description": "Leave unset to keep the current flag.",
+          "type": "select",
+          "options": [
+            {
+              "value": "flagged",
+              "label": "Flagged"
+            },
+            {
+              "value": "notFlagged",
+              "label": "Not flagged"
+            },
+            {
+              "value": "complete",
+              "label": "Complete"
+            }
+          ]
+        },
+        "importance": {
+          "label": "Importance",
+          "description": "Leave unset to keep the current importance.",
+          "type": "select",
+          "options": [
+            {
+              "value": "low",
+              "label": "Low"
+            },
+            {
+              "value": "normal",
+              "label": "Normal"
+            },
+            {
+              "value": "high",
+              "label": "High"
+            }
+          ]
+        },
+        "categoriesToAdd": {
+          "label": "Categories to Add",
+          "description": "Category names to add, merged with the categories already on the message. A JSON list, such as [\"Red\"].",
+          "type": "json"
+        },
+        "categoriesToRemove": {
+          "label": "Categories to Remove",
+          "description": "Category names to remove from the message. A JSON list, such as [\"Red\"].",
+          "type": "json"
+        },
+        "subject": {
+          "label": "Subject",
+          "description": "Only writable while the message is still a draft."
+        },
+        "body": {
+          "label": "Body",
+          "description": "Only writable while the message is still a draft.",
+          "type": "multiline"
+        },
+        "bodyFormat": {
+          "label": "Body Format",
+          "description": "Format of the new body. Ignored when no body is supplied.",
+          "defaultValue": "text",
+          "type": "select",
+          "options": [
+            {
+              "value": "html",
+              "label": "HTML"
+            },
+            {
+              "value": "text",
+              "label": "Text"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}",
+        "headers": {
+          "Prefer": "outlook.body-content-type=\"text\""
+        }
+      },
+      "beforeRequest": "const list = (v) => { if (v === undefined || v === null || v === '') return []; try { const p = JSON.parse(v); return Array.isArray(p) ? p : [p]; } catch (e) { return String(v).split(',').map((s) => s.trim()).filter((s) => s); } };\nconst add = list(inputs.categoriesToAdd), remove = list(inputs.categoriesToRemove), changes = {};\nif (inputs.isRead) changes.isRead = inputs.isRead === 'true';\nif (inputs.flagStatus) changes.flag = {flagStatus: inputs.flagStatus};\nif (inputs.importance) changes.importance = inputs.importance;\nif (inputs.subject) changes.subject = inputs.subject;\nif (inputs.body) changes.body = {content: inputs.body, contentType: inputs.bodyFormat || 'text'};\nconst categories = add.length > 0 || remove.length > 0;\nif (Object.keys(changes).length === 0 && !categories) throw new Error('Updating the Outlook message failed: no fields were supplied, so there is nothing to change.');\nif (categories) { const current = call({method: 'GET', url: request.url + '?$select=id,categories'}).categories || []; changes.categories = [...new Set([...current, ...add])].filter((c) => !remove.includes(c)); }\nrequest.body = changes;\nreturn request;"
+    },
+    "outlook_move_message": {
+      "label": "Move Message",
+      "description": "Moves a message to another mail folder.",
+      "inputs": {
+        "messageId": {
+          "label": "Message ID",
+          "description": "Outlook message ID. Resolve one with List Messages or Search Messages.",
+          "required": true,
+          "list": "messages"
+        },
+        "destinationFolderId": {
+          "label": "Destination Folder ID",
+          "description": "Accepts a mail folder ID or a well-known name such as inbox, drafts, sentitems, deleteditems, archive or junkemail.",
+          "required": true,
+          "list": "folders"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/move",
+        "body": {
+          "destinationId": "{{destinationFolderId}}"
+        }
+      },
+      "afterResponse": "return {success: true, previousMessageId: inputs.messageId, newMessageId: response.id || null, destinationFolderId: inputs.destinationFolderId, message: response};"
+    },
+    "outlook_copy_message": {
+      "label": "Copy Message",
+      "description": "Copies a message into another mail folder.",
+      "inputs": {
+        "messageId": {
+          "label": "Message ID",
+          "description": "Outlook message ID. Resolve one with List Messages or Search Messages.",
+          "required": true,
+          "list": "messages"
+        },
+        "destinationFolderId": {
+          "label": "Destination Folder ID",
+          "description": "Accepts a mail folder ID or a well-known name such as inbox, drafts, sentitems, deleteditems, archive or junkemail.",
+          "required": true,
+          "list": "folders"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/copy",
+        "body": {
+          "destinationId": "{{destinationFolderId}}"
+        }
+      },
+      "afterResponse": "return {success: true, sourceMessageId: inputs.messageId, newMessageId: response.id || null, destinationFolderId: inputs.destinationFolderId, message: response};"
+    },
+    "outlook_delete_message": {
+      "label": "Delete Message (to Deleted Items)",
+      "description": "Moves a message to the Deleted Items folder.",
+      "inputs": {
+        "messageId": {
+          "label": "Message ID",
+          "description": "Outlook message ID. Resolve one with List Messages or Search Messages.",
+          "required": true,
+          "list": "messages"
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}"
+      },
+      "afterResponse": "return {success: true, message: 'Message moved to Deleted Items.', messageId: inputs.messageId};"
+    },
+    "outlook_permanently_delete_message": {
+      "label": "Permanently Delete Message",
+      "description": "Permanently deletes a message so it cannot be recovered.",
+      "inputs": {
+        "messageId": {
+          "label": "Message ID",
+          "description": "Outlook message ID. Resolve one with List Messages or Search Messages.",
+          "required": true,
+          "list": "messages"
+        },
+        "confirm": {
+          "label": "Confirm Permanent Deletion",
+          "description": "Must be enabled. The message cannot be recovered afterwards.",
+          "type": "boolean",
+          "required": true,
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/permanentDelete",
+        "body": {}
+      },
+      "beforeRequest": "if (inputs.confirm !== 'true') throw new Error('Permanently deleting the Outlook message was refused: enable Confirm Permanent Deletion to proceed, or use Delete Message (to Deleted Items) instead.');\nreturn request;",
+      "afterResponse": "return {success: true, message: 'Message permanently deleted.', messageId: inputs.messageId};"
+    },
+    "outlook_batch_move_messages": {
+      "label": "Batch Move Messages",
+      "description": "Moves several messages to one folder in a single batched call.",
+      "inputs": {
+        "messageIds": {
+          "label": "Message IDs",
+          "description": "IDs of the messages to move. Resolve them with List Messages or Search Messages. A JSON list, such as [\"AAMkAGI2TG93AAA=\"].",
+          "type": "json",
+          "required": true
+        },
+        "destinationFolderId": {
+          "label": "Destination Folder ID",
+          "description": "Accepts a mail folder ID or a well-known name such as inbox, drafts, sentitems, deleteditems, archive or junkemail.",
+          "required": true,
+          "list": "folders"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/$batch"
+      },
+      "beforeRequest": "const id = (v) => encodeURIComponent(String(v).trim());\nconst list = (v) => { if (v === undefined || v === null || v === '') return []; try { const p = JSON.parse(v); return Array.isArray(p) ? p : [p]; } catch (e) { return String(v).split(',').map((s) => s.trim()).filter((s) => s); } };\nconst ids = list(inputs.messageIds);\nif (ids.length === 0) throw new Error('Batch moving Outlook messages failed: no message IDs were supplied.');\nrequest.body = {requests: ids.slice(0, 20).map((m, i) => ({id: String(i + 1), method: 'POST', url: '/me/messages/' + id(m) + '/move', headers: {'Content-Type': 'application/json'}, body: {destinationId: inputs.destinationFolderId}}))};\nreturn request;",
+      "afterResponse": "const id = (v) => encodeURIComponent(String(v).trim());\nconst list = (v) => { if (v === undefined || v === null || v === '') return []; try { const p = JSON.parse(v); return Array.isArray(p) ? p : [p]; } catch (e) { return String(v).split(',').map((s) => s.trim()).filter((s) => s); } };\nconst failure = (r) => { const b = r.body; if (b && typeof b === 'object' && 'error' in b) { const t = [b.error && b.error.code, b.error && b.error.message].filter(Boolean); if (t.length) return t.join(': '); } return typeof b === 'string' && b.length > 0 ? b.slice(0, 500) : 'Microsoft Graph returned HTTP ' + r.status + ' for this item.'; };\nconst batch = (requests, first) => { let answers = first ? (first.responses || []) : []; for (let n = first ? 20 : 0; n < requests.length; n += 20) answers = answers.concat(call({method: 'POST', url: '/$batch', body: {requests: requests.slice(n, n + 20)}}).responses || []); return answers; };\nconst ids = list(inputs.messageIds), succeeded = [], failed = [];\nconst requests = ids.map((m, i) => ({id: String(i + 1), method: 'POST', url: '/me/messages/' + id(m) + '/move', headers: {'Content-Type': 'application/json'}, body: {destinationId: inputs.destinationFolderId}}));\nfor (const r of batch(requests, response)) { const m = ids[Number(r.id) - 1]; if (r.status >= 200 && r.status < 300) succeeded.push({messageId: m, newMessageId: (r.body || {}).id || null}); else failed.push({messageId: m, status: r.status, error: failure(r)}); }\nreturn {success: failed.length === 0, destinationFolderId: inputs.destinationFolderId, requestedCount: ids.length, succeededCount: succeeded.length, failedCount: failed.length, succeeded, failed};"
+    },
+    "outlook_batch_update_messages": {
+      "label": "Batch Update Messages",
+      "description": "Applies the same property changes to several messages at once.",
+      "inputs": {
+        "messageIds": {
+          "label": "Message IDs",
+          "description": "IDs of the messages to update. Resolve them with List Messages or Search Messages. A JSON list, such as [\"AAMkAGI2TG93AAA=\"].",
+          "type": "json",
+          "required": true
+        },
+        "isRead": {
+          "label": "Read State",
+          "description": "Leave unset to keep each message current read state.",
+          "type": "select",
+          "options": [
+            {
+              "value": "true",
+              "label": "Mark as read"
+            },
+            {
+              "value": "false",
+              "label": "Mark as unread"
+            }
+          ]
+        },
+        "flagStatus": {
+          "label": "Flag State",
+          "description": "Leave unset to keep each message current flag.",
+          "type": "select",
+          "options": [
+            {
+              "value": "flagged",
+              "label": "Flagged"
+            },
+            {
+              "value": "notFlagged",
+              "label": "Not flagged"
+            },
+            {
+              "value": "complete",
+              "label": "Complete"
+            }
+          ]
+        },
+        "importance": {
+          "label": "Importance",
+          "description": "Leave unset to keep each message current importance.",
+          "type": "select",
+          "options": [
+            {
+              "value": "low",
+              "label": "Low"
+            },
+            {
+              "value": "normal",
+              "label": "Normal"
+            },
+            {
+              "value": "high",
+              "label": "High"
+            }
+          ]
+        },
+        "categoriesToAdd": {
+          "label": "Categories to Add",
+          "description": "Category names merged into the categories each message already has. A JSON list, such as [\"Red\"].",
+          "type": "json"
+        },
+        "categoriesToRemove": {
+          "label": "Categories to Remove",
+          "description": "Category names removed from each message. A JSON list, such as [\"Red\"].",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/$batch"
+      },
+      "beforeRequest": "const id = (v) => encodeURIComponent(String(v).trim());\nconst list = (v) => { if (v === undefined || v === null || v === '') return []; try { const p = JSON.parse(v); return Array.isArray(p) ? p : [p]; } catch (e) { return String(v).split(',').map((s) => s.trim()).filter((s) => s); } };\nconst ids = list(inputs.messageIds), add = list(inputs.categoriesToAdd), remove = list(inputs.categoriesToRemove), changes = {};\nif (inputs.isRead) changes.isRead = inputs.isRead === 'true';\nif (inputs.flagStatus) changes.flag = {flagStatus: inputs.flagStatus};\nif (inputs.importance) changes.importance = inputs.importance;\nconst categories = add.length > 0 || remove.length > 0;\nconst reads = ids.map((m, i) => ({id: String(i + 1), method: 'GET', url: '/me/messages/' + id(m) + '?$select=id,categories'}));\nconst patches = (targets, kept) => targets.map((m, i) => ({id: String(i + 1), method: 'PATCH', url: '/me/messages/' + id(m), headers: {'Content-Type': 'application/json'}, body: categories ? {...changes, categories: kept.get(m)} : {...changes}}));\nif (ids.length === 0) throw new Error('Batch updating Outlook messages failed: no message IDs were supplied.');\nif (Object.keys(changes).length === 0 && !categories) throw new Error('Batch updating Outlook messages failed: no fields were supplied, so there is nothing to change.');\nrequest.body = {requests: (categories ? reads : patches(ids)).slice(0, 20)};\nreturn request;",
+      "afterResponse": "const id = (v) => encodeURIComponent(String(v).trim());\nconst list = (v) => { if (v === undefined || v === null || v === '') return []; try { const p = JSON.parse(v); return Array.isArray(p) ? p : [p]; } catch (e) { return String(v).split(',').map((s) => s.trim()).filter((s) => s); } };\nconst ids = list(inputs.messageIds), add = list(inputs.categoriesToAdd), remove = list(inputs.categoriesToRemove), changes = {};\nif (inputs.isRead) changes.isRead = inputs.isRead === 'true';\nif (inputs.flagStatus) changes.flag = {flagStatus: inputs.flagStatus};\nif (inputs.importance) changes.importance = inputs.importance;\nconst categories = add.length > 0 || remove.length > 0;\nconst reads = ids.map((m, i) => ({id: String(i + 1), method: 'GET', url: '/me/messages/' + id(m) + '?$select=id,categories'}));\nconst patches = (targets, kept) => targets.map((m, i) => ({id: String(i + 1), method: 'PATCH', url: '/me/messages/' + id(m), headers: {'Content-Type': 'application/json'}, body: categories ? {...changes, categories: kept.get(m)} : {...changes}}));\nconst failure = (r) => { const b = r.body; if (b && typeof b === 'object' && 'error' in b) { const t = [b.error && b.error.code, b.error && b.error.message].filter(Boolean); if (t.length) return t.join(': '); } return typeof b === 'string' && b.length > 0 ? b.slice(0, 500) : 'Microsoft Graph returned HTTP ' + r.status + ' for this item.'; };\nconst batch = (requests, first) => { let answers = first ? (first.responses || []) : []; for (let n = first ? 20 : 0; n < requests.length; n += 20) answers = answers.concat(call({method: 'POST', url: '/$batch', body: {requests: requests.slice(n, n + 20)}}).responses || []); return answers; };\nconst failed = [], succeeded = [], kept = new Map();\nlet first = response;\nif (categories) { for (const r of batch(reads, response)) { const m = ids[Number(r.id) - 1]; if (r.status >= 200 && r.status < 300) kept.set(m, [...new Set([...((r.body || {}).categories || []), ...add])].filter((c) => !remove.includes(c))); else failed.push({messageId: m, status: r.status, error: failure(r)}); } first = null; }\nconst targets = categories ? ids.filter((m) => kept.has(m)) : ids;\nif (targets.length > 0) for (const r of batch(patches(targets, kept), first)) { const m = targets[Number(r.id) - 1]; if (r.status >= 200 && r.status < 300) succeeded.push({messageId: m}); else failed.push({messageId: m, status: r.status, error: failure(r)}); }\nreturn {success: failed.length === 0, requestedCount: ids.length, succeededCount: succeeded.length, failedCount: failed.length, succeeded, failed};"
+    },
+    "outlook_add_message_attachment": {
+      "label": "Add Attachment to Draft",
+      "description": "Attaches a file to a draft message.",
+      "inputs": {
+        "messageId": {
+          "label": "Draft Message ID",
+          "description": "ID of the draft to attach the file to. Obtain it from Create Draft.",
+          "required": true,
+          "list": "draft_messages"
+        },
+        "file": {
+          "label": "File",
+          "description": "File to attach. Must be smaller than 3 MB.",
+          "type": "file",
+          "required": true
+        },
+        "fileName": {
+          "label": "File Name",
+          "description": "Name shown on the attachment. Defaults to the uploaded file name."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/attachments",
+        "body": {
+          "@odata.type": "#microsoft.graph.fileAttachment",
+          "name": "{{fileName}}",
+          "contentBytes": "{{file}}"
+        }
+      },
+      "beforeRequest": "request.body.name = inputs.fileName || inputs.file;\nreturn request;",
+      "afterResponse": "const attachment = (a) => ({id: a.id ?? null, name: a.name ?? null, contentType: a.contentType ?? null, size: a.size ?? null, isInline: a.isInline ?? null, lastModifiedDateTime: a.lastModifiedDateTime ?? null, attachmentType: a['@odata.type'] ?? null});\nreturn {messageId: inputs.messageId, ...attachment(response || {})};"
+    },
+    "outlook_list_message_attachments": {
+      "label": "List Message Attachments",
+      "description": "Lists the attachments of a message without downloading them.",
+      "inputs": {
+        "messageId": {
+          "label": "Message ID",
+          "description": "Outlook message ID. Resolve one with List Messages or Search Messages.",
+          "required": true,
+          "list": "messages"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/attachments?$select=id,name,contentType,size,isInline,lastModifiedDateTime"
+      },
+      "afterResponse": "const attachment = (a) => ({id: a.id ?? null, name: a.name ?? null, contentType: a.contentType ?? null, size: a.size ?? null, isInline: a.isInline ?? null, lastModifiedDateTime: a.lastModifiedDateTime ?? null, attachmentType: a['@odata.type'] ?? null});\nconst items = response.value || [];\nreturn {messageId: inputs.messageId, attachments: items.map(attachment), count: items.length};"
+    },
+    "outlook_get_message_attachment": {
+      "label": "Get Message Attachment",
+      "description": "Reads the metadata of one attachment.",
+      "inputs": {
+        "messageId": {
+          "label": "Message ID",
+          "description": "Outlook message ID. Resolve one with List Messages or Search Messages.",
+          "required": true,
+          "list": "messages"
+        },
+        "attachmentId": {
+          "label": "Attachment ID",
+          "description": "Attachment ID from List Message Attachments. Attachment IDs are only valid inside their own message.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/attachments/{{attachmentId}}?$select=id,name,contentType,size,isInline,lastModifiedDateTime"
+      },
+      "afterResponse": "const attachment = (a) => ({id: a.id ?? null, name: a.name ?? null, contentType: a.contentType ?? null, size: a.size ?? null, isInline: a.isInline ?? null, lastModifiedDateTime: a.lastModifiedDateTime ?? null, attachmentType: a['@odata.type'] ?? null});\nreturn {messageId: inputs.messageId, ...attachment(response || {})};"
+    },
+    "downloadAttachment": {
+      "label": "Download Attachment",
+      "description": "Keeps every file attached to a message as a file of the run, for later steps.",
+      "inputs": {
+        "messageId": {
+          "label": "Message ID",
+          "description": "Outlook message ID. Resolve one with List Messages or Search Messages.",
+          "required": true,
+          "list": "messages"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/attachments"
+      },
+      "beforeRequest": "request.url = '/me/messages/' + inputs.messageId + '/attachments';\nreturn request;",
+      "afterResponse": "return response.value.filter((a) => a.name && a.contentBytes).map((a) => ({...a, file: keepFile(a.name, a.contentBytes)}));"
+    },
+    "outlook_delete_message_attachment": {
+      "label": "Delete Message Attachment",
+      "description": "Removes an attachment from a message.",
+      "inputs": {
+        "messageId": {
+          "label": "Message ID",
+          "description": "Outlook message ID. Resolve one with List Messages or Search Messages.",
+          "required": true,
+          "list": "messages"
+        },
+        "attachmentId": {
+          "label": "Attachment ID",
+          "description": "Attachment ID from List Message Attachments.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://graph.microsoft.com/v1.0/me/messages/{{messageId}}/attachments/{{attachmentId}}"
+      },
+      "afterResponse": "return {success: true, message: 'Attachment deleted.', messageId: inputs.messageId, attachmentId: inputs.attachmentId};"
+    },
+    "outlook_list_mail_folders": {
+      "label": "List Mail Folders",
+      "description": "Lists the top-level mail folders of the mailbox.",
+      "inputs": {
+        "maxResults": {
+          "label": "Max Results",
+          "description": "Maximum number of folders to return (1-100).",
+          "type": "number",
+          "defaultValue": "50"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/mailFolders"
+      },
+      "beforeRequest": "const num = (v, d) => v === undefined || v === null || v === '' ? d : Number(v);\nrequest.url = '/me/mailFolders?includeHiddenFolders=true&$select=id,displayName,parentFolderId,childFolderCount,unreadItemCount,totalItemCount,isHidden&$top=' + Math.min(Math.max(num(inputs.maxResults, 50), 1), 100);\nreturn request;",
+      "afterResponse": "const folders = response.value || [];\nconst next = response['@odata.nextLink'];\nreturn {folders, count: folders.length, hasMore: !!next, nextLink: next || null};"
+    },
+    "outlook_list_child_mail_folders": {
+      "label": "List Child Mail Folders",
+      "description": "Lists the sub-folders of one mail folder.",
+      "inputs": {
+        "folderId": {
+          "label": "Parent Folder ID",
+          "description": "Accepts a mail folder ID or a well-known name such as inbox, drafts, sentitems, deleteditems, archive or junkemail.",
+          "required": true,
+          "defaultValue": "inbox",
+          "list": "folders"
+        },
+        "maxResults": {
+          "label": "Max Results",
+          "description": "Maximum number of folders to return (1-100).",
+          "type": "number",
+          "defaultValue": "50"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/mailFolders/{{folderId}}/childFolders"
+      },
+      "beforeRequest": "const id = (v) => encodeURIComponent(String(v).trim());\nconst num = (v, d) => v === undefined || v === null || v === '' ? d : Number(v);\nrequest.url = '/me/mailFolders/' + id(inputs.folderId) + '/childFolders?includeHiddenFolders=true&$select=id,displayName,parentFolderId,childFolderCount,unreadItemCount,totalItemCount,isHidden&$top=' + Math.min(Math.max(num(inputs.maxResults, 50), 1), 100);\nreturn request;",
+      "afterResponse": "const folders = response.value || [];\nconst next = response['@odata.nextLink'];\nreturn {parentFolderId: inputs.folderId, folders, count: folders.length, hasMore: !!next, nextLink: next || null};"
+    },
+    "outlook_get_mail_folder": {
+      "label": "Get Mail Folder",
+      "description": "Reads one mail folder by ID or well-known name.",
+      "inputs": {
+        "folderId": {
+          "label": "Folder ID",
+          "description": "Accepts a mail folder ID or a well-known name such as inbox, drafts, sentitems, deleteditems, archive or junkemail.",
+          "required": true,
+          "defaultValue": "inbox",
+          "list": "folders"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/mailFolders/{{folderId}}?$select=id,displayName,parentFolderId,childFolderCount,unreadItemCount,totalItemCount,isHidden"
+      }
+    },
+    "outlook_create_mail_folder": {
+      "label": "Create Mail Folder",
+      "description": "Creates a mail folder, or returns the existing one with the same name.",
+      "inputs": {
+        "displayName": {
+          "label": "Folder Name",
+          "description": "Display name of the folder to create.",
+          "required": true
+        },
+        "parentFolderId": {
+          "label": "Parent Folder ID",
+          "description": "Create the folder under this parent. Accepts a mail folder ID or a well-known name such as inbox, drafts, sentitems, deleteditems, archive or junkemail. Leave empty to create it at the top level.",
+          "list": "folders"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/mailFolders"
+      },
+      "beforeRequest": "const id = (v) => encodeURIComponent(String(v).trim());\nconst query = (s) => s.replace(/[\\ud800-\\udbff][\\udc00-\\udfff]|[^\\x21\\x24-\\x26\\x28-\\x3b\\x3d\\x3f-\\x5b\\x5d\\x5f\\x61-\\x7a\\x7e]/g, (c) => c === \"'\" ? '%27' : encodeURIComponent(c));\nconst parent = inputs.parentFolderId ? '/me/mailFolders/' + id(inputs.parentFolderId) + '/childFolders' : '/me/mailFolders';\nrequest.url = parent + '?' + query('includeHiddenFolders=true&$select=id,displayName,parentFolderId,childFolderCount,unreadItemCount,totalItemCount,isHidden&$filter=' + encodeURIComponent(\"displayName eq '\" + inputs.displayName.trim().replace(/'/g, \"''\") + \"'\"));\nreturn request;",
+      "afterResponse": "const id = (v) => encodeURIComponent(String(v).trim());\nconst name = inputs.displayName.trim().toLowerCase();\nconst found = (response.value || []).find((f) => (f.displayName || '').toLowerCase() === name);\nif (found) return {created: false, folder: found, folderId: found.id ?? null};\nconst folder = call({method: 'POST', url: inputs.parentFolderId ? '/me/mailFolders/' + id(inputs.parentFolderId) + '/childFolders' : '/me/mailFolders', body: {displayName: inputs.displayName}});\nreturn {created: true, folder, folderId: (folder && folder.id) ?? null};"
+    },
+    "outlook_update_mail_folder": {
+      "label": "Rename Mail Folder",
+      "description": "Renames a mail folder.",
+      "inputs": {
+        "folderId": {
+          "label": "Folder ID",
+          "description": "Accepts a mail folder ID or a well-known name such as inbox, drafts, sentitems, deleteditems, archive or junkemail.",
+          "required": true,
+          "list": "folders"
+        },
+        "displayName": {
+          "label": "New Folder Name",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://graph.microsoft.com/v1.0/me/mailFolders/{{folderId}}",
+        "body": {
+          "displayName": "{{displayName}}"
+        }
+      }
+    },
+    "outlook_delete_mail_folder": {
+      "label": "Delete Mail Folder",
+      "description": "Deletes a mail folder and everything inside it.",
+      "inputs": {
+        "folderId": {
+          "label": "Folder ID",
+          "description": "Accepts a mail folder ID or a well-known name such as inbox, drafts, sentitems, deleteditems, archive or junkemail. Well-known system folders cannot be deleted.",
+          "required": true,
+          "list": "folders"
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://graph.microsoft.com/v1.0/me/mailFolders/{{folderId}}"
+      },
+      "afterResponse": "return {success: true, message: 'Mail folder deleted.', folderId: inputs.folderId};"
+    },
+    "outlook_copy_mail_folder": {
+      "label": "Copy Mail Folder",
+      "description": "Copies a mail folder under another folder.",
+      "inputs": {
+        "folderId": {
+          "label": "Folder ID",
+          "description": "Accepts a mail folder ID or a well-known name such as inbox, drafts, sentitems, deleteditems, archive or junkemail.",
+          "required": true,
+          "list": "folders"
+        },
+        "destinationFolderId": {
+          "label": "Destination Folder ID",
+          "description": "Folder that will contain the copy. Accepts a mail folder ID or a well-known name such as inbox, drafts, sentitems, deleteditems, archive or junkemail.",
+          "required": true,
+          "list": "folders"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/me/mailFolders/{{folderId}}/copy",
+        "body": {
+          "destinationId": "{{destinationFolderId}}"
+        }
+      },
+      "afterResponse": "return {success: true, sourceFolderId: inputs.folderId, newFolderId: response.id || null, destinationFolderId: inputs.destinationFolderId, folder: response};"
+    },
+    "outlook_move_mail_folder": {
+      "label": "Move Mail Folder",
+      "description": "Moves a mail folder under another folder.",
+      "inputs": {
+        "folderId": {
+          "label": "Folder ID",
+          "description": "Accepts a mail folder ID or a well-known name such as inbox, drafts, sentitems, deleteditems, archive or junkemail.",
+          "required": true,
+          "list": "folders"
+        },
+        "destinationFolderId": {
+          "label": "Destination Folder ID",
+          "description": "New parent folder. Accepts a mail folder ID or a well-known name such as inbox, drafts, sentitems, deleteditems, archive or junkemail.",
+          "required": true,
+          "list": "folders"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/me/mailFolders/{{folderId}}/move",
+        "body": {
+          "destinationId": "{{destinationFolderId}}"
+        }
+      },
+      "afterResponse": "return {success: true, folderId: inputs.folderId, newFolderId: response.id || null, destinationFolderId: inputs.destinationFolderId, folder: response};"
+    },
+    "outlook_list_mail_folders_delta": {
+      "label": "List Folder Changes (Delta)",
+      "description": "Tracks created, renamed and deleted mail folders.",
+      "inputs": {
+        "deltaLink": {
+          "label": "Delta Link",
+          "description": "The deltaLink returned by a previous run. Leave empty to start a new sync from the current folder tree. It must be a delta link returned by this action on this connection; links pointing at another mailbox or endpoint are rejected."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/mailFolders/delta",
+        "headers": {
+          "Prefer": "odata.maxpagesize=50"
+        }
+      },
+      "beforeRequest": "const deltaUrl = (link, pattern, operation) => {\n  const text = String(link).trim();\n  const hint = 'Expected an absolute URL on https://graph.microsoft.com whose path is /{v1.0|beta}/' + pattern.join('/') + '. Only pass a delta link that this action returned.';\n  if (!/^[a-z][a-z0-9+.-]*:\\/\\//i.test(text)) throw new Error(operation + ' failed: the supplied delta link is not an absolute URL. ' + hint);\n  const match = /^https:\\/\\/graph\\.microsoft\\.com(?=[\\/?#]|$)([^?#]*)/i.exec(text);\n  if (!match) throw new Error(operation + ' failed: the supplied delta link does not point at the Microsoft Graph endpoint of this connection. ' + hint);\n  const parts = match[1].split('/').filter((s) => s.length > 0).map((s) => { try { return decodeURIComponent(s); } catch (e) { return s; } });\n  if (parts.length === 0 || !['v1.0', 'beta'].includes(parts[0])) throw new Error(operation + ' failed: the supplied delta link does not target a supported Microsoft Graph API version. ' + hint);\n  const rest = parts.slice(1);\n  if (rest.length !== pattern.length || !pattern.every((p, i) => p === '*' ? rest[i].length > 0 : rest[i] === p)) throw new Error(operation + ' failed: the supplied delta link addresses /' + rest.join('/') + ', which is outside the mailbox and endpoint this action is configured for. ' + hint);\n  return text;\n};\nif (inputs.deltaLink) request.url = deltaUrl(inputs.deltaLink, ['me', 'mailFolders', 'delta'], 'Listing the Outlook mail folder changes');\nreturn request;",
+      "afterResponse": "const removal = (item) => { const {'@removed': gone, ...rest} = item; return {...rest, removed: gone !== undefined, removedReason: gone && gone.reason !== undefined ? gone.reason : null}; };\nconst changes = (response.value || []).map(removal);\nreturn {changes, count: changes.length, hasMore: !!response['@odata.nextLink'], nextLink: response['@odata.nextLink'] || null, deltaLink: response['@odata.deltaLink'] || null};"
+    },
+    "outlook_list_focused_inbox_overrides": {
+      "label": "List Focused Inbox Overrides",
+      "description": "Lists the Focused Inbox sender overrides of the mailbox.",
+      "inputs": {},
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/inferenceClassification/overrides"
+      },
+      "afterResponse": "const overrides = response.value || [];\nreturn {overrides, count: overrides.length};"
+    },
+    "outlook_create_focused_inbox_override": {
+      "label": "Create Focused Inbox Override",
+      "description": "Forces mail from a sender into the Focused or Other tab.",
+      "inputs": {
+        "senderEmailAddress": {
+          "label": "Sender Email Address",
+          "description": "SMTP address of the sender the override applies to.",
+          "required": true
+        },
+        "classifyAs": {
+          "label": "Classify As",
+          "required": true,
+          "defaultValue": "focused",
+          "type": "select",
+          "options": [
+            {
+              "value": "focused",
+              "label": "Focused"
+            },
+            {
+              "value": "other",
+              "label": "Other"
+            }
+          ]
+        },
+        "senderName": {
+          "label": "Sender Display Name",
+          "description": "Optional display name stored alongside the override."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/me/inferenceClassification/overrides",
+        "body": {
+          "classifyAs": "{{classifyAs}}",
+          "senderEmailAddress": {
+            "name": "{{senderName}}",
+            "address": "{{senderEmailAddress}}"
+          }
+        }
+      }
+    },
+    "outlook_update_focused_inbox_override": {
+      "label": "Update Focused Inbox Override",
+      "description": "Changes the classification of a Focused Inbox override.",
+      "inputs": {
+        "overrideId": {
+          "label": "Override ID",
+          "description": "Override ID from List Focused Inbox Overrides.",
+          "required": true
+        },
+        "classifyAs": {
+          "label": "Classify As",
+          "required": true,
+          "type": "select",
+          "options": [
+            {
+              "value": "focused",
+              "label": "Focused"
+            },
+            {
+              "value": "other",
+              "label": "Other"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://graph.microsoft.com/v1.0/me/inferenceClassification/overrides/{{overrideId}}",
+        "body": {
+          "classifyAs": "{{classifyAs}}"
+        }
+      }
+    },
+    "outlook_delete_focused_inbox_override": {
+      "label": "Delete Focused Inbox Override",
+      "description": "Removes a Focused Inbox sender override.",
+      "inputs": {
+        "overrideId": {
+          "label": "Override ID",
+          "description": "Override ID from List Focused Inbox Overrides.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://graph.microsoft.com/v1.0/me/inferenceClassification/overrides/{{overrideId}}"
+      },
+      "afterResponse": "return {success: true, message: 'Focused Inbox override deleted.', overrideId: inputs.overrideId};"
+    },
+    "outlook_get_mail_tips": {
+      "label": "Get Mail Tips",
+      "description": "Reads pre-send mail tips for a set of recipients.",
+      "inputs": {
+        "emailAddresses": {
+          "label": "Recipient Email Addresses",
+          "description": "Addresses to check. Up to 100 recipients per call. A JSON list of addresses, such as [\"ada@example.com\"].",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/me/getMailTips"
+      },
+      "beforeRequest": "const list = (v) => { if (v === undefined || v === null || v === '') return []; try { const p = JSON.parse(v); return Array.isArray(p) ? p : [p]; } catch (e) { return String(v).split(',').map((s) => s.trim()).filter((s) => s); } };\nconst addresses = list(inputs.emailAddresses);\nif (addresses.length === 0) throw new Error('Reading Outlook mail tips failed: no recipient addresses were supplied.');\nrequest.body = {EmailAddresses: addresses, MailTipsOptions: 'automaticReplies, mailboxFullStatus, customMailTip, externalMemberCount, maxMessageSize, deliveryRestriction, moderationStatus, recipientScope, totalMemberCount'};\nreturn request;",
+      "afterResponse": "const mailTips = (response && response.value) || [];\nreturn {mailTips, count: mailTips.length};"
+    },
+    "outlook_get_my_profile": {
+      "label": "Get My Profile",
+      "description": "Reads the identity of the connected account.",
+      "inputs": {},
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me?$select=id,displayName,mail,userPrincipalName"
+      },
+      "afterResponse": "return {id: response.id ?? null, displayName: response.displayName ?? null, mail: response.mail ?? null, userPrincipalName: response.userPrincipalName ?? null, source: 'graph'};"
+    },
+    "outlook_get_supported_time_zones": {
+      "label": "Get Supported Time Zones",
+      "description": "Lists the time zones Outlook accepts for this account.",
+      "inputs": {},
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/outlook/supportedTimeZones"
+      },
+      "afterResponse": "const timeZones = response.value || [];\nreturn {timeZones, count: timeZones.length};"
+    }
+  },
+  "triggers": {
+    "newEmail": {
+      "label": "New Email",
+      "description": "Triggers when a new email arrives in your Inbox.",
+      "inputs": {
+        "sender": {
+          "label": "From",
+          "description": "Only emails sent from this address."
+        },
+        "recipient": {
+          "label": "To",
+          "description": "Only emails sent to this address."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages"
+      },
+      "key": "$.receivedDateTime",
+      "beforeRequest": "const since = inputs.lastPollTime ? '$filter=receivedDateTime%20gt%20' + new Date(Number(inputs.lastPollTime)).toISOString() : '$top=10';\nrequest.url = '/me/mailFolders/inbox/messages?' + since + '&$orderby=receivedDateTime%20desc';\nreturn request;",
+      "afterResponse": "const items = [];\nlet page = response;\nwhile ((page.value || []).length > 0) {\n  items.push(...page.value);\n  if (!inputs.lastPollTime || !page['@odata.nextLink']) break;\n  page = call({method: 'GET', url: page['@odata.nextLink']});\n}\nconst lower = (v) => v == null ? v : String(v).toLowerCase();\nreturn items.filter((m) => !inputs.sender || lower(m.from?.emailAddress?.address) === lower(inputs.sender))\n  .filter((m) => !inputs.recipient || (m.toRecipients || []).some((r) => lower(r.emailAddress?.address) === lower(inputs.recipient)));"
+    },
+    "newEmailInFolder": {
+      "label": "New Email in Folder",
+      "description": "Triggers when a new email lands in the folder you pick.",
+      "inputs": {
+        "folderId": {
+          "label": "Folder",
+          "description": "New emails in this folder start the task.",
+          "required": true,
+          "list": "folders"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/mailFolders/{{folderId}}/messages"
+      },
+      "key": "$.createdDateTime",
+      "beforeRequest": "const since = inputs.lastPollTime ? '$filter=createdDateTime%20gt%20' + new Date(Number(inputs.lastPollTime)).toISOString() : '$top=10';\nrequest.url = '/me/mailFolders/' + inputs.folderId + '/messages?' + since + '&$orderby=createdDateTime%20desc';\nreturn request;",
+      "afterResponse": "const items = [];\nlet page = response;\nwhile ((page.value || []).length > 0) {\n  items.push(...page.value);\n  if (!inputs.lastPollTime || !page['@odata.nextLink']) break;\n  page = call({method: 'GET', url: page['@odata.nextLink']});\n}\nreturn items;"
+    },
+    "newAttachment": {
+      "label": "New Attachment",
+      "description": "Triggers once for each file attached to a new email, with the file.",
+      "inputs": {
+        "folderId": {
+          "label": "Folder",
+          "description": "Leave empty to watch the whole mailbox, including sent mail.",
+          "list": "folders"
+        },
+        "sender": {
+          "label": "From",
+          "description": "Only emails whose sender address contains this text."
+        },
+        "attachmentNameFilter": {
+          "label": "Attachment Name",
+          "description": "Only attachments whose file name contains this text."
+        },
+        "fileExtension": {
+          "label": "File Extension",
+          "description": "Only attachments with this extension. Separate several with commas, such as pdf, docx."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://graph.microsoft.com/v1.0/me/messages"
+      },
+      "newBy": "unseen",
+      "key": "$.id",
+      "beforeRequest": "const cursor = memory.pollCursor || (memory.pollCursor = {epochMilliSeconds: Date.now(), seenMessageIds: []});\nconst since = ('receivedDateTime ge ' + new Date(cursor.epochMilliSeconds).toISOString() + ' and hasAttachments eq true').replace(/ /g, '%20');\nrequest.url = (inputs.folderId ? '/me/mailFolders/' + inputs.folderId + '/messages' : '/me/messages') + '?$filter=' + since + '&$select=id,subject,from,sender,receivedDateTime,parentFolderId&$orderby=receivedDateTime%20desc';\nreturn request;",
+      "afterResponse": "const cursor = memory.pollCursor, time = (m) => Date.parse(m.receivedDateTime), messages = [];\nlet page = response;\nwhile (page.value.length > 0) {\n  messages.push(...page.value);\n  if (!page['@odata.nextLink']) break;\n  page = call({method: 'GET', url: page['@odata.nextLink']});\n}\nconst sender = (inputs.sender || '').trim().toLowerCase(), name = (inputs.attachmentNameFilter || '').trim().toLowerCase();\nconst extensions = (inputs.fileExtension || '').split(',').map((e) => e.trim().toLowerCase().replace(/^\\./, '')).filter((e) => e.length > 0);\nconst wanted = (a) => { const n = a.name?.toLowerCase(); return (!name || n?.includes(name)) && (extensions.length === 0 || extensions.some((e) => n?.endsWith('.' + e))); };\nconst fromSender = (m) => !sender || [m.from?.emailAddress?.address, m.sender?.emailAddress?.address].some((a) => a != null && a.toLowerCase().includes(sender));\nconst unseen = (m) => time(m) !== cursor.epochMilliSeconds ? time(m) > cursor.epochMilliSeconds : !!cursor.seenMessageIds && !cursor.seenMessageIds.includes(m.id);\nconst items = [];\nfor (const m of messages.filter(unseen).filter(fromSender)) {\n  for (const a of call({method: 'GET', url: '/me/messages/' + m.id + '/attachments'}).value) {\n    const {contentBytes, ...rest} = a;\n    if (!wanted(a) || !a.name || !contentBytes || a['@odata.type'] !== '#microsoft.graph.fileAttachment') continue;\n    items.push({file: keepFile(a.name, contentBytes), messageId: m.id, messageSubject: m.subject, messageSender: m.sender, messageReceivedDateTime: m.receivedDateTime, parentFolderId: m.parentFolderId, ...rest});\n  }\n}\nconst newest = messages.reduce((t, m) => Math.max(t, time(m)), cursor.epochMilliSeconds);\nconst atNewest = messages.filter((m) => time(m) === newest).map((m) => m.id);\nmemory.pollCursor = {epochMilliSeconds: newest, seenMessageIds: [...new Set([...atNewest, ...(newest === cursor.epochMilliSeconds ? cursor.seenMessageIds || [] : [])])]};\nreturn items;"
+    }
+  }
+}

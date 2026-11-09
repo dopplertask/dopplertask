@@ -1,0 +1,875 @@
+{
+  "name": "google-calendar",
+  "label": "Google Calendar",
+  "description": "Get organized and stay on schedule",
+  "icon": "googlecalendar",
+  "hosts": [
+    "www.googleapis.com"
+  ],
+  "baseUrl": "https://www.googleapis.com/calendar/v3",
+  "upstream": {
+    "package": "@activepieces/piece-google-calendar",
+    "version": "0.13.4"
+  },
+  "credential": {
+    "oauth2": {
+      "authUrl": "https://accounts.google.com/o/oauth2/auth",
+      "tokenUrl": "https://oauth2.googleapis.com/token",
+      "scope": "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly email",
+      "authParameters": "access_type=offline&prompt=consent"
+    }
+  },
+  "lists": {
+    "writable_calendars": {
+      "request": {
+        "url": "https://www.googleapis.com/calendar/v3/users/me/calendarList",
+        "query": {
+          "showDeleted": "false",
+          "minAccessRole": "writer"
+        }
+      },
+      "items": "$.items",
+      "label": "$.summary"
+    },
+    "all_calendars": {
+      "request": {
+        "url": "https://www.googleapis.com/calendar/v3/users/me/calendarList",
+        "query": {
+          "showDeleted": "false"
+        }
+      },
+      "items": "$.items",
+      "label": "$.summary"
+    }
+  },
+  "actions": {
+    "google-calendar-add-attendees": {
+      "label": "Add Attendees to Event",
+      "description": "Adds guests to an existing event.",
+      "inputs": {
+        "calendar_id": {
+          "label": "Calendar",
+          "required": true,
+          "list": "writable_calendars"
+        },
+        "event_id": {
+          "label": "Event ID",
+          "description": "Paste the ID from the event URL or a previous step.",
+          "required": true
+        },
+        "attendees": {
+          "label": "Attendees",
+          "description": "One guest email per item. A JSON list, such as [\"ada@example.com\"].",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://www.googleapis.com/calendar/v3/calendars/{{calendar_id}}/events/{{event_id}}",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "afterResponse": "const attendees = (response.attendees ?? []).concat(JSON.parse(inputs.attendees).map((email) => ({email})));\nreturn call({method: 'PUT', url: '/calendars/' + encodeURIComponent(inputs.calendar_id) + '/events/' + encodeURIComponent(inputs.event_id),\n  headers: {'x-goog-api-client': 'gdcl/8.0.2 gl-node/26.4.0'}, body: Object.assign({}, response, {attendees})});"
+    },
+    "create_quick_event": {
+      "label": "Create Quick Event",
+      "description": "Creates an event from a plain-language phrase.",
+      "inputs": {
+        "calendar_id": {
+          "label": "Calendar",
+          "required": true,
+          "list": "writable_calendars"
+        },
+        "text": {
+          "label": "Event Text",
+          "description": "e.g. \"Lunch with Sam tomorrow at 1pm\".",
+          "type": "multiline",
+          "required": true
+        },
+        "send_updates": {
+          "label": "Send Notifications",
+          "description": "Who gets an email invitation for the new event.",
+          "type": "select",
+          "defaultValue": "none",
+          "options": [
+            {
+              "value": "all",
+              "label": "All guests"
+            },
+            {
+              "value": "externalOnly",
+              "label": "External guests only"
+            },
+            {
+              "value": "none",
+              "label": "No one"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://www.googleapis.com/calendar/v3/calendars/{{calendar_id}}/events/quickAdd",
+        "body": {}
+      },
+      "beforeRequest": "const form = (query) => Object.keys(query).filter((key) => query[key] !== undefined).map((key) => key + '=' +\n  encodeURIComponent(query[key]).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+')).join('&');\nrequest.url = '/calendars/' + inputs.calendar_id + '/events/quickAdd?' + form({text: inputs.text, sendUpdates: inputs.send_updates || 'none'});\nreturn request;",
+      "afterResponse": "return {status: 200, headers: {'content-type': 'application/json'}, body: response};"
+    },
+    "create_google_calendar_event": {
+      "label": "Create Event",
+      "description": "Creates an event with a title, time, guests and options.",
+      "inputs": {
+        "calendar_id": {
+          "label": "Calendar",
+          "required": true,
+          "list": "writable_calendars"
+        },
+        "title": {
+          "label": "Title",
+          "required": true
+        },
+        "start_date_time": {
+          "label": "Start Time",
+          "required": true
+        },
+        "end_date_time": {
+          "label": "End Time",
+          "description": "Defaults to 30 minutes after the start."
+        },
+        "location": {
+          "label": "Location"
+        },
+        "description": {
+          "label": "Description",
+          "description": "HTML tags are allowed.",
+          "type": "multiline"
+        },
+        "color_id": {
+          "label": "Color",
+          "description": "Leave empty for the calendar default."
+        },
+        "attendees": {
+          "label": "Attendees",
+          "description": "One guest email per item. A JSON list, such as [\"ada@example.com\"].",
+          "type": "json"
+        },
+        "guests_can_modify": {
+          "label": "Guests Can Modify",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "guests_can_invite_others": {
+          "label": "Guests Can Invite Others",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "guests_can_see_other_guests": {
+          "label": "Guests Can See Other Guests",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "send_updates": {
+          "label": "Send Notifications",
+          "description": "Who gets an email invitation for the new event.",
+          "type": "select",
+          "required": true,
+          "defaultValue": "all",
+          "options": [
+            {
+              "value": "all",
+              "label": "All guests"
+            },
+            {
+              "value": "externalOnly",
+              "label": "External guests only"
+            },
+            {
+              "value": "none",
+              "label": "No one"
+            }
+          ]
+        },
+        "create_meet_link": {
+          "label": "Create Google Meet Link",
+          "description": "Adds a Google Meet link to the event.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://www.googleapis.com/calendar/v3/calendars/{{calendar_id}}/events",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        },
+        "query": {
+          "sendUpdates": "{{send_updates}}"
+        }
+      },
+      "beforeRequest": "const parse = (value) => {\n  const m = /Z$/i.test(value) ? null : String(value).match(/^(\\d{4})[-/]?(\\d{1,2})?[-/]?(\\d{0,2})[Tt\\s]*(\\d{1,2})?:?(\\d{1,2})?:?(\\d{1,2})?[.:]?(\\d+)?$/);\n  return m ? new Date(m[1], (m[2] || 1) - 1, m[3] || 1, m[4] || 0, m[5] || 0, m[6] || 0, (m[7] || '0').substring(0, 3)) : new Date(value);\n};\nconst pad = (n) => String(n).padStart(2, '0');\nconst local = (value) => {\n  const d = typeof value === 'number' ? new Date(value) : parse(value), s = d.getSeconds(), o = -d.getTimezoneOffset();\n  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(s) + '.' + pad(s) + s +\n    (o < 0 ? '-' : '+') + pad(Math.floor(Math.abs(o) / 60)) + ':' + pad(Math.abs(o) % 60);\n};\nconst has = (value) => value !== undefined && value !== '';\nconst meet = inputs.create_meet_link === 'true';\nconst flag = (value) => has(value) ? value === 'true' : undefined;\nrequest.body = {\n  summary: inputs.title,\n  start: {dateTime: local(inputs.start_date_time)},\n  end: {dateTime: local(has(inputs.end_date_time) ? inputs.end_date_time : parse(inputs.start_date_time).getTime() + 30 * 60000)},\n  colorId: has(inputs.color_id) ? inputs.color_id : undefined,\n  location: inputs.location || '',\n  description: inputs.description || '',\n  attendees: (has(inputs.attendees) ? JSON.parse(inputs.attendees) : []).map((email) => ({email})),\n  guestsCanInviteOthers: flag(inputs.guests_can_invite_others),\n  guestsCanModify: flag(inputs.guests_can_modify),\n  guestsCanSeeOtherGuests: flag(inputs.guests_can_see_other_guests)\n};\nif (meet) {\n  const requestId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); });\n  request.body.conferenceData = {createRequest: {conferenceSolutionKey: {type: 'hangoutsMeet'}, requestId}};\n}\nrequest.query.conferenceDataVersion = meet ? '1' : '0';\nreturn request;"
+    },
+    "google_calendar_get_events": {
+      "label": "Get Events",
+      "description": "Lists events in a calendar, with optional filters.",
+      "inputs": {
+        "calendar_id": {
+          "label": "Calendar",
+          "required": true,
+          "list": "writable_calendars"
+        },
+        "event_types": {
+          "label": "Event Types",
+          "description": "Only events of these types are returned. A JSON list of \"default\", \"outOfOffice\", \"focusTime\", \"workingLocation\".",
+          "type": "json",
+          "required": true,
+          "defaultValue": "[\"default\", \"focusTime\", \"outOfOffice\"]"
+        },
+        "search_term": {
+          "label": "Search Term",
+          "description": "Exact phrase matched against title, description, location and guests."
+        },
+        "start_date": {
+          "label": "Start Time",
+          "description": "Only events that end after this time."
+        },
+        "end_date": {
+          "label": "End Time",
+          "description": "Only events that start before this time. Needs Start Time."
+        },
+        "single_events": {
+          "label": "Expand Recurring Events",
+          "description": "Returns each occurrence of a recurring event separately.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "url": "https://www.googleapis.com/calendar/v3/calendars/{{calendar_id}}/events"
+      },
+      "beforeRequest": "const parse = (value) => {\n  const m = /Z$/i.test(value) ? null : String(value).match(/^(\\d{4})[-/]?(\\d{1,2})?[-/]?(\\d{0,2})[Tt\\s]*(\\d{1,2})?:?(\\d{1,2})?:?(\\d{1,2})?[.:]?(\\d+)?$/);\n  return m ? new Date(m[1], (m[2] || 1) - 1, m[3] || 1, m[4] || 0, m[5] || 0, m[6] || 0, (m[7] || '0').substring(0, 3)) : new Date(value);\n};\nconst pad = (n) => String(n).padStart(2, '0');\nconst local = (value) => {\n  const d = typeof value === 'number' ? new Date(value) : parse(value), s = d.getSeconds(), o = -d.getTimezoneOffset();\n  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(s) + '.' + pad(s) + s +\n    (o < 0 ? '-' : '+') + pad(Math.floor(Math.abs(o) / 60)) + ':' + pad(Math.abs(o) % 60);\n};\nconst form = (query) => Object.keys(query).filter((key) => query[key] !== undefined).map((key) => key + '=' +\n  encodeURIComponent(query[key]).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+')).join('&');\nconst types = JSON.parse(inputs.event_types || '[]');\nconst query = {showDeleted: 'false', singleEvents: inputs.single_events === 'true' ? 'true' : 'false'};\nif (inputs.search_term) query.q = '\"' + inputs.search_term + '\"';\nif (inputs.start_date) query.timeMin = local(inputs.start_date);\nif (inputs.start_date && inputs.end_date) query.timeMax = local(inputs.end_date);\nrequest.url = '/calendars/' + inputs.calendar_id + '/events?' + types.map((type) => 'eventTypes=' + type).concat(form(query)).join('&');\nreturn request;",
+      "afterResponse": "return {status: 200, headers: {'content-type': 'application/json'}, body: response};"
+    },
+    "update_event": {
+      "label": "Update Event",
+      "description": "Updates an existing event; empty fields keep their value.",
+      "inputs": {
+        "calendar_id": {
+          "label": "Calendar",
+          "required": true,
+          "list": "writable_calendars"
+        },
+        "event_id": {
+          "label": "Event ID",
+          "description": "Paste the ID from the event URL or a previous step.",
+          "required": true
+        },
+        "title": {
+          "label": "Title"
+        },
+        "start_date_time": {
+          "label": "Start Time"
+        },
+        "end_date_time": {
+          "label": "End Time"
+        },
+        "location": {
+          "label": "Location"
+        },
+        "description": {
+          "label": "Description",
+          "description": "HTML tags are allowed.",
+          "type": "multiline"
+        },
+        "color_id": {
+          "label": "Color"
+        },
+        "attendees": {
+          "label": "Attendees",
+          "description": "Replaces the current guest list. One email per item. A JSON list, such as [\"ada@example.com\"].",
+          "type": "json"
+        },
+        "guests_can_modify": {
+          "label": "Guests Can Modify",
+          "type": "select",
+          "options": [
+            {
+              "value": "true",
+              "label": "Yes"
+            },
+            {
+              "value": "false",
+              "label": "No"
+            }
+          ]
+        },
+        "guests_can_invite_others": {
+          "label": "Guests Can Invite Others",
+          "type": "select",
+          "options": [
+            {
+              "value": "true",
+              "label": "Yes"
+            },
+            {
+              "value": "false",
+              "label": "No"
+            }
+          ]
+        },
+        "guests_can_see_other_guests": {
+          "label": "Guests Can See Other Guests",
+          "type": "select",
+          "options": [
+            {
+              "value": "true",
+              "label": "Yes"
+            },
+            {
+              "value": "false",
+              "label": "No"
+            }
+          ]
+        }
+      },
+      "request": {
+        "url": "https://www.googleapis.com/calendar/v3/calendars/{{calendar_id}}/events/{{event_id}}",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "afterResponse": "const parse = (value) => {\n  const m = /Z$/i.test(value) ? null : String(value).match(/^(\\d{4})[-/]?(\\d{1,2})?[-/]?(\\d{0,2})[Tt\\s]*(\\d{1,2})?:?(\\d{1,2})?:?(\\d{1,2})?[.:]?(\\d+)?$/);\n  return m ? new Date(m[1], (m[2] || 1) - 1, m[3] || 1, m[4] || 0, m[5] || 0, m[6] || 0, (m[7] || '0').substring(0, 3)) : new Date(value);\n};\nconst pad = (n) => String(n).padStart(2, '0');\nconst local = (value) => {\n  const d = typeof value === 'number' ? new Date(value) : parse(value), s = d.getSeconds(), o = -d.getTimezoneOffset();\n  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(s) + '.' + pad(s) + s +\n    (o < 0 ? '-' : '+') + pad(Math.floor(Math.abs(o) / 60)) + ':' + pad(Math.abs(o) % 60);\n};\nconst has = (value) => value !== undefined && value !== '';\nconst body = Object.assign({}, response);\nif (has(inputs.title)) body.summary = inputs.title;\nif (has(inputs.description)) body.description = inputs.description;\nif (has(inputs.location)) body.location = inputs.location;\nif (has(inputs.color_id)) body.colorId = inputs.color_id;\nconst attendees = has(inputs.attendees) ? JSON.parse(inputs.attendees) : [];\nif (Array.isArray(attendees) && attendees.length > 0) body.attendees = attendees.map((email) => ({email}));\nconst when = (value, current) => Object.assign({dateTime: local(value)}, current && current.timeZone ? {timeZone: current.timeZone} : {});\nif (has(inputs.start_date_time)) body.start = when(inputs.start_date_time, response.start);\nif (has(inputs.end_date_time)) body.end = when(inputs.end_date_time, response.end);\nif (has(inputs.guests_can_invite_others)) body.guestsCanInviteOthers = inputs.guests_can_invite_others === 'true';\nif (has(inputs.guests_can_modify)) body.guestsCanModify = inputs.guests_can_modify === 'true';\nif (has(inputs.guests_can_see_other_guests)) body.guestsCanSeeOtherGuests = inputs.guests_can_see_other_guests === 'true';\nreturn call({method: 'PUT', url: '/calendars/' + encodeURIComponent(inputs.calendar_id) + '/events/' + encodeURIComponent(inputs.event_id), query: {conferenceDataVersion: '1'}, headers: {'x-goog-api-client': 'gdcl/8.0.2 gl-node/26.4.0'}, body});"
+    },
+    "delete_event": {
+      "label": "Delete Event",
+      "description": "Deletes an event from Google Calendar.",
+      "inputs": {
+        "calendar_id": {
+          "label": "Calendar",
+          "required": true,
+          "list": "writable_calendars"
+        },
+        "event_id": {
+          "label": "Event ID",
+          "description": "Paste the ID from the event URL or a previous step.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://www.googleapis.com/calendar/v3/calendars/{{calendar_id}}/events/{{event_id}}",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "afterResponse": "return '\"\"';"
+    },
+    "google_calendar_find_busy_free_periods": {
+      "label": "Find Busy/Free Periods in Calendar",
+      "description": "Finds busy periods across calendars in a time range.",
+      "inputs": {
+        "calendar_ids": {
+          "label": "Calendars",
+          "description": "Calendars to check. A JSON list of calendar IDs, such as [\"primary\"].",
+          "type": "json",
+          "required": true
+        },
+        "start_date": {
+          "label": "Start Time",
+          "description": "The start of the time range to check.",
+          "required": true
+        },
+        "end_date": {
+          "label": "End Time",
+          "description": "The end of the time range to check.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://www.googleapis.com/calendar/v3/freeBusy"
+      },
+      "beforeRequest": "const parse = (value) => {\n  const m = /Z$/i.test(value) ? null : String(value).match(/^(\\d{4})[-/]?(\\d{1,2})?[-/]?(\\d{0,2})[Tt\\s]*(\\d{1,2})?:?(\\d{1,2})?:?(\\d{1,2})?[.:]?(\\d+)?$/);\n  return m ? new Date(m[1], (m[2] || 1) - 1, m[3] || 1, m[4] || 0, m[5] || 0, m[6] || 0, (m[7] || '0').substring(0, 3)) : new Date(value);\n};\nrequest.body = {timeMin: parse(inputs.start_date).toISOString(), timeMax: parse(inputs.end_date).toISOString(), items: JSON.parse(inputs.calendar_ids).map((id) => ({id}))};\nreturn request;"
+    },
+    "google_calendar_get_event_by_id": {
+      "label": "Get Event by ID",
+      "description": "Gets an event by its ID.",
+      "inputs": {
+        "calendar_id": {
+          "label": "Calendar",
+          "required": true,
+          "list": "all_calendars"
+        },
+        "event_id": {
+          "label": "Event ID",
+          "description": "Paste the ID from the event URL or a previous step.",
+          "required": true
+        },
+        "max_attendees": {
+          "label": "Max Attendees",
+          "description": "Above this count, only you are returned.",
+          "type": "number"
+        },
+        "time_zone": {
+          "label": "Time Zone",
+          "description": "IANA name, e.g. America/New_York. Defaults to the calendar zone."
+        }
+      },
+      "request": {
+        "url": "https://www.googleapis.com/calendar/v3/calendars/{{calendar_id}}/events/{{event_id}}"
+      },
+      "beforeRequest": "const calendarId = inputs.calendar_id, eventId = inputs.event_id;\nif (!calendarId || calendarId.trim().length === 0) throw new Error('Calendar ID is required');\nif (!eventId || eventId.trim().length === 0) throw new Error('Event ID cannot be empty');\nif (eventId.length < 5 || eventId.length > 1024) throw new Error('Event ID must be between 5 and 1024 characters');\nrequest.query = {};\nif (inputs.max_attendees && Number(inputs.max_attendees) > 0) request.query.maxAttendees = String(Number(inputs.max_attendees));\nif (inputs.time_zone && inputs.time_zone.trim().length > 0) request.query.timeZone = inputs.time_zone.trim();\nrequest.url = '/calendars/' + encodeURIComponent(calendarId.trim()) + '/events/' + encodeURIComponent(eventId.trim());\nreturn request;"
+    },
+    "google_calendar_search_events_all_calendars": {
+      "label": "Search Events Across Calendars",
+      "description": "Searches every calendar you can see for events matching a term in a time range.",
+      "inputs": {
+        "search_term": {
+          "label": "Search Term",
+          "description": "Matched against title, description, location and guests.",
+          "required": true
+        },
+        "start_date": {
+          "label": "Start Time",
+          "description": "Only events that end after this time.",
+          "required": true
+        },
+        "end_date": {
+          "label": "End Time",
+          "description": "Only events that start before this time.",
+          "required": true
+        },
+        "single_events": {
+          "label": "Expand Recurring Events",
+          "description": "Returns each occurrence of a recurring event separately.",
+          "type": "boolean",
+          "defaultValue": "true"
+        }
+      },
+      "request": {
+        "url": "https://www.googleapis.com/calendar/v3/users/me/calendarList",
+        "query": {
+          "showDeleted": "false"
+        }
+      },
+      "afterResponse": "const parse = (value) => {\n  const m = /Z$/i.test(value) ? null : String(value).match(/^(\\d{4})[-/]?(\\d{1,2})?[-/]?(\\d{0,2})[Tt\\s]*(\\d{1,2})?:?(\\d{1,2})?:?(\\d{1,2})?[.:]?(\\d+)?$/);\n  return m ? new Date(m[1], (m[2] || 1) - 1, m[3] || 1, m[4] || 0, m[5] || 0, m[6] || 0, (m[7] || '0').substring(0, 3)) : new Date(value);\n};\nconst form = (query) => Object.keys(query).filter((key) => query[key] !== undefined).map((key) => key + '=' +\n  encodeURIComponent(query[key]).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+')).join('&');\nconst calendars = response.items, timeMin = parse(inputs.start_date).toISOString(), timeMax = parse(inputs.end_date).toISOString();\nconst events = [], skipped = [];\nfor (const calendar of calendars) {\n  let pageToken = '';\n  do {\n    const query = {q: inputs.search_term, timeMin, timeMax, singleEvents: inputs.single_events === 'true' ? 'true' : 'false', showDeleted: 'false', maxResults: '250'};\n    if (pageToken) query.pageToken = pageToken;\n    let page;\n    try {\n      page = call({method: 'GET', url: '/calendars/' + encodeURIComponent(calendar.id) + '/events?' + form(query)});\n    } catch (error) {\n      const status = Number((String(error.message || error).match(/answered with status (\\d{3})\\b/) || [])[1]);\n      if (status === 429) throw new Error('Google Calendar rate limit reached while searching calendars. Please retry shortly.');\n      if (status !== 403 && status !== 404) throw error;\n      skipped.push({calendarId: calendar.id, status});\n      break;\n    }\n    for (const event of page.items || []) events.push(Object.assign({}, event, {calendarId: calendar.id}));\n    pageToken = page.nextPageToken;\n  } while (pageToken);\n}\nreturn Object.assign({events, count: events.length, calendars_searched: calendars.length - skipped.length}, skipped.length > 0 ? {skipped_calendars: skipped,\n  warning: 'Some calendars could not be searched (access denied or not found); a missing match may live in a skipped calendar. See skipped_calendars.'} : {});"
+    },
+    "google_calendar_find_free_slots": {
+      "label": "Find Free Time Slots",
+      "description": "Finds the open time slots that one or more calendars share in a time range.",
+      "inputs": {
+        "calendar_ids": {
+          "label": "Calendars",
+          "description": "A slot is open only when every calendar is free. A JSON list of calendar IDs, such as [\"primary\"].",
+          "type": "json",
+          "required": true
+        },
+        "start_date": {
+          "label": "Window Start",
+          "description": "The start of the time range to search.",
+          "required": true
+        },
+        "end_date": {
+          "label": "Window End",
+          "description": "The end of the time range to search.",
+          "required": true
+        },
+        "min_duration_minutes": {
+          "label": "Minimum Slot Length (minutes)",
+          "description": "Leave empty to return every open slot.",
+          "type": "number"
+        },
+        "working_hours_start": {
+          "label": "Working Hours Start (hour 0-23)",
+          "description": "Cuts each day's slots to working hours, in UTC, with Working Hours End.",
+          "type": "number"
+        },
+        "working_hours_end": {
+          "label": "Working Hours End (hour 0-23)",
+          "description": "Ignored without Working Hours Start.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://www.googleapis.com/calendar/v3/freeBusy"
+      },
+      "beforeRequest": "const parse = (value) => {\n  const m = /Z$/i.test(value) ? null : String(value).match(/^(\\d{4})[-/]?(\\d{1,2})?[-/]?(\\d{0,2})[Tt\\s]*(\\d{1,2})?:?(\\d{1,2})?:?(\\d{1,2})?[.:]?(\\d+)?$/);\n  return m ? new Date(m[1], (m[2] || 1) - 1, m[3] || 1, m[4] || 0, m[5] || 0, m[6] || 0, (m[7] || '0').substring(0, 3)) : new Date(value);\n};\nif (parse(inputs.end_date).getTime() <= parse(inputs.start_date).getTime()) throw new Error('Window End must be after Window Start.');\nrequest.body = {timeMin: parse(inputs.start_date).toISOString(), timeMax: parse(inputs.end_date).toISOString(), items: JSON.parse(inputs.calendar_ids).map((id) => ({id}))};\nreturn request;",
+      "afterResponse": "const parse = (value) => {\n  const m = /Z$/i.test(value) ? null : String(value).match(/^(\\d{4})[-/]?(\\d{1,2})?[-/]?(\\d{0,2})[Tt\\s]*(\\d{1,2})?:?(\\d{1,2})?:?(\\d{1,2})?[.:]?(\\d+)?$/);\n  return m ? new Date(m[1], (m[2] || 1) - 1, m[3] || 1, m[4] || 0, m[5] || 0, m[6] || 0, (m[7] || '0').substring(0, 3)) : new Date(value);\n};\nconst has = (value) => value !== undefined && value !== '';\nconst windowStart = parse(inputs.start_date).getTime(), windowEnd = parse(inputs.end_date).getTime();\nconst number = (value) => has(value) ? Number(value) : undefined;\nconst minimum = number(inputs.min_duration_minutes), startHour = number(inputs.working_hours_start), endHour = number(inputs.working_hours_end);\nconst busy = [], failed = [];\nfor (const calendarId of Object.keys(response.calendars)) {\n  const result = response.calendars[calendarId];\n  if (result.errors && result.errors.length) { failed.push({calendarId, errors: result.errors}); continue; }\n  for (const block of result.busy || []) busy.push({start: parse(block.start).getTime(), end: parse(block.end).getTime()});\n}\nif (failed.length > 0) throw new Error('Could not read availability for calendar(s): ' + failed.map((entry) => entry.calendarId + ' (' + entry.errors.map((error) => error.reason).join(', ') + ')').join('; ') +\n  '. A slot can only be marked free if every selected calendar is free, so free slots cannot be computed while any of them are unreadable. Verify the calendar IDs with List Calendars.');\nconst merged = [];\nfor (const block of busy.sort((a, b) => a.start - b.start)) {\n  const last = merged[merged.length - 1];\n  if (last && block.start <= last.end) last.end = Math.max(last.end, block.end); else merged.push({start: block.start, end: block.end});\n}\nlet free = [], cursor = windowStart;\nfor (const block of merged) {\n  if (block.start > cursor) free.push({start: cursor, end: Math.min(block.start, windowEnd)});\n  cursor = Math.max(cursor, block.end);\n  if (cursor >= windowEnd) break;\n}\nif (cursor < windowEnd) free.push({start: cursor, end: windowEnd});\nfree = free.filter((slot) => slot.end > slot.start);\nif (startHour !== undefined && endHour !== undefined && endHour > startHour) {\n  const clipped = [], hour = 3600000, day = 24 * hour;\n  for (const slot of free) {\n    const first = new Date(slot.start);\n    let dayStart = Date.UTC(first.getUTCFullYear(), first.getUTCMonth(), first.getUTCDate());\n    while (dayStart < slot.end) {\n      const start = Math.max(slot.start, dayStart + startHour * hour), end = Math.min(slot.end, dayStart + endHour * hour);\n      if (end > start) clipped.push({start, end});\n      dayStart += day;\n      if (dayStart > slot.end) break;\n    }\n  }\n  free = clipped;\n}\nif (minimum !== undefined && minimum > 0) free = free.filter((slot) => slot.end - slot.start >= minimum * 60000);\nconst slots = free.map((slot) => ({start: new Date(slot.start).toISOString(), end: new Date(slot.end).toISOString(), duration_minutes: Math.round((slot.end - slot.start) / 60000)}));\nreturn {free_slots: slots, count: slots.length};"
+    },
+    "google_calendar_list_recurring_event_instances": {
+      "label": "List Recurring Event Instances",
+      "description": "Lists the occurrences of a recurring event, each with its own event ID.",
+      "inputs": {
+        "calendar_id": {
+          "label": "Calendar",
+          "required": true,
+          "list": "all_calendars"
+        },
+        "event_id": {
+          "label": "Recurring Event ID",
+          "description": "The ID of the series, not of one occurrence.",
+          "required": true
+        },
+        "start_date": {
+          "label": "Start Time",
+          "description": "Only occurrences that end after this time."
+        },
+        "end_date": {
+          "label": "End Time",
+          "description": "Only occurrences that start before this time."
+        },
+        "show_deleted": {
+          "label": "Include Cancelled Occurrences",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "max_results": {
+          "label": "Max Results",
+          "description": "Most occurrences per page, from 1 to 2500. Defaults to 250.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "url": "https://www.googleapis.com/calendar/v3/calendars/{{calendar_id}}/events/{{event_id}}/instances",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "beforeRequest": "const parse = (value) => {\n  const m = /Z$/i.test(value) ? null : String(value).match(/^(\\d{4})[-/]?(\\d{1,2})?[-/]?(\\d{0,2})[Tt\\s]*(\\d{1,2})?:?(\\d{1,2})?:?(\\d{1,2})?[.:]?(\\d+)?$/);\n  return m ? new Date(m[1], (m[2] || 1) - 1, m[3] || 1, m[4] || 0, m[5] || 0, m[6] || 0, (m[7] || '0').substring(0, 3)) : new Date(value);\n};\nrequest.query = {showDeleted: inputs.show_deleted === 'true' ? 'true' : 'false'};\nif (inputs.start_date) request.query.timeMin = parse(inputs.start_date).toISOString();\nif (inputs.end_date) request.query.timeMax = parse(inputs.end_date).toISOString();\nif (inputs.max_results) request.query.maxResults = inputs.max_results;\nreturn request;",
+      "afterResponse": "return {instances: response.items ?? [], count: (response.items ?? []).length, nextPageToken: response.nextPageToken ?? null};"
+    },
+    "google_calendar_move_event": {
+      "label": "Move Event to Another Calendar",
+      "description": "Moves an event to another calendar, keeping its ID.",
+      "inputs": {
+        "calendar_id": {
+          "label": "Calendar",
+          "required": true,
+          "list": "writable_calendars"
+        },
+        "event_id": {
+          "label": "Event ID",
+          "description": "Paste the ID from the event URL or a previous step.",
+          "required": true
+        },
+        "destination_calendar_id": {
+          "label": "Destination Calendar",
+          "required": true,
+          "list": "writable_calendars"
+        },
+        "send_updates": {
+          "label": "Send Notifications",
+          "description": "Who is told about the new organizer.",
+          "type": "select",
+          "defaultValue": "none",
+          "options": [
+            {
+              "value": "all",
+              "label": "All guests"
+            },
+            {
+              "value": "externalOnly",
+              "label": "External guests only"
+            },
+            {
+              "value": "none",
+              "label": "No one"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://www.googleapis.com/calendar/v3/calendars/{{calendar_id}}/events/{{event_id}}/move",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        },
+        "query": {
+          "destination": "{{destination_calendar_id}}",
+          "sendUpdates": "{{send_updates}}"
+        }
+      },
+      "beforeRequest": "request.query.sendUpdates = inputs.send_updates || 'none';\nif (inputs.calendar_id === inputs.destination_calendar_id) {\n  request.method = 'GET';\n  request.url = '/calendars/' + encodeURIComponent(inputs.destination_calendar_id) + '/events/' + encodeURIComponent(inputs.event_id);\n  request.query = {};\n}\nreturn request;",
+      "afterResponse": "if (inputs.calendar_id === inputs.destination_calendar_id) return {moved: false, already_in_destination: true, event: response};\nconst event = call({method: 'GET', url: '/calendars/' + encodeURIComponent(inputs.destination_calendar_id) + '/events/' + encodeURIComponent(inputs.event_id), headers: {'x-goog-api-client': 'gdcl/8.0.2 gl-node/26.4.0'}});\nreturn {moved: true, already_in_destination: false, event};"
+    },
+    "google_calendar_remove_attendee": {
+      "label": "Remove Attendee",
+      "description": "Removes one guest from an event, by email.",
+      "inputs": {
+        "calendar_id": {
+          "label": "Calendar",
+          "required": true,
+          "list": "writable_calendars"
+        },
+        "event_id": {
+          "label": "Event ID",
+          "description": "Paste the ID from the event URL or a previous step.",
+          "required": true
+        },
+        "attendee_email": {
+          "label": "Attendee Email",
+          "description": "The email of the guest to remove.",
+          "required": true
+        },
+        "send_updates": {
+          "label": "Send Notifications",
+          "description": "Who is told about the guest change.",
+          "type": "select",
+          "defaultValue": "none",
+          "options": [
+            {
+              "value": "all",
+              "label": "All guests"
+            },
+            {
+              "value": "externalOnly",
+              "label": "External guests only"
+            },
+            {
+              "value": "none",
+              "label": "No one"
+            }
+          ]
+        }
+      },
+      "request": {
+        "url": "https://www.googleapis.com/calendar/v3/calendars/{{calendar_id}}/events/{{event_id}}",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "afterResponse": "const target = inputs.attendee_email.trim().toLowerCase();\nconst current = response.attendees || [];\nconst remaining = current.filter((attendee) => (attendee.email || '').trim().toLowerCase() !== target);\nif (remaining.length === current.length) {\n  return {removed: false, attendee_email: inputs.attendee_email, message: 'Attendee \"' + inputs.attendee_email + '\" was not on event \"' + inputs.event_id + '\"; nothing to remove.', event: response};\n}\nconst headers = Object.assign({'x-goog-api-client': 'gdcl/8.0.2 gl-node/26.4.0'}, response.etag ? {'If-Match': response.etag} : {});\nconst event = call({method: 'PATCH', url: '/calendars/' + encodeURIComponent(inputs.calendar_id) + '/events/' + encodeURIComponent(inputs.event_id),\n  query: {sendUpdates: inputs.send_updates || 'none'}, headers, body: {attendees: remaining}});\nreturn {removed: true, attendee_email: inputs.attendee_email, event};"
+    },
+    "google_calendar_import_event": {
+      "label": "Import Event",
+      "description": "Imports an event into a calendar as a private copy, by its iCal UID.",
+      "inputs": {
+        "calendar_id": {
+          "label": "Calendar",
+          "required": true,
+          "list": "writable_calendars"
+        },
+        "ical_uid": {
+          "label": "iCal UID",
+          "description": "The event's global ID, such as abc123@google.com. Importing the same UID again updates the copy.",
+          "required": true
+        },
+        "title": {
+          "label": "Title",
+          "required": true
+        },
+        "start_date_time": {
+          "label": "Start Time",
+          "required": true
+        },
+        "end_date_time": {
+          "label": "End Time",
+          "required": true
+        },
+        "location": {
+          "label": "Location"
+        },
+        "description": {
+          "label": "Description",
+          "description": "HTML tags are allowed.",
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://www.googleapis.com/calendar/v3/calendars/{{calendar_id}}/events/import",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "beforeRequest": "const parse = (value) => {\n  const m = /Z$/i.test(value) ? null : String(value).match(/^(\\d{4})[-/]?(\\d{1,2})?[-/]?(\\d{0,2})[Tt\\s]*(\\d{1,2})?:?(\\d{1,2})?:?(\\d{1,2})?[.:]?(\\d+)?$/);\n  return m ? new Date(m[1], (m[2] || 1) - 1, m[3] || 1, m[4] || 0, m[5] || 0, m[6] || 0, (m[7] || '0').substring(0, 3)) : new Date(value);\n};\nrequest.body = {iCalUID: inputs.ical_uid, summary: inputs.title, location: inputs.location || undefined, description: inputs.description || undefined,\n  start: {dateTime: parse(inputs.start_date_time).toISOString()}, end: {dateTime: parse(inputs.end_date_time).toISOString()}};\nreturn request;"
+    },
+    "google_calendar_list_calendars": {
+      "label": "List Calendars",
+      "description": "Lists the calendars in your calendar list.",
+      "request": {
+        "url": "https://www.googleapis.com/calendar/v3/users/me/calendarList",
+        "query": {
+          "showDeleted": "false"
+        }
+      },
+      "afterResponse": "const calendars = response.items;\nreturn {calendars: calendars.map((calendar) => ({id: calendar.id, summary: calendar.summary, description: calendar.description, location: calendar.location,\n  timeZone: calendar.timeZone, accessRole: calendar.accessRole, primary: calendar.primary ?? false, selected: calendar.selected ?? false,\n  backgroundColor: calendar.backgroundColor, foregroundColor: calendar.foregroundColor})), count: calendars.length};"
+    },
+    "google_calendar_get_calendar": {
+      "label": "Get Calendar",
+      "description": "Gets a calendar's details, such as its time zone.",
+      "inputs": {
+        "calendar_id": {
+          "label": "Calendar",
+          "required": true,
+          "list": "all_calendars"
+        }
+      },
+      "request": {
+        "url": "https://www.googleapis.com/calendar/v3/calendars/{{calendar_id}}"
+      }
+    },
+    "google_calendar_get_colors": {
+      "label": "Get Colors",
+      "description": "Gets the colors that each color ID stands for.",
+      "request": {
+        "url": "https://www.googleapis.com/calendar/v3/colors"
+      }
+    },
+    "google_calendar_list_settings": {
+      "label": "List Settings",
+      "description": "Lists your calendar settings, such as time zone and week start.",
+      "request": {
+        "url": "https://www.googleapis.com/calendar/v3/users/me/settings"
+      },
+      "afterResponse": "const items = response.items ?? [], settings = {};\nfor (const item of items) settings[item.id] = item.value;\nreturn {settings, items, count: items.length};"
+    }
+  },
+  "triggers": {
+    "new_or_updated_event": {
+      "label": "New or Updated Event",
+      "description": "Fires when an event is added or updated.",
+      "inputs": {
+        "calendar_id": {
+          "label": "Calendar",
+          "required": true,
+          "list": "all_calendars"
+        },
+        "single_events": {
+          "label": "Expand Recurring Events",
+          "description": "Fires once per occurrence of a recurring event.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "url": "https://www.googleapis.com/calendar/v3/calendars/{{calendar_id}}/events"
+      },
+      "key": "$.updated",
+      "beforeRequest": "const since = Number(inputs.lastPollTime) ? new Date(Number(inputs.lastPollTime)) : new Date(Date.now() - 7 * 86400000);\nconst events = '/calendars/' + inputs.calendar_id + '/events';\nconst query = (pageToken) => ({updatedMin: since.toISOString(), maxResults: '2500', orderBy: 'updated', singleEvents: inputs.single_events === 'true' ? 'true' : 'false', showDeleted: 'true', pageToken});\nrequest.url = events;\nrequest.query = query('');\nreturn request;",
+      "afterResponse": "const since = Number(inputs.lastPollTime) ? new Date(Number(inputs.lastPollTime)) : new Date(Date.now() - 7 * 86400000);\nconst events = '/calendars/' + inputs.calendar_id + '/events';\nconst query = (pageToken) => ({updatedMin: since.toISOString(), maxResults: '2500', orderBy: 'updated', singleEvents: inputs.single_events === 'true' ? 'true' : 'false', showDeleted: 'true', pageToken});\nconst items = [...response.items];\nfor (let page = response; page.nextPageToken;) {\n  page = call({method: 'GET', url: events, query: query(page.nextPageToken)});\n  items.push(...page.items);\n}\nreturn items;"
+    },
+    "new_event_matching_search": {
+      "label": "New Event Matching Search",
+      "description": "Fires when a new event is created that matches a specified search term.",
+      "inputs": {
+        "calendar_id": {
+          "label": "Calendar",
+          "required": true,
+          "list": "writable_calendars"
+        },
+        "search_term": {
+          "label": "Search Term",
+          "description": "Matched against title, description, location and guests.",
+          "required": true
+        },
+        "event_types": {
+          "label": "Event Types",
+          "description": "Leave empty to include every type. A JSON list of \"default\", \"birthday\", \"focusTime\", \"outOfOffice\", \"workingLocation\", \"fromGmail\".",
+          "type": "json"
+        },
+        "search_fields": {
+          "label": "Search In",
+          "description": "Leave empty to search every field. A JSON list of \"summary\", \"description\", \"location\", \"attendees\".",
+          "type": "json"
+        }
+      },
+      "request": {
+        "url": "https://www.googleapis.com/calendar/v3/calendars/{{calendar_id}}/events"
+      },
+      "key": "$.updated",
+      "beforeRequest": "const form = (query) => Object.keys(query).filter((key) => query[key] !== undefined).map((key) => key + '=' +\n  encodeURIComponent(query[key]).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+')).join('&');\nconst since = Number(inputs.lastPollTime) ? new Date(Number(inputs.lastPollTime)) : new Date(Date.now() - 1 * 86400000);\nconst types = JSON.parse(inputs.event_types || '[]');\nrequest.url = '/calendars/' + inputs.calendar_id + '/events?' + types.map((type) => 'eventTypes=' + encodeURIComponent(type))\n  .concat(form({singleEvents: 'true', orderBy: 'updated', updatedMin: since.toISOString(), q: inputs.search_term})).join('&');\nreturn request;",
+      "afterResponse": "const term = inputs.search_term.toLowerCase(), fields = JSON.parse(inputs.search_fields || '[]');\nconst has = (text) => (text || '').toLowerCase().includes(term);\nconst matches = (event) => fields.length === 0 || fields.some((field) => field === 'attendees'\n  ? (event.attendees || []).some((attendee) => has(attendee.email) || has(attendee.displayName))\n  : ['summary', 'description', 'location'].includes(field) && has(event[field]));\n// Only events whose last change came within five seconds of their creation are new.\nreturn response.items.filter((event) => new Date(event.updated || 0).getTime() - new Date(event.created || 0).getTime() < 5000 && matches(event));"
+    },
+    "event_cancelled": {
+      "label": "Event Cancelled",
+      "description": "Fires when an event is cancelled or deleted.",
+      "inputs": {
+        "calendar_id": {
+          "label": "Calendar",
+          "required": true,
+          "list": "writable_calendars"
+        },
+        "specific_event": {
+          "label": "Target Specific Event",
+          "description": "Watch one event instead of the whole calendar.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "event_id": {
+          "label": "Event ID",
+          "description": "The event to watch with Target Specific Event. Paste the ID from the event URL or a previous step."
+        },
+        "cancellation_reason": {
+          "label": "Cancellation Reasons",
+          "description": "Leave empty to fire on every cancellation. A JSON list of \"deleted\", \"declined\", \"rescheduled\", \"other\".",
+          "type": "json"
+        }
+      },
+      "request": {
+        "url": "https://www.googleapis.com/calendar/v3/calendars/{{calendar_id}}/events"
+      },
+      "key": "$.updated",
+      "beforeRequest": "const since = Number(inputs.lastPollTime) ? new Date(Number(inputs.lastPollTime)) : new Date(Date.now() - 1 * 86400000);\nconst events = '/calendars/' + inputs.calendar_id + '/events';\nconst query = (pageToken) => ({updatedMin: since.toISOString(), maxResults: '2500', orderBy: 'updated', singleEvents: 'true', showDeleted: 'true', pageToken});\nif (inputs.specific_event !== 'true') {\n  request.url = events;\n  request.query = query('');\n} else if (inputs.event_id) request.url = events + '/' + inputs.event_id;\nelse throw new Error('Choose the event to watch, or turn off Target Specific Event.');\nreturn request;",
+      "afterResponse": "const since = Number(inputs.lastPollTime) ? new Date(Number(inputs.lastPollTime)) : new Date(Date.now() - 1 * 86400000);\nconst events = '/calendars/' + inputs.calendar_id + '/events';\nconst query = (pageToken) => ({updatedMin: since.toISOString(), maxResults: '2500', orderBy: 'updated', singleEvents: 'true', showDeleted: 'true', pageToken});\nlet cancelled;\nif (inputs.specific_event === 'true') {\n  cancelled = new Date(response.updated || 0).getTime() > (Number(inputs.lastPollTime) || 0) && response.status === 'cancelled' ? [response] : [];\n} else {\n  const items = [...response.items];\n  for (let page = response; page.nextPageToken;) {\n    page = call({method: 'GET', url: events, query: query(page.nextPageToken)});\n    items.push(...page.items);\n  }\n  cancelled = items.filter((event) => event.status === 'cancelled');\n}\nconst reasons = JSON.parse(inputs.cancellation_reason || '[]');\nconst lower = (text) => (text || '').toLowerCase();\nconst because = {\n  deleted: (event) => !event.summary || event.summary.includes('Deleted'),\n  declined: (event) => (event.attendees || []).some((attendee) => attendee.responseStatus === 'declined'),\n  rescheduled: (event) => lower(event.summary).includes('rescheduled') || lower(event.description).includes('rescheduled')\n};\nreturn reasons.length === 0 ? cancelled : cancelled.filter((event) => reasons.some((reason) => (because[reason] || (() => true))(event)));"
+    },
+    "event_ends": {
+      "label": "Event Ends",
+      "description": "Fires when an event ends.",
+      "inputs": {
+        "calendar_id": {
+          "label": "Calendar",
+          "required": true,
+          "list": "writable_calendars"
+        },
+        "specific_event": {
+          "label": "Target Specific Event",
+          "description": "Watch one event instead of the whole calendar.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "event_id": {
+          "label": "Event ID",
+          "description": "The event to watch with Target Specific Event. Paste the ID from the event URL or a previous step."
+        }
+      },
+      "request": {
+        "url": "https://www.googleapis.com/calendar/v3/calendars/{{calendar_id}}/events"
+      },
+      "key": "$.time",
+      "emit": "$.data",
+      "beforeRequest": "const events = '/calendars/' + inputs.calendar_id + '/events';\nif (inputs.specific_event !== 'true') {\n  request.url = events;\n  request.query = {singleEvents: 'true', orderBy: 'startTime', timeMin: new Date(Number(inputs.lastPollTime) || Date.now()).toISOString()};\n} else if (inputs.event_id) request.url = events + '/' + inputs.event_id;\nelse throw new Error('Choose the event to watch, or turn off Target Specific Event.');\nreturn request;",
+      "afterResponse": "const since = Number(inputs.lastPollTime) || 0, now = Date.now();\nconst events = inputs.specific_event === 'true' ? [response] : response.items || [];\n// An all-day event ends on a date alone.\nreturn events.map((event) => ({time: new Date(event.end?.dateTime ?? event.end?.date).getTime(), data: event}))\n  .filter((ended) => ended.time > since && ended.time <= now);"
+    },
+    "new_calendar": {
+      "label": "New Calendar",
+      "description": "Fires when a new calendar is created or shared with you.",
+      "inputs": {
+        "access_role_filter": {
+          "label": "Access Role Filter",
+          "description": "Leave empty to fire for every access role. A JSON list of \"owner\", \"writer\", \"reader\", \"freeBusyReader\".",
+          "type": "json"
+        },
+        "calendar_name_filter": {
+          "label": "Calendar Name Filter",
+          "description": "Only calendars whose name or description contain this."
+        },
+        "exclude_shared": {
+          "label": "Exclude Shared Calendars",
+          "description": "Fires only for calendars you own.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "url": "https://www.googleapis.com/calendar/v3/users/me/calendarList",
+        "query": {
+          "showDeleted": "false"
+        }
+      },
+      "newBy": "lastItem",
+      "afterResponse": "const roles = JSON.parse(inputs.access_role_filter || '[]'), term = (inputs.calendar_name_filter || '').toLowerCase().trim();\nlet calendars = response.items;\nif (roles.length > 0) calendars = calendars.filter((calendar) => roles.includes(calendar.accessRole));\nif (term) calendars = calendars.filter((calendar) => calendar.summary?.toLowerCase().includes(term) || calendar.description?.toLowerCase().includes(term));\nif (inputs.exclude_shared === 'true') calendars = calendars.filter((calendar) => calendar.accessRole === 'owner' || calendar.primary);\nconst first = memory.calendars === undefined, seen = new Set(memory.calendars || []);\nmemory.calendars = calendars.map((calendar) => calendar.id);\nconst fresh = calendars.filter((calendar) => !seen.has(calendar.id)).map((calendar) => Object.assign({}, calendar, {isOwned: calendar.accessRole === 'owner' || calendar.primary,\n  isShared: calendar.accessRole !== 'owner' && !calendar.primary, calendarType: calendar.primary ? 'primary' : calendar.accessRole === 'owner' ? 'owned' : 'shared'}));\n// The first check fires nothing. When it finds no calendar, an empty mark still lets the next check fire the new ones.\nreturn first && fresh.length === 0 ? [{id: ''}] : fresh;"
+    }
+  }
+}

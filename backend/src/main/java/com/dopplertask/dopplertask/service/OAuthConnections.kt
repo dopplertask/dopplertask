@@ -49,7 +49,8 @@ class OAuthConnections(
 
     /** The address of the service's sign-in page for this credential. */
     fun start(name: String, serverAddress: String): String {
-        val values = credentials.valuesNamed(name)
+        // A connector's credential signs in by the connector's own addresses, which its kind names.
+        val values = credentials.valuesNamed(name).let { if (it["oauthProvider"].isNullOrBlank()) it + ("oauthProvider" to credentials.typeNamed(name)) else it }
         if (values["oauthGrant"] == OAuthSignIn.CLIENT_CREDENTIALS) {
             throw CredentialProblemException("$name signs in as its client, so there is no account to connect. Steps sign in when they run.")
         }
@@ -75,7 +76,7 @@ class OAuthConnections(
             "code_challenge_method" to "S256"
         )
         OAuthSignIn.scopeOf(values).takeIf { it.isNotBlank() }?.let { parameters["scope"] = it }
-        val extra = listOf(OAuthSignIn.PROVIDERS[values["oauthProvider"]]?.authParameters.orEmpty(), values["oauthAuthParameters"].orEmpty())
+        val extra = listOf(OAuthSignIn.providerOf(values)?.authParameters.orEmpty(), values["oauthAuthParameters"].orEmpty())
             .filter { it.isNotBlank() }.joinToString("&")
         val query = parameters.entries.joinToString("&") { "${it.key}=${JsonApi.encoded(it.value)}" } + if (extra.isBlank()) "" else "&$extra"
         return authUrl + (if (authUrl.contains('?')) "&" else "?") + query

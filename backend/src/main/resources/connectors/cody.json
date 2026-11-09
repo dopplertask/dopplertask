@@ -1,0 +1,488 @@
+{
+  "name": "cody",
+  "label": "Cody",
+  "description": "AI assistant trained on your business knowledge: bots, conversations and knowledge-base documents.",
+  "icon": "",
+  "hosts": [
+    "getcody.ai"
+  ],
+  "baseUrl": "https://getcody.ai/api/v1",
+  "upstream": {
+    "package": "@activepieces/piece-cody",
+    "version": "0.3.2"
+  },
+  "credential": {
+    "fields": {
+      "apiKey": {
+        "label": "API Key",
+        "description": "Visit your Cody AI API Keys page to retrieve the API key.",
+        "secret": true,
+        "required": true
+      }
+    },
+    "headers": {
+      "Authorization": "Bearer {{credential.apiKey}}"
+    }
+  },
+  "lists": {
+    "folders": {
+      "request": {
+        "url": "https://getcody.ai/api/v1/folders"
+      },
+      "items": "$.data",
+      "label": "$.name",
+      "value": "$.id"
+    },
+    "conversations": {
+      "request": {
+        "url": "https://getcody.ai/api/v1/conversations"
+      },
+      "items": "$.data",
+      "label": "$.name",
+      "value": "$.id"
+    },
+    "bots": {
+      "request": {
+        "url": "https://getcody.ai/api/v1/bots"
+      },
+      "items": "$.data",
+      "label": "$.name",
+      "value": "$.id"
+    }
+  },
+  "actions": {
+    "create_document_from_text": {
+      "label": "Create Document From Text",
+      "description": "Upload text content to create a new document within the Cody knowledge base.",
+      "inputs": {
+        "folder_id": {
+          "label": "Folder",
+          "required": true,
+          "list": "folders"
+        },
+        "name": {
+          "label": "Document Name",
+          "description": "The name or title of the new document.",
+          "required": true
+        },
+        "content": {
+          "label": "Content",
+          "description": "The text or HTML content to be added to the document. Max 768 KB.",
+          "type": "multiline",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://getcody.ai/api/v1/documents",
+        "body": {
+          "name": "{{name}}",
+          "folder_id": "{{folder_id}}",
+          "content": "{{content}}"
+        }
+      }
+    },
+    "send_message": {
+      "label": "Send Message",
+      "description": "Send your message and receive the AI-generated response.",
+      "inputs": {
+        "conversation_id": {
+          "label": "Conversation",
+          "required": true,
+          "list": "conversations"
+        },
+        "content": {
+          "label": "Message",
+          "description": "The message to send to the conversation. (Max 2000 characters)",
+          "type": "multiline",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://getcody.ai/api/v1/messages",
+        "body": {
+          "conversation_id": "{{conversation_id}}",
+          "content": "{{content}}"
+        }
+      }
+    },
+    "create_conversation": {
+      "label": "Create Conversation",
+      "description": "Creates a new conversation with a bot.",
+      "inputs": {
+        "bot_id": {
+          "label": "Bot",
+          "required": true,
+          "list": "bots"
+        },
+        "name": {
+          "label": "Conversation Name",
+          "description": "The name for the new conversation.",
+          "required": true
+        },
+        "document_ids": {
+          "label": "Document IDs (Focus Mode)",
+          "description": "A list of document IDs to limit the bot's knowledge base for this conversation.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://getcody.ai/api/v1/conversations",
+        "body": {
+          "bot_id": "{{bot_id}}",
+          "name": "{{name}}",
+          "document_ids": "{{document_ids}}"
+        }
+      }
+    },
+    "list_bots": {
+      "label": "List Bots",
+      "description": "List or search the bots in the Cody workspace.",
+      "inputs": {
+        "keyword": {
+          "label": "Keyword",
+          "description": "A name keyword to filter bots by (case-insensitive partial match). Leave empty to list all bots."
+        }
+      },
+      "request": {
+        "url": "https://getcody.ai/api/v1/bots",
+        "query": {
+          "keyword": "{{keyword}}"
+        }
+      },
+      "afterResponse": "return {bots: response.data, count: response.data.length};"
+    },
+    "list_conversations": {
+      "label": "List Conversations",
+      "description": "List or search conversations in the Cody workspace.",
+      "inputs": {
+        "bot_id": {
+          "label": "Bot",
+          "description": "The bot to list conversations for. Leave empty to list across all bots.",
+          "list": "bots"
+        },
+        "keyword": {
+          "label": "Keyword",
+          "description": "A name keyword to filter conversations by (partial match). Leave empty to list all."
+        }
+      },
+      "request": {
+        "url": "https://getcody.ai/api/v1/conversations",
+        "query": {
+          "bot_id": "{{bot_id}}",
+          "keyword": "{{keyword}}"
+        }
+      },
+      "afterResponse": "return {conversations: response.data, count: response.data.length};"
+    },
+    "get_conversation": {
+      "label": "Get Conversation",
+      "description": "Retrieve a single Cody conversation by its ID.",
+      "inputs": {
+        "conversation_id": {
+          "label": "Conversation",
+          "description": "The conversation to retrieve.",
+          "required": true,
+          "list": "conversations"
+        },
+        "includes": {
+          "label": "Includes",
+          "description": "Comma-separated related data to embed in the response. One or more of: 'document_ids', 'messages'."
+        }
+      },
+      "request": {
+        "url": "https://getcody.ai/api/v1/conversations/{{conversation_id}}",
+        "query": {
+          "includes": "{{includes}}"
+        }
+      }
+    },
+    "update_conversation": {
+      "label": "Update Conversation",
+      "description": "Update a Cody conversation (full replace of name, bot, and focus documents).",
+      "inputs": {
+        "conversation_id": {
+          "label": "Conversation",
+          "description": "The conversation to update.",
+          "required": true,
+          "list": "conversations"
+        },
+        "name": {
+          "label": "Conversation Name",
+          "description": "The conversation name. Required (full replace): re-send the current name if you only want to change the bot.",
+          "required": true
+        },
+        "bot_id": {
+          "label": "Bot",
+          "description": "The bot for the conversation. Required (full replace): re-send the current bot if you only want to rename.",
+          "required": true,
+          "list": "bots"
+        },
+        "document_ids": {
+          "label": "Document IDs (Focus Mode)",
+          "description": "A list of document IDs to set as the focus-mode documents for this conversation (full replace). Re-send the current focus documents (from Get Conversation) to keep them; leaving it empty may clear focus mode. List Documents gives the IDs.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://getcody.ai/api/v1/conversations/{{conversation_id}}",
+        "body": {
+          "name": "{{name}}",
+          "bot_id": "{{bot_id}}",
+          "document_ids": "{{document_ids}}"
+        }
+      }
+    },
+    "delete_conversation": {
+      "label": "Delete Conversation",
+      "description": "Permanently delete a Cody conversation by its ID.",
+      "inputs": {
+        "conversation_id": {
+          "label": "Conversation",
+          "description": "The conversation to permanently delete.",
+          "required": true,
+          "list": "conversations"
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://getcody.ai/api/v1/conversations/{{conversation_id}}"
+      },
+      "afterResponse": "return {success: true, conversation_id: inputs.conversation_id};"
+    },
+    "list_messages": {
+      "label": "List Messages",
+      "description": "List the messages in a Cody conversation.",
+      "inputs": {
+        "conversation_id": {
+          "label": "Conversation",
+          "description": "The conversation whose messages to list.",
+          "required": true,
+          "list": "conversations"
+        },
+        "page": {
+          "label": "Page",
+          "description": "The 1-based page number for pagination.",
+          "type": "number"
+        },
+        "per_page": {
+          "label": "Per Page",
+          "description": "The number of messages to return per page.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "url": "https://getcody.ai/api/v1/messages",
+        "query": {
+          "conversation_id": "{{conversation_id}}",
+          "page": "{{page}}",
+          "per_page": "{{per_page}}"
+        }
+      }
+    },
+    "get_message": {
+      "label": "Get Message",
+      "description": "Retrieve a single Cody message by its ID.",
+      "inputs": {
+        "message_id": {
+          "label": "Message ID",
+          "description": "The ID of the message to retrieve, as List Messages gives it.",
+          "required": true
+        },
+        "includes": {
+          "label": "Includes",
+          "description": "Comma-separated related data to embed in the response."
+        }
+      },
+      "request": {
+        "url": "https://getcody.ai/api/v1/messages/{{message_id}}",
+        "query": {
+          "includes": "{{includes}}"
+        }
+      }
+    },
+    "list_folders": {
+      "label": "List Folders",
+      "description": "List or search the knowledge-base folders in the Cody workspace.",
+      "inputs": {
+        "keyword": {
+          "label": "Keyword",
+          "description": "A name keyword to filter folders by (partial match). Leave empty to list all folders."
+        },
+        "page": {
+          "label": "Page",
+          "description": "The 1-based page number for pagination.",
+          "type": "number"
+        },
+        "per_page": {
+          "label": "Per Page",
+          "description": "The number of folders to return per page.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "url": "https://getcody.ai/api/v1/folders",
+        "query": {
+          "keyword": "{{keyword}}",
+          "page": "{{page}}",
+          "per_page": "{{per_page}}"
+        }
+      }
+    },
+    "get_folder": {
+      "label": "Get Folder",
+      "description": "Retrieve a single Cody knowledge-base folder by its ID.",
+      "inputs": {
+        "folder_id": {
+          "label": "Folder",
+          "description": "The folder to retrieve.",
+          "required": true,
+          "list": "folders"
+        }
+      },
+      "request": {
+        "url": "https://getcody.ai/api/v1/folders/{{folder_id}}"
+      }
+    },
+    "create_folder": {
+      "label": "Create Folder",
+      "description": "Create a Cody knowledge-base folder.",
+      "inputs": {
+        "name": {
+          "label": "Name",
+          "description": "The name of the new folder.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://getcody.ai/api/v1/folders",
+        "body": {
+          "name": "{{name}}"
+        }
+      }
+    },
+    "rename_folder": {
+      "label": "Rename Folder",
+      "description": "Rename a Cody knowledge-base folder.",
+      "inputs": {
+        "folder_id": {
+          "label": "Folder",
+          "description": "The folder to rename.",
+          "required": true,
+          "list": "folders"
+        },
+        "name": {
+          "label": "Name",
+          "description": "The new name for the folder.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://getcody.ai/api/v1/folders/{{folder_id}}",
+        "body": {
+          "name": "{{name}}"
+        }
+      }
+    },
+    "list_documents": {
+      "label": "List Documents",
+      "description": "List or search documents in the Cody knowledge base.",
+      "inputs": {
+        "folder_id": {
+          "label": "Folder",
+          "description": "The folder to list documents from. Leave empty to list across all folders.",
+          "list": "folders"
+        },
+        "conversation_id": {
+          "label": "Conversation",
+          "description": "The conversation to list the focus-mode documents of.",
+          "list": "conversations"
+        },
+        "keyword": {
+          "label": "Keyword",
+          "description": "A name keyword to filter documents by (partial match)."
+        },
+        "page": {
+          "label": "Page",
+          "description": "The 1-based page number for pagination.",
+          "type": "number"
+        },
+        "per_page": {
+          "label": "Per Page",
+          "description": "The number of documents to return per page.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "url": "https://getcody.ai/api/v1/documents",
+        "query": {
+          "folder_id": "{{folder_id}}",
+          "conversation_id": "{{conversation_id}}",
+          "keyword": "{{keyword}}",
+          "page": "{{page}}",
+          "per_page": "{{per_page}}"
+        }
+      }
+    },
+    "create_document_from_webpage": {
+      "label": "Create Document From Webpage",
+      "description": "Scrape a web page URL into a new Cody knowledge-base document.",
+      "inputs": {
+        "url": {
+          "label": "URL",
+          "description": "The full URL of the web page to scrape, including protocol, e.g. 'https://example.com/page'.",
+          "required": true
+        },
+        "folder_id": {
+          "label": "Folder",
+          "description": "The folder to create the document in.",
+          "required": true,
+          "list": "folders"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://getcody.ai/api/v1/documents/webpage",
+        "body": {
+          "url": "{{url}}",
+          "folder_id": "{{folder_id}}"
+        }
+      }
+    },
+    "get_document": {
+      "label": "Get Document",
+      "description": "Retrieve a single Cody knowledge-base document by its ID.",
+      "inputs": {
+        "document_id": {
+          "label": "Document ID",
+          "description": "The ID of the document to retrieve, as List Documents gives it.",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://getcody.ai/api/v1/documents/{{document_id}}"
+      }
+    },
+    "delete_document": {
+      "label": "Delete Document",
+      "description": "Permanently delete a document from the Cody knowledge base.",
+      "inputs": {
+        "document_id": {
+          "label": "Document ID",
+          "description": "The ID of the document to permanently delete, as List Documents gives it.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://getcody.ai/api/v1/documents/{{document_id}}"
+      },
+      "afterResponse": "return {success: true, document_id: inputs.document_id};"
+    }
+  }
+}

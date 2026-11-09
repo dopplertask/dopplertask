@@ -74,7 +74,7 @@ class ClaudeAction : Action() {
             headers["anthropic-beta"] = FALLBACK_BETA
         }
 
-        val base = read(baseUrl).trim().trimEnd('/')
+        val base = JsonApi.baseAddress(read(baseUrl))
         val result = JsonApi.call("Claude", "POST", "$base/v1/messages", headers, request, Duration.ofMinutes(ANSWER_MINUTES))
         if (result.statusCode != StatusCode.SUCCESS) return result
 

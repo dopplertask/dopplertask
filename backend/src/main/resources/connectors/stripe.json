@@ -1,0 +1,2995 @@
+{
+  "name": "stripe",
+  "label": "Stripe",
+  "description": "Online payment processing for internet businesses",
+  "icon": "stripe",
+  "hosts": [
+    "api.stripe.com"
+  ],
+  "baseUrl": "https://api.stripe.com/v1",
+  "upstream": {
+    "package": "@activepieces/piece-stripe",
+    "version": "0.9.1"
+  },
+  "credential": {
+    "fields": {
+      "secretKey": {
+        "label": "Secret API Key",
+        "description": "Secret key acquired from your Stripe dashboard",
+        "secret": true,
+        "required": true
+      }
+    },
+    "headers": {
+      "Authorization": "Bearer {{credential.secretKey}}"
+    }
+  },
+  "lists": {
+    "customers": {
+      "request": {
+        "url": "https://api.stripe.com/v1/customers",
+        "query": {
+          "limit": "100"
+        }
+      },
+      "items": "$.data"
+    },
+    "invoices": {
+      "request": {
+        "url": "https://api.stripe.com/v1/invoices",
+        "query": {
+          "limit": "100"
+        }
+      },
+      "items": "$.data",
+      "label": "$.number"
+    },
+    "payouts": {
+      "request": {
+        "url": "https://api.stripe.com/v1/payouts",
+        "query": {
+          "limit": "100"
+        }
+      },
+      "items": "$.data",
+      "label": "$.id"
+    },
+    "payment_intents": {
+      "request": {
+        "url": "https://api.stripe.com/v1/payment_intents/search",
+        "query": {
+          "query": "status:'succeeded'",
+          "limit": "100"
+        }
+      },
+      "items": "$.data",
+      "label": "$.description"
+    },
+    "products": {
+      "request": {
+        "url": "https://api.stripe.com/v1/products/search",
+        "query": {
+          "query": "active:'true'",
+          "limit": "100"
+        }
+      },
+      "items": "$.data"
+    }
+  },
+  "actions": {
+    "create_customer": {
+      "label": "Create Customer",
+      "description": "Create a customer with contact details and an address.",
+      "inputs": {
+        "email": {
+          "label": "Email",
+          "required": true
+        },
+        "name": {
+          "label": "Name",
+          "required": true
+        },
+        "description": {
+          "label": "Description",
+          "description": "Internal note, not shown to the customer.",
+          "type": "multiline"
+        },
+        "phone": {
+          "label": "Phone"
+        },
+        "line1": {
+          "label": "Address Line 1"
+        },
+        "postal_code": {
+          "label": "Postal Code"
+        },
+        "city": {
+          "label": "City"
+        },
+        "state": {
+          "label": "State"
+        },
+        "country": {
+          "label": "Country",
+          "description": "Two-letter country code, e.g. US or GB."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.stripe.com/v1/customers",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "body": {
+          "email": "{{email}}",
+          "name": "{{name}}",
+          "description": "{{description}}",
+          "phone": "{{phone}}",
+          "address": {
+            "line1": "{{line1}}",
+            "postal_code": "{{postal_code}}",
+            "city": "{{city}}",
+            "state": "{{state}}",
+            "country": "{{country}}"
+          }
+        }
+      },
+      "beforeRequest": "var form = {};\nvar add = (key, value) => {\n  if (value === null || value === undefined || value === '') return;\n  if (Array.isArray(value)) value.forEach((item, index) => add(key + '[' + index + ']', item));\n  else if (typeof value === 'object') Object.keys(value).forEach((name) => add(key + '[' + name + ']', value[name]));\n  else form[key] = String(value);\n};\nObject.keys(request.body || {}).forEach((key) => add(key, request.body[key]));\nrequest.body = form;\nreturn request;"
+    },
+    "search_subscriptions": {
+      "label": "Search Subscriptions",
+      "description": "Find subscriptions by status, customer, price or creation date.",
+      "inputs": {
+        "price_ids": {
+          "label": "Price IDs",
+          "description": "Comma-separated price IDs.",
+          "type": "multiline"
+        },
+        "status": {
+          "label": "Status",
+          "description": "Without a status, canceled subscriptions are left out.",
+          "type": "select",
+          "options": [
+            {
+              "value": "active",
+              "label": "Active"
+            },
+            {
+              "value": "past_due",
+              "label": "Past Due"
+            },
+            {
+              "value": "unpaid",
+              "label": "Unpaid"
+            },
+            {
+              "value": "canceled",
+              "label": "Canceled"
+            },
+            {
+              "value": "incomplete",
+              "label": "Incomplete"
+            },
+            {
+              "value": "incomplete_expired",
+              "label": "Incomplete Expired"
+            },
+            {
+              "value": "trialing",
+              "label": "Trialing"
+            },
+            {
+              "value": "paused",
+              "label": "Paused"
+            },
+            {
+              "value": "all",
+              "label": "All, Including Canceled"
+            }
+          ]
+        },
+        "customer": {
+          "label": "Customer ID",
+          "description": "Starts with cus_. Find it on the customer's page in Stripe.",
+          "list": "customers"
+        },
+        "created_after": {
+          "label": "Created After",
+          "description": "Created on or after this date and time."
+        },
+        "created_before": {
+          "label": "Created Before",
+          "description": "Created on or before this date and time."
+        },
+        "limit": {
+          "label": "Max Results",
+          "description": "The most subscriptions to return.",
+          "type": "number",
+          "defaultValue": "100"
+        },
+        "fetch_all": {
+          "label": "Fetch All Results",
+          "description": "Return every match, up to 5,000. Ignores Max Results.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "include_customer_details": {
+          "label": "Include Customer Details",
+          "description": "Add each customer's full record to the results.",
+          "type": "boolean",
+          "defaultValue": "true"
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/subscriptions",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      },
+      "beforeRequest": "var form = (text) => encodeURIComponent(text).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar details = inputs.include_customer_details !== 'false';\nvar address = (after) => {\n  var pairs = [['limit', '100'], ['expand[]', 'data.items.data.price']];\n  if (details) pairs.push(['expand[]', 'data.customer']);\n  if (inputs.status) pairs.push(['status', inputs.status]);\n  if (inputs.customer) pairs.push(['customer', inputs.customer]);\n  if (inputs.created_after) pairs.push(['created[gte]', String(Math.floor(new Date(inputs.created_after).getTime() / 1000))]);\n  if (inputs.created_before) pairs.push(['created[lte]', String(Math.floor(new Date(inputs.created_before).getTime() / 1000))]);\n  if (after) pairs.push(['starting_after', after]);\n  return '/subscriptions?' + pairs.map((pair) => form(pair[0]) + '=' + form(pair[1])).join('&');\n};\nrequest.url = address();\nrequest.query = {};\nreturn request;",
+      "afterResponse": "var form = (text) => encodeURIComponent(text).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar details = inputs.include_customer_details !== 'false';\nvar address = (after) => {\n  var pairs = [['limit', '100'], ['expand[]', 'data.items.data.price']];\n  if (details) pairs.push(['expand[]', 'data.customer']);\n  if (inputs.status) pairs.push(['status', inputs.status]);\n  if (inputs.customer) pairs.push(['customer', inputs.customer]);\n  if (inputs.created_after) pairs.push(['created[gte]', String(Math.floor(new Date(inputs.created_after).getTime() / 1000))]);\n  if (inputs.created_before) pairs.push(['created[lte]', String(Math.floor(new Date(inputs.created_before).getTime() / 1000))]);\n  if (after) pairs.push(['starting_after', after]);\n  return '/subscriptions?' + pairs.map((pair) => form(pair[0]) + '=' + form(pair[1])).join('&');\n};\nvar limit = inputs.limit === '' || inputs.limit === undefined ? 100 : Number(inputs.limit);\nvar fetchAll = inputs.fetch_all === 'true';\nvar priceIds = inputs.price_ids ? inputs.price_ids.split(',').map((id) => id.trim()).filter((id) => id.length > 0) : [];\nvar matches = (subscription) => priceIds.length === 0 || subscription.items.data.some((item) => item.price && typeof item.price === 'object' && priceIds.includes(item.price.id));\nvar withCustomer = (subscription) => {\n  var result = Object.assign({}, subscription);\n  if (details && typeof subscription.customer === 'string') {\n    try { result.customer = call({method: 'GET', url: '/customers/' + subscription.customer}); } catch (e) {}\n  }\n  return result;\n};\nvar page = (after) => call({method: 'GET', url: address(after), headers: {'Content-Type': 'application/x-www-form-urlencoded'}});\nvar filters = {price_ids: inputs.price_ids ? priceIds : null, status: inputs.status || null, customer_id: inputs.customer || null,\n  created_after: inputs.created_after || null, created_before: inputs.created_before || null, limit: limit, fetch_all: fetchAll, include_customer_details: details};\nvar everything = fetchAll || limit <= 0 || isNaN(limit);\nvar most = everything || priceIds.length > 0 ? 50 : Math.ceil(limit / 100);\nvar fetched = [], kept = [], more = true, after, made = 0, answer = response;\nwhile (more && made < most) {\n  if (made > 0) answer = page(after);\n  var found = answer.data;\n  fetched = fetched.concat(found);\n  kept = kept.concat(found.filter(matches));\n  more = answer.has_more;\n  made++;\n  if (more && found.length > 0) after = found[found.length - 1].id;\n  if (!everything && kept.length >= limit) { kept = kept.slice(0, limit); break; }\n}\nvar subscriptions = kept.map(withCustomer);\nreturn {success: true, count: subscriptions.length, total_fetched: fetched.length, requests_made: made, has_more_available: more,\n  pagination_info: {limit_requested: everything ? 'All' : limit, fetch_all_enabled: fetchAll, max_requests_limit: most},\n  subscriptions: subscriptions, filters_applied: filters};"
+    },
+    "retrieve_customer": {
+      "label": "Get Customer",
+      "description": "Get a customer's details by their ID.",
+      "inputs": {
+        "customer_id": {
+          "label": "Customer ID",
+          "description": "Starts with cus_. Find it on the customer's page in Stripe.",
+          "required": true,
+          "list": "customers"
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/customers/{{customer_id}}"
+      }
+    },
+    "update_customer": {
+      "label": "Update Customer",
+      "description": "Change a customer's details. Empty fields keep their value.",
+      "inputs": {
+        "customer_id": {
+          "label": "Customer",
+          "required": true,
+          "list": "customers"
+        },
+        "email": {
+          "label": "Email"
+        },
+        "name": {
+          "label": "Name"
+        },
+        "description": {
+          "label": "Description",
+          "description": "Internal note, not shown to the customer.",
+          "type": "multiline"
+        },
+        "phone": {
+          "label": "Phone"
+        },
+        "line1": {
+          "label": "Address Line 1"
+        },
+        "postal_code": {
+          "label": "Postal Code"
+        },
+        "city": {
+          "label": "City"
+        },
+        "state": {
+          "label": "State"
+        },
+        "country": {
+          "label": "Country",
+          "description": "Two-letter country code, e.g. US or GB."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.stripe.com/v1/customers/{{customer_id}}",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "body": {
+          "name": "{{name}}",
+          "email": "{{email}}",
+          "description": "{{description}}",
+          "phone": "{{phone}}",
+          "address": {
+            "line1": "{{line1}}",
+            "city": "{{city}}",
+            "state": "{{state}}",
+            "postal_code": "{{postal_code}}",
+            "country": "{{country}}"
+          }
+        }
+      },
+      "beforeRequest": "var form = {};\nvar add = (key, value) => {\n  if (value === null || value === undefined || value === '') return;\n  if (Array.isArray(value)) value.forEach((item, index) => add(key + '[' + index + ']', item));\n  else if (typeof value === 'object') Object.keys(value).forEach((name) => add(key + '[' + name + ']', value[name]));\n  else form[key] = String(value);\n};\nObject.keys(request.body || {}).forEach((key) => add(key, request.body[key]));\nrequest.body = form;\nreturn request;"
+    },
+    "create_product": {
+      "label": "Create Product",
+      "description": "Create a product you can add prices to.",
+      "inputs": {
+        "name": {
+          "label": "Product Name",
+          "description": "Shown to customers at checkout and on invoices.",
+          "required": true
+        },
+        "description": {
+          "label": "Description",
+          "description": "Shown to customers under the product name.",
+          "type": "multiline"
+        },
+        "active": {
+          "label": "Active",
+          "description": "Turn off to hide the product from new purchases.",
+          "type": "boolean",
+          "defaultValue": "true"
+        },
+        "images": {
+          "label": "Image URLs",
+          "description": "Up to 8 public image links.",
+          "type": "json"
+        },
+        "url": {
+          "label": "Product URL",
+          "description": "A public page about this product."
+        },
+        "metadata": {
+          "label": "Metadata",
+          "description": "Extra key/value data to store on the product.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.stripe.com/v1/products",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "body": {
+          "name": "{{name}}",
+          "description": "{{description}}",
+          "active": "{{active}}",
+          "url": "{{url}}",
+          "images": "{{images}}",
+          "metadata": "{{metadata}}"
+        }
+      },
+      "beforeRequest": "var form = {};\nvar add = (key, value) => {\n  if (value === null || value === undefined || value === '') return;\n  if (Array.isArray(value)) value.forEach((item, index) => add(key + '[' + index + ']', item));\n  else if (typeof value === 'object') Object.keys(value).forEach((name) => add(key + '[' + name + ']', value[name]));\n  else form[key] = String(value);\n};\nObject.keys(request.body || {}).forEach((key) => add(key, request.body[key]));\nrequest.body = form;\nreturn request;"
+    },
+    "create_subscription": {
+      "label": "Create Subscription",
+      "description": "Subscribe a customer to one or more prices.",
+      "inputs": {
+        "customer": {
+          "label": "Customer",
+          "required": true,
+          "list": "customers"
+        },
+        "items": {
+          "label": "Items",
+          "description": "The prices to subscribe the customer to.",
+          "type": "json",
+          "required": true
+        },
+        "collection_method": {
+          "label": "Collection Method",
+          "type": "select",
+          "options": [
+            {
+              "value": "charge_automatically",
+              "label": "Auto-Charge"
+            },
+            {
+              "value": "send_invoice",
+              "label": "Send Invoice"
+            }
+          ]
+        },
+        "days_until_due": {
+          "label": "Days Until Due",
+          "description": "Days the customer has to pay. Needed for Send Invoice.",
+          "type": "number"
+        },
+        "trial_period_days": {
+          "label": "Trial Days",
+          "description": "Free days before the first bill.",
+          "type": "number"
+        },
+        "default_payment_method": {
+          "label": "Default Payment Method ID",
+          "description": "Starts with pm_. Empty uses the customer's default."
+        },
+        "metadata": {
+          "label": "Metadata",
+          "description": "Extra key/value data to store on the subscription.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.stripe.com/v1/subscriptions",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      },
+      "beforeRequest": "if (inputs.collection_method === 'send_invoice' && !inputs.days_until_due) throw new Error(\"Add Days Until Due, or choose Auto-Charge.\");\nvar body = {};\n['customer', 'collection_method', 'days_until_due', 'trial_period_days', 'default_payment_method'].forEach((key) => { if (inputs[key]) body[key] = inputs[key]; });\nvar metadata = inputs.metadata ? JSON.parse(inputs.metadata) : null;\nvar add = (key, value) => {\n  if (value === null || value === undefined || value === '') return;\n  if (Array.isArray(value)) value.forEach((item, index) => add(key + '[' + index + ']', item));\n  else if (typeof value === 'object') Object.keys(value).forEach((name) => add(key + '[' + name + ']', value[name]));\n  else body[key] = String(value);\n};\nadd('metadata', metadata);\n(inputs.items ? JSON.parse(inputs.items) : []).forEach((item, index) => {\n  body['items[' + index + '][price]'] = String(item.price);\n  if (item.quantity) body['items[' + index + '][quantity]'] = String(item.quantity);\n});\nrequest.body = body;\nreturn request;"
+    },
+    "retrieve_invoice": {
+      "label": "Get Invoice",
+      "description": "Get the full details of an invoice.",
+      "inputs": {
+        "invoice_id": {
+          "label": "Invoice",
+          "required": true,
+          "list": "invoices"
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/invoices/{{invoice_id}}"
+      }
+    },
+    "retrieve_payout": {
+      "label": "Get Payout",
+      "description": "Get a payout's amount, status and arrival date.",
+      "inputs": {
+        "payout_id": {
+          "label": "Payout",
+          "required": true,
+          "list": "payouts"
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/payouts/{{payout_id}}"
+      }
+    },
+    "create_refund": {
+      "label": "Create Refund",
+      "description": "Refund all or part of a successful payment.",
+      "inputs": {
+        "payment_intent": {
+          "label": "Payment Intent",
+          "description": "Only successful payments are listed.",
+          "required": true,
+          "list": "payment_intents"
+        },
+        "amount": {
+          "label": "Amount",
+          "description": "Amount to refund, e.g. 12.99. Empty refunds the full payment.",
+          "type": "number"
+        },
+        "reason": {
+          "label": "Reason",
+          "type": "select",
+          "options": [
+            {
+              "value": "duplicate",
+              "label": "Duplicate"
+            },
+            {
+              "value": "fraudulent",
+              "label": "Fraudulent"
+            },
+            {
+              "value": "requested_by_customer",
+              "label": "Requested by Customer"
+            }
+          ]
+        },
+        "metadata": {
+          "label": "Metadata",
+          "description": "Extra key/value data to store on the refund.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.stripe.com/v1/refunds",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "body": {
+          "payment_intent": "{{payment_intent}}",
+          "amount": "{{amount}}",
+          "reason": "{{reason}}",
+          "metadata": "{{metadata}}"
+        }
+      },
+      "beforeRequest": "var body = request.body;\nif (body.amount !== undefined) body.amount = Math.round(body.amount * 100);\nrequest.body = body;\nvar form = {};\nvar add = (key, value) => {\n  if (value === null || value === undefined || value === '') return;\n  if (Array.isArray(value)) value.forEach((item, index) => add(key + '[' + index + ']', item));\n  else if (typeof value === 'object') Object.keys(value).forEach((name) => add(key + '[' + name + ']', value[name]));\n  else form[key] = String(value);\n};\nObject.keys(request.body || {}).forEach((key) => add(key, request.body[key]));\nrequest.body = form;\nreturn request;"
+    },
+    "retrieve_payment_intent": {
+      "label": "Get Payment Intent",
+      "description": "Get a payment intent's details by its ID.",
+      "inputs": {
+        "payment_intent_id": {
+          "label": "Payment Intent",
+          "description": "Only successful payments are listed.",
+          "required": true,
+          "list": "payment_intents"
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/payment_intents/{{payment_intent_id}}"
+      }
+    },
+    "search_customers": {
+      "label": "Search Customers",
+      "description": "Search for Stripe customers by email or a raw search query.",
+      "inputs": {
+        "email": {
+          "label": "Email",
+          "description": "Match customers with this exact email. Ignored if a raw Query is provided."
+        },
+        "query": {
+          "label": "Query",
+          "description": "A raw Stripe search query (e.g. email:'a@b.com', name:'Jane'). Overrides the Email field when set."
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/customers/search"
+      },
+      "beforeRequest": "var query = inputs.query || (inputs.email ? \"email:'\" + inputs.email + \"'\" : '');\nif (!query) throw new Error('Provide either an Email or a raw Query to search.');\nrequest.query = {query: query};\nreturn request;"
+    },
+    "create_payment_intent_ai": {
+      "label": "Create Payment Intent",
+      "description": "Create a Stripe PaymentIntent to start a payment flow.",
+      "inputs": {
+        "amount": {
+          "label": "Amount",
+          "description": "The amount to charge, as a decimal in the major currency unit (e.g., 10.50 for $10.50).",
+          "type": "number",
+          "required": true
+        },
+        "currency": {
+          "label": "Currency",
+          "description": "The three-letter ISO currency code (e.g., usd, eur, gbp).",
+          "required": true
+        },
+        "customer": {
+          "label": "Customer ID",
+          "description": "The Stripe customer ID (e.g., cus_...) to associate. Obtain it from Search Customers or List Customers.",
+          "list": "customers"
+        },
+        "payment_method": {
+          "label": "Payment Method ID",
+          "description": "The PaymentMethod ID to attach (e.g., pm_...). Required to confirm the payment immediately."
+        },
+        "confirm": {
+          "label": "Confirm Payment Immediately",
+          "description": "If true, Stripe attempts to charge the provided payment method. Requires a Payment Method ID and a Return URL.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "capture_method": {
+          "label": "Capture Method",
+          "description": "When to capture funds. 'automatic' (default) captures immediately on confirmation; 'manual' authorizes only — funds are held and you capture later with Capture Payment Intent (auth-and-capture).",
+          "type": "select",
+          "options": [
+            {
+              "value": "automatic",
+              "label": "Automatic"
+            },
+            {
+              "value": "manual",
+              "label": "Manual (authorize only)"
+            }
+          ]
+        },
+        "return_url": {
+          "label": "Return URL",
+          "description": "URL to redirect the customer back to after authenticating the payment. Required when confirming."
+        },
+        "description": {
+          "label": "Description",
+          "type": "multiline"
+        },
+        "receipt_email": {
+          "label": "Receipt Email",
+          "description": "Email to send a receipt to. Overrides the customer's email."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.stripe.com/v1/payment_intents",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "body": {
+          "amount": "{{amount}}",
+          "currency": "{{currency}}",
+          "customer": "{{customer}}",
+          "payment_method": "{{payment_method}}",
+          "capture_method": "{{capture_method}}",
+          "confirm": "{{confirm}}",
+          "return_url": "{{return_url}}",
+          "description": "{{description}}",
+          "receipt_email": "{{receipt_email}}"
+        }
+      },
+      "beforeRequest": "var body = request.body;\nif (body.confirm && !body.payment_method) throw new Error('A Payment Method ID is required when \\'Confirm Payment\\' is set to true.');\nif (body.confirm && !body.return_url) throw new Error('A Return URL is required when \\'Confirm Payment\\' is set to true.');\nbody.amount = Math.round(body.amount * 100);\nif (!body.confirm) delete body.confirm;\nreturn request;"
+    },
+    "create_invoice_ai": {
+      "label": "Create Invoice",
+      "description": "Create a draft invoice in Stripe.",
+      "inputs": {
+        "customer": {
+          "label": "Customer ID",
+          "description": "The Stripe customer ID (e.g., cus_...). Obtain it from Search Customers or List Customers.",
+          "required": true,
+          "list": "customers"
+        },
+        "currency": {
+          "label": "Currency",
+          "description": "The three-letter ISO currency code (e.g., usd).",
+          "required": true
+        },
+        "description": {
+          "label": "Description",
+          "description": "Description for the invoice.",
+          "type": "multiline"
+        },
+        "collection_method": {
+          "label": "Collection Method",
+          "description": "How to collect payment. 'charge_automatically' (default) charges the customer's default payment method when finalized; 'send_invoice' emails the customer a payable invoice (requires Days Until Due) and is the only method that lets you later call Send Invoice.",
+          "type": "select",
+          "options": [
+            {
+              "value": "charge_automatically",
+              "label": "Charge automatically"
+            },
+            {
+              "value": "send_invoice",
+              "label": "Send invoice (email)"
+            }
+          ]
+        },
+        "days_until_due": {
+          "label": "Days Until Due",
+          "description": "Number of days until the invoice is due. Required when Collection Method is 'send_invoice'.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.stripe.com/v1/invoices",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "body": {
+          "customer": "{{customer}}",
+          "currency": "{{currency}}",
+          "description": "{{description}}",
+          "collection_method": "{{collection_method}}",
+          "days_until_due": "{{days_until_due}}"
+        }
+      },
+      "beforeRequest": "var body = request.body;\nif (inputs.collection_method === 'send_invoice' && !inputs.days_until_due) throw new Error(\"days_until_due is required when collection_method is 'send_invoice'.\");\nif (inputs.collection_method !== 'send_invoice') delete body.days_until_due;\nreturn request;"
+    },
+    "create_price": {
+      "label": "Create Price",
+      "description": "Create a one-time or recurring price for a product.",
+      "inputs": {
+        "product": {
+          "label": "Product ID",
+          "description": "The Stripe product ID (e.g., prod_...) this price attaches to. Obtain it from List/Search Products or Create Product.",
+          "required": true,
+          "list": "products"
+        },
+        "unit_amount": {
+          "label": "Unit Amount",
+          "description": "The price amount as a decimal (e.g., 25.50 for $25.50).",
+          "type": "number",
+          "required": true
+        },
+        "currency": {
+          "label": "Currency",
+          "description": "The three-letter ISO currency code (e.g., usd).",
+          "required": true
+        },
+        "recurring_interval": {
+          "label": "Billing Interval",
+          "description": "Billing frequency. Select 'One-Time' for a single, non-recurring payment.",
+          "type": "select",
+          "required": true,
+          "defaultValue": "one_time",
+          "options": [
+            {
+              "value": "one_time",
+              "label": "One-Time"
+            },
+            {
+              "value": "day",
+              "label": "Daily"
+            },
+            {
+              "value": "week",
+              "label": "Weekly"
+            },
+            {
+              "value": "month",
+              "label": "Monthly"
+            },
+            {
+              "value": "year",
+              "label": "Yearly"
+            }
+          ]
+        },
+        "recurring_interval_count": {
+          "label": "Interval Count",
+          "description": "Number of intervals between billings (e.g., Monthly + count 3 = every 3 months). Only used for recurring prices.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.stripe.com/v1/prices",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      },
+      "beforeRequest": "var body = {product: inputs.product, unit_amount: String(Math.round(inputs.unit_amount * 100)), currency: inputs.currency};\nif (inputs.recurring_interval !== 'one_time') {\n  body['recurring[interval]'] = inputs.recurring_interval;\n  if (Number(inputs.recurring_interval_count)) body['recurring[interval_count]'] = inputs.recurring_interval_count;\n}\nrequest.body = body;\nreturn request;"
+    },
+    "list_customers": {
+      "label": "List Customers",
+      "description": "List Stripe customers, optionally filtered by email.",
+      "inputs": {
+        "email": {
+          "label": "Email",
+          "description": "Filter to customers with this exact email."
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Number of customers to return (1-100, default 10).",
+          "type": "number"
+        },
+        "starting_after": {
+          "label": "Starting After",
+          "description": "A customer ID; returns the page of results after this cursor for pagination."
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/customers",
+        "query": {
+          "email": "{{email}}",
+          "limit": "{{limit}}",
+          "starting_after": "{{starting_after}}"
+        }
+      }
+    },
+    "confirm_payment_intent": {
+      "label": "Confirm Payment Intent",
+      "description": "Confirm a PaymentIntent to attempt the charge.",
+      "inputs": {
+        "payment_intent_id": {
+          "label": "Payment Intent ID",
+          "description": "The PaymentIntent ID (e.g., pi_...) to confirm. Obtain it from List/Search Payment Intents.",
+          "required": true
+        },
+        "payment_method": {
+          "label": "Payment Method ID",
+          "description": "The PaymentMethod ID to use (e.g., pm_...)."
+        },
+        "return_url": {
+          "label": "Return URL",
+          "description": "URL to redirect to after authentication. Required for redirect-based payment methods."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.stripe.com/v1/payment_intents/{{payment_intent_id}}/confirm",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "body": {
+          "payment_method": "{{payment_method}}",
+          "return_url": "{{return_url}}"
+        }
+      }
+    },
+    "cancel_payment_intent": {
+      "label": "Cancel Payment Intent",
+      "description": "Cancel a PaymentIntent that has not been captured.",
+      "inputs": {
+        "payment_intent_id": {
+          "label": "Payment Intent ID",
+          "description": "The PaymentIntent ID (e.g., pi_...) to cancel. Obtain it from List/Search Payment Intents.",
+          "required": true
+        },
+        "cancellation_reason": {
+          "label": "Cancellation Reason",
+          "description": "An optional reason for the cancellation.",
+          "type": "select",
+          "options": [
+            {
+              "value": "duplicate",
+              "label": "Duplicate"
+            },
+            {
+              "value": "fraudulent",
+              "label": "Fraudulent"
+            },
+            {
+              "value": "requested_by_customer",
+              "label": "Requested by Customer"
+            },
+            {
+              "value": "abandoned",
+              "label": "Abandoned"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.stripe.com/v1/payment_intents/{{payment_intent_id}}/cancel",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "body": {
+          "cancellation_reason": "{{cancellation_reason}}"
+        }
+      }
+    },
+    "capture_payment_intent": {
+      "label": "Capture Payment Intent",
+      "description": "Capture funds from an authorized PaymentIntent.",
+      "inputs": {
+        "payment_intent_id": {
+          "label": "Payment Intent ID",
+          "description": "The PaymentIntent ID (e.g., pi_...) to capture. Obtain it from List/Search Payment Intents.",
+          "required": true
+        },
+        "amount_to_capture": {
+          "label": "Amount to Capture",
+          "description": "The amount to capture in the smallest currency unit (e.g., 1050 for $10.50). Defaults to the full authorized amount.",
+          "type": "number"
+        },
+        "final_capture": {
+          "label": "Final Capture",
+          "description": "If true, the remaining uncaptured amount is released back to the customer.",
+          "type": "boolean"
+        },
+        "metadata": {
+          "label": "Metadata",
+          "description": "A set of key-value pairs to attach.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.stripe.com/v1/payment_intents/{{payment_intent_id}}/capture",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "body": {
+          "amount_to_capture": "{{amount_to_capture}}",
+          "final_capture": "{{final_capture}}",
+          "metadata": "{{metadata}}"
+        }
+      },
+      "beforeRequest": "var form = {};\nvar add = (key, value) => {\n  if (value === null || value === undefined || value === '') return;\n  if (Array.isArray(value)) value.forEach((item, index) => add(key + '[' + index + ']', item));\n  else if (typeof value === 'object') Object.keys(value).forEach((name) => add(key + '[' + name + ']', value[name]));\n  else form[key] = String(value);\n};\nObject.keys(request.body || {}).forEach((key) => add(key, request.body[key]));\nrequest.body = form;\nreturn request;"
+    },
+    "list_payment_intents": {
+      "label": "List Payment Intents",
+      "description": "List Stripe PaymentIntents.",
+      "inputs": {
+        "customer": {
+          "label": "Customer ID",
+          "description": "Filter to PaymentIntents for this customer (cus_...).",
+          "list": "customers"
+        },
+        "created_after": {
+          "label": "Created After",
+          "description": "Only return PaymentIntents created at or after this time."
+        },
+        "created_before": {
+          "label": "Created Before",
+          "description": "Only return PaymentIntents created at or before this time."
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Number to return (1-100, default 10).",
+          "type": "number"
+        },
+        "starting_after": {
+          "label": "Starting After",
+          "description": "A PaymentIntent ID cursor for pagination."
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/payment_intents",
+        "query": {
+          "customer": "{{customer}}",
+          "limit": "{{limit}}",
+          "starting_after": "{{starting_after}}"
+        }
+      },
+      "beforeRequest": "var seconds = (time) => String(Math.floor(new Date(time).getTime() / 1000));\nif (inputs.created_after) request.query['created[gte]'] = seconds(inputs.created_after);\nif (inputs.created_before) request.query['created[lte]'] = seconds(inputs.created_before);\nreturn request;"
+    },
+    "search_payment_intents": {
+      "label": "Search Payment Intents",
+      "description": "Search PaymentIntents with a Stripe search query.",
+      "inputs": {
+        "query": {
+          "label": "Query",
+          "description": "A Stripe search query (e.g. status:'succeeded' AND amount>1000).",
+          "required": true
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Number to return (1-100, default 10).",
+          "type": "number"
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/payment_intents/search",
+        "query": {
+          "query": "{{query}}",
+          "limit": "{{limit}}"
+        }
+      }
+    },
+    "retrieve_charge": {
+      "label": "Get Charge",
+      "description": "Retrieve a Stripe charge by its ID.",
+      "inputs": {
+        "charge_id": {
+          "label": "Charge ID",
+          "description": "The Stripe charge ID (e.g., ch_...). Obtain it from List Charges or Search Charges.",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/charges/{{charge_id}}"
+      }
+    },
+    "list_charges": {
+      "label": "List Charges",
+      "description": "List Stripe charges.",
+      "inputs": {
+        "customer": {
+          "label": "Customer ID",
+          "description": "Filter to charges for this customer (cus_...).",
+          "list": "customers"
+        },
+        "payment_intent": {
+          "label": "Payment Intent ID",
+          "description": "Filter to charges for this PaymentIntent (pi_...).",
+          "list": "payment_intents"
+        },
+        "created_after": {
+          "label": "Created After"
+        },
+        "created_before": {
+          "label": "Created Before"
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Number to return (1-100, default 10).",
+          "type": "number"
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/charges",
+        "query": {
+          "customer": "{{customer}}",
+          "payment_intent": "{{payment_intent}}",
+          "limit": "{{limit}}"
+        }
+      },
+      "beforeRequest": "var seconds = (time) => String(Math.floor(new Date(time).getTime() / 1000));\nif (inputs.created_after) request.query['created[gte]'] = seconds(inputs.created_after);\nif (inputs.created_before) request.query['created[lte]'] = seconds(inputs.created_before);\nreturn request;"
+    },
+    "search_charges": {
+      "label": "Search Charges",
+      "description": "Search charges with a Stripe search query.",
+      "inputs": {
+        "query": {
+          "label": "Query",
+          "description": "A Stripe search query (e.g. metadata['order_id']:'6735').",
+          "required": true
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Number to return (1-100, default 10).",
+          "type": "number"
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/charges/search",
+        "query": {
+          "query": "{{query}}",
+          "limit": "{{limit}}"
+        }
+      }
+    },
+    "get_refund": {
+      "label": "Get Refund",
+      "description": "Retrieve a Stripe refund by its ID.",
+      "inputs": {
+        "refund_id": {
+          "label": "Refund ID",
+          "description": "The Stripe refund ID (e.g., re_...). Obtain it from List Refunds.",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/refunds/{{refund_id}}"
+      }
+    },
+    "list_refunds": {
+      "label": "List Refunds",
+      "description": "List Stripe refunds.",
+      "inputs": {
+        "payment_intent": {
+          "label": "Payment Intent ID",
+          "description": "Filter to refunds for this PaymentIntent (pi_...).",
+          "list": "payment_intents"
+        },
+        "charge": {
+          "label": "Charge ID",
+          "description": "Filter to refunds for this charge (ch_...)."
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Number to return (1-100, default 10).",
+          "type": "number"
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/refunds",
+        "query": {
+          "payment_intent": "{{payment_intent}}",
+          "charge": "{{charge}}",
+          "limit": "{{limit}}"
+        }
+      }
+    },
+    "list_invoices": {
+      "label": "List Invoices",
+      "description": "List Stripe invoices.",
+      "inputs": {
+        "customer": {
+          "label": "Customer ID",
+          "description": "Filter to invoices for this customer (cus_...).",
+          "list": "customers"
+        },
+        "status": {
+          "label": "Status",
+          "description": "Filter by invoice status.",
+          "type": "select",
+          "options": [
+            {
+              "value": "draft",
+              "label": "Draft"
+            },
+            {
+              "value": "open",
+              "label": "Open"
+            },
+            {
+              "value": "paid",
+              "label": "Paid"
+            },
+            {
+              "value": "uncollectible",
+              "label": "Uncollectible"
+            },
+            {
+              "value": "void",
+              "label": "Void"
+            }
+          ]
+        },
+        "subscription": {
+          "label": "Subscription ID",
+          "description": "Filter to invoices for this subscription (sub_...)."
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Number to return (1-100, default 10).",
+          "type": "number"
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/invoices",
+        "query": {
+          "customer": "{{customer}}",
+          "status": "{{status}}",
+          "subscription": "{{subscription}}",
+          "limit": "{{limit}}"
+        }
+      }
+    },
+    "search_invoices": {
+      "label": "Search Invoices",
+      "description": "Search invoices with a Stripe search query.",
+      "inputs": {
+        "query": {
+          "label": "Query",
+          "description": "A Stripe search query (e.g. total>1000 AND status:'paid').",
+          "required": true
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Number to return (1-100, default 10).",
+          "type": "number"
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/invoices/search",
+        "query": {
+          "query": "{{query}}",
+          "limit": "{{limit}}"
+        }
+      }
+    },
+    "finalize_invoice": {
+      "label": "Finalize Invoice",
+      "description": "Finalize a draft invoice so it becomes payable.",
+      "inputs": {
+        "invoice_id": {
+          "label": "Invoice ID",
+          "description": "The draft invoice ID (e.g., in_...). Obtain it from List/Search Invoices.",
+          "required": true,
+          "list": "invoices"
+        },
+        "auto_advance": {
+          "label": "Auto Advance",
+          "description": "If true, Stripe automatically collects the invoice (sends/charges per its settings) after finalizing.",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.stripe.com/v1/invoices/{{invoice_id}}/finalize",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "body": {
+          "auto_advance": "{{auto_advance}}"
+        }
+      }
+    },
+    "send_invoice": {
+      "label": "Send Invoice",
+      "description": "Email a finalized invoice to the customer.",
+      "inputs": {
+        "invoice_id": {
+          "label": "Invoice ID",
+          "description": "The finalized invoice ID (e.g., in_...). Obtain it from List/Search Invoices.",
+          "required": true,
+          "list": "invoices"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.stripe.com/v1/invoices/{{invoice_id}}/send",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      }
+    },
+    "add_invoice_lines": {
+      "label": "Add Invoice Lines",
+      "description": "Bulk-add line items to a draft invoice.",
+      "inputs": {
+        "invoice_id": {
+          "label": "Invoice ID",
+          "description": "The draft invoice ID (e.g., in_...). Obtain it from List/Search Invoices.",
+          "required": true,
+          "list": "invoices"
+        },
+        "lines": {
+          "label": "Lines",
+          "description": "The line items to add to the invoice.",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.stripe.com/v1/invoices/{{invoice_id}}/add_lines",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      },
+      "beforeRequest": "var lines = inputs.lines ? JSON.parse(inputs.lines) : [];\nif (!Array.isArray(lines) || lines.length === 0) throw new Error('Provide at least one line item to add.');\nvar body = {};\nvar present = (value) => value !== undefined && value !== null;\nlines.forEach((line, index) => {\n  var key = 'lines[' + index + ']';\n  if (present(line.description) && line.description !== '') body[key + '[description]'] = String(line.description);\n  if (line.price) {\n    body[key + '[pricing][price]'] = String(line.price);\n    if (present(line.quantity)) body[key + '[quantity]'] = String(line.quantity);\n  } else if (present(line.amount)) body[key + '[amount]'] = String(line.amount);\n});\nrequest.body = body;\nreturn request;"
+    },
+    "list_invoice_lines": {
+      "label": "List Invoice Lines",
+      "description": "List the line items on an invoice.",
+      "inputs": {
+        "invoice_id": {
+          "label": "Invoice ID",
+          "description": "The invoice ID (e.g., in_...). Obtain it from List/Search Invoices.",
+          "required": true,
+          "list": "invoices"
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Number to return (1-100, default 10).",
+          "type": "number"
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/invoices/{{invoice_id}}/lines",
+        "query": {
+          "limit": "{{limit}}"
+        }
+      }
+    },
+    "create_invoice_item": {
+      "label": "Create Invoice Item",
+      "description": "Add a one-off pending line item to a customer.",
+      "inputs": {
+        "customer": {
+          "label": "Customer ID",
+          "description": "The Stripe customer ID (e.g., cus_...). Obtain it from Search/List Customers.",
+          "required": true,
+          "list": "customers"
+        },
+        "amount": {
+          "label": "Amount",
+          "description": "The amount in the smallest currency unit (e.g., 1050 for $10.50). Raw integer, not a decimal.",
+          "type": "number",
+          "required": true
+        },
+        "currency": {
+          "label": "Currency",
+          "description": "The three-letter ISO currency code (e.g., usd).",
+          "required": true
+        },
+        "description": {
+          "label": "Description",
+          "type": "multiline"
+        },
+        "invoice": {
+          "label": "Invoice ID",
+          "description": "Attach to this specific draft invoice (in_...) instead of the next upcoming one.",
+          "list": "invoices"
+        },
+        "price": {
+          "label": "Price ID",
+          "description": "Use a price ID (price_...) instead of an ad-hoc amount. If set, leave Amount/Currency blank."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.stripe.com/v1/invoiceitems",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "body": {
+          "customer": "{{customer}}",
+          "price": "{{price}}",
+          "amount": "{{amount}}",
+          "currency": "{{currency}}",
+          "description": "{{description}}",
+          "invoice": "{{invoice}}"
+        }
+      },
+      "beforeRequest": "var body = request.body;\nif (body.price) { delete body.amount; delete body.currency; }\nelse delete body.price;\nvar ordered = {customer: body.customer};\n['price', 'amount', 'currency', 'description', 'invoice'].forEach((key) => { if (body[key] !== undefined) ordered[key] = String(body[key]); });\nrequest.body = ordered;\nreturn request;"
+    },
+    "update_product": {
+      "label": "Update Product",
+      "description": "Update or archive a Stripe product.",
+      "inputs": {
+        "product_id": {
+          "label": "Product ID",
+          "description": "The product ID (e.g., prod_...). Obtain it from List/Search Products.",
+          "required": true,
+          "list": "products"
+        },
+        "name": {
+          "label": "Name"
+        },
+        "description": {
+          "label": "Description",
+          "type": "multiline"
+        },
+        "active": {
+          "label": "Active",
+          "description": "Set to false to archive the product.",
+          "type": "boolean"
+        },
+        "metadata": {
+          "label": "Metadata",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.stripe.com/v1/products/{{product_id}}",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "body": {
+          "name": "{{name}}",
+          "description": "{{description}}",
+          "active": "{{active}}",
+          "metadata": "{{metadata}}"
+        }
+      },
+      "beforeRequest": "var form = {};\nvar add = (key, value) => {\n  if (value === null || value === undefined || value === '') return;\n  if (Array.isArray(value)) value.forEach((item, index) => add(key + '[' + index + ']', item));\n  else if (typeof value === 'object') Object.keys(value).forEach((name) => add(key + '[' + name + ']', value[name]));\n  else form[key] = String(value);\n};\nObject.keys(request.body || {}).forEach((key) => add(key, request.body[key]));\nrequest.body = form;\nreturn request;"
+    },
+    "get_product": {
+      "label": "Get Product",
+      "description": "Retrieve a Stripe product by its ID.",
+      "inputs": {
+        "product_id": {
+          "label": "Product ID",
+          "description": "The product ID (e.g., prod_...). Obtain it from List/Search Products.",
+          "required": true,
+          "list": "products"
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/products/{{product_id}}"
+      }
+    },
+    "list_products": {
+      "label": "List Products",
+      "description": "List Stripe products.",
+      "inputs": {
+        "active": {
+          "label": "Active",
+          "description": "Filter by active state.",
+          "type": "select",
+          "options": [
+            {
+              "value": "true",
+              "label": "Active only"
+            },
+            {
+              "value": "false",
+              "label": "Inactive only"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Number to return (1-100, default 10).",
+          "type": "number"
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/products",
+        "query": {
+          "active": "{{active}}",
+          "limit": "{{limit}}"
+        }
+      }
+    },
+    "search_products": {
+      "label": "Search Products",
+      "description": "Search products with a Stripe search query.",
+      "inputs": {
+        "query": {
+          "label": "Query",
+          "description": "A Stripe search query (e.g. name~'shirt').",
+          "required": true
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Number to return (1-100, default 10).",
+          "type": "number"
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/products/search",
+        "query": {
+          "query": "{{query}}",
+          "limit": "{{limit}}"
+        }
+      }
+    },
+    "update_price": {
+      "label": "Update Price",
+      "description": "Update or archive a Stripe price.",
+      "inputs": {
+        "price_id": {
+          "label": "Price ID",
+          "description": "The price ID (e.g., price_...). Obtain it from List/Search Prices.",
+          "required": true
+        },
+        "active": {
+          "label": "Active",
+          "description": "Set to false to archive the price.",
+          "type": "boolean"
+        },
+        "nickname": {
+          "label": "Nickname"
+        },
+        "metadata": {
+          "label": "Metadata",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.stripe.com/v1/prices/{{price_id}}",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "body": {
+          "active": "{{active}}",
+          "nickname": "{{nickname}}",
+          "metadata": "{{metadata}}"
+        }
+      },
+      "beforeRequest": "var form = {};\nvar add = (key, value) => {\n  if (value === null || value === undefined || value === '') return;\n  if (Array.isArray(value)) value.forEach((item, index) => add(key + '[' + index + ']', item));\n  else if (typeof value === 'object') Object.keys(value).forEach((name) => add(key + '[' + name + ']', value[name]));\n  else form[key] = String(value);\n};\nObject.keys(request.body || {}).forEach((key) => add(key, request.body[key]));\nrequest.body = form;\nreturn request;"
+    },
+    "get_price": {
+      "label": "Get Price",
+      "description": "Retrieve a Stripe price by its ID.",
+      "inputs": {
+        "price_id": {
+          "label": "Price ID",
+          "description": "The price ID (e.g., price_...). Obtain it from List/Search Prices.",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/prices/{{price_id}}"
+      }
+    },
+    "list_prices": {
+      "label": "List Prices",
+      "description": "List Stripe prices.",
+      "inputs": {
+        "product": {
+          "label": "Product ID",
+          "description": "Filter to prices for this product (prod_...).",
+          "list": "products"
+        },
+        "active": {
+          "label": "Active",
+          "type": "select",
+          "options": [
+            {
+              "value": "true",
+              "label": "Active only"
+            },
+            {
+              "value": "false",
+              "label": "Inactive only"
+            }
+          ]
+        },
+        "type": {
+          "label": "Type",
+          "type": "select",
+          "options": [
+            {
+              "value": "one_time",
+              "label": "One-time"
+            },
+            {
+              "value": "recurring",
+              "label": "Recurring"
+            }
+          ]
+        },
+        "currency": {
+          "label": "Currency",
+          "description": "Three-letter ISO currency code (e.g., usd)."
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Number to return (1-100, default 10).",
+          "type": "number"
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/prices",
+        "query": {
+          "product": "{{product}}",
+          "active": "{{active}}",
+          "type": "{{type}}",
+          "currency": "{{currency}}",
+          "limit": "{{limit}}"
+        }
+      }
+    },
+    "search_prices": {
+      "label": "Search Prices",
+      "description": "Search prices with a Stripe search query.",
+      "inputs": {
+        "query": {
+          "label": "Query",
+          "description": "A Stripe search query (e.g. lookup_key:'standard_monthly').",
+          "required": true
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Number to return (1-100, default 10).",
+          "type": "number"
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/prices/search",
+        "query": {
+          "query": "{{query}}",
+          "limit": "{{limit}}"
+        }
+      }
+    },
+    "update_subscription": {
+      "label": "Update Subscription",
+      "description": "Update an existing Stripe subscription.",
+      "inputs": {
+        "subscription_id": {
+          "label": "Subscription ID",
+          "description": "The subscription ID (e.g., sub_...). Obtain it from List/Search Subscriptions.",
+          "required": true
+        },
+        "items": {
+          "label": "Items",
+          "description": "New/updated items. To modify an existing item include its subscription-item id; to add one supply a price.",
+          "type": "json"
+        },
+        "proration_behavior": {
+          "label": "Proration Behavior",
+          "type": "select",
+          "options": [
+            {
+              "value": "create_prorations",
+              "label": "Create Prorations"
+            },
+            {
+              "value": "none",
+              "label": "None"
+            },
+            {
+              "value": "always_invoice",
+              "label": "Always Invoice"
+            }
+          ]
+        },
+        "cancel_at_period_end": {
+          "label": "Cancel at Period End",
+          "type": "boolean"
+        },
+        "metadata": {
+          "label": "Metadata",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.stripe.com/v1/subscriptions/{{subscription_id}}",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      },
+      "beforeRequest": "var body = {};\nif (inputs.proration_behavior) body.proration_behavior = inputs.proration_behavior;\nif (inputs.cancel_at_period_end) body.cancel_at_period_end = inputs.cancel_at_period_end;\nvar metadata = inputs.metadata ? JSON.parse(inputs.metadata) : null;\nif (metadata && typeof metadata === 'object') Object.keys(metadata).forEach((key) => { body['metadata[' + key + ']'] = String(metadata[key]); });\nvar present = (value) => value !== undefined && value !== null;\n(inputs.items ? JSON.parse(inputs.items) : []).forEach((item, index) => {\n  var key = 'items[' + index + ']';\n  if (item.id) body[key + '[id]'] = String(item.id);\n  if (item.price) body[key + '[price]'] = String(item.price);\n  if (present(item.quantity)) body[key + '[quantity]'] = String(item.quantity);\n});\nrequest.body = body;\nreturn request;"
+    },
+    "get_subscription": {
+      "label": "Get Subscription",
+      "description": "Retrieve a Stripe subscription by its ID.",
+      "inputs": {
+        "subscription_id": {
+          "label": "Subscription ID",
+          "description": "The subscription ID (e.g., sub_...). Obtain it from List/Search Subscriptions.",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/subscriptions/{{subscription_id}}"
+      }
+    },
+    "list_subscription_items": {
+      "label": "List Subscription Items",
+      "description": "List the line items of a subscription.",
+      "inputs": {
+        "subscription_id": {
+          "label": "Subscription ID",
+          "description": "The subscription ID (e.g., sub_...). Obtain it from List/Search Subscriptions.",
+          "required": true
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Number to return (1-100, default 10).",
+          "type": "number"
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/subscription_items",
+        "query": {
+          "limit": "{{limit}}",
+          "subscription": "{{subscription_id}}"
+        }
+      }
+    },
+    "get_payment_link": {
+      "label": "Get Payment Link",
+      "description": "Retrieve a Stripe payment link by its ID.",
+      "inputs": {
+        "payment_link_id": {
+          "label": "Payment Link ID",
+          "description": "The payment link ID (e.g., plink_...). Obtain it from List Payment Links.",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/payment_links/{{payment_link_id}}"
+      }
+    },
+    "list_payment_links": {
+      "label": "List Payment Links",
+      "description": "List Stripe payment links.",
+      "inputs": {
+        "active": {
+          "label": "Active",
+          "type": "select",
+          "options": [
+            {
+              "value": "true",
+              "label": "Active only"
+            },
+            {
+              "value": "false",
+              "label": "Inactive only"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Number to return (1-100, default 10).",
+          "type": "number"
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/payment_links",
+        "query": {
+          "active": "{{active}}",
+          "limit": "{{limit}}"
+        }
+      }
+    },
+    "create_checkout_session": {
+      "label": "Create Checkout Session",
+      "description": "Create a Stripe-hosted Checkout Session.",
+      "inputs": {
+        "mode": {
+          "label": "Mode",
+          "description": "The Checkout mode.",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "payment",
+              "label": "Payment (one-time)"
+            },
+            {
+              "value": "subscription",
+              "label": "Subscription"
+            },
+            {
+              "value": "setup",
+              "label": "Setup (save payment method)"
+            }
+          ]
+        },
+        "line_items": {
+          "label": "Line Items",
+          "description": "The prices and quantities. Required for payment and subscription modes.",
+          "type": "json"
+        },
+        "success_url": {
+          "label": "Success URL",
+          "description": "URL to redirect to after successful payment."
+        },
+        "cancel_url": {
+          "label": "Cancel URL",
+          "description": "URL to redirect to if the customer cancels."
+        },
+        "customer": {
+          "label": "Customer ID",
+          "description": "An existing customer (cus_...) to associate with the session.",
+          "list": "customers"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.stripe.com/v1/checkout/sessions",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      },
+      "beforeRequest": "var body = {mode: inputs.mode};\n['success_url', 'cancel_url', 'customer'].forEach((key) => { if (inputs[key]) body[key] = inputs[key]; });\n(inputs.line_items ? JSON.parse(inputs.line_items) : []).forEach((item, index) => {\n  var key = 'line_items[' + index + ']';\n  if (item.price !== undefined) body[key + '[price]'] = String(item.price);\n  if (item.quantity !== undefined) body[key + '[quantity]'] = String(item.quantity);\n});\nrequest.body = body;\nreturn request;"
+    },
+    "get_checkout_session": {
+      "label": "Get Checkout Session",
+      "description": "Retrieve a Stripe Checkout Session by its ID.",
+      "inputs": {
+        "session_id": {
+          "label": "Session ID",
+          "description": "The Checkout Session ID (e.g., cs_...). Obtain it from List Checkout Sessions.",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/checkout/sessions/{{session_id}}"
+      }
+    },
+    "list_checkout_sessions": {
+      "label": "List Checkout Sessions",
+      "description": "List Stripe Checkout Sessions.",
+      "inputs": {
+        "customer": {
+          "label": "Customer ID",
+          "description": "Filter to sessions for this customer (cus_...).",
+          "list": "customers"
+        },
+        "payment_intent": {
+          "label": "Payment Intent ID",
+          "description": "Filter to the session for this PaymentIntent (pi_...).",
+          "list": "payment_intents"
+        },
+        "status": {
+          "label": "Status",
+          "type": "select",
+          "options": [
+            {
+              "value": "open",
+              "label": "Open"
+            },
+            {
+              "value": "complete",
+              "label": "Complete"
+            },
+            {
+              "value": "expired",
+              "label": "Expired"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Number to return (1-100, default 10).",
+          "type": "number"
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/checkout/sessions",
+        "query": {
+          "customer": "{{customer}}",
+          "payment_intent": "{{payment_intent}}",
+          "status": "{{status}}",
+          "limit": "{{limit}}"
+        }
+      }
+    },
+    "create_payment_method": {
+      "label": "Create Payment Method",
+      "description": "Create a PaymentMethod from a token.",
+      "inputs": {
+        "type": {
+          "label": "Type",
+          "description": "The PaymentMethod type (e.g., card).",
+          "required": true
+        },
+        "token": {
+          "label": "Card Token",
+          "description": "A single-use card token (e.g., tok_visa or a Stripe.js token). Required for card type. Do NOT pass a raw card number."
+        },
+        "billing_name": {
+          "label": "Billing Name"
+        },
+        "billing_email": {
+          "label": "Billing Email"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.stripe.com/v1/payment_methods",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "body": {
+          "type": "{{type}}",
+          "card": {
+            "token": "{{token}}"
+          },
+          "billing_details": {
+            "name": "{{billing_name}}",
+            "email": "{{billing_email}}"
+          }
+        }
+      },
+      "beforeRequest": "var form = {};\nvar add = (key, value) => {\n  if (value === null || value === undefined || value === '') return;\n  if (Array.isArray(value)) value.forEach((item, index) => add(key + '[' + index + ']', item));\n  else if (typeof value === 'object') Object.keys(value).forEach((name) => add(key + '[' + name + ']', value[name]));\n  else form[key] = String(value);\n};\nObject.keys(request.body || {}).forEach((key) => add(key, request.body[key]));\nrequest.body = form;\nreturn request;"
+    },
+    "attach_payment_method": {
+      "label": "Attach Payment Method",
+      "description": "Attach a PaymentMethod to a customer.",
+      "inputs": {
+        "payment_method_id": {
+          "label": "Payment Method ID",
+          "description": "The PaymentMethod ID (e.g., pm_...) to attach. Obtain it from Create Payment Method or List Customer Payment Methods.",
+          "required": true
+        },
+        "customer": {
+          "label": "Customer ID",
+          "description": "The customer ID (e.g., cus_...) to attach the PaymentMethod to.",
+          "required": true,
+          "list": "customers"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.stripe.com/v1/payment_methods/{{payment_method_id}}/attach",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "body": {
+          "customer": "{{customer}}"
+        }
+      }
+    },
+    "get_payment_method": {
+      "label": "Get Payment Method",
+      "description": "Retrieve a PaymentMethod by its ID.",
+      "inputs": {
+        "payment_method_id": {
+          "label": "Payment Method ID",
+          "description": "The PaymentMethod ID (e.g., pm_...). Obtain it from List Customer Payment Methods.",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/payment_methods/{{payment_method_id}}"
+      }
+    },
+    "list_customer_payment_methods": {
+      "label": "List Customer Payment Methods",
+      "description": "List a customer's attached payment methods.",
+      "inputs": {
+        "customer_id": {
+          "label": "Customer ID",
+          "description": "The customer ID (e.g., cus_...). Obtain it from Search/List Customers.",
+          "required": true,
+          "list": "customers"
+        },
+        "type": {
+          "label": "Type",
+          "description": "Filter by PaymentMethod type (e.g., card)."
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Number to return (1-100, default 10).",
+          "type": "number"
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/customers/{{customer_id}}/payment_methods",
+        "query": {
+          "type": "{{type}}",
+          "limit": "{{limit}}"
+        }
+      }
+    },
+    "create_coupon": {
+      "label": "Create Coupon",
+      "description": "Create a discount coupon.",
+      "inputs": {
+        "percent_off": {
+          "label": "Percent Off",
+          "description": "Percentage discount (e.g., 25 for 25%). Use this OR Amount Off.",
+          "type": "number"
+        },
+        "amount_off": {
+          "label": "Amount Off",
+          "description": "Flat discount in the smallest currency unit (e.g., 500 for $5.00). Requires Currency.",
+          "type": "number"
+        },
+        "currency": {
+          "label": "Currency",
+          "description": "Three-letter ISO currency code. Required with Amount Off."
+        },
+        "duration": {
+          "label": "Duration",
+          "description": "How long the discount applies.",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "once",
+              "label": "Once"
+            },
+            {
+              "value": "repeating",
+              "label": "Repeating"
+            },
+            {
+              "value": "forever",
+              "label": "Forever"
+            }
+          ]
+        },
+        "duration_in_months": {
+          "label": "Duration in Months",
+          "description": "Number of months the discount lasts. Required if duration is repeating.",
+          "type": "number"
+        },
+        "name": {
+          "label": "Name",
+          "description": "Name shown to customers on invoices/receipts."
+        },
+        "id": {
+          "label": "ID",
+          "description": "A custom unique coupon ID. If omitted, Stripe generates one. Reusing an existing id returns an error."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.stripe.com/v1/coupons",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "body": {
+          "duration": "{{duration}}",
+          "percent_off": "{{percent_off}}",
+          "amount_off": "{{amount_off}}",
+          "currency": "{{currency}}",
+          "duration_in_months": "{{duration_in_months}}",
+          "name": "{{name}}",
+          "id": "{{id}}"
+        }
+      }
+    },
+    "get_coupon": {
+      "label": "Get Coupon",
+      "description": "Retrieve a coupon by its ID.",
+      "inputs": {
+        "coupon_id": {
+          "label": "Coupon ID",
+          "description": "The coupon ID. Obtain it from List Coupons.",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/coupons/{{coupon_id}}"
+      }
+    },
+    "list_coupons": {
+      "label": "List Coupons",
+      "description": "List Stripe coupons.",
+      "inputs": {
+        "limit": {
+          "label": "Limit",
+          "description": "Number to return (1-100, default 10).",
+          "type": "number"
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/coupons",
+        "query": {
+          "limit": "{{limit}}"
+        }
+      }
+    },
+    "create_promotion_code": {
+      "label": "Create Promotion Code",
+      "description": "Create a customer-facing promotion code for a coupon.",
+      "inputs": {
+        "coupon": {
+          "label": "Coupon ID",
+          "description": "The coupon ID this promotion code applies. Obtain it from List Coupons or Create Coupon.",
+          "required": true
+        },
+        "code": {
+          "label": "Code",
+          "description": "The customer-facing code (e.g., SUMMER25). If omitted, Stripe generates one."
+        },
+        "customer": {
+          "label": "Customer ID",
+          "description": "Restrict the code to this customer (cus_...).",
+          "list": "customers"
+        },
+        "max_redemptions": {
+          "label": "Max Redemptions",
+          "description": "Maximum number of times the code can be redeemed.",
+          "type": "number"
+        },
+        "expires_at": {
+          "label": "Expires At",
+          "description": "When the promotion code expires."
+        },
+        "active": {
+          "label": "Active",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.stripe.com/v1/promotion_codes",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Stripe-Version": "2025-05-28.basil"
+        },
+        "body": {
+          "coupon": "{{coupon}}",
+          "code": "{{code}}",
+          "customer": "{{customer}}",
+          "max_redemptions": "{{max_redemptions}}",
+          "expires_at": "{{expires_at}}",
+          "active": "{{active}}"
+        }
+      },
+      "beforeRequest": "if (request.body.expires_at) request.body.expires_at = String(Math.floor(new Date(request.body.expires_at).getTime() / 1000));\nreturn request;"
+    },
+    "get_promotion_code": {
+      "label": "Get Promotion Code",
+      "description": "Retrieve a promotion code by its ID.",
+      "inputs": {
+        "promotion_code_id": {
+          "label": "Promotion Code ID",
+          "description": "The promotion code ID (e.g., promo_...). Obtain it from List Promotion Codes.",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/promotion_codes/{{promotion_code_id}}"
+      }
+    },
+    "list_promotion_codes": {
+      "label": "List Promotion Codes",
+      "description": "List Stripe promotion codes.",
+      "inputs": {
+        "coupon": {
+          "label": "Coupon ID",
+          "description": "Filter to codes for this coupon."
+        },
+        "active": {
+          "label": "Active",
+          "type": "select",
+          "options": [
+            {
+              "value": "true",
+              "label": "Active only"
+            },
+            {
+              "value": "false",
+              "label": "Inactive only"
+            }
+          ]
+        },
+        "code": {
+          "label": "Code",
+          "description": "Filter to the literal code string (e.g., SUMMER25)."
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Number to return (1-100, default 10).",
+          "type": "number"
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/promotion_codes",
+        "query": {
+          "coupon": "{{coupon}}",
+          "active": "{{active}}",
+          "code": "{{code}}",
+          "limit": "{{limit}}"
+        }
+      }
+    },
+    "retrieve_balance": {
+      "label": "Get Balance",
+      "description": "Get the current Stripe account balance.",
+      "request": {
+        "url": "https://api.stripe.com/v1/balance"
+      }
+    },
+    "list_balance_transactions": {
+      "label": "List Balance Transactions",
+      "description": "List balance transactions (the reconciliation ledger).",
+      "inputs": {
+        "type": {
+          "label": "Type",
+          "description": "Filter by transaction type (e.g., charge, refund, payout)."
+        },
+        "payout": {
+          "label": "Payout ID",
+          "description": "Filter to transactions paid out in this payout (po_...).",
+          "list": "payouts"
+        },
+        "created_after": {
+          "label": "Created After"
+        },
+        "created_before": {
+          "label": "Created Before"
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Number to return (1-100, default 10).",
+          "type": "number"
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/balance_transactions",
+        "query": {
+          "type": "{{type}}",
+          "payout": "{{payout}}",
+          "limit": "{{limit}}"
+        }
+      },
+      "beforeRequest": "var seconds = (time) => String(Math.floor(new Date(time).getTime() / 1000));\nif (inputs.created_after) request.query['created[gte]'] = seconds(inputs.created_after);\nif (inputs.created_before) request.query['created[lte]'] = seconds(inputs.created_before);\nreturn request;"
+    },
+    "list_payouts": {
+      "label": "List Payouts",
+      "description": "List payouts to the bank account.",
+      "inputs": {
+        "status": {
+          "label": "Status",
+          "type": "select",
+          "options": [
+            {
+              "value": "pending",
+              "label": "Pending"
+            },
+            {
+              "value": "in_transit",
+              "label": "In Transit"
+            },
+            {
+              "value": "paid",
+              "label": "Paid"
+            },
+            {
+              "value": "failed",
+              "label": "Failed"
+            },
+            {
+              "value": "canceled",
+              "label": "Canceled"
+            }
+          ]
+        },
+        "arrival_date_after": {
+          "label": "Arrival Date After"
+        },
+        "arrival_date_before": {
+          "label": "Arrival Date Before"
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Number to return (1-100, default 10).",
+          "type": "number"
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/payouts",
+        "query": {
+          "status": "{{status}}",
+          "limit": "{{limit}}"
+        }
+      },
+      "beforeRequest": "var seconds = (time) => String(Math.floor(new Date(time).getTime() / 1000));\nif (inputs.arrival_date_after) request.query['arrival_date[gte]'] = seconds(inputs.arrival_date_after);\nif (inputs.arrival_date_before) request.query['arrival_date[lte]'] = seconds(inputs.arrival_date_before);\nreturn request;"
+    },
+    "create_tax_rate": {
+      "label": "Create Tax Rate",
+      "description": "Create a manual tax rate.",
+      "inputs": {
+        "display_name": {
+          "label": "Display Name",
+          "description": "Name shown to customers (e.g., VAT).",
+          "required": true
+        },
+        "percentage": {
+          "label": "Percentage",
+          "description": "The tax rate percentage (e.g., 20 for 20%).",
+          "type": "number",
+          "required": true
+        },
+        "inclusive": {
+          "label": "Inclusive",
+          "description": "Whether the tax is included in the price.",
+          "type": "boolean",
+          "required": true
+        },
+        "jurisdiction": {
+          "label": "Jurisdiction",
+          "description": "Optional jurisdiction text (e.g., UK)."
+        },
+        "country": {
+          "label": "Country",
+          "description": "Two-letter ISO country code."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.stripe.com/v1/tax_rates",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "body": {
+          "display_name": "{{display_name}}",
+          "percentage": "{{percentage}}",
+          "inclusive": "{{inclusive}}",
+          "jurisdiction": "{{jurisdiction}}",
+          "country": "{{country}}"
+        }
+      }
+    },
+    "get_tax_rate": {
+      "label": "Get Tax Rate",
+      "description": "Retrieve a tax rate by its ID.",
+      "inputs": {
+        "tax_rate_id": {
+          "label": "Tax Rate ID",
+          "description": "The tax rate ID (e.g., txr_...). Obtain it from List Tax Rates.",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/tax_rates/{{tax_rate_id}}"
+      }
+    },
+    "list_tax_rates": {
+      "label": "List Tax Rates",
+      "description": "List Stripe tax rates.",
+      "inputs": {
+        "active": {
+          "label": "Active",
+          "type": "select",
+          "options": [
+            {
+              "value": "true",
+              "label": "Active only"
+            },
+            {
+              "value": "false",
+              "label": "Inactive only"
+            }
+          ]
+        },
+        "inclusive": {
+          "label": "Inclusive",
+          "type": "select",
+          "options": [
+            {
+              "value": "true",
+              "label": "Inclusive only"
+            },
+            {
+              "value": "false",
+              "label": "Exclusive only"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Number to return (1-100, default 10).",
+          "type": "number"
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/tax_rates",
+        "query": {
+          "active": "{{active}}",
+          "inclusive": "{{inclusive}}",
+          "limit": "{{limit}}"
+        }
+      }
+    },
+    "create_credit_note": {
+      "label": "Create Credit Note",
+      "description": "Issue a credit note against a finalized invoice.",
+      "inputs": {
+        "invoice": {
+          "label": "Invoice ID",
+          "description": "The finalized invoice ID (e.g., in_...) to credit. Obtain it from List/Search Invoices.",
+          "required": true,
+          "list": "invoices"
+        },
+        "amount": {
+          "label": "Amount",
+          "description": "Total amount of the credit note, in the smallest currency unit (e.g., 500 for $5.00). Stripe requires this (or itemized lines); it must not exceed the invoice total. By default the full amount credits the customer balance unless you also set Credit Amount / Refund Amount to split it.",
+          "type": "number",
+          "required": true
+        },
+        "credit_amount": {
+          "label": "Credit Amount",
+          "description": "The amount to credit to the customer balance, in the smallest currency unit (e.g., 500 for $5.00).",
+          "type": "number"
+        },
+        "refund_amount": {
+          "label": "Refund Amount",
+          "description": "The amount to refund, in the smallest currency unit. Refunds against the original payment.",
+          "type": "number"
+        },
+        "reason": {
+          "label": "Reason",
+          "type": "select",
+          "options": [
+            {
+              "value": "duplicate",
+              "label": "Duplicate"
+            },
+            {
+              "value": "fraudulent",
+              "label": "Fraudulent"
+            },
+            {
+              "value": "order_change",
+              "label": "Order Change"
+            },
+            {
+              "value": "product_unsatisfactory",
+              "label": "Product Unsatisfactory"
+            }
+          ]
+        },
+        "memo": {
+          "label": "Memo",
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.stripe.com/v1/credit_notes",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "body": {
+          "invoice": "{{invoice}}",
+          "amount": "{{amount}}",
+          "credit_amount": "{{credit_amount}}",
+          "refund_amount": "{{refund_amount}}",
+          "reason": "{{reason}}",
+          "memo": "{{memo}}"
+        }
+      }
+    },
+    "void_credit_note": {
+      "label": "Void Credit Note",
+      "description": "Void a credit note.",
+      "inputs": {
+        "credit_note_id": {
+          "label": "Credit Note ID",
+          "description": "The credit note ID (e.g., cn_...). Obtain it from List Credit Notes.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.stripe.com/v1/credit_notes/{{credit_note_id}}/void",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      }
+    },
+    "get_credit_note": {
+      "label": "Get Credit Note",
+      "description": "Retrieve a credit note by its ID.",
+      "inputs": {
+        "credit_note_id": {
+          "label": "Credit Note ID",
+          "description": "The credit note ID (e.g., cn_...). Obtain it from List Credit Notes.",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/credit_notes/{{credit_note_id}}"
+      }
+    },
+    "list_credit_notes": {
+      "label": "List Credit Notes",
+      "description": "List Stripe credit notes.",
+      "inputs": {
+        "invoice": {
+          "label": "Invoice ID",
+          "description": "Filter to credit notes for this invoice (in_...).",
+          "list": "invoices"
+        },
+        "customer": {
+          "label": "Customer ID",
+          "description": "Filter to credit notes for this customer (cus_...).",
+          "list": "customers"
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Number to return (1-100, default 10).",
+          "type": "number"
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/credit_notes",
+        "query": {
+          "invoice": "{{invoice}}",
+          "customer": "{{customer}}",
+          "limit": "{{limit}}"
+        }
+      }
+    },
+    "list_events": {
+      "label": "List Events",
+      "description": "List Stripe account events.",
+      "inputs": {
+        "type": {
+          "label": "Type",
+          "description": "Filter by event type (e.g., invoice.paid, charge.refunded)."
+        },
+        "created_after": {
+          "label": "Created After"
+        },
+        "created_before": {
+          "label": "Created Before"
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Number to return (1-100, default 10).",
+          "type": "number"
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/events",
+        "query": {
+          "type": "{{type}}",
+          "limit": "{{limit}}"
+        }
+      },
+      "beforeRequest": "var seconds = (time) => String(Math.floor(new Date(time).getTime() / 1000));\nif (inputs.created_after) request.query['created[gte]'] = seconds(inputs.created_after);\nif (inputs.created_before) request.query['created[lte]'] = seconds(inputs.created_before);\nreturn request;"
+    },
+    "get_event": {
+      "label": "Get Event",
+      "description": "Retrieve a single Stripe event by its ID.",
+      "inputs": {
+        "event_id": {
+          "label": "Event ID",
+          "description": "The event ID (e.g., evt_...). Obtain it from List Events or a webhook payload.",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/events/{{event_id}}"
+      }
+    },
+    "get_dispute": {
+      "label": "Get Dispute",
+      "description": "Retrieve a dispute by its ID.",
+      "inputs": {
+        "dispute_id": {
+          "label": "Dispute ID",
+          "description": "The dispute ID (e.g., dp_...). Obtain it from List Disputes.",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/disputes/{{dispute_id}}"
+      }
+    },
+    "list_disputes": {
+      "label": "List Disputes",
+      "description": "List Stripe disputes (chargebacks).",
+      "inputs": {
+        "charge": {
+          "label": "Charge ID",
+          "description": "Filter to disputes for this charge (ch_...)."
+        },
+        "payment_intent": {
+          "label": "Payment Intent ID",
+          "description": "Filter to disputes for this PaymentIntent (pi_...).",
+          "list": "payment_intents"
+        },
+        "created_after": {
+          "label": "Created After"
+        },
+        "created_before": {
+          "label": "Created Before"
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Number to return (1-100, default 10).",
+          "type": "number"
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/disputes",
+        "query": {
+          "charge": "{{charge}}",
+          "payment_intent": "{{payment_intent}}",
+          "limit": "{{limit}}"
+        }
+      },
+      "beforeRequest": "var seconds = (time) => String(Math.floor(new Date(time).getTime() / 1000));\nif (inputs.created_after) request.query['created[gte]'] = seconds(inputs.created_after);\nif (inputs.created_before) request.query['created[lte]'] = seconds(inputs.created_before);\nreturn request;"
+    },
+    "list_transfers": {
+      "label": "List Transfers",
+      "description": "List transfers to connected accounts (Stripe Connect).",
+      "inputs": {
+        "destination": {
+          "label": "Destination Account ID",
+          "description": "Filter to transfers to this connected account (acct_...)."
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Number to return (1-100, default 10).",
+          "type": "number"
+        }
+      },
+      "request": {
+        "url": "https://api.stripe.com/v1/transfers",
+        "query": {
+          "destination": "{{destination}}",
+          "limit": "{{limit}}"
+        }
+      }
+    },
+    "update_dispute": {
+      "label": "Update Dispute",
+      "description": "Submit or update evidence on a dispute.",
+      "inputs": {
+        "dispute_id": {
+          "label": "Dispute ID",
+          "description": "The dispute ID (e.g., dp_...). Obtain it from List Disputes.",
+          "required": true
+        },
+        "evidence": {
+          "label": "Evidence",
+          "description": "A Stripe dispute evidence object (e.g., {\"product_description\":\"...\",\"customer_name\":\"...\"}).",
+          "type": "json"
+        },
+        "submit": {
+          "label": "Submit",
+          "description": "If true, finalizes and submits the evidence to the bank. This cannot be undone.",
+          "type": "boolean"
+        },
+        "metadata": {
+          "label": "Metadata",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.stripe.com/v1/disputes/{{dispute_id}}",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "body": {
+          "submit": "{{submit}}",
+          "evidence": "{{evidence}}",
+          "metadata": "{{metadata}}"
+        }
+      },
+      "beforeRequest": "var form = {};\nvar add = (key, value) => {\n  if (value === null || value === undefined || value === '') return;\n  if (Array.isArray(value)) value.forEach((item, index) => add(key + '[' + index + ']', item));\n  else if (typeof value === 'object') Object.keys(value).forEach((name) => add(key + '[' + name + ']', value[name]));\n  else form[key] = String(value);\n};\nObject.keys(request.body || {}).forEach((key) => add(key, request.body[key]));\nrequest.body = form;\nreturn request;"
+    },
+    "close_dispute": {
+      "label": "Close Dispute",
+      "description": "Concede a dispute (DESTRUCTIVE — forfeits the funds).",
+      "inputs": {
+        "dispute_id": {
+          "label": "Dispute ID",
+          "description": "The dispute ID (e.g., dp_...) to concede. Obtain it from List Disputes.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.stripe.com/v1/disputes/{{dispute_id}}/close",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      }
+    }
+  },
+  "triggers": {
+    "new_payment": {
+      "label": "New Payment",
+      "description": "Fires when a payment succeeds. Returns the payment.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.stripe.com/v1/webhook_endpoints",
+          "headers": {
+            "Content-Type": "application/x-www-form-urlencoded"
+          },
+          "body": {
+            "enabled_events[]": "payment_intent.succeeded",
+            "url": "{{webhookUrl}}"
+          }
+        },
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.stripe.com/v1/webhook_endpoints/{{webhookId}}"
+        }
+      },
+      "items": "$.data.object"
+    },
+    "new_customer": {
+      "label": "New Customer",
+      "description": "Fires when a customer is created.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.stripe.com/v1/webhook_endpoints",
+          "headers": {
+            "Content-Type": "application/x-www-form-urlencoded"
+          },
+          "body": {
+            "enabled_events[]": "customer.created",
+            "url": "{{webhookUrl}}"
+          }
+        },
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.stripe.com/v1/webhook_endpoints/{{webhookId}}"
+        }
+      },
+      "items": "$.data.object"
+    },
+    "payment_failed": {
+      "label": "Payment Failed",
+      "description": "Fires when any charge fails, including renewals.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.stripe.com/v1/webhook_endpoints",
+          "headers": {
+            "Content-Type": "application/x-www-form-urlencoded"
+          },
+          "body": {
+            "enabled_events[]": "charge.failed",
+            "url": "{{webhookUrl}}"
+          }
+        },
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.stripe.com/v1/webhook_endpoints/{{webhookId}}"
+        }
+      },
+      "items": "$.data.object"
+    },
+    "new_subscription": {
+      "label": "New Subscription",
+      "description": "Fires when a subscription is created.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.stripe.com/v1/webhook_endpoints",
+          "headers": {
+            "Content-Type": "application/x-www-form-urlencoded"
+          },
+          "body": {
+            "enabled_events[]": "customer.subscription.created",
+            "url": "{{webhookUrl}}"
+          }
+        },
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.stripe.com/v1/webhook_endpoints/{{webhookId}}"
+        }
+      },
+      "items": "$.data.object"
+    },
+    "new_charge": {
+      "label": "New Charge",
+      "description": "Fires when a charge succeeds. Returns the charge and receipt.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.stripe.com/v1/webhook_endpoints",
+          "headers": {
+            "Content-Type": "application/x-www-form-urlencoded"
+          },
+          "body": {
+            "enabled_events[]": "charge.succeeded",
+            "url": "{{webhookUrl}}"
+          }
+        },
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.stripe.com/v1/webhook_endpoints/{{webhookId}}"
+        }
+      },
+      "items": "$.data.object"
+    },
+    "new_invoice": {
+      "label": "New Invoice",
+      "description": "Fires when an invoice is created.",
+      "inputs": {
+        "status": {
+          "label": "Status",
+          "description": "Only invoices with this status. Empty: all.",
+          "type": "select",
+          "options": [
+            {
+              "value": "draft",
+              "label": "Draft"
+            },
+            {
+              "value": "open",
+              "label": "Open"
+            },
+            {
+              "value": "paid",
+              "label": "Paid"
+            },
+            {
+              "value": "uncollectible",
+              "label": "Uncollectible"
+            },
+            {
+              "value": "void",
+              "label": "Void"
+            }
+          ]
+        },
+        "customer": {
+          "label": "Customer ID",
+          "description": "Only invoices for this customer. Empty: all.",
+          "list": "customers"
+        },
+        "subscription": {
+          "label": "Subscription ID",
+          "description": "Only invoices for this subscription. Empty: all."
+        }
+      },
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.stripe.com/v1/webhook_endpoints",
+          "headers": {
+            "Content-Type": "application/x-www-form-urlencoded"
+          },
+          "body": {
+            "enabled_events[]": "invoice.created",
+            "url": "{{webhookUrl}}"
+          }
+        },
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.stripe.com/v1/webhook_endpoints/{{webhookId}}"
+        }
+      },
+      "afterResponse": "var item = response.data.object;\nif (inputs.status && item.status !== inputs.status) return [];\nif (inputs.customer && item.customer !== inputs.customer) return [];\nif (inputs.subscription && item.subscription !== inputs.subscription) return [];\nreturn [item];"
+    },
+    "invoice_payment_failed": {
+      "label": "Invoice Payment Failed",
+      "description": "Fires when paying an invoice fails, e.g. a renewal.",
+      "inputs": {
+        "customer": {
+          "label": "Customer ID",
+          "description": "Only invoices for this customer. Empty: all.",
+          "list": "customers"
+        }
+      },
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.stripe.com/v1/webhook_endpoints",
+          "headers": {
+            "Content-Type": "application/x-www-form-urlencoded"
+          },
+          "body": {
+            "enabled_events[]": "invoice.payment_failed",
+            "url": "{{webhookUrl}}"
+          }
+        },
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.stripe.com/v1/webhook_endpoints/{{webhookId}}"
+        }
+      },
+      "afterResponse": "var item = response.data.object;\nif (inputs.customer && item.customer !== inputs.customer) return [];\nreturn [item];"
+    },
+    "canceled_subscription": {
+      "label": "Canceled Subscription",
+      "description": "Fires when a subscription ends.",
+      "inputs": {
+        "customer": {
+          "label": "Customer ID",
+          "description": "Only subscriptions for this customer. Empty: all.",
+          "list": "customers"
+        }
+      },
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.stripe.com/v1/webhook_endpoints",
+          "headers": {
+            "Content-Type": "application/x-www-form-urlencoded"
+          },
+          "body": {
+            "enabled_events[]": "customer.subscription.deleted",
+            "url": "{{webhookUrl}}"
+          }
+        },
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.stripe.com/v1/webhook_endpoints/{{webhookId}}"
+        }
+      },
+      "afterResponse": "var item = response.data.object;\nif (inputs.customer && item.customer !== inputs.customer) return [];\nreturn [item];"
+    },
+    "new_refund": {
+      "label": "New Refund",
+      "description": "Fires when a refund is created, full or partial.",
+      "inputs": {
+        "charge": {
+          "label": "Charge ID",
+          "description": "Only refunds for this charge. Empty: all."
+        },
+        "payment_intent": {
+          "label": "Payment Intent ID",
+          "description": "Only refunds for this payment. Empty: all.",
+          "list": "payment_intents"
+        }
+      },
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.stripe.com/v1/webhook_endpoints",
+          "headers": {
+            "Content-Type": "application/x-www-form-urlencoded"
+          },
+          "body": {
+            "enabled_events[]": "refund.created",
+            "url": "{{webhookUrl}}"
+          }
+        },
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.stripe.com/v1/webhook_endpoints/{{webhookId}}"
+        }
+      },
+      "afterResponse": "var item = response.data.object;\nif (inputs.charge && item.charge !== inputs.charge) return [];\nif (inputs.payment_intent && item.payment_intent !== inputs.payment_intent) return [];\nreturn [item];"
+    },
+    "new_dispute": {
+      "label": "New Dispute",
+      "description": "Fires when a customer disputes a charge.",
+      "inputs": {
+        "charge": {
+          "label": "Charge ID",
+          "description": "Only disputes for this charge. Empty: all."
+        },
+        "payment_intent": {
+          "label": "Payment Intent ID",
+          "description": "Only disputes for this payment. Empty: all.",
+          "list": "payment_intents"
+        }
+      },
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.stripe.com/v1/webhook_endpoints",
+          "headers": {
+            "Content-Type": "application/x-www-form-urlencoded"
+          },
+          "body": {
+            "enabled_events[]": "charge.dispute.created",
+            "url": "{{webhookUrl}}"
+          }
+        },
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.stripe.com/v1/webhook_endpoints/{{webhookId}}"
+        }
+      },
+      "afterResponse": "var item = response.data.object;\nif (inputs.charge && item.charge !== inputs.charge) return [];\nif (inputs.payment_intent && item.payment_intent !== inputs.payment_intent) return [];\nreturn [item];"
+    },
+    "new_payment_link": {
+      "label": "New Payment Link",
+      "description": "Fires when a payment link is created.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.stripe.com/v1/webhook_endpoints",
+          "headers": {
+            "Content-Type": "application/x-www-form-urlencoded"
+          },
+          "body": {
+            "enabled_events[]": "payment_link.created",
+            "url": "{{webhookUrl}}"
+          }
+        },
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.stripe.com/v1/webhook_endpoints/{{webhookId}}"
+        }
+      },
+      "items": "$.data.object"
+    },
+    "updated_subscription": {
+      "label": "Updated Subscription",
+      "description": "Fires when a subscription changes, e.g. status or plan.",
+      "inputs": {
+        "status": {
+          "label": "New Status",
+          "description": "Only updates where the subscription's status is this.",
+          "type": "select",
+          "options": [
+            {
+              "value": "incomplete",
+              "label": "Incomplete"
+            },
+            {
+              "value": "incomplete_expired",
+              "label": "Incomplete Expired"
+            },
+            {
+              "value": "trialing",
+              "label": "Trialing"
+            },
+            {
+              "value": "active",
+              "label": "Active"
+            },
+            {
+              "value": "past_due",
+              "label": "Past Due"
+            },
+            {
+              "value": "canceled",
+              "label": "Canceled"
+            },
+            {
+              "value": "unpaid",
+              "label": "Unpaid"
+            },
+            {
+              "value": "paused",
+              "label": "Paused"
+            }
+          ]
+        },
+        "customer": {
+          "label": "Customer ID",
+          "description": "Only subscriptions for this customer. Empty: all.",
+          "list": "customers"
+        }
+      },
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.stripe.com/v1/webhook_endpoints",
+          "headers": {
+            "Content-Type": "application/x-www-form-urlencoded"
+          },
+          "body": {
+            "enabled_events[]": "customer.subscription.updated",
+            "url": "{{webhookUrl}}"
+          }
+        },
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.stripe.com/v1/webhook_endpoints/{{webhookId}}"
+        }
+      },
+      "afterResponse": "var item = response.data.object;\nif (inputs.status && item.status !== inputs.status) return [];\nif (inputs.customer && item.customer !== inputs.customer) return [];\nreturn [item];"
+    },
+    "checkout_session_completed": {
+      "label": "Checkout Session Completed",
+      "description": "Fires when a customer completes a Checkout session.",
+      "inputs": {
+        "customer": {
+          "label": "Customer ID",
+          "description": "Only sessions for this customer. Empty: all.",
+          "list": "customers"
+        }
+      },
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.stripe.com/v1/webhook_endpoints",
+          "headers": {
+            "Content-Type": "application/x-www-form-urlencoded"
+          },
+          "body": {
+            "enabled_events[]": "checkout.session.completed",
+            "url": "{{webhookUrl}}"
+          }
+        },
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.stripe.com/v1/webhook_endpoints/{{webhookId}}"
+        }
+      },
+      "afterResponse": "var item = response.data.object;\nif (inputs.customer && item.customer !== inputs.customer) return [];\nreturn [item];"
+    }
+  }
+}

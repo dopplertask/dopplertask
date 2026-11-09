@@ -1,0 +1,217 @@
+{
+  "name": "postmark",
+  "label": "Postmark",
+  "description": "Transactional email platform for sending email, templates, and retrieving delivery and bounce insights.",
+  "icon": "",
+  "hosts": [
+    "api.postmarkapp.com"
+  ],
+  "baseUrl": "https://api.postmarkapp.com",
+  "upstream": {
+    "package": "@activepieces/piece-postmark",
+    "version": "0.1.2"
+  },
+  "credential": {
+    "fields": {
+      "token": {
+        "label": "Server API Token",
+        "description": "Create or copy a Postmark Server API Token from Servers → API Tokens in Postmark.",
+        "secret": true,
+        "required": true
+      }
+    },
+    "headers": {
+      "X-Postmark-Server-Token": "{{credential.token}}"
+    }
+  },
+  "actions": {
+    "send_email": {
+      "label": "Send Email",
+      "description": "Send a single transactional email using Postmark.",
+      "inputs": {
+        "from": {
+          "label": "From",
+          "description": "Sender email address configured in Postmark.",
+          "required": true
+        },
+        "to": {
+          "label": "To",
+          "description": "Recipient email addresses, as a JSON list.",
+          "type": "json",
+          "required": true
+        },
+        "cc": {
+          "label": "CC",
+          "description": "Optional CC recipients, as a JSON list.",
+          "type": "json"
+        },
+        "bcc": {
+          "label": "BCC",
+          "description": "Optional BCC recipients, as a JSON list.",
+          "type": "json"
+        },
+        "replyTo": {
+          "label": "Reply To",
+          "description": "Optional reply-to email address."
+        },
+        "subject": {
+          "label": "Subject",
+          "required": true
+        },
+        "textBody": {
+          "label": "Text Body",
+          "type": "multiline"
+        },
+        "htmlBody": {
+          "label": "HTML Body",
+          "type": "multiline"
+        },
+        "tag": {
+          "label": "Tag"
+        },
+        "trackOpens": {
+          "label": "Track Opens",
+          "type": "boolean",
+          "defaultValue": "true"
+        },
+        "messageStream": {
+          "label": "Message Stream",
+          "description": "Defaults to outbound if omitted."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.postmarkapp.com/email"
+      },
+      "beforeRequest": "const t = (v) => (v == null ? '' : String(v).trim()), list = (v) => { const a = t(v) ? JSON.parse(v) : []; return a.length ? a.map((e) => String(e).trim()).filter((e) => e.length > 0).join(', ') : undefined; };\nif (!t(inputs.textBody) && !t(inputs.htmlBody)) throw new Error('Please provide a text body, an HTML body, or both.');\nrequest.body = {From: inputs.from, To: list(inputs.to), Cc: list(inputs.cc), Bcc: list(inputs.bcc), ReplyTo: t(inputs.replyTo) || undefined, Subject: inputs.subject, TextBody: t(inputs.textBody) || undefined, HtmlBody: t(inputs.htmlBody) || undefined, Tag: t(inputs.tag) || undefined, TrackOpens: t(inputs.trackOpens) ? inputs.trackOpens === 'true' : undefined, MessageStream: t(inputs.messageStream) || 'outbound'};\nreturn request;",
+      "afterResponse": "return {success: response.ErrorCode === 0, response};",
+      "outputs": {
+        "success": "$.success",
+        "messageId": "$.response.MessageID"
+      }
+    },
+    "send_email_with_template": {
+      "label": "Send Email With Template",
+      "description": "Send an email using a Postmark template ID and template model.",
+      "inputs": {
+        "from": {
+          "label": "From",
+          "description": "Sender email address configured in Postmark.",
+          "required": true
+        },
+        "to": {
+          "label": "To",
+          "description": "Recipient email addresses, as a JSON list.",
+          "type": "json",
+          "required": true
+        },
+        "cc": {
+          "label": "CC",
+          "description": "Optional CC recipients, as a JSON list.",
+          "type": "json"
+        },
+        "bcc": {
+          "label": "BCC",
+          "description": "Optional BCC recipients, as a JSON list.",
+          "type": "json"
+        },
+        "replyTo": {
+          "label": "Reply To",
+          "description": "Optional reply-to email address."
+        },
+        "templateId": {
+          "label": "Template ID",
+          "description": "Numeric Postmark template ID.",
+          "type": "number",
+          "required": true
+        },
+        "templateModel": {
+          "label": "Template Model",
+          "description": "JSON object used to populate the Postmark template.",
+          "type": "json",
+          "required": true
+        },
+        "tag": {
+          "label": "Tag"
+        },
+        "trackOpens": {
+          "label": "Track Opens",
+          "type": "boolean",
+          "defaultValue": "true"
+        },
+        "messageStream": {
+          "label": "Message Stream",
+          "description": "Defaults to outbound if omitted."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.postmarkapp.com/email/withTemplate"
+      },
+      "beforeRequest": "const t = (v) => (v == null ? '' : String(v).trim()), list = (v) => { const a = t(v) ? JSON.parse(v) : []; return a.length ? a.map((e) => String(e).trim()).filter((e) => e.length > 0).join(', ') : undefined; };\nrequest.body = {From: inputs.from, To: list(inputs.to), Cc: list(inputs.cc), Bcc: list(inputs.bcc), ReplyTo: t(inputs.replyTo) || undefined, TemplateId: Number(inputs.templateId), TemplateModel: JSON.parse(inputs.templateModel), Tag: t(inputs.tag) || undefined, TrackOpens: t(inputs.trackOpens) ? inputs.trackOpens === 'true' : undefined, MessageStream: t(inputs.messageStream) || 'outbound'};\nreturn request;",
+      "afterResponse": "return {success: response.ErrorCode === 0, response};",
+      "outputs": {
+        "success": "$.success",
+        "messageId": "$.response.MessageID"
+      }
+    },
+    "get_email_bounces": {
+      "label": "Get Email Bounces",
+      "description": "List bounces from your Postmark server.",
+      "inputs": {
+        "count": {
+          "label": "Count",
+          "description": "Maximum number of bounces to return (max 500).",
+          "type": "number",
+          "required": true,
+          "defaultValue": "25"
+        },
+        "offset": {
+          "label": "Offset",
+          "description": "Number of bounces to skip before returning results.",
+          "type": "number",
+          "required": true,
+          "defaultValue": "0"
+        },
+        "type": {
+          "label": "Type",
+          "description": "Optional bounce type filter, for example HardBounce."
+        },
+        "inactive": {
+          "label": "Inactive Only",
+          "description": "Filter by inactive bounces only. When not set, both active and inactive bounces are returned.",
+          "type": "boolean"
+        },
+        "emailFilter": {
+          "label": "Email Filter",
+          "description": "Filter results by bounced recipient email address."
+        },
+        "messageId": {
+          "label": "Message ID",
+          "description": "Filter results by Postmark message ID."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.postmarkapp.com/bounces"
+      },
+      "beforeRequest": "const t = (v) => (v == null ? '' : String(v).trim()), q = {count: String(Number(inputs.count)), offset: String(Number(inputs.offset))};\nif (t(inputs.type)) q.type = t(inputs.type);\nif (inputs.inactive === 'true') q.inactive = 'true';\nif (t(inputs.emailFilter)) q.emailFilter = t(inputs.emailFilter);\nif (t(inputs.messageId)) q.messageID = t(inputs.messageId);\nrequest.query = q;\nreturn request;",
+      "outputs": {
+        "totalCount": "$.TotalCount",
+        "bounces": "$.Bounces"
+      }
+    },
+    "get_delivery_stats": {
+      "label": "Get Delivery Stats",
+      "description": "Retrieve delivery statistics for the current Postmark server.",
+      "request": {
+        "method": "GET",
+        "url": "https://api.postmarkapp.com/deliverystats"
+      },
+      "outputs": {
+        "inactiveMails": "$.InactiveMails",
+        "bounces": "$.Bounces"
+      }
+    }
+  }
+}

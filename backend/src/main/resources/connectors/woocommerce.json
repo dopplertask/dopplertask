@@ -1,0 +1,2364 @@
+{
+  "name": "woocommerce",
+  "label": "WooCommerce",
+  "description": "E-commerce platform built on WordPress",
+  "icon": "woocommerce",
+  "hosts": [
+    "{{credential.baseUrl}}"
+  ],
+  "baseUrl": "https://{{credential.baseUrl}}",
+  "upstream": {
+    "package": "@activepieces/piece-woocommerce",
+    "version": "0.5.1"
+  },
+  "credential": {
+    "fields": {
+      "baseUrl": {
+        "label": "Store Address",
+        "description": "Your store's host name, such as mystore.com. A leading https:// is fine; a store in a subfolder, such as mystore.com/shop, is not supported.",
+        "required": true
+      },
+      "consumerKey": {
+        "label": "Consumer Key",
+        "description": "Starts with ck_. Created under Settings > Advanced > REST API.",
+        "required": true
+      },
+      "consumerSecret": {
+        "label": "Consumer Secret",
+        "description": "Starts with cs_. WooCommerce shows it only once.",
+        "secret": true,
+        "required": true
+      }
+    },
+    "basic": {
+      "username": "{{credential.consumerKey}}",
+      "password": "{{credential.consumerSecret}}"
+    }
+  },
+  "actions": {
+    "add_order_note": {
+      "label": "Add Order Note",
+      "description": "Add a private or customer-facing note to an order.",
+      "group": "Orders",
+      "inputs": {
+        "id": {
+          "label": "Order ID",
+          "description": "The number after # in WooCommerce > Orders.",
+          "required": true
+        },
+        "note": {
+          "label": "Note",
+          "description": "Shown in the order's notes in WooCommerce.",
+          "type": "multiline",
+          "required": true
+        },
+        "customer_note": {
+          "label": "Visible to Customer",
+          "description": "Email the note to the customer and show it on the order page.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/orders/{{id}}/notes",
+        "body": {
+          "note": "{{note}}",
+          "customer_note": "{{customer_note}}"
+        }
+      }
+    },
+    "batch_update_products": {
+      "label": "Batch Update Products",
+      "description": "Update the price, stock or status of up to 100 products in one call.",
+      "group": "Products",
+      "inputs": {
+        "updates": {
+          "label": "Updates",
+          "description": "One entry per product, 1 to 100 entries. Each needs the product id and at least one field to change.",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/products/batch"
+      },
+      "beforeRequest": "const updates = JSON.parse(inputs.updates || '[]');\nif (updates.length === 0 || updates.length > 100) throw new Error('Updates must contain between 1 and 100 entries; got ' + updates.length + '.');\nconst text = (value) => value === undefined || value === null ? undefined : String(value).trim() || undefined;\nrequest.body = {update: updates.map((entry, index) => {\n  const id = Number(entry.id);\n  if (!Number.isInteger(id) || id <= 0) throw new Error('Entry ' + (index + 1) + ' has no valid product id.');\n  const stock = entry.stock_quantity, hasStock = stock !== undefined && stock !== null && stock !== '';\n  const fields = JSON.parse(JSON.stringify({regular_price: text(entry.regular_price), sale_price: text(entry.sale_price), manage_stock: hasStock ? true : undefined,\n    stock_quantity: hasStock ? Number(stock) : undefined, status: text(entry.status)}));\n  if (Object.keys(fields).length === 0) throw new Error('Entry ' + (index + 1) + ' (product ' + id + ') has no field to change.');\n  return {id, ...fields};\n})};\nreturn request;"
+    },
+    "create_coupon": {
+      "label": "Create Coupon",
+      "description": "Create a discount coupon.",
+      "group": "Coupons",
+      "inputs": {
+        "code": {
+          "label": "Code",
+          "description": "Coupon code customers enter at checkout. Must be unique.",
+          "required": true
+        },
+        "discount_type": {
+          "label": "Discount Type",
+          "description": "Percentage off the cart, a fixed amount off the cart, or a fixed amount off each product.",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "percent",
+              "label": "Percentage discount"
+            },
+            {
+              "value": "fixed_cart",
+              "label": "Fixed cart discount"
+            },
+            {
+              "value": "fixed_product",
+              "label": "Fixed product discount"
+            }
+          ]
+        },
+        "amount": {
+          "label": "Amount",
+          "description": "Discount amount as a decimal string: a percentage for percentage coupons, otherwise money, e.g. 10.",
+          "required": true
+        },
+        "description": {
+          "label": "Description",
+          "description": "Internal description of the coupon.",
+          "type": "multiline"
+        },
+        "date_expires": {
+          "label": "Expiry Date",
+          "description": "The coupon stops working after this date."
+        },
+        "minimum_amount": {
+          "label": "Minimum Spend",
+          "description": "Minimum cart subtotal needed to use the coupon, e.g. 50.00."
+        },
+        "maximum_amount": {
+          "label": "Maximum Spend",
+          "description": "Maximum cart subtotal allowed when using the coupon."
+        },
+        "individual_use": {
+          "label": "Individual Use Only",
+          "description": "Yes stops this coupon from being combined with other coupons. Leave empty for the store default (No).",
+          "type": "select",
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes"
+            },
+            {
+              "value": "no",
+              "label": "No"
+            }
+          ]
+        },
+        "exclude_sale_items": {
+          "label": "Exclude Sale Items",
+          "description": "Yes stops the coupon from applying to items already on sale. Leave empty for the store default (No).",
+          "type": "select",
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes"
+            },
+            {
+              "value": "no",
+              "label": "No"
+            }
+          ]
+        },
+        "free_shipping": {
+          "label": "Free Shipping",
+          "description": "Yes lets the coupon unlock free shipping, if a free-shipping method is set up. Leave empty for the store default (No).",
+          "type": "select",
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes"
+            },
+            {
+              "value": "no",
+              "label": "No"
+            }
+          ]
+        },
+        "usage_limit": {
+          "label": "Usage Limit",
+          "description": "How many times the coupon can be used in total.",
+          "type": "number"
+        },
+        "usage_limit_per_user": {
+          "label": "Usage Limit Per Customer",
+          "description": "How many times each customer can use the coupon.",
+          "type": "number"
+        },
+        "product_ids": {
+          "label": "Product IDs",
+          "description": "Ids of the only products the coupon applies to.",
+          "type": "json"
+        },
+        "excluded_product_ids": {
+          "label": "Excluded Product IDs",
+          "description": "Ids of products the coupon never applies to.",
+          "type": "json"
+        },
+        "email_restrictions": {
+          "label": "Allowed Emails",
+          "description": "Only customers with these billing emails can use the coupon.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/coupons"
+      },
+      "beforeRequest": "const text = (name) => (inputs[name] || '').trim() || undefined;\nconst number = (name) => inputs[name] === undefined || inputs[name] === '' ? undefined : Number(inputs[name]);\nconst yesNo = (name) => inputs[name] === 'yes' ? true : inputs[name] === 'no' ? false : undefined;\nconst list = (name) => { const values = inputs[name] ? JSON.parse(inputs[name]) : []; return values && values.length ? values : undefined; };\nconst ids = (name) => list(name) && list(name).map((value) => {\n  const id = Number(String(value).trim());\n  if (!Number.isInteger(id) || id <= 0) throw new Error('Expected a list of numeric ids, but got \"' + String(value) + '\". Read the ids with the matching list action first.');\n  return id;\n});\nconst texts = (name) => list(name) && list(name).map((value) => String(value).trim()).filter((value) => value.length > 0);\nconst amount = inputs.amount.trim();\nif (amount.length === 0 || !Number.isFinite(Number(amount)) || Number(amount) < 0) throw new Error('Amount must be a non-negative decimal number such as 10; got \"' + inputs.amount + '\".');\nrequest.body = {code: inputs.code.trim(), discount_type: inputs.discount_type, amount, description: text('description'), date_expires: text('date_expires'),\n  minimum_amount: text('minimum_amount'), maximum_amount: text('maximum_amount'), individual_use: yesNo('individual_use'), exclude_sale_items: yesNo('exclude_sale_items'),\n  free_shipping: yesNo('free_shipping'), usage_limit: number('usage_limit'), usage_limit_per_user: number('usage_limit_per_user'), product_ids: ids('product_ids'),\n  excluded_product_ids: ids('excluded_product_ids'), email_restrictions: texts('email_restrictions')};\nreturn request;"
+    },
+    "create_customer": {
+      "label": "Create Customer",
+      "description": "Create a customer account. Only the email is required.",
+      "group": "Customers",
+      "inputs": {
+        "email": {
+          "label": "Email",
+          "description": "Email address of the customer. Must not already be registered.",
+          "required": true
+        },
+        "first_name": {
+          "label": "First Name"
+        },
+        "last_name": {
+          "label": "Last Name"
+        },
+        "username": {
+          "label": "Username",
+          "description": "Login name. Generated from the email when empty and the store allows it."
+        },
+        "password": {
+          "label": "Password",
+          "description": "Account password. Generated when empty and the store allows it."
+        },
+        "billing_company": {
+          "label": "Billing Company"
+        },
+        "billing_address_1": {
+          "label": "Billing Address Line 1"
+        },
+        "billing_address_2": {
+          "label": "Billing Address Line 2"
+        },
+        "billing_city": {
+          "label": "Billing City"
+        },
+        "billing_state": {
+          "label": "Billing State",
+          "description": "State or county code, e.g. CA."
+        },
+        "billing_postcode": {
+          "label": "Billing Postcode"
+        },
+        "billing_country": {
+          "label": "Billing Country",
+          "description": "Two-letter ISO country code, e.g. US."
+        },
+        "billing_phone": {
+          "label": "Billing Phone"
+        },
+        "shipping_company": {
+          "label": "Shipping Company"
+        },
+        "shipping_address_1": {
+          "label": "Shipping Address Line 1"
+        },
+        "shipping_address_2": {
+          "label": "Shipping Address Line 2"
+        },
+        "shipping_city": {
+          "label": "Shipping City"
+        },
+        "shipping_state": {
+          "label": "Shipping State",
+          "description": "State or county code, e.g. CA."
+        },
+        "shipping_postcode": {
+          "label": "Shipping Postcode"
+        },
+        "shipping_country": {
+          "label": "Shipping Country",
+          "description": "Two-letter ISO country code, e.g. US."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/customers"
+      },
+      "beforeRequest": "const text = (name) => (inputs[name] || '').trim() || undefined;\nconst address = (prefix, fields) => { const found = {}; fields.forEach((field) => { if (text(prefix + field)) found[field] = text(prefix + field); }); return Object.keys(found).length ? found : undefined; };\nconst fields = ['company', 'address_1', 'address_2', 'city', 'state', 'postcode', 'country'];\nrequest.body = {email: inputs.email.trim(), first_name: text('first_name'), last_name: text('last_name'), username: text('username'), password: text('password'),\n  billing: address('billing_', fields.concat('phone')), shipping: address('shipping_', fields)};\nreturn request;"
+    },
+    "create_order": {
+      "label": "Create Order",
+      "description": "Create an order with one or more line items.",
+      "group": "Orders",
+      "inputs": {
+        "line_items": {
+          "label": "Line Items",
+          "description": "Products to include in the order.",
+          "type": "json",
+          "required": true
+        },
+        "customer_id": {
+          "label": "Customer ID",
+          "description": "Leave empty for a guest order."
+        },
+        "status": {
+          "label": "Status",
+          "description": "Status the order starts with.",
+          "type": "select",
+          "options": [
+            {
+              "value": "pending",
+              "label": "Pending payment"
+            },
+            {
+              "value": "processing",
+              "label": "Processing"
+            },
+            {
+              "value": "on-hold",
+              "label": "On hold"
+            },
+            {
+              "value": "completed",
+              "label": "Completed"
+            }
+          ]
+        },
+        "billing_email": {
+          "label": "Billing Email",
+          "description": "Where WooCommerce sends the order emails."
+        },
+        "payment_method": {
+          "label": "Payment Method ID",
+          "description": "Gateway ID, e.g. bacs, cheque or cod."
+        },
+        "payment_method_title": {
+          "label": "Payment Method Title",
+          "description": "Name the customer sees, e.g. Direct bank transfer."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/orders"
+      },
+      "beforeRequest": "const body = {line_items: JSON.parse(inputs.line_items).map((entry) => ({product_id: Number(entry.product_id), quantity: Number(entry.quantity)}))};\nif (inputs.customer_id) body.customer_id = Number(inputs.customer_id);\nif (inputs.status) body.status = inputs.status;\nif (inputs.billing_email) body.billing = {email: inputs.billing_email};\nif (inputs.payment_method) body.payment_method = inputs.payment_method;\nif (inputs.payment_method_title) body.payment_method_title = inputs.payment_method_title;\nrequest.body = body;\nreturn request;"
+    },
+    "create_order_refund": {
+      "label": "Create Order Refund",
+      "description": "Refund an amount on an order. By default the refund is only recorded in WooCommerce.",
+      "group": "Orders",
+      "inputs": {
+        "order_id": {
+          "label": "Order ID",
+          "description": "Id of the order to refund.",
+          "type": "number",
+          "required": true
+        },
+        "amount": {
+          "label": "Amount",
+          "description": "Amount to refund as a decimal string, e.g. 10.00. Cannot exceed what is left to refund on the order.",
+          "required": true
+        },
+        "reason": {
+          "label": "Reason",
+          "description": "Reason for the refund, stored with the refund."
+        },
+        "refund_via_gateway": {
+          "label": "Refund Via Gateway",
+          "description": "When on, the money is actually sent back to the customer through the payment gateway. When off (the default) the refund is only recorded in WooCommerce.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/orders/{{order_id}}/refunds"
+      },
+      "beforeRequest": "const text = (name) => (inputs[name] || '').trim() || undefined;\nconst amount = inputs.amount.trim();\nif (amount.length === 0 || !Number.isFinite(Number(amount)) || Number(amount) <= 0) throw new Error('Amount must be a positive decimal number such as 10.00; got \"' + inputs.amount + '\".');\nrequest.body = {amount, reason: text('reason'), api_refund: inputs.refund_via_gateway === 'true'};\nreturn request;"
+    },
+    "create_product": {
+      "label": "Create Product",
+      "description": "Create a product. Only the name is required.",
+      "group": "Products",
+      "inputs": {
+        "name": {
+          "label": "Name",
+          "description": "Product name.",
+          "required": true
+        },
+        "type": {
+          "label": "Product Type",
+          "description": "Defaults to simple.",
+          "type": "select",
+          "options": [
+            {
+              "value": "simple",
+              "label": "Simple"
+            },
+            {
+              "value": "variable",
+              "label": "Variable"
+            },
+            {
+              "value": "grouped",
+              "label": "Grouped"
+            },
+            {
+              "value": "external",
+              "label": "External / affiliate"
+            }
+          ]
+        },
+        "status": {
+          "label": "Status",
+          "description": "Defaults to published, which makes the product visible in the shop.",
+          "type": "select",
+          "options": [
+            {
+              "value": "publish",
+              "label": "Published"
+            },
+            {
+              "value": "draft",
+              "label": "Draft"
+            },
+            {
+              "value": "pending",
+              "label": "Pending review"
+            },
+            {
+              "value": "private",
+              "label": "Private"
+            }
+          ]
+        },
+        "regular_price": {
+          "label": "Regular Price",
+          "description": "Price as a decimal string, e.g. 19.99."
+        },
+        "sale_price": {
+          "label": "Sale Price",
+          "description": "Discounted price as a decimal string. Must be lower than the regular price."
+        },
+        "sku": {
+          "label": "SKU",
+          "description": "Stock keeping unit. Must be unique in the store."
+        },
+        "description": {
+          "label": "Description",
+          "description": "Full product description. HTML is allowed.",
+          "type": "multiline"
+        },
+        "short_description": {
+          "label": "Short Description",
+          "description": "Short summary shown near the price. HTML is allowed.",
+          "type": "multiline"
+        },
+        "category_ids": {
+          "label": "Category IDs",
+          "description": "Ids of the categories to put the product in. Find them with List Product Categories.",
+          "type": "json"
+        },
+        "tag_ids": {
+          "label": "Tag IDs",
+          "description": "Ids of the tags to attach. Find them with List Product Tags.",
+          "type": "json"
+        },
+        "image_urls": {
+          "label": "Image URLs",
+          "description": "Public image URLs. The first one becomes the main image. The store downloads each one, so an unreachable URL fails the call.",
+          "type": "json"
+        },
+        "stock_quantity": {
+          "label": "Stock Quantity",
+          "description": "Units in stock. Setting it turns on stock management for the product.",
+          "type": "number"
+        },
+        "stock_status": {
+          "label": "Stock Status",
+          "description": "Stock status. Ignored when a stock quantity is set, because the quantity decides it.",
+          "type": "select",
+          "options": [
+            {
+              "value": "instock",
+              "label": "In stock"
+            },
+            {
+              "value": "outofstock",
+              "label": "Out of stock"
+            },
+            {
+              "value": "onbackorder",
+              "label": "On backorder"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/products"
+      },
+      "beforeRequest": "const text = (name) => (inputs[name] || '').trim() || undefined;\nconst list = (name) => { const values = inputs[name] ? JSON.parse(inputs[name]) : []; return values && values.length ? values : undefined; };\nconst ids = (name) => list(name) && list(name).map((value) => {\n  const id = Number(String(value).trim());\n  if (!Number.isInteger(id) || id <= 0) throw new Error('Expected a list of numeric ids, but got \"' + String(value) + '\". Read the ids with the matching list action first.');\n  return id;\n});\nconst texts = (name) => list(name) && list(name).map((value) => String(value).trim()).filter((value) => value.length > 0);\nconst hasStock = inputs.stock_quantity !== undefined && inputs.stock_quantity !== '';\nrequest.body = {name: inputs.name, type: inputs.type || 'simple', status: inputs.status || 'publish', regular_price: text('regular_price'), sale_price: text('sale_price'),\n  sku: text('sku'), description: text('description'), short_description: text('short_description'),\n  categories: ids('category_ids') && ids('category_ids').map((id) => ({id})), tags: ids('tag_ids') && ids('tag_ids').map((id) => ({id})),\n  images: texts('image_urls') && texts('image_urls').map((src) => ({src})), manage_stock: hasStock ? true : undefined,\n  stock_quantity: hasStock ? Number(inputs.stock_quantity) : undefined, stock_status: hasStock ? undefined : inputs.stock_status || undefined};\nreturn request;"
+    },
+    "create_product_category": {
+      "label": "Create Product Category",
+      "description": "Create a product category.",
+      "group": "Products",
+      "inputs": {
+        "name": {
+          "label": "Name",
+          "description": "Category name.",
+          "required": true
+        },
+        "parent_id": {
+          "label": "Parent Category ID",
+          "description": "Id of the parent category. Leave empty for a top-level category.",
+          "type": "number"
+        },
+        "slug": {
+          "label": "Slug",
+          "description": "URL-friendly name. Generated from the name when empty."
+        },
+        "description": {
+          "label": "Description",
+          "description": "Category description. HTML is allowed.",
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/products/categories"
+      },
+      "beforeRequest": "const text = (name) => (inputs[name] || '').trim() || undefined;\nconst number = (name) => inputs[name] === undefined || inputs[name] === '' ? undefined : Number(inputs[name]);\nrequest.body = {name: inputs.name, parent: number('parent_id'), slug: text('slug'), description: text('description')};\nreturn request;"
+    },
+    "create_product_tag": {
+      "label": "Create Product Tag",
+      "description": "Create a product tag.",
+      "group": "Products",
+      "inputs": {
+        "name": {
+          "label": "Name",
+          "description": "Tag name.",
+          "required": true
+        },
+        "slug": {
+          "label": "Slug",
+          "description": "URL-friendly name. Generated from the name when empty."
+        },
+        "description": {
+          "label": "Description",
+          "description": "Tag description.",
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/products/tags"
+      },
+      "beforeRequest": "const text = (name) => (inputs[name] || '').trim() || undefined;\nrequest.body = {name: inputs.name, slug: text('slug'), description: text('description')};\nreturn request;"
+    },
+    "delete_coupon": {
+      "label": "Delete Coupon",
+      "description": "Move a coupon to the trash, or delete it permanently.",
+      "group": "Coupons",
+      "inputs": {
+        "coupon_id": {
+          "label": "Coupon ID",
+          "description": "Id of the coupon to delete.",
+          "type": "number",
+          "required": true
+        },
+        "permanent": {
+          "label": "Delete Permanently",
+          "description": "When off (the default) the coupon is moved to the trash and can be restored from the WordPress admin. When on it is deleted for good.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/coupons/{{coupon_id}}",
+        "query": {
+          "force": "{{permanent}}"
+        }
+      }
+    },
+    "delete_customer": {
+      "label": "Delete Customer",
+      "description": "Permanently delete a customer account.",
+      "group": "Customers",
+      "inputs": {
+        "customer_id": {
+          "label": "Customer ID",
+          "description": "Id of the customer to delete. Find it with List Customers.",
+          "type": "number",
+          "required": true
+        },
+        "reassign_to_user_id": {
+          "label": "Reassign To User ID",
+          "description": "Optional id of another user who takes over the posts owned by the deleted customer. Must differ from the customer id.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/customers/{{customer_id}}",
+        "query": {
+          "force": "true",
+          "reassign": "{{reassign_to_user_id}}"
+        }
+      },
+      "beforeRequest": "if (inputs.reassign_to_user_id !== '' && inputs.reassign_to_user_id === inputs.customer_id) throw new Error('Reassign To User ID must be a different user than the customer being deleted.');\nconst customer = call({method: 'GET', url: '/wp-json/wc/v3/customers/' + encodeURIComponent(inputs.customer_id.trim())});\nconst role = customer && typeof customer.role === 'string' ? customer.role : undefined;\nif (role === undefined || !['customer', 'subscriber'].includes(role)) throw new Error('Refusing to delete user ' + inputs.customer_id + ': their role is \"' + (role || 'unknown') + '\". Only accounts with the customer or subscriber role can be deleted with this action.');\nreturn request;"
+    },
+    "delete_order": {
+      "label": "Delete Order",
+      "description": "Move an order to the trash, or delete it permanently.",
+      "group": "Orders",
+      "inputs": {
+        "order_id": {
+          "label": "Order ID",
+          "description": "Id of the order to delete. Find it with List Orders.",
+          "type": "number",
+          "required": true
+        },
+        "permanent": {
+          "label": "Delete Permanently",
+          "description": "When off (the default) the order is moved to the trash and can be restored from the WordPress admin. When on it is deleted for good.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/orders/{{order_id}}",
+        "query": {
+          "force": "{{permanent}}"
+        }
+      }
+    },
+    "delete_order_note": {
+      "label": "Delete Order Note",
+      "description": "Permanently delete a note from an order.",
+      "group": "Orders",
+      "inputs": {
+        "order_id": {
+          "label": "Order ID",
+          "description": "Id of the order the note belongs to.",
+          "type": "number",
+          "required": true
+        },
+        "note_id": {
+          "label": "Note ID",
+          "description": "Id of the note to delete.",
+          "type": "number",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/orders/{{order_id}}/notes/{{note_id}}",
+        "query": {
+          "force": "true"
+        }
+      }
+    },
+    "delete_product": {
+      "label": "Delete Product",
+      "description": "Move a product to the trash, or delete it permanently.",
+      "group": "Products",
+      "inputs": {
+        "product_id": {
+          "label": "Product ID",
+          "description": "Id of the product to delete. Find it with List Products.",
+          "type": "number",
+          "required": true
+        },
+        "permanent": {
+          "label": "Delete Permanently",
+          "description": "When off (the default) the product is moved to the trash and can be restored from the WordPress admin. When on it is deleted for good.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/products/{{product_id}}",
+        "query": {
+          "force": "{{permanent}}"
+        }
+      }
+    },
+    "get_coupon": {
+      "label": "Get Coupon",
+      "description": "Get a coupon by its ID.",
+      "group": "Coupons",
+      "inputs": {
+        "id": {
+          "label": "Coupon ID",
+          "description": "Find it in WooCommerce under Marketing > Coupons.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/coupons/{{id}}"
+      }
+    },
+    "get_customer": {
+      "label": "Get Customer",
+      "description": "Get a customer by their ID.",
+      "group": "Customers",
+      "inputs": {
+        "id": {
+          "label": "Customer ID",
+          "description": "Find it in WooCommerce under Customers, or with List Customers.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/customers/{{id}}"
+      }
+    },
+    "get_order": {
+      "label": "Get Order",
+      "description": "Get an order by its ID.",
+      "group": "Orders",
+      "inputs": {
+        "id": {
+          "label": "Order ID",
+          "description": "The number after # in WooCommerce > Orders.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/orders/{{id}}"
+      }
+    },
+    "get_order_totals_report": {
+      "label": "Get Order Totals Report",
+      "description": "Get the number of orders in each status.",
+      "group": "Reports",
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/reports/orders/totals"
+      }
+    },
+    "get_product": {
+      "label": "Get Product",
+      "description": "Get a product by its ID.",
+      "group": "Products",
+      "inputs": {
+        "id": {
+          "label": "Product ID",
+          "description": "Find it in WooCommerce under Products, next to each product.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/products/{{id}}"
+      }
+    },
+    "get_product_variation": {
+      "label": "Get Product Variation",
+      "description": "Get one variation of a variable product.",
+      "group": "Products",
+      "inputs": {
+        "product_id": {
+          "label": "Product ID",
+          "description": "Id of the parent variable product.",
+          "type": "number",
+          "required": true
+        },
+        "variation_id": {
+          "label": "Variation ID",
+          "description": "Id of the variation.",
+          "type": "number",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/products/{{product_id}}/variations/{{variation_id}}"
+      }
+    },
+    "get_sales_report": {
+      "label": "Get Sales Report",
+      "description": "Get sales totals for a period or date range.",
+      "group": "Reports",
+      "inputs": {
+        "period": {
+          "label": "Period",
+          "description": "Preset period to report on. Leave empty when using a date range; if both are empty the current week is used.",
+          "type": "select",
+          "options": [
+            {
+              "value": "week",
+              "label": "This week"
+            },
+            {
+              "value": "month",
+              "label": "This month"
+            },
+            {
+              "value": "last_month",
+              "label": "Last month"
+            },
+            {
+              "value": "year",
+              "label": "This year"
+            }
+          ]
+        },
+        "date_min": {
+          "label": "Start Date",
+          "description": "First day of a custom range, as YYYY-MM-DD. Use together with End Date instead of Period."
+        },
+        "date_max": {
+          "label": "End Date",
+          "description": "Last day of a custom range, as YYYY-MM-DD. Use together with Start Date instead of Period."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/reports/sales"
+      },
+      "beforeRequest": "const min = (inputs.date_min || '').trim(), max = (inputs.date_max || '').trim();\nif ((min && !max) || (!min && max)) throw new Error('Provide both Start Date and End Date for a custom range, or neither.');\nif (inputs.period && min) throw new Error('Provide either Period or a Start Date and End Date range, not both.');\nif (min && (!/^\\d{4}-\\d{2}-\\d{2}$/.test(min) || !/^\\d{4}-\\d{2}-\\d{2}$/.test(max))) throw new Error('Start Date and End Date must be in YYYY-MM-DD format.');\nrequest.query = min ? {date_min: min, date_max: max} : inputs.period ? {period: inputs.period} : {};\nreturn request;"
+    },
+    "get_top_sellers_report": {
+      "label": "Get Top Sellers Report",
+      "description": "Get the best-selling products for a period or date range.",
+      "group": "Reports",
+      "inputs": {
+        "period": {
+          "label": "Period",
+          "description": "Preset period to report on. Leave empty when using a date range; if both are empty the current week is used.",
+          "type": "select",
+          "options": [
+            {
+              "value": "week",
+              "label": "This week"
+            },
+            {
+              "value": "month",
+              "label": "This month"
+            },
+            {
+              "value": "last_month",
+              "label": "Last month"
+            },
+            {
+              "value": "year",
+              "label": "This year"
+            }
+          ]
+        },
+        "date_min": {
+          "label": "Start Date",
+          "description": "First day of a custom range, as YYYY-MM-DD. Use together with End Date instead of Period."
+        },
+        "date_max": {
+          "label": "End Date",
+          "description": "Last day of a custom range, as YYYY-MM-DD. Use together with Start Date instead of Period."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/reports/top_sellers"
+      },
+      "beforeRequest": "const min = (inputs.date_min || '').trim(), max = (inputs.date_max || '').trim();\nif ((min && !max) || (!min && max)) throw new Error('Provide both Start Date and End Date for a custom range, or neither.');\nif (inputs.period && min) throw new Error('Provide either Period or a Start Date and End Date range, not both.');\nif (min && (!/^\\d{4}-\\d{2}-\\d{2}$/.test(min) || !/^\\d{4}-\\d{2}-\\d{2}$/.test(max))) throw new Error('Start Date and End Date must be in YYYY-MM-DD format.');\nrequest.query = min ? {date_min: min, date_max: max} : inputs.period ? {period: inputs.period} : {};\nreturn request;"
+    },
+    "list_coupons": {
+      "label": "List Coupons",
+      "description": "List coupons, or find one by its exact code.",
+      "group": "Coupons",
+      "inputs": {
+        "code": {
+          "label": "Code",
+          "description": "Exact coupon code to find."
+        },
+        "search": {
+          "label": "Search",
+          "description": "Text to match against coupon codes and descriptions."
+        },
+        "after": {
+          "label": "Created After",
+          "description": "Only return coupons created after this date and time (ISO 8601)."
+        },
+        "before": {
+          "label": "Created Before",
+          "description": "Only return coupons created before this date and time (ISO 8601)."
+        },
+        "page": {
+          "label": "Page",
+          "description": "Page number, starting at 1. If a page comes back with exactly per_page items, request the next page to see more.",
+          "type": "number",
+          "defaultValue": "1"
+        },
+        "per_page": {
+          "label": "Per Page",
+          "description": "Number of items per page, from 1 to 100. Defaults to 10.",
+          "type": "number",
+          "defaultValue": "10"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/coupons"
+      },
+      "beforeRequest": "['code', 'search', 'after', 'before'].forEach((name) => { const value = (inputs[name] || '').trim(); if (value) request.query[name] = value; });\nconst page = inputs.page === '' ? 1 : Number(inputs.page), perPage = inputs.per_page === '' ? 10 : Number(inputs.per_page);\nif (!(page >= 1)) throw new Error('Page must be 1 or more.');\nif (!(perPage >= 1 && perPage <= 100)) throw new Error('Per Page must be from 1 to 100.');\nrequest.query.page = String(page);\nrequest.query.per_page = String(perPage);\nreturn request;"
+    },
+    "list_customers": {
+      "label": "List Customers",
+      "description": "List customers, filtered by email, text or role.",
+      "group": "Customers",
+      "inputs": {
+        "email": {
+          "label": "Email",
+          "description": "Exact email address to match."
+        },
+        "search": {
+          "label": "Search",
+          "description": "Text to match against names, usernames and emails."
+        },
+        "role": {
+          "label": "Role",
+          "description": "WordPress role to return. Defaults to all roles.",
+          "type": "select",
+          "defaultValue": "all",
+          "options": [
+            {
+              "value": "all",
+              "label": "All roles"
+            },
+            {
+              "value": "customer",
+              "label": "Customer"
+            },
+            {
+              "value": "subscriber",
+              "label": "Subscriber"
+            },
+            {
+              "value": "shop_manager",
+              "label": "Shop manager"
+            },
+            {
+              "value": "administrator",
+              "label": "Administrator"
+            }
+          ]
+        },
+        "orderby": {
+          "label": "Sort By",
+          "description": "Field to sort by. Defaults to name.",
+          "type": "select",
+          "options": [
+            {
+              "value": "name",
+              "label": "Name"
+            },
+            {
+              "value": "id",
+              "label": "ID"
+            },
+            {
+              "value": "registered_date",
+              "label": "Registration date"
+            }
+          ]
+        },
+        "order": {
+          "label": "Sort Direction",
+          "description": "Ascending or descending. Defaults to ascending.",
+          "type": "select",
+          "options": [
+            {
+              "value": "asc",
+              "label": "Ascending"
+            },
+            {
+              "value": "desc",
+              "label": "Descending"
+            }
+          ]
+        },
+        "page": {
+          "label": "Page",
+          "description": "Page number, starting at 1. If a page comes back with exactly per_page items, request the next page to see more.",
+          "type": "number",
+          "defaultValue": "1"
+        },
+        "per_page": {
+          "label": "Per Page",
+          "description": "Number of items per page, from 1 to 100. Defaults to 10.",
+          "type": "number",
+          "defaultValue": "10"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/customers",
+        "query": {
+          "role": "{{role}}",
+          "orderby": "{{orderby}}",
+          "order": "{{order}}"
+        }
+      },
+      "beforeRequest": "['email', 'search'].forEach((name) => { const value = (inputs[name] || '').trim(); if (value) request.query[name] = value; });\nconst page = inputs.page === '' ? 1 : Number(inputs.page), perPage = inputs.per_page === '' ? 10 : Number(inputs.per_page);\nif (!(page >= 1)) throw new Error('Page must be 1 or more.');\nif (!(perPage >= 1 && perPage <= 100)) throw new Error('Per Page must be from 1 to 100.');\nrequest.query.page = String(page);\nrequest.query.per_page = String(perPage);\nreturn request;"
+    },
+    "list_order_notes": {
+      "label": "List Order Notes",
+      "description": "List the notes on an order.",
+      "group": "Orders",
+      "inputs": {
+        "order_id": {
+          "label": "Order ID",
+          "description": "Id of the order.",
+          "type": "number",
+          "required": true
+        },
+        "type": {
+          "label": "Note Type",
+          "description": "Which notes to return. Defaults to all.",
+          "type": "select",
+          "defaultValue": "any",
+          "options": [
+            {
+              "value": "any",
+              "label": "All notes"
+            },
+            {
+              "value": "customer",
+              "label": "Notes sent to the customer"
+            },
+            {
+              "value": "internal",
+              "label": "Private notes"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/orders/{{order_id}}/notes",
+        "query": {
+          "type": "{{type}}"
+        }
+      }
+    },
+    "list_order_refunds": {
+      "label": "List Order Refunds",
+      "description": "List the refunds recorded on an order.",
+      "group": "Orders",
+      "inputs": {
+        "order_id": {
+          "label": "Order ID",
+          "description": "Id of the order.",
+          "type": "number",
+          "required": true
+        },
+        "page": {
+          "label": "Page",
+          "description": "Page number, starting at 1. If a page comes back with exactly per_page items, request the next page to see more.",
+          "type": "number",
+          "defaultValue": "1"
+        },
+        "per_page": {
+          "label": "Per Page",
+          "description": "Number of items per page, from 1 to 100. Defaults to 10.",
+          "type": "number",
+          "defaultValue": "10"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/orders/{{order_id}}/refunds"
+      },
+      "beforeRequest": "const page = inputs.page === '' ? 1 : Number(inputs.page), perPage = inputs.per_page === '' ? 10 : Number(inputs.per_page);\nif (!(page >= 1)) throw new Error('Page must be 1 or more.');\nif (!(perPage >= 1 && perPage <= 100)) throw new Error('Per Page must be from 1 to 100.');\nrequest.query.page = String(page);\nrequest.query.per_page = String(perPage);\nreturn request;"
+    },
+    "list_orders": {
+      "label": "List Orders",
+      "description": "List orders, filtered by status, customer, product, text or date range.",
+      "group": "Orders",
+      "inputs": {
+        "status": {
+          "label": "Status",
+          "description": "Only return orders with this status. Leave empty for any status except trash.",
+          "type": "select",
+          "options": [
+            {
+              "value": "pending",
+              "label": "Pending payment"
+            },
+            {
+              "value": "processing",
+              "label": "Processing"
+            },
+            {
+              "value": "on-hold",
+              "label": "On hold"
+            },
+            {
+              "value": "completed",
+              "label": "Completed"
+            },
+            {
+              "value": "cancelled",
+              "label": "Cancelled"
+            },
+            {
+              "value": "refunded",
+              "label": "Refunded"
+            },
+            {
+              "value": "failed",
+              "label": "Failed"
+            },
+            {
+              "value": "trash",
+              "label": "Trash"
+            }
+          ]
+        },
+        "customer_id": {
+          "label": "Customer ID",
+          "description": "Only return orders placed by this customer. Find the id with List Customers.",
+          "type": "number"
+        },
+        "product_id": {
+          "label": "Product ID",
+          "description": "Only return orders that contain this product.",
+          "type": "number"
+        },
+        "search": {
+          "label": "Search",
+          "description": "Text to match against order fields such as the billing name or email."
+        },
+        "after": {
+          "label": "Created After",
+          "description": "Only return orders created after this date and time (ISO 8601)."
+        },
+        "before": {
+          "label": "Created Before",
+          "description": "Only return orders created before this date and time (ISO 8601)."
+        },
+        "orderby": {
+          "label": "Sort By",
+          "description": "Field to sort by. Defaults to date.",
+          "type": "select",
+          "options": [
+            {
+              "value": "date",
+              "label": "Date"
+            },
+            {
+              "value": "id",
+              "label": "ID"
+            },
+            {
+              "value": "title",
+              "label": "Title"
+            },
+            {
+              "value": "slug",
+              "label": "Slug"
+            }
+          ]
+        },
+        "order": {
+          "label": "Sort Direction",
+          "description": "Ascending or descending. Defaults to descending.",
+          "type": "select",
+          "options": [
+            {
+              "value": "desc",
+              "label": "Descending"
+            },
+            {
+              "value": "asc",
+              "label": "Ascending"
+            }
+          ]
+        },
+        "page": {
+          "label": "Page",
+          "description": "Page number, starting at 1. If a page comes back with exactly per_page items, request the next page to see more.",
+          "type": "number",
+          "defaultValue": "1"
+        },
+        "per_page": {
+          "label": "Per Page",
+          "description": "Number of items per page, from 1 to 100. Defaults to 10.",
+          "type": "number",
+          "defaultValue": "10"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/orders",
+        "query": {
+          "status": "{{status}}",
+          "customer": "{{customer_id}}",
+          "product": "{{product_id}}",
+          "orderby": "{{orderby}}",
+          "order": "{{order}}"
+        }
+      },
+      "beforeRequest": "['search', 'after', 'before'].forEach((name) => { const value = (inputs[name] || '').trim(); if (value) request.query[name] = value; });\nconst page = inputs.page === '' ? 1 : Number(inputs.page), perPage = inputs.per_page === '' ? 10 : Number(inputs.per_page);\nif (!(page >= 1)) throw new Error('Page must be 1 or more.');\nif (!(perPage >= 1 && perPage <= 100)) throw new Error('Per Page must be from 1 to 100.');\nrequest.query.page = String(page);\nrequest.query.per_page = String(perPage);\nreturn request;"
+    },
+    "list_payment_gateways": {
+      "label": "List Payment Gateways",
+      "description": "List the payment methods installed in the store and whether they are enabled.",
+      "group": "Payment Gateways",
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/payment_gateways"
+      },
+      "afterResponse": "return response.map((gateway) => ({id: gateway.id, title: gateway.title, description: gateway.description, order: gateway.order, enabled: gateway.enabled,\n  method_title: gateway.method_title, method_description: gateway.method_description, method_supports: gateway.method_supports}));"
+    },
+    "list_product_categories": {
+      "label": "List Product Categories",
+      "description": "List product categories, optionally filtered by name, slug or parent.",
+      "group": "Products",
+      "inputs": {
+        "search": {
+          "label": "Search",
+          "description": "Text to match against category names."
+        },
+        "slug": {
+          "label": "Slug",
+          "description": "Exact category slug."
+        },
+        "parent_id": {
+          "label": "Parent Category ID",
+          "description": "Only return direct children of this category. Use 0 for top-level categories.",
+          "type": "number"
+        },
+        "hide_empty": {
+          "label": "Hide Empty",
+          "description": "When on, categories without products are left out.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "page": {
+          "label": "Page",
+          "description": "Page number, starting at 1. If a page comes back with exactly per_page items, request the next page to see more.",
+          "type": "number",
+          "defaultValue": "1"
+        },
+        "per_page": {
+          "label": "Per Page",
+          "description": "Number of items per page, from 1 to 100. Defaults to 10.",
+          "type": "number",
+          "defaultValue": "10"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/products/categories",
+        "query": {
+          "parent": "{{parent_id}}"
+        }
+      },
+      "beforeRequest": "['search', 'slug'].forEach((name) => { const value = (inputs[name] || '').trim(); if (value) request.query[name] = value; });\nif (inputs.hide_empty === 'true') request.query.hide_empty = 'true';\nconst page = inputs.page === '' ? 1 : Number(inputs.page), perPage = inputs.per_page === '' ? 10 : Number(inputs.per_page);\nif (!(page >= 1)) throw new Error('Page must be 1 or more.');\nif (!(perPage >= 1 && perPage <= 100)) throw new Error('Per Page must be from 1 to 100.');\nrequest.query.page = String(page);\nrequest.query.per_page = String(perPage);\nreturn request;"
+    },
+    "list_product_reviews": {
+      "label": "List Product Reviews",
+      "description": "List product reviews, including ones waiting for moderation.",
+      "group": "Products",
+      "inputs": {
+        "product_id": {
+          "label": "Product ID",
+          "description": "Only return reviews of this product.",
+          "type": "number"
+        },
+        "status": {
+          "label": "Status",
+          "description": "Moderation status to return. Defaults to all.",
+          "type": "select",
+          "defaultValue": "all",
+          "options": [
+            {
+              "value": "all",
+              "label": "All"
+            },
+            {
+              "value": "approved",
+              "label": "Approved"
+            },
+            {
+              "value": "hold",
+              "label": "On hold (awaiting moderation)"
+            },
+            {
+              "value": "spam",
+              "label": "Spam"
+            },
+            {
+              "value": "trash",
+              "label": "Trash"
+            }
+          ]
+        },
+        "reviewer_email": {
+          "label": "Reviewer Email",
+          "description": "Only return reviews written with this email address."
+        },
+        "search": {
+          "label": "Search",
+          "description": "Text to match against the review content."
+        },
+        "page": {
+          "label": "Page",
+          "description": "Page number, starting at 1. If a page comes back with exactly per_page items, request the next page to see more.",
+          "type": "number",
+          "defaultValue": "1"
+        },
+        "per_page": {
+          "label": "Per Page",
+          "description": "Number of items per page, from 1 to 100. Defaults to 10.",
+          "type": "number",
+          "defaultValue": "10"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/products/reviews",
+        "query": {
+          "product": "{{product_id}}",
+          "status": "{{status}}"
+        }
+      },
+      "beforeRequest": "['reviewer_email', 'search'].forEach((name) => { const value = (inputs[name] || '').trim(); if (value) request.query[name] = value; });\nconst page = inputs.page === '' ? 1 : Number(inputs.page), perPage = inputs.per_page === '' ? 10 : Number(inputs.per_page);\nif (!(page >= 1)) throw new Error('Page must be 1 or more.');\nif (!(perPage >= 1 && perPage <= 100)) throw new Error('Per Page must be from 1 to 100.');\nrequest.query.page = String(page);\nrequest.query.per_page = String(perPage);\nreturn request;"
+    },
+    "list_product_tags": {
+      "label": "List Product Tags",
+      "description": "List product tags, optionally filtered by name or slug.",
+      "group": "Products",
+      "inputs": {
+        "search": {
+          "label": "Search",
+          "description": "Text to match against tag names."
+        },
+        "slug": {
+          "label": "Slug",
+          "description": "Exact tag slug."
+        },
+        "hide_empty": {
+          "label": "Hide Empty",
+          "description": "When on, tags without products are left out.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "page": {
+          "label": "Page",
+          "description": "Page number, starting at 1. If a page comes back with exactly per_page items, request the next page to see more.",
+          "type": "number",
+          "defaultValue": "1"
+        },
+        "per_page": {
+          "label": "Per Page",
+          "description": "Number of items per page, from 1 to 100. Defaults to 10.",
+          "type": "number",
+          "defaultValue": "10"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/products/tags"
+      },
+      "beforeRequest": "['search', 'slug'].forEach((name) => { const value = (inputs[name] || '').trim(); if (value) request.query[name] = value; });\nif (inputs.hide_empty === 'true') request.query.hide_empty = 'true';\nconst page = inputs.page === '' ? 1 : Number(inputs.page), perPage = inputs.per_page === '' ? 10 : Number(inputs.per_page);\nif (!(page >= 1)) throw new Error('Page must be 1 or more.');\nif (!(perPage >= 1 && perPage <= 100)) throw new Error('Per Page must be from 1 to 100.');\nrequest.query.page = String(page);\nrequest.query.per_page = String(perPage);\nreturn request;"
+    },
+    "list_product_variations": {
+      "label": "List Product Variations",
+      "description": "List the variations of a variable product.",
+      "group": "Products",
+      "inputs": {
+        "product_id": {
+          "label": "Product ID",
+          "description": "Id of the variable product. Find it with List Products.",
+          "type": "number",
+          "required": true
+        },
+        "sku": {
+          "label": "SKU",
+          "description": "Only return the variation with this SKU."
+        },
+        "stock_status": {
+          "label": "Stock Status",
+          "description": "Only return variations with this stock status.",
+          "type": "select",
+          "options": [
+            {
+              "value": "instock",
+              "label": "In stock"
+            },
+            {
+              "value": "outofstock",
+              "label": "Out of stock"
+            },
+            {
+              "value": "onbackorder",
+              "label": "On backorder"
+            }
+          ]
+        },
+        "page": {
+          "label": "Page",
+          "description": "Page number, starting at 1. If a page comes back with exactly per_page items, request the next page to see more.",
+          "type": "number",
+          "defaultValue": "1"
+        },
+        "per_page": {
+          "label": "Per Page",
+          "description": "Number of items per page, from 1 to 100. Defaults to 10.",
+          "type": "number",
+          "defaultValue": "10"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/products/{{product_id}}/variations",
+        "query": {
+          "stock_status": "{{stock_status}}"
+        }
+      },
+      "beforeRequest": "['sku'].forEach((name) => { const value = (inputs[name] || '').trim(); if (value) request.query[name] = value; });\nconst page = inputs.page === '' ? 1 : Number(inputs.page), perPage = inputs.per_page === '' ? 10 : Number(inputs.per_page);\nif (!(page >= 1)) throw new Error('Page must be 1 or more.');\nif (!(perPage >= 1 && perPage <= 100)) throw new Error('Per Page must be from 1 to 100.');\nrequest.query.page = String(page);\nrequest.query.per_page = String(perPage);\nreturn request;"
+    },
+    "list_products": {
+      "label": "List Products",
+      "description": "List products, filtered by text, SKU, status, category, tag, stock or price.",
+      "group": "Products",
+      "inputs": {
+        "search": {
+          "label": "Search",
+          "description": "Text to match against product names and content."
+        },
+        "sku": {
+          "label": "SKU",
+          "description": "Exact SKU to match. Separate several SKUs with commas."
+        },
+        "status": {
+          "label": "Status",
+          "description": "Only return products with this status. Leave empty for any status.",
+          "type": "select",
+          "options": [
+            {
+              "value": "publish",
+              "label": "Published"
+            },
+            {
+              "value": "draft",
+              "label": "Draft"
+            },
+            {
+              "value": "pending",
+              "label": "Pending review"
+            },
+            {
+              "value": "private",
+              "label": "Private"
+            }
+          ]
+        },
+        "type": {
+          "label": "Product Type",
+          "description": "Only return products of this type.",
+          "type": "select",
+          "options": [
+            {
+              "value": "simple",
+              "label": "Simple"
+            },
+            {
+              "value": "variable",
+              "label": "Variable"
+            },
+            {
+              "value": "grouped",
+              "label": "Grouped"
+            },
+            {
+              "value": "external",
+              "label": "External / affiliate"
+            }
+          ]
+        },
+        "category_id": {
+          "label": "Category ID",
+          "description": "Only return products in this category. Find ids with List Product Categories.",
+          "type": "number"
+        },
+        "tag_id": {
+          "label": "Tag ID",
+          "description": "Only return products with this tag. Find ids with List Product Tags.",
+          "type": "number"
+        },
+        "stock_status": {
+          "label": "Stock Status",
+          "description": "Only return products with this stock status.",
+          "type": "select",
+          "options": [
+            {
+              "value": "instock",
+              "label": "In stock"
+            },
+            {
+              "value": "outofstock",
+              "label": "Out of stock"
+            },
+            {
+              "value": "onbackorder",
+              "label": "On backorder"
+            }
+          ]
+        },
+        "on_sale": {
+          "label": "On Sale",
+          "description": "Yes returns only products on sale, No only products not on sale. Leave empty for both.",
+          "type": "select",
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes"
+            },
+            {
+              "value": "no",
+              "label": "No"
+            }
+          ]
+        },
+        "min_price": {
+          "label": "Minimum Price",
+          "description": "Only return products priced at or above this amount, e.g. 10.00."
+        },
+        "max_price": {
+          "label": "Maximum Price",
+          "description": "Only return products priced at or below this amount, e.g. 99.99."
+        },
+        "orderby": {
+          "label": "Sort By",
+          "description": "Field to sort by. Defaults to date.",
+          "type": "select",
+          "options": [
+            {
+              "value": "date",
+              "label": "Date"
+            },
+            {
+              "value": "id",
+              "label": "ID"
+            },
+            {
+              "value": "title",
+              "label": "Title"
+            },
+            {
+              "value": "slug",
+              "label": "Slug"
+            },
+            {
+              "value": "price",
+              "label": "Price"
+            },
+            {
+              "value": "popularity",
+              "label": "Popularity"
+            },
+            {
+              "value": "rating",
+              "label": "Rating"
+            }
+          ]
+        },
+        "order": {
+          "label": "Sort Direction",
+          "description": "Ascending or descending. Defaults to descending.",
+          "type": "select",
+          "options": [
+            {
+              "value": "desc",
+              "label": "Descending"
+            },
+            {
+              "value": "asc",
+              "label": "Ascending"
+            }
+          ]
+        },
+        "page": {
+          "label": "Page",
+          "description": "Page number, starting at 1. If a page comes back with exactly per_page items, request the next page to see more.",
+          "type": "number",
+          "defaultValue": "1"
+        },
+        "per_page": {
+          "label": "Per Page",
+          "description": "Number of items per page, from 1 to 100. Defaults to 10.",
+          "type": "number",
+          "defaultValue": "10"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/products",
+        "query": {
+          "status": "{{status}}",
+          "type": "{{type}}",
+          "category": "{{category_id}}",
+          "tag": "{{tag_id}}",
+          "stock_status": "{{stock_status}}",
+          "orderby": "{{orderby}}",
+          "order": "{{order}}"
+        }
+      },
+      "beforeRequest": "['search', 'sku', 'min_price', 'max_price'].forEach((name) => { const value = (inputs[name] || '').trim(); if (value) request.query[name] = value; });\nif (inputs.on_sale === 'yes' || inputs.on_sale === 'no') request.query.on_sale = String(inputs.on_sale === 'yes');\nconst page = inputs.page === '' ? 1 : Number(inputs.page), perPage = inputs.per_page === '' ? 10 : Number(inputs.per_page);\nif (!(page >= 1)) throw new Error('Page must be 1 or more.');\nif (!(perPage >= 1 && perPage <= 100)) throw new Error('Per Page must be from 1 to 100.');\nrequest.query.page = String(page);\nrequest.query.per_page = String(perPage);\nreturn request;"
+    },
+    "update_coupon": {
+      "label": "Update Coupon",
+      "description": "Change the amount, type, expiry or limits of a coupon.",
+      "group": "Coupons",
+      "inputs": {
+        "id": {
+          "label": "Coupon ID",
+          "description": "Find it in WooCommerce under Marketing > Coupons.",
+          "required": true
+        },
+        "amount": {
+          "label": "Amount",
+          "description": "Discount size, as a percent or in your store's currency.",
+          "type": "number"
+        },
+        "discount_type": {
+          "label": "Discount Type",
+          "description": "Percentage uses Amount as a percent; the fixed types as money.",
+          "type": "select",
+          "options": [
+            {
+              "value": "percent",
+              "label": "Percentage"
+            },
+            {
+              "value": "fixed_cart",
+              "label": "Fixed cart"
+            },
+            {
+              "value": "fixed_product",
+              "label": "Fixed product"
+            }
+          ]
+        },
+        "minimum_amount": {
+          "label": "Minimum Spend",
+          "description": "Smallest order total the coupon works on.",
+          "type": "number"
+        },
+        "usage_limit": {
+          "label": "Usage Limit",
+          "description": "How many times the coupon can be used in total.",
+          "type": "number"
+        },
+        "date_expires": {
+          "label": "Expiry Date",
+          "description": "The coupon stops working after this date."
+        },
+        "description": {
+          "label": "Description",
+          "description": "Internal note shown only in WooCommerce admin.",
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/coupons/{{id}}"
+      },
+      "beforeRequest": "const body = {};\nif (inputs.amount !== '') body.amount = String(Number(inputs.amount));\nif (inputs.discount_type) body.discount_type = inputs.discount_type;\nif (inputs.description) body.description = inputs.description;\nif (inputs.date_expires) body.date_expires = inputs.date_expires;\nif (inputs.usage_limit !== '') body.usage_limit = Number(inputs.usage_limit);\nif (inputs.minimum_amount !== '') body.minimum_amount = String(Number(inputs.minimum_amount));\nrequest.body = body;\nreturn request;"
+    },
+    "update_customer": {
+      "label": "Update Customer",
+      "description": "Change the name, email or billing details of a customer.",
+      "group": "Customers",
+      "inputs": {
+        "id": {
+          "label": "Customer ID",
+          "description": "Find it in WooCommerce under Customers, or with List Customers.",
+          "required": true
+        },
+        "email": {
+          "label": "Email",
+          "description": "Changes the email the customer signs in with."
+        },
+        "first_name": {
+          "label": "First Name"
+        },
+        "last_name": {
+          "label": "Last Name"
+        },
+        "city": {
+          "label": "Billing City"
+        },
+        "postcode": {
+          "label": "Billing Postcode"
+        },
+        "country": {
+          "label": "Billing Country",
+          "description": "Two-letter country code, e.g. GB."
+        },
+        "phone": {
+          "label": "Billing Phone"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/customers/{{id}}"
+      },
+      "beforeRequest": "const billing = {}, body = {};\n['phone', 'city', 'postcode', 'country'].forEach((field) => { if (inputs[field]) billing[field] = inputs[field]; });\n['email', 'first_name', 'last_name'].forEach((field) => { if (inputs[field]) body[field] = inputs[field]; });\nif (Object.keys(billing).length > 0) body.billing = billing;\nrequest.body = body;\nreturn request;"
+    },
+    "update_order": {
+      "label": "Update Order",
+      "description": "Change the status, customer note or transaction ID of an order.",
+      "group": "Orders",
+      "inputs": {
+        "id": {
+          "label": "Order ID",
+          "description": "The number after # in WooCommerce > Orders.",
+          "required": true
+        },
+        "status": {
+          "label": "Status",
+          "description": "New status for the order.",
+          "type": "select",
+          "options": [
+            {
+              "value": "pending",
+              "label": "Pending payment"
+            },
+            {
+              "value": "processing",
+              "label": "Processing"
+            },
+            {
+              "value": "on-hold",
+              "label": "On hold"
+            },
+            {
+              "value": "completed",
+              "label": "Completed"
+            },
+            {
+              "value": "cancelled",
+              "label": "Cancelled"
+            },
+            {
+              "value": "refunded",
+              "label": "Refunded"
+            },
+            {
+              "value": "failed",
+              "label": "Failed"
+            }
+          ]
+        },
+        "customer_note": {
+          "label": "Customer Note",
+          "description": "The note the customer left at checkout.",
+          "type": "multiline"
+        },
+        "transaction_id": {
+          "label": "Transaction ID",
+          "description": "Payment reference from your payment gateway."
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/orders/{{id}}",
+        "body": {
+          "status": "{{status}}",
+          "customer_note": "{{customer_note}}",
+          "transaction_id": "{{transaction_id}}"
+        }
+      }
+    },
+    "update_product": {
+      "label": "Update Product",
+      "description": "Change selected fields of a product. Fields left empty are not changed.",
+      "group": "Products",
+      "inputs": {
+        "product_id": {
+          "label": "Product ID",
+          "description": "Id of the product to update. Find it with List Products.",
+          "type": "number",
+          "required": true
+        },
+        "name": {
+          "label": "Name",
+          "description": "New product name."
+        },
+        "sku": {
+          "label": "SKU",
+          "description": "New SKU. Must be unique in the store."
+        },
+        "status": {
+          "label": "Status",
+          "description": "New status.",
+          "type": "select",
+          "options": [
+            {
+              "value": "publish",
+              "label": "Published"
+            },
+            {
+              "value": "draft",
+              "label": "Draft"
+            },
+            {
+              "value": "pending",
+              "label": "Pending review"
+            },
+            {
+              "value": "private",
+              "label": "Private"
+            }
+          ]
+        },
+        "regular_price": {
+          "label": "Regular Price",
+          "description": "New regular price as a decimal string, e.g. 19.99."
+        },
+        "sale_price": {
+          "label": "Sale Price",
+          "description": "New sale price as a decimal string. To remove a sale use End Sale instead."
+        },
+        "end_sale": {
+          "label": "End Sale",
+          "description": "When on, clears the sale price so the product sells at its regular price again.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "stock_quantity": {
+          "label": "Stock Quantity",
+          "description": "New number of units in stock. Setting it turns on stock management.",
+          "type": "number"
+        },
+        "stock_status": {
+          "label": "Stock Status",
+          "description": "New stock status. Ignored when a stock quantity is set.",
+          "type": "select",
+          "options": [
+            {
+              "value": "instock",
+              "label": "In stock"
+            },
+            {
+              "value": "outofstock",
+              "label": "Out of stock"
+            },
+            {
+              "value": "onbackorder",
+              "label": "On backorder"
+            }
+          ]
+        },
+        "featured": {
+          "label": "Featured",
+          "description": "Yes marks the product as featured, No removes the mark. Leave empty to keep it.",
+          "type": "select",
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes"
+            },
+            {
+              "value": "no",
+              "label": "No"
+            }
+          ]
+        },
+        "catalog_visibility": {
+          "label": "Catalog Visibility",
+          "description": "Where the product is shown.",
+          "type": "select",
+          "options": [
+            {
+              "value": "visible",
+              "label": "Shop and search results"
+            },
+            {
+              "value": "catalog",
+              "label": "Shop only"
+            },
+            {
+              "value": "search",
+              "label": "Search results only"
+            },
+            {
+              "value": "hidden",
+              "label": "Hidden"
+            }
+          ]
+        },
+        "description": {
+          "label": "Description",
+          "description": "New full description. HTML is allowed.",
+          "type": "multiline"
+        },
+        "short_description": {
+          "label": "Short Description",
+          "description": "New short description. HTML is allowed.",
+          "type": "multiline"
+        },
+        "category_ids": {
+          "label": "Category IDs",
+          "description": "Replaces all of the product categories with these ids. Include the ones to keep.",
+          "type": "json"
+        },
+        "tag_ids": {
+          "label": "Tag IDs",
+          "description": "Replaces all of the product tags with these ids. Include the ones to keep.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/products/{{product_id}}"
+      },
+      "beforeRequest": "const text = (name) => (inputs[name] || '').trim() || undefined;\nconst yesNo = (name) => inputs[name] === 'yes' ? true : inputs[name] === 'no' ? false : undefined;\nconst list = (name) => { const values = inputs[name] ? JSON.parse(inputs[name]) : []; return values && values.length ? values : undefined; };\nconst ids = (name) => list(name) && list(name).map((value) => {\n  const id = Number(String(value).trim());\n  if (!Number.isInteger(id) || id <= 0) throw new Error('Expected a list of numeric ids, but got \"' + String(value) + '\". Read the ids with the matching list action first.');\n  return id;\n});\nconst hasStock = inputs.stock_quantity !== undefined && inputs.stock_quantity !== '';\nrequest.body = JSON.parse(JSON.stringify({name: text('name'), sku: text('sku'), status: inputs.status || undefined, regular_price: text('regular_price'),\n  sale_price: inputs.end_sale === 'true' ? '' : text('sale_price'), manage_stock: hasStock ? true : undefined, stock_quantity: hasStock ? Number(inputs.stock_quantity) : undefined,\n  stock_status: hasStock ? undefined : inputs.stock_status || undefined, featured: yesNo('featured'), catalog_visibility: inputs.catalog_visibility || undefined,\n  description: text('description'), short_description: text('short_description'),\n  categories: ids('category_ids') && ids('category_ids').map((id) => ({id})), tags: ids('tag_ids') && ids('tag_ids').map((id) => ({id}))}));\nif (Object.keys(request.body).length === 0) throw new Error('No fields to update were supplied. Provide at least one field to change.');\nreturn request;"
+    },
+    "update_product_review": {
+      "label": "Moderate Product Review",
+      "description": "Approve, hold, mark as spam or trash a product review.",
+      "group": "Products",
+      "inputs": {
+        "review_id": {
+          "label": "Review ID",
+          "description": "Id of the review.",
+          "type": "number",
+          "required": true
+        },
+        "status": {
+          "label": "Status",
+          "description": "New moderation status.",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "approved",
+              "label": "Approve"
+            },
+            {
+              "value": "hold",
+              "label": "Hold (unapprove)"
+            },
+            {
+              "value": "spam",
+              "label": "Mark as spam"
+            },
+            {
+              "value": "unspam",
+              "label": "Not spam"
+            },
+            {
+              "value": "trash",
+              "label": "Move to trash"
+            },
+            {
+              "value": "untrash",
+              "label": "Restore from trash"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/products/reviews/{{review_id}}",
+        "body": {
+          "status": "{{status}}"
+        }
+      }
+    },
+    "update_product_variation": {
+      "label": "Update Product Variation",
+      "description": "Change selected fields of one variation. Fields left empty are not changed.",
+      "group": "Products",
+      "inputs": {
+        "product_id": {
+          "label": "Product ID",
+          "description": "Id of the parent variable product.",
+          "type": "number",
+          "required": true
+        },
+        "variation_id": {
+          "label": "Variation ID",
+          "description": "Id of the variation to update.",
+          "type": "number",
+          "required": true
+        },
+        "regular_price": {
+          "label": "Regular Price",
+          "description": "New regular price as a decimal string, e.g. 19.99."
+        },
+        "sale_price": {
+          "label": "Sale Price",
+          "description": "New sale price as a decimal string. To remove a sale use End Sale instead."
+        },
+        "end_sale": {
+          "label": "End Sale",
+          "description": "When on, clears the sale price so the variation sells at its regular price again.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "sku": {
+          "label": "SKU",
+          "description": "New SKU. Must be unique in the store."
+        },
+        "status": {
+          "label": "Status",
+          "description": "New status. Private hides the variation from customers.",
+          "type": "select",
+          "options": [
+            {
+              "value": "publish",
+              "label": "Published"
+            },
+            {
+              "value": "draft",
+              "label": "Draft"
+            },
+            {
+              "value": "pending",
+              "label": "Pending review"
+            },
+            {
+              "value": "private",
+              "label": "Private"
+            }
+          ]
+        },
+        "stock_quantity": {
+          "label": "Stock Quantity",
+          "description": "New number of units in stock. Setting it turns on stock management for this variation.",
+          "type": "number"
+        },
+        "stock_status": {
+          "label": "Stock Status",
+          "description": "New stock status. Ignored when a stock quantity is set.",
+          "type": "select",
+          "options": [
+            {
+              "value": "instock",
+              "label": "In stock"
+            },
+            {
+              "value": "outofstock",
+              "label": "Out of stock"
+            },
+            {
+              "value": "onbackorder",
+              "label": "On backorder"
+            }
+          ]
+        },
+        "description": {
+          "label": "Description",
+          "description": "New variation description.",
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/products/{{product_id}}/variations/{{variation_id}}"
+      },
+      "beforeRequest": "const text = (name) => (inputs[name] || '').trim() || undefined;\nconst hasStock = inputs.stock_quantity !== undefined && inputs.stock_quantity !== '';\nrequest.body = JSON.parse(JSON.stringify({regular_price: text('regular_price'), sale_price: inputs.end_sale === 'true' ? '' : text('sale_price'), sku: text('sku'),\n  status: inputs.status || undefined, manage_stock: hasStock ? true : undefined, stock_quantity: hasStock ? Number(inputs.stock_quantity) : undefined,\n  stock_status: hasStock ? undefined : inputs.stock_status || undefined, description: text('description')}));\nif (Object.keys(request.body).length === 0) throw new Error('No fields to update were supplied. Provide at least one field to change.');\nreturn request;"
+    }
+  },
+  "triggers": {
+    "$woocommerce_trigger_product_created": {
+      "label": "Product Created",
+      "description": "Triggers when a new product is created.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/webhooks",
+          "body": {
+            "name": "Product Created",
+            "topic": "product.created",
+            "delivery_url": "{{webhookUrl}}"
+          }
+        },
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/webhooks/{{webhookId}}",
+          "query": {
+            "force": "true"
+          }
+        }
+      },
+      "afterResponse": "if (response && response.webhook_id) return [];\nreturn [response];"
+    },
+    "$woocommerce_trigger_product_updated": {
+      "label": "Product Updated",
+      "description": "Triggers when an existing product is updated.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/webhooks",
+          "body": {
+            "name": "Product Updated",
+            "topic": "product.updated",
+            "delivery_url": "{{webhookUrl}}"
+          }
+        },
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/webhooks/{{webhookId}}",
+          "query": {
+            "force": "true"
+          }
+        }
+      },
+      "afterResponse": "if (response && response.webhook_id) return [];\nreturn [response];"
+    },
+    "$woocommerce_trigger_product_deleted": {
+      "label": "Product Deleted",
+      "description": "Triggers when an existing product is deleted.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/webhooks",
+          "body": {
+            "name": "Product Deleted",
+            "topic": "product.deleted",
+            "delivery_url": "{{webhookUrl}}"
+          }
+        },
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/webhooks/{{webhookId}}",
+          "query": {
+            "force": "true"
+          }
+        }
+      },
+      "afterResponse": "if (response && response.webhook_id) return [];\n// The event names what was deleted, so ask for the rest, and keep the event when the store no longer has it.\ntry {\n  return [call({ method: 'GET', url: '/wp-json/wc/v3/products/' + response.id, query: { per_page: '10' } })];\n} catch (e) {\n  return [response];\n}"
+    },
+    "$woocommerce_trigger_order_created": {
+      "label": "Order Created",
+      "description": "Triggers when a new order is created.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/webhooks",
+          "body": {
+            "name": "Order Created",
+            "topic": "order.created",
+            "delivery_url": "{{webhookUrl}}"
+          }
+        },
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/webhooks/{{webhookId}}",
+          "query": {
+            "force": "true"
+          }
+        }
+      },
+      "afterResponse": "if (response && response.webhook_id) return [];\nreturn [response];"
+    },
+    "$woocommerce_trigger_order_updated": {
+      "label": "Order Updated",
+      "description": "Triggers when an existing order is updated.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/webhooks",
+          "body": {
+            "name": "Order Updated",
+            "topic": "order.updated",
+            "delivery_url": "{{webhookUrl}}"
+          }
+        },
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/webhooks/{{webhookId}}",
+          "query": {
+            "force": "true"
+          }
+        }
+      },
+      "afterResponse": "if (response && response.webhook_id) return [];\nreturn [response];"
+    },
+    "$woocommerce_trigger_order_deleted": {
+      "label": "Order Deleted",
+      "description": "Triggers when an existing order is deleted.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/webhooks",
+          "body": {
+            "name": "Order Deleted",
+            "topic": "order.deleted",
+            "delivery_url": "{{webhookUrl}}"
+          }
+        },
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/webhooks/{{webhookId}}",
+          "query": {
+            "force": "true"
+          }
+        }
+      },
+      "afterResponse": "if (response && response.webhook_id) return [];\n// The event names what was deleted, so ask for the rest, and keep the event when the store no longer has it.\ntry {\n  return [call({ method: 'GET', url: '/wp-json/wc/v3/orders/' + response.id, query: { per_page: '10' } })];\n} catch (e) {\n  return [response];\n}"
+    },
+    "$woocommerce_trigger_coupon_created": {
+      "label": "Coupon Created",
+      "description": "Triggers when a new coupon is created.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/webhooks",
+          "body": {
+            "name": "Coupon Created",
+            "topic": "coupon.created",
+            "delivery_url": "{{webhookUrl}}"
+          }
+        },
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/webhooks/{{webhookId}}",
+          "query": {
+            "force": "true"
+          }
+        }
+      },
+      "afterResponse": "if (response && response.webhook_id) return [];\nreturn [response];"
+    },
+    "$woocommerce_trigger_coupon_updated": {
+      "label": "Coupon Updated",
+      "description": "Triggers when an existing coupon is updated.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/webhooks",
+          "body": {
+            "name": "Coupon Updated",
+            "topic": "coupon.updated",
+            "delivery_url": "{{webhookUrl}}"
+          }
+        },
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/webhooks/{{webhookId}}",
+          "query": {
+            "force": "true"
+          }
+        }
+      },
+      "afterResponse": "if (response && response.webhook_id) return [];\nreturn [response];"
+    },
+    "$woocommerce_trigger_coupon_deleted": {
+      "label": "Coupon Deleted",
+      "description": "Triggers when an existing coupon is deleted.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/webhooks",
+          "body": {
+            "name": "Coupon Deleted",
+            "topic": "coupon.deleted",
+            "delivery_url": "{{webhookUrl}}"
+          }
+        },
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/webhooks/{{webhookId}}",
+          "query": {
+            "force": "true"
+          }
+        }
+      },
+      "afterResponse": "if (response && response.webhook_id) return [];\n// The event names what was deleted, so ask for the rest, and keep the event when the store no longer has it.\ntry {\n  return [call({ method: 'GET', url: '/wp-json/wc/v3/coupons/' + response.id, query: { per_page: '10' } })];\n} catch (e) {\n  return [response];\n}"
+    },
+    "$woocommerce_trigger_customer_created": {
+      "label": "Customer Created",
+      "description": "Triggers when a new customer is created.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/webhooks",
+          "body": {
+            "name": "Customer Created",
+            "topic": "customer.created",
+            "delivery_url": "{{webhookUrl}}"
+          }
+        },
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/webhooks/{{webhookId}}",
+          "query": {
+            "force": "true"
+          }
+        }
+      },
+      "afterResponse": "if (response && response.webhook_id) return [];\nreturn [response];"
+    },
+    "$woocommerce_trigger_customer_updated": {
+      "label": "Customer Updated",
+      "description": "Triggers when an existing customer is updated.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/webhooks",
+          "body": {
+            "name": "Customer Updated",
+            "topic": "customer.updated",
+            "delivery_url": "{{webhookUrl}}"
+          }
+        },
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/webhooks/{{webhookId}}",
+          "query": {
+            "force": "true"
+          }
+        }
+      },
+      "afterResponse": "if (response && response.webhook_id) return [];\nreturn [response];"
+    },
+    "$woocommerce_trigger_customer_deleted": {
+      "label": "Customer Deleted",
+      "description": "Triggers when an existing customer is deleted.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/webhooks",
+          "body": {
+            "name": "Customer Deleted",
+            "topic": "customer.deleted",
+            "delivery_url": "{{webhookUrl}}"
+          }
+        },
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://{{credential.baseUrl}}/wp-json/wc/v3/webhooks/{{webhookId}}",
+          "query": {
+            "force": "true"
+          }
+        }
+      },
+      "afterResponse": "if (response && response.webhook_id) return [];\n// The event names what was deleted, so ask for the rest, and keep the event when the store no longer has it.\ntry {\n  return [call({ method: 'GET', url: '/wp-json/wc/v3/customers/' + response.id, query: { per_page: '10' } })];\n} catch (e) {\n  return [response];\n}"
+    }
+  }
+}

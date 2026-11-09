@@ -1,0 +1,1117 @@
+{
+  "name": "google-drive",
+  "label": "Google Drive",
+  "description": "Cloud storage and file backup",
+  "icon": "googledrive",
+  "hosts": [
+    "www.googleapis.com"
+  ],
+  "baseUrl": "https://www.googleapis.com/drive/v3",
+  "upstream": {
+    "package": "@activepieces/piece-google-drive",
+    "version": "0.13.3"
+  },
+  "credential": {
+    "oauth2": {
+      "authUrl": "https://accounts.google.com/o/oauth2/auth",
+      "tokenUrl": "https://oauth2.googleapis.com/token",
+      "scope": "https://www.googleapis.com/auth/drive email",
+      "authParameters": "access_type=offline&prompt=consent"
+    }
+  },
+  "lists": {
+    "parent_folders": {
+      "request": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/drive/v3/files",
+        "query": {
+          "q": "mimeType='application/vnd.google-apps.folder' and trashed = false",
+          "includeItemsFromAllDrives": "false",
+          "supportsAllDrives": "true",
+          "corpora": "user",
+          "pageSize": "1000",
+          "fields": "nextPageToken, files(id, name)"
+        }
+      },
+      "items": "$.files",
+      "label": "$.name",
+      "value": "$.id"
+    }
+  },
+  "actions": {
+    "search-folder": {
+      "label": "Find File or Folder",
+      "description": "Find files or folders by name, content or type.",
+      "inputs": {
+        "query_term": {
+          "label": "Search By",
+          "description": "Match the file name, the text inside it, or its type.",
+          "type": "select",
+          "required": true,
+          "defaultValue": "name",
+          "options": [
+            {
+              "value": "name",
+              "label": "File Name"
+            },
+            {
+              "value": "fullText",
+              "label": "Text Inside the File"
+            },
+            {
+              "value": "mimeType",
+              "label": "File Type"
+            }
+          ]
+        },
+        "operator": {
+          "label": "Match",
+          "description": "Contains finds partial matches; Equals needs the exact value.",
+          "type": "select",
+          "required": true,
+          "defaultValue": "contains",
+          "options": [
+            {
+              "value": "contains",
+              "label": "Contains"
+            },
+            {
+              "value": "=",
+              "label": "Equals"
+            }
+          ]
+        },
+        "query": {
+          "label": "Search Text",
+          "description": "The name, text or type to look for.",
+          "required": true
+        },
+        "type": {
+          "label": "Show",
+          "description": "Return everything, only files or only folders.",
+          "type": "select",
+          "defaultValue": "all",
+          "options": [
+            {
+              "value": "all",
+              "label": "Files and Folders"
+            },
+            {
+              "value": "file",
+              "label": "Files Only"
+            },
+            {
+              "value": "folder",
+              "label": "Folders Only"
+            }
+          ]
+        },
+        "folder_id": {
+          "label": "Search in Folder",
+          "description": "Leave empty to search all of Drive. Type to search by folder name.",
+          "list": "parent_folders"
+        },
+        "include_team_drives": {
+          "label": "Include Team Drives",
+          "description": "Also include shared drives, not only My Drive.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/drive/v3/files",
+        "query": {
+          "fields": "nextPageToken, files(id, name, mimeType, createdTime, modifiedTime)",
+          "includeItemsFromAllDrives": "{{include_team_drives}}",
+          "supportsAllDrives": "true",
+          "pageSize": "1000"
+        },
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "beforeRequest": "const literal = (text) => String(text).replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"\\\\'\");\nlet q = (inputs.query_term || 'name') + ' ' + (inputs.operator || 'contains') + \" '\" + literal(inputs.query) + \"'\";\nif (inputs.folder_id) q += \" and '\" + literal(inputs.folder_id) + \"' in parents\";\nif (inputs.type === 'file') q += \" and mimeType!='application/vnd.google-apps.folder'\";\nif (inputs.type === 'folder') q += \" and mimeType='application/vnd.google-apps.folder'\";\nrequest.query.q = q;\nrequest.query.corpora = inputs.include_team_drives === 'true' ? 'allDrives' : 'user';\nreturn request;",
+      "afterResponse": "let files = response.files || [];\nfor (let pageToken = response.nextPageToken; pageToken;) {\n  const page = call({headers: {'x-goog-api-client': 'gdcl/8.0.2 gl-node/26.4.0'}, method: 'GET', url: '/files', query: Object.assign({}, request.query, {pageToken})});\n  files = files.concat(page.files || []);\n  pageToken = page.nextPageToken;\n}\nreturn files;"
+    },
+    "drive_create_folder": {
+      "label": "Create Folder",
+      "description": "Create a new empty folder in your Google Drive.",
+      "inputs": {
+        "folder_name": {
+          "label": "Folder Name",
+          "description": "The name of the new folder.",
+          "required": true
+        },
+        "folder_id": {
+          "label": "Parent Folder ID",
+          "description": "The folder to create the new folder in. Leave empty for the root of My Drive. Type to search by folder name.",
+          "list": "parent_folders"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://www.googleapis.com/drive/v3/files",
+        "query": {
+          "supportsAllDrives": "true"
+        },
+        "body": {
+          "mimeType": "application/vnd.google-apps.folder",
+          "name": "{{folder_name}}",
+          "parents": [
+            "{{folder_id}}"
+          ]
+        },
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "beforeRequest": "if (!inputs.folder_id) delete request.body.parents;\nreturn request;"
+    },
+    "drive_get_file": {
+      "label": "Get File or Folder",
+      "description": "Get the details of a file or folder by its ID.",
+      "inputs": {
+        "file_id": {
+          "label": "File or Folder ID",
+          "description": "The ID of the file or folder to get. Find it with Find File or Folder or List Folder Contents.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/drive/v3/files/{{file_id}}",
+        "query": {
+          "supportsAllDrives": "true"
+        },
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      }
+    },
+    "drive_list_files": {
+      "label": "List Folder Contents",
+      "description": "List the files in a Google Drive folder.",
+      "inputs": {
+        "folder_id": {
+          "label": "Folder ID",
+          "description": "The folder to list. Type to search by folder name.",
+          "required": true,
+          "list": "parent_folders"
+        },
+        "include_trashed": {
+          "label": "Include Trashed",
+          "description": "Also list files that are in the trash.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "depth_level": {
+          "label": "Depth Level",
+          "description": "How many levels deep to search for files. 1 = current folder only, 2 = current + next level, etc.",
+          "type": "number",
+          "defaultValue": "1"
+        },
+        "include_team_drives": {
+          "label": "Include Team Drives",
+          "description": "Also include shared drives, not only My Drive.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/drive/v3/files"
+      },
+      "beforeRequest": "const form = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst team = inputs.include_team_drives === 'true';\nconst q = \"'\" + inputs.folder_id + \"' in parents\" + (inputs.include_trashed === 'true' ? '' : ' and trashed=false');\nrequest.url = '/files?' + [['q', q], ['fields', 'nextPageToken,files(id,kind,mimeType,name,trashed,parents)'], ['supportsAllDrives', 'true'],\n  ['includeItemsFromAllDrives', team ? 'true' : 'false'], ['corpora', team ? 'allDrives' : 'user'], ['pageSize', '1000']]\n  .map(([key, value]) => key + '=' + form(value)).join('&');\nreturn request;",
+      "afterResponse": "const form = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\n// Every later page asks with the first page's settings, which follow its q.\nconst settings = request.url.slice(request.url.indexOf('&'));\nconst queryOf = (ids) => { const any = ids.map((id) => \"'\" + id + \"' in parents\").join(' or '); const scope = ids.length > 1 ? '(' + any + ')' : any; return inputs.include_trashed === 'true' ? scope : scope + ' and trashed=false'; };\nlet first = response;\nconst files = [];\nlet level = [inputs.folder_id];\nfor (let depth = 0; depth < (Number(inputs.depth_level) || 1) && level.length > 0; depth++) {\n  const next = [];\n  for (let start = 0; start < level.length; start += 50) {\n    const q = queryOf(level.slice(start, start + 50));\n    let pageToken;\n    do {\n      const page = first || call({method: 'GET', url: '/files?q=' + form(q) + settings + (pageToken ? '&pageToken=' + form(pageToken) : '')});\n      first = null;\n      (page.files || []).forEach((file) => { files.push(file); if (file.mimeType === 'application/vnd.google-apps.folder') next.push(file.id); });\n      pageToken = page.nextPageToken;\n    } while (pageToken);\n  }\n  level = next;\n}\nreturn {type: 'drive#fileList', incompleteSearch: false, files: files};"
+    },
+    "drive_copy_file": {
+      "label": "Copy File",
+      "description": "Duplicate a file from Google Drive. Returns the new file ID.",
+      "inputs": {
+        "file_id": {
+          "label": "File ID",
+          "description": "The ID of the file to duplicate. Find it with Find File or Folder.",
+          "required": true
+        },
+        "name": {
+          "label": "Name",
+          "description": "The name of the new file.",
+          "required": true
+        },
+        "folder_id": {
+          "label": "Folder ID",
+          "description": "The folder to put the copy in. Type to search by folder name.",
+          "required": true,
+          "list": "parent_folders"
+        },
+        "convert_to": {
+          "label": "Duplicate As",
+          "description": "Leave empty to copy the file as it is.",
+          "type": "select",
+          "options": [
+            {
+              "value": "application/vnd.google-apps.spreadsheet",
+              "label": "Google Sheets"
+            },
+            {
+              "value": "application/vnd.google-apps.document",
+              "label": "Google Docs"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://www.googleapis.com/drive/v3/files/{{file_id}}/copy",
+        "query": {
+          "supportsAllDrives": "true"
+        },
+        "body": {
+          "name": "{{name}}",
+          "parents": [
+            "{{folder_id}}"
+          ],
+          "mimeType": "{{convert_to}}"
+        },
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      }
+    },
+    "drive_move_file": {
+      "label": "Move File",
+      "description": "Move a Drive file from its current folder(s) to a target folder.",
+      "inputs": {
+        "file_id": {
+          "label": "File ID",
+          "description": "The ID of the file to move. Find it with Find File or Folder.",
+          "required": true
+        },
+        "folder_id": {
+          "label": "Destination Folder ID",
+          "description": "The folder to move the file into. Type to search by folder name.",
+          "required": true,
+          "list": "parent_folders"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/drive/v3/files/{{file_id}}",
+        "query": {
+          "supportsAllDrives": "true",
+          "fields": "id,parents"
+        },
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "afterResponse": "return call({headers: {'x-goog-api-client': 'gdcl/8.0.2 gl-node/26.4.0'}, method: 'PATCH', url: '/files/' + encodeURIComponent(inputs.file_id) + '?fields=%2A', query: Object.assign({}, response.parents ? {removeParents: response.parents.join(',')} : {}, inputs.folder_id ? {addParents: inputs.folder_id} : {}, {supportsAllDrives: 'true'})});"
+    },
+    "drive_update_file_metadata": {
+      "label": "Update File Metadata",
+      "description": "Rename a Drive file or folder, or change its description or starred flag.",
+      "inputs": {
+        "file_id": {
+          "label": "File or Folder ID",
+          "description": "The ID of the file or folder to update. Find it with Find File or Folder.",
+          "required": true
+        },
+        "name": {
+          "label": "New Name",
+          "description": "A new name for the file or folder. Leave empty to keep the current name."
+        },
+        "description": {
+          "label": "Description",
+          "description": "A new description for the file or folder. Leave empty to keep the current description."
+        },
+        "starred": {
+          "label": "Starred",
+          "description": "Whether to mark the file or folder as starred. Leave empty or pick Leave unchanged to keep the current setting.",
+          "type": "select",
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes"
+            },
+            {
+              "value": "no",
+              "label": "No"
+            },
+            {
+              "value": "unchanged",
+              "label": "Leave unchanged"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://www.googleapis.com/drive/v3/files/{{file_id}}",
+        "query": {
+          "supportsAllDrives": "true"
+        },
+        "body": {
+          "name": "{{name}}",
+          "description": "{{description}}"
+        },
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "beforeRequest": "const starred = String(inputs.starred || '').trim().toLowerCase();\nif (starred === 'yes' || starred === 'true') request.body.starred = true;\nif (starred === 'no' || starred === 'false') request.body.starred = false;\nreturn request;"
+    },
+    "drive_replace_file_content": {
+      "label": "Replace File Content",
+      "description": "Replace an existing Drive file's content, keeping its ID and name.",
+      "inputs": {
+        "file_id": {
+          "label": "File ID",
+          "description": "The ID of the file whose content to replace. Find it with Find File or Folder.",
+          "required": true
+        },
+        "file": {
+          "label": "New File Content",
+          "description": "The file whose content replaces the current content.",
+          "type": "file",
+          "required": true
+        },
+        "mime_type": {
+          "label": "MIME Type",
+          "description": "The type of the new content, such as application/pdf. Leave empty to take it from the file's extension."
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://www.googleapis.com/upload/drive/v3/files/{{file_id}}",
+        "query": {
+          "uploadType": "media",
+          "supportsAllDrives": "true"
+        },
+        "headers": {
+          "Content-Type": "{{mime_type}}"
+        },
+        "body": "{{file}}"
+      },
+      "beforeRequest": "if (!inputs.mime_type) {\n  if (/\\.[^.]+$/.test(inputs.file)) delete request.headers['Content-Type'];\n  else request.headers['Content-Type'] = 'application/octet-stream';\n}\nreturn request;"
+    },
+    "drive_trash_file": {
+      "label": "Trash File",
+      "description": "Move a Drive file to the trash by ID (reversible deletion).",
+      "inputs": {
+        "file_id": {
+          "label": "File ID",
+          "description": "The ID of the file to trash. Find it with Find File or Folder.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://www.googleapis.com/drive/v3/files/{{file_id}}",
+        "query": {
+          "supportsAllDrives": "true"
+        },
+        "body": {
+          "trashed": true
+        },
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      }
+    },
+    "drive_untrash_file": {
+      "label": "Restore File from Trash",
+      "description": "Restore a trashed Drive file by ID back to its original location.",
+      "inputs": {
+        "file_id": {
+          "label": "File ID",
+          "description": "The ID of the trashed file to restore. Find it with Find File or Folder.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://www.googleapis.com/drive/v3/files/{{file_id}}",
+        "query": {
+          "supportsAllDrives": "true"
+        },
+        "body": {
+          "trashed": false
+        },
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      }
+    },
+    "drive_delete_file": {
+      "label": "Delete File Permanently",
+      "description": "Permanently delete a Drive file by ID, bypassing the trash.",
+      "inputs": {
+        "file_id": {
+          "label": "File ID",
+          "description": "The ID of the file to permanently delete. Find it with Find File or Folder.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://www.googleapis.com/drive/v3/files/{{file_id}}",
+        "query": {
+          "supportsAllDrives": "true"
+        },
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "afterResponse": "return '\"\"';"
+    },
+    "drive_empty_trash": {
+      "label": "Empty Trash",
+      "description": "Permanently delete ALL files in the trash (irreversible, account-wide).",
+      "inputs": {
+        "drive_id": {
+          "label": "Shared Drive ID",
+          "description": "Optional. Restrict the purge to a single shared drive's trash (find it with List Shared Drives). Leave empty to empty the entire My Drive trash for the connected account."
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://www.googleapis.com/drive/v3/files/trash",
+        "query": {
+          "driveId": "{{drive_id}}"
+        },
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "afterResponse": "return {success: true, driveId: inputs.drive_id || null};"
+    },
+    "drive_share_file": {
+      "label": "Share File with User",
+      "description": "Grant a role on a Drive file or folder to a user by email.",
+      "inputs": {
+        "file_id": {
+          "label": "File or Folder ID",
+          "description": "The ID of the file or folder to share. Find it with Find File or Folder.",
+          "required": true
+        },
+        "user_email": {
+          "label": "User Email",
+          "description": "The email address of the user to grant access to.",
+          "required": true
+        },
+        "role": {
+          "label": "Role",
+          "description": "The role to grant to the user. See https://developers.google.com/drive/api/guides/ref-roles",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "organizer",
+              "label": "Manager"
+            },
+            {
+              "value": "fileOrganizer",
+              "label": "Content Manager"
+            },
+            {
+              "value": "writer",
+              "label": "Editor"
+            },
+            {
+              "value": "commenter",
+              "label": "Commenter"
+            },
+            {
+              "value": "reader",
+              "label": "Viewer"
+            }
+          ]
+        },
+        "send_invitation_email": {
+          "label": "Send Invitation Email",
+          "description": "Send an email to the user to notify them of the new permission.",
+          "type": "boolean",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://www.googleapis.com/drive/v3/files/{{file_id}}/permissions",
+        "query": {
+          "sendNotificationEmail": "{{send_invitation_email}}",
+          "supportsAllDrives": "true"
+        },
+        "body": {
+          "type": "user",
+          "role": "{{role}}",
+          "emailAddress": "{{user_email}}"
+        },
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      }
+    },
+    "drive_list_permissions": {
+      "label": "List Permissions",
+      "description": "List every permission on a Drive file or folder.",
+      "inputs": {
+        "file_id": {
+          "label": "File or Folder ID",
+          "description": "The ID of the file or folder whose permissions to list. Find it with Find File or Folder.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/drive/v3/files/{{file_id}}/permissions",
+        "query": {
+          "fields": "permissions(id,type,role,emailAddress,domain)",
+          "supportsAllDrives": "true"
+        },
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "afterResponse": "const permissions = response.permissions || [];\nreturn {permissions: permissions, count: permissions.length};"
+    },
+    "drive_update_permission": {
+      "label": "Update Permission Role",
+      "description": "Change an existing collaborator's role on a Drive file or folder.",
+      "inputs": {
+        "file_id": {
+          "label": "File or Folder ID",
+          "description": "The ID of the file or folder whose permission to update. Find it with Find File or Folder.",
+          "required": true
+        },
+        "user_email": {
+          "label": "User Email",
+          "description": "The email address of the collaborator whose role to change. The existing permission is matched by this email; List Permissions shows the current ones.",
+          "required": true
+        },
+        "role": {
+          "label": "New Role",
+          "description": "The role to set for the user. See https://developers.google.com/drive/api/guides/ref-roles",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "organizer",
+              "label": "Manager"
+            },
+            {
+              "value": "fileOrganizer",
+              "label": "Content Manager"
+            },
+            {
+              "value": "writer",
+              "label": "Editor"
+            },
+            {
+              "value": "commenter",
+              "label": "Commenter"
+            },
+            {
+              "value": "reader",
+              "label": "Viewer"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/drive/v3/files/{{file_id}}/permissions",
+        "query": {
+          "fields": "permissions(id,emailAddress,role)",
+          "supportsAllDrives": "true"
+        },
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "afterResponse": "const match = (response.permissions || []).find((permission) => permission.emailAddress === inputs.user_email);\nif (!match || !match.id) return {updated: false, message: 'No existing permission found for ' + inputs.user_email + '. Use Share File with User to grant new access.'};\nreturn {updated: true, permission: call({headers: {'x-goog-api-client': 'gdcl/8.0.2 gl-node/26.4.0'}, method: 'PATCH', url: '/files/' + encodeURIComponent(inputs.file_id) + '/permissions/' + encodeURIComponent(match.id), query: {supportsAllDrives: 'true'}, body: {role: inputs.role}})};"
+    },
+    "drive_remove_permission": {
+      "label": "Remove Permission",
+      "description": "Revoke a role from a user on a Drive file or folder.",
+      "inputs": {
+        "file_id": {
+          "label": "File or Folder ID",
+          "description": "The ID of the file or folder to remove the permission from. Find it with Find File or Folder.",
+          "required": true
+        },
+        "user_email": {
+          "label": "User Email",
+          "description": "The email address of the user whose access to revoke.",
+          "required": true
+        },
+        "role": {
+          "label": "Role",
+          "description": "The role to remove from the user. The grant is matched by email and role.",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "organizer",
+              "label": "Manager"
+            },
+            {
+              "value": "fileOrganizer",
+              "label": "Content Manager"
+            },
+            {
+              "value": "writer",
+              "label": "Editor"
+            },
+            {
+              "value": "commenter",
+              "label": "Commenter"
+            },
+            {
+              "value": "reader",
+              "label": "Viewer"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/drive/v3/files/{{file_id}}/permissions",
+        "query": {
+          "fields": "permissions(id, emailAddress, role)",
+          "supportsAllDrives": "true"
+        },
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "afterResponse": "const match = (response.permissions || []).find((permission) => permission.emailAddress === inputs.user_email && permission.role === inputs.role);\nif (!match) return {removed: false, message: 'Permission not found'};\ncall({headers: {'x-goog-api-client': 'gdcl/8.0.2 gl-node/26.4.0'}, method: 'DELETE', url: '/files/' + encodeURIComponent(inputs.file_id) + '/permissions/' + encodeURIComponent(match.id || ''), query: {supportsAllDrives: 'true'}});\nreturn {removed: true, message: 'Permission removed'};"
+    },
+    "drive_list_shared_drives": {
+      "label": "List Shared Drives",
+      "description": "List the shared drives the account can access.",
+      "inputs": {
+        "query": {
+          "label": "Query",
+          "description": "Optional search query to filter shared drives, e.g. name contains 'marketing'. See https://developers.google.com/drive/api/guides/search-shareddrives"
+        },
+        "page_size": {
+          "label": "Page Size",
+          "description": "Maximum number of shared drives to return (1-100). Defaults to 100.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/drive/v3/drives",
+        "query": {
+          "q": "{{query}}",
+          "pageSize": "{{page_size}}"
+        },
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "afterResponse": "const drives = response.drives || [];\nreturn {drives: drives, count: drives.length};",
+      "beforeRequest": "if (!Number(inputs.page_size)) delete request.query.pageSize;\nreturn request;"
+    },
+    "drive_get_shared_drive": {
+      "label": "Get Shared Drive",
+      "description": "Fetch metadata for one shared drive by ID.",
+      "inputs": {
+        "drive_id": {
+          "label": "Shared Drive ID",
+          "description": "The ID of the shared drive. Find it with List Shared Drives.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/drive/v3/drives/{{drive_id}}",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      }
+    },
+    "drive_update_shared_drive": {
+      "label": "Update Shared Drive",
+      "description": "Rename or update a shared drive by ID.",
+      "inputs": {
+        "drive_id": {
+          "label": "Shared Drive ID",
+          "description": "The ID of the shared drive to update. Find it with List Shared Drives.",
+          "required": true
+        },
+        "name": {
+          "label": "Name",
+          "description": "The new name for the shared drive. Leave empty to keep the current name."
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://www.googleapis.com/drive/v3/drives/{{drive_id}}",
+        "body": {
+          "name": "{{name}}"
+        },
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      }
+    },
+    "drive_delete_shared_drive": {
+      "label": "Delete Shared Drive",
+      "description": "Permanently delete a shared drive by ID.",
+      "inputs": {
+        "drive_id": {
+          "label": "Shared Drive ID",
+          "description": "The ID of the shared drive to delete. Find it with List Shared Drives.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://www.googleapis.com/drive/v3/drives/{{drive_id}}",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "afterResponse": "return {deleted: true, driveId: inputs.drive_id};"
+    },
+    "drive_create_comment": {
+      "label": "Create Comment",
+      "description": "Add a new comment to a Drive file.",
+      "inputs": {
+        "file_id": {
+          "label": "File ID",
+          "description": "The ID of the file to comment on. Find it with Find File or Folder.",
+          "required": true
+        },
+        "content": {
+          "label": "Content",
+          "description": "The plain-text content of the comment.",
+          "type": "multiline",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://www.googleapis.com/drive/v3/files/{{file_id}}/comments?fields=%2A",
+        "body": {
+          "content": "{{content}}"
+        },
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      }
+    },
+    "drive_list_comments": {
+      "label": "List Comments",
+      "description": "List the comments on a Drive file.",
+      "inputs": {
+        "file_id": {
+          "label": "File ID",
+          "description": "The ID of the file whose comments to list. Find it with Find File or Folder.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/drive/v3/files/{{file_id}}/comments?fields=%2A&includeDeleted=false",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "afterResponse": "const comments = response.comments || [];\nreturn {comments: comments, count: comments.length};"
+    },
+    "drive_create_reply": {
+      "label": "Reply to Comment",
+      "description": "Add a reply to an existing comment on a Drive file.",
+      "inputs": {
+        "file_id": {
+          "label": "File ID",
+          "description": "The ID of the file the comment belongs to. Find it with Find File or Folder.",
+          "required": true
+        },
+        "comment_id": {
+          "label": "Comment ID",
+          "description": "The ID of the comment to reply to. Find it with List Comments.",
+          "required": true
+        },
+        "content": {
+          "label": "Content",
+          "description": "The plain-text content of the reply.",
+          "type": "multiline",
+          "required": true
+        },
+        "action": {
+          "label": "Action",
+          "description": "Optionally change the parent comment's state: resolve (mark resolved) or reopen.",
+          "type": "select",
+          "options": [
+            {
+              "value": "resolve",
+              "label": "Resolve"
+            },
+            {
+              "value": "reopen",
+              "label": "Reopen"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://www.googleapis.com/drive/v3/files/{{file_id}}/comments/{{comment_id}}/replies?fields=%2A",
+        "body": {
+          "content": "{{content}}",
+          "action": "{{action}}"
+        },
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      }
+    },
+    "drive_get_reply": {
+      "label": "Get Reply",
+      "description": "Fetch a single reply on a Drive comment by ID.",
+      "inputs": {
+        "file_id": {
+          "label": "File ID",
+          "description": "The ID of the file the comment belongs to. Find it with Find File or Folder.",
+          "required": true
+        },
+        "comment_id": {
+          "label": "Comment ID",
+          "description": "The ID of the parent comment. Find it with List Comments.",
+          "required": true
+        },
+        "reply_id": {
+          "label": "Reply ID",
+          "description": "The ID of the reply to fetch. Find it with List Replies.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/drive/v3/files/{{file_id}}/comments/{{comment_id}}/replies/{{reply_id}}?fields=%2A",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      }
+    },
+    "drive_list_replies": {
+      "label": "List Replies",
+      "description": "List the replies under a Drive comment.",
+      "inputs": {
+        "file_id": {
+          "label": "File ID",
+          "description": "The ID of the file the comment belongs to. Find it with Find File or Folder.",
+          "required": true
+        },
+        "comment_id": {
+          "label": "Comment ID",
+          "description": "The ID of the comment whose replies to list. Find it with List Comments.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/drive/v3/files/{{file_id}}/comments/{{comment_id}}/replies?fields=%2A",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "afterResponse": "const replies = response.replies || [];\nreturn {replies: replies, count: replies.length};"
+    },
+    "drive_update_reply": {
+      "label": "Update Reply",
+      "description": "Edit the text of an existing reply on a Drive comment.",
+      "inputs": {
+        "file_id": {
+          "label": "File ID",
+          "description": "The ID of the file the comment belongs to. Find it with Find File or Folder.",
+          "required": true
+        },
+        "comment_id": {
+          "label": "Comment ID",
+          "description": "The ID of the parent comment. Find it with List Comments.",
+          "required": true
+        },
+        "reply_id": {
+          "label": "Reply ID",
+          "description": "The ID of the reply to update. Find it with List Replies.",
+          "required": true
+        },
+        "content": {
+          "label": "Content",
+          "description": "The new plain-text content for the reply.",
+          "type": "multiline",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://www.googleapis.com/drive/v3/files/{{file_id}}/comments/{{comment_id}}/replies/{{reply_id}}?fields=%2A",
+        "body": {
+          "content": "{{content}}"
+        },
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      }
+    },
+    "drive_delete_reply": {
+      "label": "Delete Reply",
+      "description": "Permanently delete a reply on a Drive comment by ID.",
+      "inputs": {
+        "file_id": {
+          "label": "File ID",
+          "description": "The ID of the file the comment belongs to. Find it with Find File or Folder.",
+          "required": true
+        },
+        "comment_id": {
+          "label": "Comment ID",
+          "description": "The ID of the parent comment. Find it with List Comments.",
+          "required": true
+        },
+        "reply_id": {
+          "label": "Reply ID",
+          "description": "The ID of the reply to delete. Find it with List Replies.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://www.googleapis.com/drive/v3/files/{{file_id}}/comments/{{comment_id}}/replies/{{reply_id}}",
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "afterResponse": "return {success: true, reply_id: inputs.reply_id};"
+    },
+    "drive_get_about": {
+      "label": "Get Account & Storage Info",
+      "description": "Get the authenticated Drive account, storage quota, and supported formats.",
+      "request": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/drive/v3/about",
+        "query": {
+          "fields": "user,storageQuota,maxImportSizes,exportFormats"
+        },
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      }
+    }
+  },
+  "triggers": {
+    "new_file": {
+      "label": "New File",
+      "description": "Triggers when a new file is added to Drive or the chosen folder.",
+      "inputs": {
+        "folder_id": {
+          "label": "Folder",
+          "description": "Leave empty to watch all of My Drive. Type to search by folder name.",
+          "list": "parent_folders"
+        },
+        "include_team_drives": {
+          "label": "Include Team Drives",
+          "description": "Also include shared drives, not only My Drive.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/drive/v3/files",
+        "query": {
+          "fields": "nextPageToken, files(id, name, mimeType, webViewLink, kind, createdTime, modifiedTime)",
+          "orderBy": "createdTime desc",
+          "supportsAllDrives": "true",
+          "includeItemsFromAllDrives": "{{include_team_drives}}"
+        },
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "newBy": "time",
+      "key": "$.createdTime",
+      "beforeRequest": "const literal = (text) => String(text).replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"\\\\'\");\nconst pad = (number) => String(number).padStart(2, '0');\nconst local = (ms) => { const date = new Date(ms), offset = -date.getTimezoneOffset(), minutes = Math.abs(offset);\n  return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + 'T' + pad(date.getHours()) + ':' + pad(date.getMinutes()) + ':' + pad(date.getSeconds()) +\n    (offset < 0 ? '-' : '+') + pad(Math.floor(minutes / 60)) + ':' + pad(minutes % 60); };\nconst q = [];\nif (inputs.folder_id) q.push(\"'\" + literal(inputs.folder_id) + \"' in parents\");\nif (Number(inputs.lastPollTime)) q.push(\"createdTime > '\" + local(Number(inputs.lastPollTime)) + \"'\");\nq.push('trashed = false', \"mimeType!='application/vnd.google-apps.folder'\");\nrequest.query.q = q.join(' and ');\nrequest.query.corpora = inputs.include_team_drives === 'true' ? 'allDrives' : 'user';\nreturn request;",
+      "afterResponse": "const literal = (text) => String(text).replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"\\\\'\");\nconst pad = (number) => String(number).padStart(2, '0');\nconst local = (ms) => { const date = new Date(ms), offset = -date.getTimezoneOffset(), minutes = Math.abs(offset);\n  return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + 'T' + pad(date.getHours()) + ':' + pad(date.getMinutes()) + ':' + pad(date.getSeconds()) +\n    (offset < 0 ? '-' : '+') + pad(Math.floor(minutes / 60)) + ':' + pad(minutes % 60); };\nconst q = [];\nif (inputs.folder_id) q.push(\"'\" + literal(inputs.folder_id) + \"' in parents\");\nif (Number(inputs.lastPollTime)) q.push(\"createdTime > '\" + local(Number(inputs.lastPollTime)) + \"'\");\nq.push('trashed = false', \"mimeType!='application/vnd.google-apps.folder'\");\nconst query = {q: q.join(' and '), fields: 'nextPageToken, files(id, name, mimeType, webViewLink, kind, createdTime, modifiedTime)', orderBy: 'createdTime desc', supportsAllDrives: 'true', corpora: inputs.include_team_drives === 'true' ? 'allDrives' : 'user'};\nif (inputs.include_team_drives) query.includeItemsFromAllDrives = inputs.include_team_drives;\nlet files = response.files || [];\nfor (let pageToken = response.nextPageToken; pageToken;) {\n  const page = call({headers: {'x-goog-api-client': 'gdcl/8.0.2 gl-node/26.4.0'}, method: 'GET', url: '/files', query: Object.assign({}, query, {pageToken})});\n  files = files.concat(page.files || []);\n  pageToken = page.nextPageToken;\n}\nreturn files;"
+    },
+    "new_folder": {
+      "label": "New Folder",
+      "description": "Triggers when a new folder is created in Drive or the chosen folder.",
+      "inputs": {
+        "folder_id": {
+          "label": "Folder",
+          "description": "Leave empty to watch all of My Drive. Type to search by folder name.",
+          "list": "parent_folders"
+        },
+        "include_team_drives": {
+          "label": "Include Team Drives",
+          "description": "Also include shared drives, not only My Drive.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/drive/v3/files",
+        "query": {
+          "fields": "nextPageToken, files(id, name, createdTime)",
+          "orderBy": "createdTime desc",
+          "supportsAllDrives": "true",
+          "includeItemsFromAllDrives": "{{include_team_drives}}"
+        },
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "newBy": "time",
+      "key": "$.createdTime",
+      "beforeRequest": "const literal = (text) => String(text).replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"\\\\'\");\nconst pad = (number) => String(number).padStart(2, '0');\nconst local = (ms) => { const date = new Date(ms), offset = -date.getTimezoneOffset(), minutes = Math.abs(offset);\n  return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + 'T' + pad(date.getHours()) + ':' + pad(date.getMinutes()) + ':' + pad(date.getSeconds()) +\n    (offset < 0 ? '-' : '+') + pad(Math.floor(minutes / 60)) + ':' + pad(minutes % 60); };\nconst q = [\"mimeType='application/vnd.google-apps.folder'\"];\nif (inputs.folder_id) q.push(\"'\" + literal(inputs.folder_id) + \"' in parents\");\nif (Number(inputs.lastPollTime)) q.push(\"createdTime > '\" + local(Number(inputs.lastPollTime)) + \"'\");\nq.push('trashed = false');\nrequest.query.q = q.join(' and ');\nrequest.query.corpora = inputs.include_team_drives === 'true' ? 'allDrives' : 'user';\nreturn request;",
+      "afterResponse": "const literal = (text) => String(text).replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"\\\\'\");\nconst pad = (number) => String(number).padStart(2, '0');\nconst local = (ms) => { const date = new Date(ms), offset = -date.getTimezoneOffset(), minutes = Math.abs(offset);\n  return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + 'T' + pad(date.getHours()) + ':' + pad(date.getMinutes()) + ':' + pad(date.getSeconds()) +\n    (offset < 0 ? '-' : '+') + pad(Math.floor(minutes / 60)) + ':' + pad(minutes % 60); };\nconst q = [\"mimeType='application/vnd.google-apps.folder'\"];\nif (inputs.folder_id) q.push(\"'\" + literal(inputs.folder_id) + \"' in parents\");\nif (Number(inputs.lastPollTime)) q.push(\"createdTime > '\" + local(Number(inputs.lastPollTime)) + \"'\");\nq.push('trashed = false');\nconst query = {q: q.join(' and '), fields: 'nextPageToken, files(id, name, createdTime)', orderBy: 'createdTime desc', supportsAllDrives: 'true', corpora: inputs.include_team_drives === 'true' ? 'allDrives' : 'user'};\nif (inputs.include_team_drives) query.includeItemsFromAllDrives = inputs.include_team_drives;\nlet files = response.files || [];\nfor (let pageToken = response.nextPageToken; pageToken;) {\n  const page = call({headers: {'x-goog-api-client': 'gdcl/8.0.2 gl-node/26.4.0'}, method: 'GET', url: '/files', query: Object.assign({}, query, {pageToken})});\n  files = files.concat(page.files || []);\n  pageToken = page.nextPageToken;\n}\nreturn files;"
+    },
+    "new_or_updated_file": {
+      "label": "New or Updated File",
+      "description": "Triggers when a file is created or edited. A rename counts; trashing or moving does not. Each item has a changeType of created or updated, and a chosen folder is watched one level deep.",
+      "inputs": {
+        "folder_id": {
+          "label": "Folder",
+          "description": "Leave empty to watch all of My Drive. Type to search by folder name.",
+          "list": "parent_folders"
+        },
+        "include_team_drives": {
+          "label": "Include Team Drives",
+          "description": "Also include shared drives, not only My Drive.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "file_types": {
+          "label": "File Types",
+          "description": "Leave empty to watch every type. A list of MIME types, such as [\"application/vnd.google-apps.spreadsheet\", \"application/pdf\"].",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/drive/v3/files",
+        "query": {
+          "fields": "nextPageToken, files(id, name, mimeType, webViewLink, kind, createdTime, modifiedTime)",
+          "orderBy": "modifiedTime desc",
+          "supportsAllDrives": "true",
+          "includeItemsFromAllDrives": "{{include_team_drives}}"
+        },
+        "headers": {
+          "x-goog-api-client": "gdcl/8.0.2 gl-node/26.4.0"
+        }
+      },
+      "newBy": "time",
+      "key": "$.time",
+      "emit": "$.data",
+      "beforeRequest": "const literal = (text) => String(text).replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"\\\\'\");\nconst pad = (number) => String(number).padStart(2, '0');\nconst local = (ms) => { const date = new Date(ms), offset = -date.getTimezoneOffset(), minutes = Math.abs(offset);\n  return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + 'T' + pad(date.getHours()) + ':' + pad(date.getMinutes()) + ':' + pad(date.getSeconds()) +\n    (offset < 0 ? '-' : '+') + pad(Math.floor(minutes / 60)) + ':' + pad(minutes % 60); };\nconst types = inputs.file_types ? [].concat(JSON.parse(inputs.file_types)) : [];\nconst q = [];\nif (inputs.folder_id) q.push(\"'\" + literal(inputs.folder_id) + \"' in parents\");\nif (Number(inputs.lastPollTime)) { const since = local(Number(inputs.lastPollTime)); q.push(\"(modifiedTime > '\" + since + \"' or createdTime > '\" + since + \"')\"); }\nif (types.length) q.push('(' + types.map((type) => \"mimeType='\" + literal(type) + \"'\").join(' or ') + ')');\nq.push(\"mimeType!='application/vnd.google-apps.shortcut'\", 'trashed = false', \"mimeType!='application/vnd.google-apps.folder'\");\nrequest.query.q = q.join(' and ');\nrequest.query.corpora = inputs.include_team_drives === 'true' ? 'allDrives' : 'user';\nreturn request;",
+      "afterResponse": "const literal = (text) => String(text).replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"\\\\'\");\nconst pad = (number) => String(number).padStart(2, '0');\nconst local = (ms) => { const date = new Date(ms), offset = -date.getTimezoneOffset(), minutes = Math.abs(offset);\n  return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + 'T' + pad(date.getHours()) + ':' + pad(date.getMinutes()) + ':' + pad(date.getSeconds()) +\n    (offset < 0 ? '-' : '+') + pad(Math.floor(minutes / 60)) + ':' + pad(minutes % 60); };\nconst lastPoll = Number(inputs.lastPollTime) || 0;\nconst types = inputs.file_types ? [].concat(JSON.parse(inputs.file_types)) : [];\nconst q = [];\nif (inputs.folder_id) q.push(\"'\" + literal(inputs.folder_id) + \"' in parents\");\nif (lastPoll) { const since = local(lastPoll); q.push(\"(modifiedTime > '\" + since + \"' or createdTime > '\" + since + \"')\"); }\nif (types.length) q.push('(' + types.map((type) => \"mimeType='\" + literal(type) + \"'\").join(' or ') + ')');\nq.push(\"mimeType!='application/vnd.google-apps.shortcut'\", 'trashed = false', \"mimeType!='application/vnd.google-apps.folder'\");\nconst query = {q: q.join(' and '), fields: 'nextPageToken, files(id, name, mimeType, webViewLink, kind, createdTime, modifiedTime)', orderBy: 'modifiedTime desc', supportsAllDrives: 'true', corpora: inputs.include_team_drives === 'true' ? 'allDrives' : 'user'};\nif (inputs.include_team_drives) query.includeItemsFromAllDrives = inputs.include_team_drives;\nlet files = response.files || [];\n// The first check reads only the first page.\nfor (let pageToken = lastPoll ? response.nextPageToken : null; pageToken;) {\n  const page = call({headers: {'x-goog-api-client': 'gdcl/8.0.2 gl-node/26.4.0'}, method: 'GET', url: '/files', query: Object.assign({}, query, {pageToken})});\n  files = files.concat(page.files || []);\n  pageToken = page.nextPageToken;\n}\nconst epoch = (text) => (typeof text === 'string' && !isNaN(Date.parse(text)) ? Date.parse(text) : 0);\nconst now = Date.now();\nreturn files.filter((file) => file && typeof file.id === 'string' && typeof file.name === 'string')\n  .map((file) => ({time: Math.max(epoch(file.modifiedTime), epoch(file.createdTime)), file}))\n  .filter((entry) => entry.time > 0 && entry.time <= now)\n  .map(({time, file}) => ({time, data: Object.assign({}, file, {changeType: lastPoll ? (epoch(file.createdTime) > lastPoll ? 'created' : 'updated')\n    : (epoch(file.modifiedTime) > epoch(file.createdTime) ? 'updated' : 'created')})}));"
+    }
+  }
+}

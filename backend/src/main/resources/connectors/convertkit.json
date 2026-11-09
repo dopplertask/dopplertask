@@ -1,0 +1,1935 @@
+{
+  "name": "convertkit",
+  "label": "ConvertKit",
+  "description": "Email marketing for creators",
+  "icon": "",
+  "hosts": [
+    "api.convertkit.com"
+  ],
+  "baseUrl": "https://api.convertkit.com/v3",
+  "upstream": {
+    "package": "@activepieces/piece-convertkit",
+    "version": "0.4.2"
+  },
+  "credential": {
+    "fields": {
+      "apiSecret": {
+        "label": "API Secret",
+        "secret": true,
+        "required": true,
+        "description": "Enter your API Secret key. In Kit, go to Settings > Developer, open the V3 Key section and copy the API Secret."
+      }
+    },
+    "query": {
+      "api_secret": "{{credential.apiSecret}}"
+    }
+  },
+  "lists": {
+    "tags": {
+      "request": {
+        "method": "GET",
+        "url": "https://api.convertkit.com/v3/tags"
+      },
+      "items": "$.tags",
+      "label": "$.name",
+      "value": "$.id"
+    },
+    "forms": {
+      "request": {
+        "method": "GET",
+        "url": "https://api.convertkit.com/v3/forms"
+      },
+      "items": "$.forms",
+      "label": "$.name",
+      "value": "$.id"
+    },
+    "sequences": {
+      "request": {
+        "method": "GET",
+        "url": "https://api.convertkit.com/v3/sequences"
+      },
+      "items": "$.courses",
+      "label": "$.name",
+      "value": "$.id"
+    }
+  },
+  "actions": {
+    "subscribers_get_subscriber_by_email": {
+      "label": "Get Subscriber By Email",
+      "description": "Returns data for a single subscriber",
+      "inputs": {
+        "email": {
+          "label": "Email",
+          "description": "The email of the subscriber",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.convertkit.com/v3/subscribers",
+        "query": {
+          "email_address": "{{email}}"
+        }
+      },
+      "result": "$.subscribers[0]",
+      "afterResponse": "if (!response) throw new Error('Failed to fetch subscriber that match the provided email.');\nreturn response;"
+    },
+    "subscribers_list_tags_by_email": {
+      "label": "List Tags By Email",
+      "description": "Returns a list of all subscribed tags",
+      "inputs": {
+        "email": {
+          "label": "Email",
+          "description": "The email of the subscriber",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.convertkit.com/v3/subscribers",
+        "query": {
+          "email_address": "{{email}}"
+        }
+      },
+      "afterResponse": "const subscriber = (response.subscribers ?? [])[0];\nif (!subscriber) throw new Error('Failed to fetch subscriber that match the provided email.');\nconst tags = call({method: 'GET', url: `/subscribers/${subscriber.id}/tags`}).tags;\nif (!tags) throw new Error('Failed to fetch tags.');\nreturn tags;"
+    },
+    "create_webhook": {
+      "label": "Add Webhook",
+      "description": "Create a webhook automation",
+      "inputs": {
+        "target_url": {
+          "label": "Target URL",
+          "description": "The URL that will be called when the webhook is triggered",
+          "required": true
+        },
+        "event": {
+          "label": "Event",
+          "description": "The event that will trigger the webhook",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "subscriber.subscriber_activate",
+              "label": "Subscriber activated"
+            },
+            {
+              "value": "subscriber.subscriber_unsubscribe",
+              "label": "Subscriber unsubscribed"
+            },
+            {
+              "value": "subscriber.subscriber_bounce",
+              "label": "Subscriber bounced"
+            },
+            {
+              "value": "subscriber.subscriber_complain",
+              "label": "Subscriber complained"
+            },
+            {
+              "value": "subscriber.form_subscribe",
+              "label": "Form subscribed"
+            },
+            {
+              "value": "subscriber.course_subscribe",
+              "label": "Sequence subscribed"
+            },
+            {
+              "value": "subscriber.course_complete",
+              "label": "Sequence completed"
+            },
+            {
+              "value": "subscriber.link_click",
+              "label": "Link clicked"
+            },
+            {
+              "value": "subscriber.product_purchase",
+              "label": "Product purchased"
+            },
+            {
+              "value": "subscriber.tag_add",
+              "label": "Tag added to subscriber"
+            },
+            {
+              "value": "subscriber.tag_remove",
+              "label": "Tag removed from subscriber"
+            },
+            {
+              "value": "purchase.purchase_create",
+              "label": "Purchase created"
+            }
+          ]
+        },
+        "event_parameter": {
+          "label": "Event Parameter",
+          "description": "The required parameter for the event, as a JSON object such as {\"tag_id\": 123}.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.convertkit.com/v3/automations/hooks",
+        "body": {
+          "target_url": "{{target_url}}"
+        }
+      },
+      "beforeRequest": "const extra = inputs.event_parameter ? JSON.parse(inputs.event_parameter) : undefined;\nrequest.body.event = { name: inputs.event, ...extra };\nreturn request;",
+      "afterResponse": "if (!response.rule) throw new Error('Failed to create webhook.');\nreturn response.rule;"
+    },
+    "custom_fields_create_field": {
+      "label": "Create Custom Field",
+      "description": "Create a new custom field",
+      "inputs": {
+        "labels": {
+          "label": "Labels",
+          "description": "The label of each new field, as a JSON list such as [\"Company\", \"Role\"].",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.convertkit.com/v3/custom_fields",
+        "body": {
+          "label": "{{labels}}"
+        }
+      },
+      "outputs": {
+        "id": "$.id",
+        "key": "$.key",
+        "label": "$.label"
+      }
+    },
+    "tags_remove_tag_from_subscriber_by_email": {
+      "label": "Remove Tag From Subscriber By Email",
+      "description": "Remove a tag from a subscriber by email",
+      "inputs": {
+        "email": {
+          "label": "Email",
+          "description": "The email of the subscriber",
+          "required": true
+        },
+        "tag_id": {
+          "label": "Tag ID",
+          "description": "The tag to remove",
+          "required": true,
+          "list": "tags"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.convertkit.com/v3/tags/{{tag_id}}/unsubscribe",
+        "body": {
+          "email": "{{email}}"
+        }
+      },
+      "outputs": {
+        "id": "$.id",
+        "name": "$.name"
+      }
+    },
+    "tags_remove_tag_from_subscriber_by_id": {
+      "label": "Remove Tag From Subscriber By ID",
+      "description": "Remove a tag from a subscriber by subscriber ID",
+      "inputs": {
+        "subscriber_id": {
+          "label": "Subscriber ID",
+          "description": "The subscriber ID",
+          "required": true
+        },
+        "tag_id": {
+          "label": "Tag ID",
+          "description": "The tag to remove",
+          "required": true,
+          "list": "tags"
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.convertkit.com/v3/subscribers/{{subscriber_id}}/tags/{{tag_id}}"
+      },
+      "outputs": {
+        "id": "$.id",
+        "name": "$.name"
+      }
+    },
+    "purchases_get_purchase_by_id": {
+      "label": "Get Purchase By ID",
+      "description": "Returns data for a single purchase",
+      "inputs": {
+        "purchase_id": {
+          "label": "Purchase ID",
+          "description": "The purchase ID",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.convertkit.com/v3/purchases/{{purchase_id}}"
+      },
+      "outputs": {
+        "id": "$.id",
+        "transaction_id": "$.transaction_id",
+        "email_address": "$.email_address",
+        "total": "$.total"
+      }
+    },
+    "purchases_create_purchase": {
+      "label": "Create Purchase",
+      "description": "Creates a new purchase",
+      "inputs": {
+        "transaction_id": {
+          "label": "Transaction ID",
+          "description": "The transaction ID",
+          "type": "number",
+          "required": true
+        },
+        "transaction_time": {
+          "label": "Transaction Time",
+          "description": "The transaction time"
+        },
+        "email": {
+          "label": "Email",
+          "description": "The email address of the subscriber",
+          "required": true
+        },
+        "first_name": {
+          "label": "First Name",
+          "description": "The first name of the subscriber"
+        },
+        "status": {
+          "label": "Status",
+          "description": "The status of the purchase",
+          "type": "select",
+          "options": [
+            {
+              "value": "paid",
+              "label": "paid"
+            },
+            {
+              "value": "pending",
+              "label": "pending"
+            },
+            {
+              "value": "failed",
+              "label": "failed"
+            }
+          ]
+        },
+        "currency": {
+          "label": "Currency",
+          "description": "The currency of the purchase",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "USD",
+              "label": "USD"
+            },
+            {
+              "value": "JPY",
+              "label": "JPY"
+            },
+            {
+              "value": "GBP",
+              "label": "GBP"
+            },
+            {
+              "value": "EUR",
+              "label": "EUR"
+            },
+            {
+              "value": "CAD",
+              "label": "CAD"
+            },
+            {
+              "value": "AUD",
+              "label": "AUD"
+            },
+            {
+              "value": "NZD",
+              "label": "NZD"
+            },
+            {
+              "value": "CHF",
+              "label": "CHF"
+            },
+            {
+              "value": "HKD",
+              "label": "HKD"
+            },
+            {
+              "value": "SGD",
+              "label": "SGD"
+            },
+            {
+              "value": "SEK",
+              "label": "SEK"
+            },
+            {
+              "value": "DKK",
+              "label": "DKK"
+            },
+            {
+              "value": "PLN",
+              "label": "PLN"
+            },
+            {
+              "value": "NOK",
+              "label": "NOK"
+            },
+            {
+              "value": "HUF",
+              "label": "HUF"
+            },
+            {
+              "value": "CZK",
+              "label": "CZK"
+            },
+            {
+              "value": "ILS",
+              "label": "ILS"
+            },
+            {
+              "value": "MXN",
+              "label": "MXN"
+            },
+            {
+              "value": "MYR",
+              "label": "MYR"
+            },
+            {
+              "value": "BRL",
+              "label": "BRL"
+            },
+            {
+              "value": "PHP",
+              "label": "PHP"
+            },
+            {
+              "value": "TWD",
+              "label": "TWD"
+            },
+            {
+              "value": "THB",
+              "label": "THB"
+            },
+            {
+              "value": "TRY",
+              "label": "TRY"
+            },
+            {
+              "value": "RUB",
+              "label": "RUB"
+            },
+            {
+              "value": "INR",
+              "label": "INR"
+            },
+            {
+              "value": "KRW",
+              "label": "KRW"
+            },
+            {
+              "value": "AED",
+              "label": "AED"
+            },
+            {
+              "value": "SAR",
+              "label": "SAR"
+            },
+            {
+              "value": "ZAR",
+              "label": "ZAR"
+            }
+          ]
+        },
+        "subtotal": {
+          "label": "Subtotal",
+          "description": "The subtotal",
+          "type": "number"
+        },
+        "shipping": {
+          "label": "Shipping",
+          "description": "The shipping",
+          "type": "number"
+        },
+        "discount": {
+          "label": "Discount",
+          "description": "The discount",
+          "type": "number"
+        },
+        "tax": {
+          "label": "Tax",
+          "description": "The tax",
+          "type": "number"
+        },
+        "total": {
+          "label": "Total",
+          "description": "The total",
+          "type": "number"
+        },
+        "pid": {
+          "label": "Product ID",
+          "description": "The product ID",
+          "type": "number",
+          "required": true
+        },
+        "lid": {
+          "label": "Line Item ID",
+          "description": "The line item ID",
+          "type": "number",
+          "required": true
+        },
+        "name": {
+          "label": "Name",
+          "description": "The name of the product",
+          "required": true
+        },
+        "sku": {
+          "label": "SKU",
+          "description": "The SKU of the product"
+        },
+        "unit_price": {
+          "label": "Unit Price",
+          "description": "The unit price of the product",
+          "type": "number",
+          "required": true
+        },
+        "quantity": {
+          "label": "Quantity",
+          "description": "The quantity of the product",
+          "type": "number",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.convertkit.com/v3/purchases",
+        "body": {
+          "purchase": {
+            "transaction_id": "{{transaction_id}}",
+            "status": "{{status}}",
+            "first_name": "{{first_name}}",
+            "email_address": "{{email}}",
+            "currency": "{{currency}}",
+            "transaction_time": "{{transaction_time}}",
+            "subtotal": "{{subtotal}}",
+            "shipping": "{{shipping}}",
+            "discount": "{{discount}}",
+            "tax": "{{tax}}",
+            "total": "{{total}}",
+            "products": [
+              {
+                "pid": "{{pid}}",
+                "lid": "{{lid}}",
+                "name": "{{name}}",
+                "sku": "{{sku}}",
+                "unit_price": "{{unit_price}}",
+                "quantity": "{{quantity}}"
+              }
+            ]
+          }
+        }
+      },
+      "outputs": {
+        "id": "$.id",
+        "transaction_id": "$.transaction_id",
+        "email_address": "$.email_address",
+        "total": "$.total"
+      }
+    },
+    "purchases_create_multiple_purchases": {
+      "label": "Create Multiple Purchases",
+      "description": "Creates multiple purchases",
+      "inputs": {
+        "transaction_id": {
+          "label": "Transaction ID",
+          "description": "The transaction ID",
+          "type": "number",
+          "required": true
+        },
+        "transaction_time": {
+          "label": "Transaction Time",
+          "description": "The transaction time"
+        },
+        "email": {
+          "label": "Email",
+          "description": "The email address of the subscriber",
+          "required": true
+        },
+        "first_name": {
+          "label": "First Name",
+          "description": "The first name of the subscriber"
+        },
+        "status": {
+          "label": "Status",
+          "description": "The status of the purchase",
+          "type": "select",
+          "options": [
+            {
+              "value": "paid",
+              "label": "paid"
+            },
+            {
+              "value": "pending",
+              "label": "pending"
+            },
+            {
+              "value": "failed",
+              "label": "failed"
+            }
+          ]
+        },
+        "currency": {
+          "label": "Currency",
+          "description": "The currency of the purchase",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "USD",
+              "label": "USD"
+            },
+            {
+              "value": "JPY",
+              "label": "JPY"
+            },
+            {
+              "value": "GBP",
+              "label": "GBP"
+            },
+            {
+              "value": "EUR",
+              "label": "EUR"
+            },
+            {
+              "value": "CAD",
+              "label": "CAD"
+            },
+            {
+              "value": "AUD",
+              "label": "AUD"
+            },
+            {
+              "value": "NZD",
+              "label": "NZD"
+            },
+            {
+              "value": "CHF",
+              "label": "CHF"
+            },
+            {
+              "value": "HKD",
+              "label": "HKD"
+            },
+            {
+              "value": "SGD",
+              "label": "SGD"
+            },
+            {
+              "value": "SEK",
+              "label": "SEK"
+            },
+            {
+              "value": "DKK",
+              "label": "DKK"
+            },
+            {
+              "value": "PLN",
+              "label": "PLN"
+            },
+            {
+              "value": "NOK",
+              "label": "NOK"
+            },
+            {
+              "value": "HUF",
+              "label": "HUF"
+            },
+            {
+              "value": "CZK",
+              "label": "CZK"
+            },
+            {
+              "value": "ILS",
+              "label": "ILS"
+            },
+            {
+              "value": "MXN",
+              "label": "MXN"
+            },
+            {
+              "value": "MYR",
+              "label": "MYR"
+            },
+            {
+              "value": "BRL",
+              "label": "BRL"
+            },
+            {
+              "value": "PHP",
+              "label": "PHP"
+            },
+            {
+              "value": "TWD",
+              "label": "TWD"
+            },
+            {
+              "value": "THB",
+              "label": "THB"
+            },
+            {
+              "value": "TRY",
+              "label": "TRY"
+            },
+            {
+              "value": "RUB",
+              "label": "RUB"
+            },
+            {
+              "value": "INR",
+              "label": "INR"
+            },
+            {
+              "value": "KRW",
+              "label": "KRW"
+            },
+            {
+              "value": "AED",
+              "label": "AED"
+            },
+            {
+              "value": "SAR",
+              "label": "SAR"
+            },
+            {
+              "value": "ZAR",
+              "label": "ZAR"
+            }
+          ]
+        },
+        "subtotal": {
+          "label": "Subtotal",
+          "description": "The subtotal",
+          "type": "number"
+        },
+        "shipping": {
+          "label": "Shipping",
+          "description": "The shipping",
+          "type": "number"
+        },
+        "discount": {
+          "label": "Discount",
+          "description": "The discount",
+          "type": "number"
+        },
+        "tax": {
+          "label": "Tax",
+          "description": "The tax",
+          "type": "number"
+        },
+        "total": {
+          "label": "Total",
+          "description": "The total",
+          "type": "number"
+        },
+        "products": {
+          "label": "Products",
+          "description": "The products",
+          "type": "json",
+          "required": true,
+          "defaultValue": "[{\"pid\":9999,\"lid\":7777,\"name\":\"Floppy Disk (512k)\",\"sku\":\"7890-ijkl\",\"unit_price\":5,\"quantity\":2},{\"pid\":5555,\"lid\":7778,\"name\":\"Telephone Cord (data)\",\"sku\":\"mnop-1234\",\"unit_price\":10,\"quantity\":1}]"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.convertkit.com/v3/purchases",
+        "body": {
+          "purchase": {
+            "transaction_id": "{{transaction_id}}",
+            "status": "{{status}}",
+            "first_name": "{{first_name}}",
+            "email_address": "{{email}}",
+            "currency": "{{currency}}",
+            "transaction_time": "{{transaction_time}}",
+            "subtotal": "{{subtotal}}",
+            "shipping": "{{shipping}}",
+            "discount": "{{discount}}",
+            "tax": "{{tax}}",
+            "total": "{{total}}",
+            "products": "{{products}}"
+          }
+        }
+      },
+      "outputs": {
+        "id": "$.id",
+        "transaction_id": "$.transaction_id",
+        "email_address": "$.email_address",
+        "total": "$.total"
+      }
+    },
+    "kit_get_account": {
+      "label": "Get Account",
+      "description": "Get the name and primary email address of the connected Kit account.",
+      "request": {
+        "method": "GET",
+        "url": "https://api.convertkit.com/v3/account"
+      },
+      "outputs": {
+        "name": "$.name",
+        "primary_email_address": "$.primary_email_address",
+        "plan_type": "$.plan_type"
+      }
+    },
+    "kit_list_subscribers": {
+      "label": "List Subscribers",
+      "description": "List or search subscribers, 50 per page.",
+      "inputs": {
+        "email": {
+          "label": "Email",
+          "description": "Only return the subscriber with this email address."
+        },
+        "from": {
+          "label": "Created From",
+          "description": "Only subscribers added on or after this date. Format yyyy-mm-dd."
+        },
+        "to": {
+          "label": "Created To",
+          "description": "Only subscribers added on or before this date. Format yyyy-mm-dd."
+        },
+        "updated_from": {
+          "label": "Updated From",
+          "description": "Only subscribers updated after this date. Format yyyy-mm-dd."
+        },
+        "updated_to": {
+          "label": "Updated To",
+          "description": "Only subscribers updated before this date. Format yyyy-mm-dd."
+        },
+        "page": {
+          "label": "Page",
+          "description": "Page number, 50 subscribers per page. Defaults to 1.",
+          "type": "number",
+          "defaultValue": "1"
+        },
+        "sort_order": {
+          "label": "Sort Order",
+          "description": "Sort direction. Kit defaults to ascending.",
+          "type": "select",
+          "options": [
+            {
+              "value": "asc",
+              "label": "Ascending (oldest first)"
+            },
+            {
+              "value": "desc",
+              "label": "Descending (newest first)"
+            }
+          ]
+        },
+        "sort_field": {
+          "label": "Sort Field",
+          "description": "Set to Cancelled At to list cancelled subscribers, sorted by cancellation date.",
+          "type": "select",
+          "options": [
+            {
+              "value": "cancelled_at",
+              "label": "Cancelled At"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.convertkit.com/v3/subscribers",
+        "query": {
+          "page": "{{page}}",
+          "email_address": "{{email}}",
+          "from": "{{from}}",
+          "to": "{{to}}",
+          "updated_from": "{{updated_from}}",
+          "updated_to": "{{updated_to}}",
+          "sort_order": "{{sort_order}}",
+          "sort_field": "{{sort_field}}"
+        }
+      },
+      "beforeRequest": "const email = (v, label) => { const t = (v ?? '').trim(); if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(t)) throw new Error(`${label} must be a valid email address, got \"${v ?? ''}\".`); return t; };\nconst page = (v) => { if (v == null || v === '') return 1; const n = Number(v); if (!Number.isInteger(n) || n < 1) throw new Error(`Page must be a whole number of 1 or more, got \"${v}\".`); return n; };\nconst date = (v) => { if (v == null || v === '') return undefined; const t = String(v).trim().slice(0, 10); if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(t) || Number.isNaN(Date.parse(`${t}T00:00:00Z`))) throw new Error(`\"${v}\" is not a valid date. Use YYYY-MM-DD.`); return t; };\nrequest.query.page = String(page(inputs.page));\nconst e = inputs.email == null || inputs.email.trim() === '' ? undefined : email(inputs.email, 'Email');\nif (e === undefined) delete request.query.email_address; else request.query.email_address = e;\nfor (const key of ['from', 'to', 'updated_from', 'updated_to']) { const v = date(inputs[key]); if (v === undefined) delete request.query[key]; else request.query[key] = v; }\nreturn request;",
+      "afterResponse": "return { subscribers: response.subscribers ?? [], page: response.page ?? Number(request.query.page), total_pages: response.total_pages, total_subscribers: response.total_subscribers };"
+    },
+    "kit_get_subscriber": {
+      "label": "Get Subscriber By ID",
+      "description": "Get one subscriber by subscriber ID.",
+      "inputs": {
+        "subscriber_id": {
+          "label": "Subscriber ID",
+          "description": "The subscriber ID, from List Subscribers.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.convertkit.com/v3/subscribers/{{subscriber_id}}"
+      },
+      "result": "$.subscriber",
+      "beforeRequest": "const id = (v, label) => { const t = String(v ?? '').trim(); if (!/^\\d+$/.test(t)) throw new Error(`${label} must be a numeric Kit ID, got \"${v ?? ''}\".`); return t; };\nrequest.url = `/subscribers/${id(inputs.subscriber_id, 'Subscriber ID')}`;\nreturn request;"
+    },
+    "kit_update_subscriber": {
+      "label": "Update Subscriber",
+      "description": "Update the email, first name or custom fields of a subscriber.",
+      "inputs": {
+        "subscriber_id": {
+          "label": "Subscriber ID",
+          "description": "The subscriber ID, from List Subscribers.",
+          "required": true
+        },
+        "email_address": {
+          "label": "New Email Address",
+          "description": "Change the subscriber email address."
+        },
+        "first_name": {
+          "label": "First Name",
+          "description": "The first name to store on the subscriber."
+        },
+        "fields": {
+          "label": "Custom Fields",
+          "description": "A JSON object of custom field key to value, e.g. {\"last_name\": \"Snow\"}. Keys must already exist; get them from List Custom Fields.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.convertkit.com/v3/subscribers/{{subscriber_id}}"
+      },
+      "result": "$.subscriber",
+      "beforeRequest": "const id = (v, label) => { const t = String(v ?? '').trim(); if (!/^\\d+$/.test(t)) throw new Error(`${label} must be a numeric Kit ID, got \"${v ?? ''}\".`); return t; };\nconst email = (v, label) => { const t = (v ?? '').trim(); if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(t)) throw new Error(`${label} must be a valid email address, got \"${v ?? ''}\".`); return t; };\nconst fields = (v) => { const bad = 'Custom Fields must be a JSON object of field key to value.'; if (v == null || v === '') return undefined; if (typeof v === 'string') { try { return fields(JSON.parse(v)); } catch (e) { throw new Error(bad); } } if (typeof v !== 'object' || Array.isArray(v)) throw new Error(bad); const o = Object.fromEntries(Object.entries(v)); return Object.keys(o).length > 0 ? o : undefined; };\nconst body = {};\nif (inputs.email_address != null && inputs.email_address !== '') body.email_address = email(inputs.email_address, 'New Email Address');\nif (inputs.first_name != null && inputs.first_name !== '') body.first_name = inputs.first_name;\nconst f = fields(inputs.fields); if (f) body.fields = f;\nif (Object.keys(body).length === 0) throw new Error('Provide at least one of New Email Address, First Name or Custom Fields.');\nrequest.url = `/subscribers/${id(inputs.subscriber_id, 'Subscriber ID')}`;\nrequest.body = body;\nreturn request;"
+    },
+    "kit_unsubscribe_subscriber": {
+      "label": "Unsubscribe Subscriber",
+      "description": "Unsubscribe an email address from all forms and sequences.",
+      "inputs": {
+        "email": {
+          "label": "Email",
+          "description": "The email address to unsubscribe.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.convertkit.com/v3/unsubscribe",
+        "body": {
+          "email": "{{email}}"
+        }
+      },
+      "result": "$.subscriber",
+      "beforeRequest": "const email = (v, label) => { const t = (v ?? '').trim(); if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(t)) throw new Error(`${label} must be a valid email address, got \"${v ?? ''}\".`); return t; };\nrequest.body.email = email(inputs.email, 'Email');\nreturn request;"
+    },
+    "kit_list_tags": {
+      "label": "List Tags",
+      "description": "List the tags on the account.",
+      "request": {
+        "method": "GET",
+        "url": "https://api.convertkit.com/v3/tags"
+      },
+      "afterResponse": "const list = response.tags ?? [];\nreturn { tags: list, count: list.length };"
+    },
+    "kit_create_tag": {
+      "label": "Find Or Create Tag",
+      "description": "Create a tag, or return the existing tag with the same name.",
+      "inputs": {
+        "name": {
+          "label": "Name",
+          "description": "The tag name.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.convertkit.com/v3/tags"
+      },
+      "beforeRequest": "if (!String(inputs.name ?? '').trim()) throw new Error('Tag name cannot be empty.');\nreturn request;",
+      "afterResponse": "const name = inputs.name.trim();\nconst found = (response.tags ?? []).find((tag) => tag.name.trim().toLowerCase() === name.toLowerCase());\nif (found) return { ...found, created: false };\nreturn { ...call({method: 'POST', url: '/tags', body: { tag: { name } }}), created: true };"
+    },
+    "kit_tag_subscriber": {
+      "label": "Tag Subscriber",
+      "description": "Apply a tag to a subscriber by email, creating the subscriber if needed.",
+      "inputs": {
+        "tag_id": {
+          "label": "Tag ID",
+          "description": "The tag to apply, from List Tags or Find Or Create Tag.",
+          "required": true,
+          "list": "tags"
+        },
+        "email": {
+          "label": "Email",
+          "description": "The subscriber email address.",
+          "required": true
+        },
+        "additional_tag_ids": {
+          "label": "Additional Tag IDs",
+          "description": "More tag IDs to apply in the same call.",
+          "type": "json"
+        },
+        "first_name": {
+          "label": "First Name",
+          "description": "The first name to store on the subscriber."
+        },
+        "fields": {
+          "label": "Custom Fields",
+          "description": "A JSON object of custom field key to value, e.g. {\"last_name\": \"Snow\"}. Keys must already exist; get them from List Custom Fields.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.convertkit.com/v3/tags/{{tag_id}}/subscribe"
+      },
+      "result": "$.subscription",
+      "beforeRequest": "const id = (v, label) => { const t = String(v ?? '').trim(); if (!/^\\d+$/.test(t)) throw new Error(`${label} must be a numeric Kit ID, got \"${v ?? ''}\".`); return t; };\nconst email = (v, label) => { const t = (v ?? '').trim(); if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(t)) throw new Error(`${label} must be a valid email address, got \"${v ?? ''}\".`); return t; };\nconst fields = (v) => { const bad = 'Custom Fields must be a JSON object of field key to value.'; if (v == null || v === '') return undefined; if (typeof v === 'string') { try { return fields(JSON.parse(v)); } catch (e) { throw new Error(bad); } } if (typeof v !== 'object' || Array.isArray(v)) throw new Error(bad); const o = Object.fromEntries(Object.entries(v)); return Object.keys(o).length > 0 ? o : undefined; };\nconst ids = (v) => { if (v == null || v === '') return undefined; if (typeof v === 'number') return ids([v]); if (typeof v === 'string') { const t = v.trim(); if (t.startsWith('[')) { let o; try { o = JSON.parse(t); } catch (e) { throw new Error(`\"${t}\" is not a valid list of IDs. Use a JSON array like [123, 456] or comma-separated IDs.`); } return ids(o); } return ids(t.split(',').map((x) => x.trim()).filter((x) => x.length > 0)); } if (!Array.isArray(v)) throw new Error('IDs must be a list of numeric IDs.'); if (v.length !== 0) return v.map((x) => { const n = Number(x); if (!Number.isInteger(n)) throw new Error(`\"${String(x)}\" is not a valid numeric ID.`); return n; }); };\nconst compact = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v != null && v !== ''));\nrequest.url = `/tags/${id(inputs.tag_id, 'Tag ID')}/subscribe`;\nrequest.body = compact({ email: email(inputs.email, 'Email'), first_name: inputs.first_name, fields: fields(inputs.fields), tags: ids(inputs.additional_tag_ids) });\nreturn request;"
+    },
+    "kit_list_tag_subscriptions": {
+      "label": "List Tag Subscriptions",
+      "description": "List the subscribers who have a tag, 50 per page.",
+      "inputs": {
+        "tag_id": {
+          "label": "Tag ID",
+          "description": "The tag ID, from List Tags.",
+          "required": true,
+          "list": "tags"
+        },
+        "page": {
+          "label": "Page",
+          "description": "Page number, 50 subscriptions per page. Defaults to 1.",
+          "type": "number",
+          "defaultValue": "1"
+        },
+        "sort_order": {
+          "label": "Sort Order",
+          "description": "Sort by tagging date. Kit defaults to ascending (oldest first).",
+          "type": "select",
+          "options": [
+            {
+              "value": "asc",
+              "label": "Ascending (oldest first)"
+            },
+            {
+              "value": "desc",
+              "label": "Descending (newest first)"
+            }
+          ]
+        },
+        "subscriber_state": {
+          "label": "Subscriber State",
+          "description": "Return only active or only cancelled subscriptions. Leave empty for the Kit default.",
+          "type": "select",
+          "options": [
+            {
+              "value": "active",
+              "label": "Active"
+            },
+            {
+              "value": "cancelled",
+              "label": "Cancelled"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.convertkit.com/v3/tags/{{tag_id}}/subscriptions",
+        "query": {
+          "page": "{{page}}",
+          "sort_order": "{{sort_order}}",
+          "subscriber_state": "{{subscriber_state}}"
+        }
+      },
+      "beforeRequest": "const id = (v, label) => { const t = String(v ?? '').trim(); if (!/^\\d+$/.test(t)) throw new Error(`${label} must be a numeric Kit ID, got \"${v ?? ''}\".`); return t; };\nconst page = (v) => { if (v == null || v === '') return 1; const n = Number(v); if (!Number.isInteger(n) || n < 1) throw new Error(`Page must be a whole number of 1 or more, got \"${v}\".`); return n; };\nrequest.url = `/tags/${id(inputs.tag_id, 'Tag ID')}/subscriptions`;\nrequest.query.page = String(page(inputs.page));\nreturn request;",
+      "afterResponse": "return { subscriptions: response.subscriptions ?? [], page: response.page, total_pages: response.total_pages, total_subscriptions: response.total_subscriptions };"
+    },
+    "kit_list_forms": {
+      "label": "List Forms",
+      "description": "List the forms and landing pages on the account.",
+      "request": {
+        "method": "GET",
+        "url": "https://api.convertkit.com/v3/forms"
+      },
+      "afterResponse": "const list = response.forms ?? [];\nreturn { forms: list, count: list.length };"
+    },
+    "kit_add_subscriber_to_form": {
+      "label": "Add Subscriber To Form",
+      "description": "Subscribe an email address to a form, creating the subscriber if needed.",
+      "inputs": {
+        "form_id": {
+          "label": "Form ID",
+          "description": "The form ID, from List Forms.",
+          "required": true,
+          "list": "forms"
+        },
+        "email": {
+          "label": "Email",
+          "description": "The email address to subscribe.",
+          "required": true
+        },
+        "first_name": {
+          "label": "First Name",
+          "description": "The first name to store on the subscriber."
+        },
+        "fields": {
+          "label": "Custom Fields",
+          "description": "A JSON object of custom field key to value, e.g. {\"last_name\": \"Snow\"}. Keys must already exist; get them from List Custom Fields.",
+          "type": "json"
+        },
+        "tag_ids": {
+          "label": "Tag IDs",
+          "description": "Optional tag IDs to apply as well, from List Tags.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.convertkit.com/v3/forms/{{form_id}}/subscribe"
+      },
+      "result": "$.subscription",
+      "beforeRequest": "const id = (v, label) => { const t = String(v ?? '').trim(); if (!/^\\d+$/.test(t)) throw new Error(`${label} must be a numeric Kit ID, got \"${v ?? ''}\".`); return t; };\nconst email = (v, label) => { const t = (v ?? '').trim(); if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(t)) throw new Error(`${label} must be a valid email address, got \"${v ?? ''}\".`); return t; };\nconst fields = (v) => { const bad = 'Custom Fields must be a JSON object of field key to value.'; if (v == null || v === '') return undefined; if (typeof v === 'string') { try { return fields(JSON.parse(v)); } catch (e) { throw new Error(bad); } } if (typeof v !== 'object' || Array.isArray(v)) throw new Error(bad); const o = Object.fromEntries(Object.entries(v)); return Object.keys(o).length > 0 ? o : undefined; };\nconst ids = (v) => { if (v == null || v === '') return undefined; if (typeof v === 'number') return ids([v]); if (typeof v === 'string') { const t = v.trim(); if (t.startsWith('[')) { let o; try { o = JSON.parse(t); } catch (e) { throw new Error(`\"${t}\" is not a valid list of IDs. Use a JSON array like [123, 456] or comma-separated IDs.`); } return ids(o); } return ids(t.split(',').map((x) => x.trim()).filter((x) => x.length > 0)); } if (!Array.isArray(v)) throw new Error('IDs must be a list of numeric IDs.'); if (v.length !== 0) return v.map((x) => { const n = Number(x); if (!Number.isInteger(n)) throw new Error(`\"${String(x)}\" is not a valid numeric ID.`); return n; }); };\nconst compact = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v != null && v !== ''));\nrequest.url = `/forms/${id(inputs.form_id, 'Form ID')}/subscribe`;\nrequest.body = compact({ email: email(inputs.email, 'Email'), first_name: inputs.first_name, fields: fields(inputs.fields), tags: ids(inputs.tag_ids) });\nreturn request;"
+    },
+    "kit_list_form_subscriptions": {
+      "label": "List Form Subscriptions",
+      "description": "List the subscribers who signed up through a form, 50 per page.",
+      "inputs": {
+        "form_id": {
+          "label": "Form ID",
+          "description": "The form ID, from List Forms.",
+          "required": true,
+          "list": "forms"
+        },
+        "page": {
+          "label": "Page",
+          "description": "Page number, 50 subscriptions per page. Defaults to 1.",
+          "type": "number",
+          "defaultValue": "1"
+        },
+        "sort_order": {
+          "label": "Sort Order",
+          "description": "Sort by subscription date. Kit defaults to ascending (oldest first).",
+          "type": "select",
+          "options": [
+            {
+              "value": "asc",
+              "label": "Ascending (oldest first)"
+            },
+            {
+              "value": "desc",
+              "label": "Descending (newest first)"
+            }
+          ]
+        },
+        "subscriber_state": {
+          "label": "Subscriber State",
+          "description": "Return only active or only cancelled subscriptions. Leave empty for the Kit default.",
+          "type": "select",
+          "options": [
+            {
+              "value": "active",
+              "label": "Active"
+            },
+            {
+              "value": "cancelled",
+              "label": "Cancelled"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.convertkit.com/v3/forms/{{form_id}}/subscriptions",
+        "query": {
+          "page": "{{page}}",
+          "sort_order": "{{sort_order}}",
+          "subscriber_state": "{{subscriber_state}}"
+        }
+      },
+      "beforeRequest": "const id = (v, label) => { const t = String(v ?? '').trim(); if (!/^\\d+$/.test(t)) throw new Error(`${label} must be a numeric Kit ID, got \"${v ?? ''}\".`); return t; };\nconst page = (v) => { if (v == null || v === '') return 1; const n = Number(v); if (!Number.isInteger(n) || n < 1) throw new Error(`Page must be a whole number of 1 or more, got \"${v}\".`); return n; };\nrequest.url = `/forms/${id(inputs.form_id, 'Form ID')}/subscriptions`;\nrequest.query.page = String(page(inputs.page));\nreturn request;",
+      "afterResponse": "return { subscriptions: response.subscriptions ?? [], page: response.page, total_pages: response.total_pages, total_subscriptions: response.total_subscriptions };"
+    },
+    "kit_list_sequences": {
+      "label": "List Sequences",
+      "description": "List the email sequences on the account.",
+      "request": {
+        "method": "GET",
+        "url": "https://api.convertkit.com/v3/sequences"
+      },
+      "afterResponse": "const list = response.courses ?? [];\nreturn { sequences: list, count: list.length };"
+    },
+    "kit_list_broadcasts": {
+      "label": "List Broadcasts",
+      "description": "List broadcasts (one-off emails), 50 per page.",
+      "inputs": {
+        "page": {
+          "label": "Page",
+          "description": "Page number, 50 broadcasts per page. Defaults to 1.",
+          "type": "number",
+          "defaultValue": "1"
+        },
+        "sort_order": {
+          "label": "Sort Order",
+          "description": "Sort by creation date. Kit defaults to ascending (oldest first).",
+          "type": "select",
+          "options": [
+            {
+              "value": "asc",
+              "label": "Ascending (oldest first)"
+            },
+            {
+              "value": "desc",
+              "label": "Descending (newest first)"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.convertkit.com/v3/broadcasts",
+        "query": {
+          "page": "{{page}}",
+          "sort_order": "{{sort_order}}"
+        }
+      },
+      "beforeRequest": "const page = (v) => { if (v == null || v === '') return 1; const n = Number(v); if (!Number.isInteger(n) || n < 1) throw new Error(`Page must be a whole number of 1 or more, got \"${v}\".`); return n; };\nrequest.query.page = String(page(inputs.page));\nreturn request;",
+      "afterResponse": "const list = response.broadcasts ?? [];\nreturn { broadcasts: list, count: list.length, page: Number(request.query.page) };"
+    },
+    "kit_get_broadcast": {
+      "label": "Get Broadcast",
+      "description": "Get the content and settings of one broadcast.",
+      "inputs": {
+        "broadcast_id": {
+          "label": "Broadcast ID",
+          "description": "The broadcast ID, from List Broadcasts.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.convertkit.com/v3/broadcasts/{{broadcast_id}}"
+      },
+      "result": "$.broadcast",
+      "beforeRequest": "const id = (v, label) => { const t = String(v ?? '').trim(); if (!/^\\d+$/.test(t)) throw new Error(`${label} must be a numeric Kit ID, got \"${v ?? ''}\".`); return t; };\nrequest.url = `/broadcasts/${id(inputs.broadcast_id, 'Broadcast ID')}`;\nreturn request;"
+    },
+    "kit_get_broadcast_stats": {
+      "label": "Get Broadcast Stats",
+      "description": "Get delivery and engagement stats for one broadcast.",
+      "inputs": {
+        "broadcast_id": {
+          "label": "Broadcast ID",
+          "description": "The broadcast ID, from List Broadcasts.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.convertkit.com/v3/broadcasts/{{broadcast_id}}/stats"
+      },
+      "afterResponse": "const found = Array.isArray(response.broadcast) ? response.broadcast[0] : response.broadcast;\nreturn { broadcast_id: found?.id ?? Number(inputs.broadcast_id), ...(found?.stats ?? {}) };",
+      "beforeRequest": "const id = (v, label) => { const t = String(v ?? '').trim(); if (!/^\\d+$/.test(t)) throw new Error(`${label} must be a numeric Kit ID, got \"${v ?? ''}\".`); return t; };\nrequest.url = `/broadcasts/${id(inputs.broadcast_id, 'Broadcast ID')}/stats`;\nreturn request;"
+    },
+    "kit_create_broadcast": {
+      "label": "Create Broadcast",
+      "description": "Create a broadcast email, as a draft or scheduled.",
+      "inputs": {
+        "subject": {
+          "label": "Subject",
+          "description": "The email subject line."
+        },
+        "content": {
+          "label": "Content",
+          "description": "The email body. Plain text or simple HTML (p, h1, img, a).",
+          "type": "multiline"
+        },
+        "description": {
+          "label": "Internal Description",
+          "description": "An internal note, not shown to subscribers."
+        },
+        "email_address": {
+          "label": "From Email Address",
+          "description": "Sending address. Leave empty to use the account default."
+        },
+        "email_layout_template": {
+          "label": "Email Template Name",
+          "description": "Name of the email template. Leave empty to use the account default."
+        },
+        "send_at": {
+          "label": "Send At",
+          "description": "When to send, as an ISO 8601 date-time in the future. Leave empty to keep a draft. Setting it schedules a real send."
+        },
+        "public": {
+          "label": "Publish As Web Post",
+          "description": "Also publish the broadcast on the Creator Profile web page.",
+          "type": "boolean"
+        },
+        "published_at": {
+          "label": "Published At",
+          "description": "Publication time shown on the web post. Only used when publishing as a web post."
+        },
+        "thumbnail_url": {
+          "label": "Thumbnail URL",
+          "description": "Image URL for the web post thumbnail."
+        },
+        "thumbnail_alt": {
+          "label": "Thumbnail Alt Text",
+          "description": "Alt text for the web post thumbnail."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.convertkit.com/v3/broadcasts",
+        "body": {
+          "subject": "{{subject}}",
+          "content": "{{content}}",
+          "description": "{{description}}",
+          "email_address": "{{email_address}}",
+          "email_layout_template": "{{email_layout_template}}",
+          "send_at": "{{send_at}}",
+          "public": "{{public}}",
+          "published_at": "{{published_at}}",
+          "thumbnail_url": "{{thumbnail_url}}",
+          "thumbnail_alt": "{{thumbnail_alt}}"
+        }
+      },
+      "result": "$.broadcast",
+      "beforeRequest": "const email = (v, label) => { const t = (v ?? '').trim(); if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(t)) throw new Error(`${label} must be a valid email address, got \"${v ?? ''}\".`); return t; };\nconst dateTime = (v, label, future) => { if (v == null || v === '') return undefined; const t = String(v).trim(); const at = Date.parse(t); if (Number.isNaN(at)) throw new Error(`${label} must be an ISO 8601 date-time, got \"${t}\".`); if (future && at <= Date.now()) throw new Error(`${label} must be in the future, got \"${t}\".`); return t; };\nconst compact = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v != null && v !== ''));\nconst sender = inputs.email_address == null || inputs.email_address.trim() === '' ? undefined : email(inputs.email_address, 'From Email Address');\nrequest.body = compact({ subject: inputs.subject, content: inputs.content, description: inputs.description, email_address: sender, email_layout_template: inputs.email_layout_template, send_at: dateTime(inputs.send_at, 'Send At', true), public: request.body.public === true ? true : undefined, published_at: dateTime(inputs.published_at, 'Published At'), thumbnail_url: inputs.thumbnail_url, thumbnail_alt: inputs.thumbnail_alt });\nreturn request;"
+    },
+    "kit_delete_broadcast": {
+      "label": "Delete Broadcast",
+      "description": "Permanently delete a broadcast.",
+      "inputs": {
+        "broadcast_id": {
+          "label": "Broadcast ID",
+          "description": "The broadcast ID, from List Broadcasts.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.convertkit.com/v3/broadcasts/{{broadcast_id}}"
+      },
+      "afterResponse": "return { success: true, broadcast_id: inputs.broadcast_id.trim() };",
+      "beforeRequest": "const id = (v, label) => { const t = String(v ?? '').trim(); if (!/^\\d+$/.test(t)) throw new Error(`${label} must be a numeric Kit ID, got \"${v ?? ''}\".`); return t; };\nrequest.url = `/broadcasts/${id(inputs.broadcast_id, 'Broadcast ID')}`;\nreturn request;"
+    },
+    "kit_list_custom_fields": {
+      "label": "List Custom Fields",
+      "description": "List the custom subscriber fields defined on the account.",
+      "request": {
+        "method": "GET",
+        "url": "https://api.convertkit.com/v3/custom_fields"
+      },
+      "afterResponse": "const list = response.custom_fields ?? [];\nreturn { custom_fields: list, count: list.length };"
+    },
+    "kit_update_custom_field": {
+      "label": "Update Custom Field",
+      "description": "Rename a custom subscriber field.",
+      "inputs": {
+        "custom_field_id": {
+          "label": "Custom Field ID",
+          "description": "The field ID, from List Custom Fields.",
+          "required": true
+        },
+        "label": {
+          "label": "New Label",
+          "description": "The new label. Must be unique on the account.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.convertkit.com/v3/custom_fields/{{custom_field_id}}",
+        "body": {
+          "label": "{{label}}"
+        }
+      },
+      "beforeRequest": "const id = String(inputs.custom_field_id ?? '').trim();\nif (!/^\\d+$/.test(id)) throw new Error(`Custom Field ID must be a numeric Kit ID, got \"${inputs.custom_field_id ?? ''}\".`);\nconst label = String(inputs.label ?? '').trim();\nif (!label) throw new Error('New Label cannot be empty.');\nrequest.url = `/custom_fields/${id}`;\nrequest.body = { label };\nreturn request;",
+      "afterResponse": "const id = inputs.custom_field_id.trim();\nconst label = inputs.label.trim();\ntry {\n  const field = (call({method: 'GET', url: '/custom_fields'}).custom_fields ?? []).find((f) => String(f.id) === id);\n  return field ? { ...field, refreshed: true } : { id: Number(id), label, refreshed: false, refresh_error: 'The rename succeeded, but the field was not in the refreshed custom field list.' };\n} catch (e) {\n  return { id: Number(id), label, refreshed: false, refresh_error: `The rename succeeded, but reading the field back failed: ${e instanceof Error ? e.message : 'unknown error'}` };\n}"
+    },
+    "kit_delete_custom_field": {
+      "label": "Delete Custom Field",
+      "description": "Permanently delete a custom subscriber field and its values.",
+      "inputs": {
+        "custom_field_id": {
+          "label": "Custom Field ID",
+          "description": "The field ID, from List Custom Fields.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.convertkit.com/v3/custom_fields/{{custom_field_id}}"
+      },
+      "afterResponse": "return { success: true, custom_field_id: inputs.custom_field_id.trim() };",
+      "beforeRequest": "const id = (v, label) => { const t = String(v ?? '').trim(); if (!/^\\d+$/.test(t)) throw new Error(`${label} must be a numeric Kit ID, got \"${v ?? ''}\".`); return t; };\nrequest.url = `/custom_fields/${id(inputs.custom_field_id, 'Custom Field ID')}`;\nreturn request;"
+    },
+    "kit_delete_webhook": {
+      "label": "Delete Webhook",
+      "description": "Delete a webhook automation by its rule ID.",
+      "inputs": {
+        "rule_id": {
+          "label": "Rule ID",
+          "description": "The webhook rule ID, from Add Webhook or List Webhooks.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.convertkit.com/v3/automations/hooks/{{rule_id}}"
+      },
+      "afterResponse": "return { success: response?.success ?? true, rule_id: inputs.rule_id.trim() };",
+      "beforeRequest": "const id = (v, label) => { const t = String(v ?? '').trim(); if (!/^\\d+$/.test(t)) throw new Error(`${label} must be a numeric Kit ID, got \"${v ?? ''}\".`); return t; };\nrequest.url = `/automations/hooks/${id(inputs.rule_id, 'Rule ID')}`;\nreturn request;"
+    },
+    "kit_list_webhooks": {
+      "label": "List Webhooks",
+      "description": "List the webhook automations registered on the Kit account.",
+      "request": {
+        "method": "GET",
+        "url": "https://api.convertkit.com/v3/automations/hooks"
+      },
+      "afterResponse": "const list = Array.isArray(response) ? response : Array.isArray(response?.rules) ? response.rules : [];\nconst rules = list.map((item) => item && typeof item === 'object' && !Array.isArray(item) && 'rule' in item ? item.rule : item);\nreturn { rules, count: list.length };"
+    },
+    "kit_update_broadcast": {
+      "label": "Update Broadcast",
+      "description": "Change fields on an existing broadcast. Fields left empty are not changed.",
+      "inputs": {
+        "broadcast_id": {
+          "label": "Broadcast ID",
+          "description": "The broadcast ID, from List Broadcasts.",
+          "required": true
+        },
+        "subject": {
+          "label": "Subject",
+          "description": "New email subject line."
+        },
+        "content": {
+          "label": "Content",
+          "description": "New email body. Plain text or simple HTML (p, h1, img, a).",
+          "type": "multiline"
+        },
+        "description": {
+          "label": "Internal Description",
+          "description": "New internal note, not shown to subscribers."
+        },
+        "email_address": {
+          "label": "From Email Address",
+          "description": "New sending address. It must be a confirmed sender in Kit."
+        },
+        "email_layout_template": {
+          "label": "Email Template Name",
+          "description": "New email template name."
+        },
+        "send_at": {
+          "label": "Send At",
+          "description": "Schedule a real send at this ISO 8601 date-time, which must be in the future. Leave empty to keep the current schedule."
+        },
+        "public": {
+          "label": "Publish As Web Post",
+          "description": "Change web post visibility. Leave empty to keep it as it is.",
+          "type": "select",
+          "options": [
+            {
+              "value": "true",
+              "label": "Publish as web post"
+            },
+            {
+              "value": "false",
+              "label": "Do not publish as web post"
+            }
+          ]
+        },
+        "published_at": {
+          "label": "Published At",
+          "description": "New publication time shown on the web post."
+        },
+        "thumbnail_url": {
+          "label": "Thumbnail URL",
+          "description": "New image URL for the web post thumbnail."
+        },
+        "thumbnail_alt": {
+          "label": "Thumbnail Alt Text",
+          "description": "New alt text for the web post thumbnail."
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.convertkit.com/v3/broadcasts/{{broadcast_id}}"
+      },
+      "result": "$.broadcast",
+      "beforeRequest": "const id = (v, label) => { const t = String(v ?? '').trim(); if (!/^\\d+$/.test(t)) throw new Error(`${label} must be a numeric Kit ID, got \"${v ?? ''}\".`); return t; };\nconst email = (v, label) => { const t = (v ?? '').trim(); if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(t)) throw new Error(`${label} must be a valid email address, got \"${v ?? ''}\".`); return t; };\nconst dateTime = (v, label, future) => { if (v == null || v === '') return undefined; const t = String(v).trim(); const at = Date.parse(t); if (Number.isNaN(at)) throw new Error(`${label} must be an ISO 8601 date-time, got \"${t}\".`); if (future && at <= Date.now()) throw new Error(`${label} must be in the future, got \"${t}\".`); return t; };\nconst compact = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v != null && v !== ''));\nconst sender = inputs.email_address == null || inputs.email_address.trim() === '' ? undefined : email(inputs.email_address, 'From Email Address');\nrequest.body = compact({ subject: inputs.subject, content: inputs.content, description: inputs.description, email_address: sender, email_layout_template: inputs.email_layout_template, send_at: dateTime(inputs.send_at, 'Send At', true), public: inputs.public == null || inputs.public === '' ? undefined : inputs.public === 'true', published_at: dateTime(inputs.published_at, 'Published At'), thumbnail_url: inputs.thumbnail_url, thumbnail_alt: inputs.thumbnail_alt });\nif (Object.keys(request.body).length === 0) throw new Error('Set at least one field to update.');\nrequest.url = `/broadcasts/${id(inputs.broadcast_id, 'Broadcast ID')}`;\nreturn request;"
+    },
+    "kit_add_subscriber_to_sequence": {
+      "label": "Add Subscriber To Sequence",
+      "description": "Enroll an email address in a sequence, creating the subscriber if needed.",
+      "inputs": {
+        "sequence_id": {
+          "label": "Sequence ID",
+          "description": "The sequence ID, from List Sequences.",
+          "required": true,
+          "list": "sequences"
+        },
+        "email": {
+          "label": "Email",
+          "description": "The email address to enroll.",
+          "required": true
+        },
+        "first_name": {
+          "label": "First Name",
+          "description": "The first name to store on the subscriber."
+        },
+        "fields": {
+          "label": "Custom Fields",
+          "description": "A JSON object of custom field key to value, e.g. {\"last_name\": \"Snow\"}. Keys must already exist; get them from List Custom Fields.",
+          "type": "json"
+        },
+        "tag_ids": {
+          "label": "Tag IDs",
+          "description": "Optional tag IDs to apply as well, from List Tags.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.convertkit.com/v3/sequences/{{sequence_id}}/subscribe"
+      },
+      "result": "$.subscription",
+      "beforeRequest": "const id = (v, label) => { const t = String(v ?? '').trim(); if (!/^\\d+$/.test(t)) throw new Error(`${label} must be a numeric Kit ID, got \"${v ?? ''}\".`); return t; };\nconst email = (v, label) => { const t = (v ?? '').trim(); if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(t)) throw new Error(`${label} must be a valid email address, got \"${v ?? ''}\".`); return t; };\nconst fields = (v) => { const bad = 'Custom Fields must be a JSON object of field key to value.'; if (v == null || v === '') return undefined; if (typeof v === 'string') { try { return fields(JSON.parse(v)); } catch (e) { throw new Error(bad); } } if (typeof v !== 'object' || Array.isArray(v)) throw new Error(bad); const o = Object.fromEntries(Object.entries(v)); return Object.keys(o).length > 0 ? o : undefined; };\nconst ids = (v) => { if (v == null || v === '') return undefined; if (typeof v === 'number') return ids([v]); if (typeof v === 'string') { const t = v.trim(); if (t.startsWith('[')) { let o; try { o = JSON.parse(t); } catch (e) { throw new Error(`\"${t}\" is not a valid list of IDs. Use a JSON array like [123, 456] or comma-separated IDs.`); } return ids(o); } return ids(t.split(',').map((x) => x.trim()).filter((x) => x.length > 0)); } if (!Array.isArray(v)) throw new Error('IDs must be a list of numeric IDs.'); if (v.length !== 0) return v.map((x) => { const n = Number(x); if (!Number.isInteger(n)) throw new Error(`\"${String(x)}\" is not a valid numeric ID.`); return n; }); };\nconst compact = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v != null && v !== ''));\nrequest.url = `/sequences/${id(inputs.sequence_id, 'Sequence ID')}/subscribe`;\nrequest.body = compact({ email: email(inputs.email, 'Email'), first_name: inputs.first_name, fields: fields(inputs.fields), tags: ids(inputs.tag_ids) });\nreturn request;"
+    },
+    "kit_list_sequence_subscriptions": {
+      "label": "List Sequence Subscriptions",
+      "description": "List the subscribers enrolled in a sequence, 50 per page.",
+      "inputs": {
+        "sequence_id": {
+          "label": "Sequence ID",
+          "description": "The sequence ID, from List Sequences.",
+          "required": true,
+          "list": "sequences"
+        },
+        "page": {
+          "label": "Page",
+          "description": "Page number, 50 subscriptions per page. Defaults to 1.",
+          "type": "number",
+          "defaultValue": "1"
+        },
+        "sort_order": {
+          "label": "Sort Order",
+          "description": "Sort by enrollment date. Kit defaults to ascending (oldest first).",
+          "type": "select",
+          "options": [
+            {
+              "value": "asc",
+              "label": "Ascending (oldest first)"
+            },
+            {
+              "value": "desc",
+              "label": "Descending (newest first)"
+            }
+          ]
+        },
+        "subscriber_state": {
+          "label": "Subscriber State",
+          "description": "Return only active or only cancelled subscriptions. Leave empty for the Kit default.",
+          "type": "select",
+          "options": [
+            {
+              "value": "active",
+              "label": "Active"
+            },
+            {
+              "value": "cancelled",
+              "label": "Cancelled"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.convertkit.com/v3/sequences/{{sequence_id}}/subscriptions",
+        "query": {
+          "page": "{{page}}",
+          "sort_order": "{{sort_order}}",
+          "subscriber_state": "{{subscriber_state}}"
+        }
+      },
+      "beforeRequest": "const id = (v, label) => { const t = String(v ?? '').trim(); if (!/^\\d+$/.test(t)) throw new Error(`${label} must be a numeric Kit ID, got \"${v ?? ''}\".`); return t; };\nconst page = (v) => { if (v == null || v === '') return 1; const n = Number(v); if (!Number.isInteger(n) || n < 1) throw new Error(`Page must be a whole number of 1 or more, got \"${v}\".`); return n; };\nrequest.url = `/sequences/${id(inputs.sequence_id, 'Sequence ID')}/subscriptions`;\nrequest.query.page = String(page(inputs.page));\nreturn request;",
+      "afterResponse": "return { subscriptions: response.subscriptions ?? [], page: response.page, total_pages: response.total_pages, total_subscriptions: response.total_subscriptions };"
+    },
+    "kit_list_subscriber_tags": {
+      "label": "List Tags By Subscriber ID",
+      "description": "List the tags applied to one subscriber.",
+      "inputs": {
+        "subscriber_id": {
+          "label": "Subscriber ID",
+          "description": "The subscriber ID, from List Subscribers.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.convertkit.com/v3/subscribers/{{subscriber_id}}/tags"
+      },
+      "afterResponse": "const list = response.tags ?? [];\nreturn { tags: list, count: list.length };",
+      "beforeRequest": "const id = (v, label) => { const t = String(v ?? '').trim(); if (!/^\\d+$/.test(t)) throw new Error(`${label} must be a numeric Kit ID, got \"${v ?? ''}\".`); return t; };\nrequest.url = `/subscribers/${id(inputs.subscriber_id, 'Subscriber ID')}/tags`;\nreturn request;"
+    },
+    "kit_list_purchases": {
+      "label": "List Purchases",
+      "description": "List the purchases recorded in the account, 50 per page.",
+      "inputs": {
+        "page": {
+          "label": "Page",
+          "description": "Page number, 50 purchases per page. Defaults to 1.",
+          "type": "number",
+          "defaultValue": "1"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.convertkit.com/v3/purchases",
+        "query": {
+          "page": "{{page}}"
+        }
+      },
+      "beforeRequest": "const page = (v) => { if (v == null || v === '') return 1; const n = Number(v); if (!Number.isInteger(n) || n < 1) throw new Error(`Page must be a whole number of 1 or more, got \"${v}\".`); return n; };\nrequest.query.page = String(page(inputs.page));\nreturn request;",
+      "afterResponse": "return { purchases: response.purchases ?? [], page: response.page, total_pages: response.total_pages, total_purchases: response.total_purchases };"
+    }
+  },
+  "triggers": {
+    "webhook_subscriber_tag_add": {
+      "label": "Tag added to subscriber",
+      "description": "Trigger when a tag is added to a subscriber",
+      "inputs": {
+        "tag_id": {
+          "label": "Tag ID",
+          "description": "The tag, from List Tags.",
+          "required": true,
+          "list": "tags"
+        }
+      },
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.convertkit.com/v3/automations/hooks",
+          "body": {
+            "event": {
+              "name": "subscriber.tag_add"
+            },
+            "target_url": "{{webhookUrl}}"
+          }
+        },
+        "id": "$.rule.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.convertkit.com/v3/automations/hooks/{{webhookId}}"
+        },
+        "beforeRequest": "request.body.event.tag_id = Number(inputs.tag_id);\nreturn request;"
+      },
+      "afterResponse": "return [response.subscriber];",
+      "items": "$"
+    },
+    "webhook_subscriber_tag_remove": {
+      "label": "Tag removed from subscriber",
+      "description": "Trigger when a tag is removed from a subscriber",
+      "inputs": {
+        "tag_id": {
+          "label": "Tag ID",
+          "description": "The tag, from List Tags.",
+          "required": true,
+          "list": "tags"
+        }
+      },
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.convertkit.com/v3/automations/hooks",
+          "body": {
+            "event": {
+              "name": "subscriber.tag_remove"
+            },
+            "target_url": "{{webhookUrl}}"
+          }
+        },
+        "id": "$.rule.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.convertkit.com/v3/automations/hooks/{{webhookId}}"
+        },
+        "beforeRequest": "request.body.event.tag_id = Number(inputs.tag_id);\nreturn request;"
+      },
+      "afterResponse": "return [response.subscriber];",
+      "items": "$"
+    },
+    "webhook_subscriber_activated": {
+      "label": "Subscriber activated",
+      "description": "Trigger when a subscriber is activated. This happens when a subscriber confirms their subscription.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.convertkit.com/v3/automations/hooks",
+          "body": {
+            "event": {
+              "name": "subscriber.subscriber_activate"
+            },
+            "target_url": "{{webhookUrl}}"
+          }
+        },
+        "id": "$.rule.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.convertkit.com/v3/automations/hooks/{{webhookId}}"
+        }
+      },
+      "afterResponse": "return [response.subscriber];",
+      "items": "$"
+    },
+    "webhook_subscriber_unsubscribed": {
+      "label": "Subscriber unsubscribed",
+      "description": "Trigger when a subscriber is unsubscribed",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.convertkit.com/v3/automations/hooks",
+          "body": {
+            "event": {
+              "name": "subscriber.subscriber_unsubscribe"
+            },
+            "target_url": "{{webhookUrl}}"
+          }
+        },
+        "id": "$.rule.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.convertkit.com/v3/automations/hooks/{{webhookId}}"
+        }
+      },
+      "afterResponse": "return [response.subscriber];",
+      "items": "$"
+    },
+    "webhook_subscriber_bounced": {
+      "label": "Subscriber bounced",
+      "description": "Trigger when a subscriber bounced. This happens when an email is sent to a subscriber and the email bounces.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.convertkit.com/v3/automations/hooks",
+          "body": {
+            "event": {
+              "name": "subscriber.subscriber_bounce"
+            },
+            "target_url": "{{webhookUrl}}"
+          }
+        },
+        "id": "$.rule.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.convertkit.com/v3/automations/hooks/{{webhookId}}"
+        }
+      },
+      "afterResponse": "return [response.subscriber];",
+      "items": "$"
+    },
+    "webhook_subscriber_complained": {
+      "label": "Subscriber complained",
+      "description": "Trigger when a subscriber complained. This happens when a subscriber marks an email as spam.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.convertkit.com/v3/automations/hooks",
+          "body": {
+            "event": {
+              "name": "subscriber.subscriber_complain"
+            },
+            "target_url": "{{webhookUrl}}"
+          }
+        },
+        "id": "$.rule.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.convertkit.com/v3/automations/hooks/{{webhookId}}"
+        }
+      },
+      "afterResponse": "return [response.subscriber];",
+      "items": "$"
+    },
+    "webhook_form_subscribed": {
+      "label": "Form subscribed",
+      "description": "Trigger when a form is subscribed",
+      "inputs": {
+        "form_id": {
+          "label": "Form ID",
+          "description": "The form, from List Forms.",
+          "required": true,
+          "list": "forms"
+        }
+      },
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.convertkit.com/v3/automations/hooks",
+          "body": {
+            "event": {
+              "name": "subscriber.form_subscribe"
+            },
+            "target_url": "{{webhookUrl}}"
+          }
+        },
+        "id": "$.rule.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.convertkit.com/v3/automations/hooks/{{webhookId}}"
+        },
+        "beforeRequest": "request.body.event.form_id = Number(inputs.form_id);\nreturn request;"
+      },
+      "afterResponse": "return [response.subscriber];",
+      "items": "$"
+    },
+    "webhook_sequence_subscribed": {
+      "label": "Sequence subscribed",
+      "description": "Trigger when a sequence is subscribed",
+      "inputs": {
+        "sequence_id": {
+          "label": "Sequence ID",
+          "description": "The sequence, from List Sequences.",
+          "required": true,
+          "list": "sequences"
+        }
+      },
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.convertkit.com/v3/automations/hooks",
+          "body": {
+            "event": {
+              "name": "subscriber.course_subscribe"
+            },
+            "target_url": "{{webhookUrl}}"
+          }
+        },
+        "id": "$.rule.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.convertkit.com/v3/automations/hooks/{{webhookId}}"
+        },
+        "beforeRequest": "request.body.event.sequence_id = Number(inputs.sequence_id);\nreturn request;"
+      },
+      "afterResponse": "return [response.subscriber];",
+      "items": "$"
+    },
+    "webhook_sequence_completed": {
+      "label": "Sequence completed",
+      "description": "Trigger when a sequence is completed",
+      "inputs": {
+        "sequence_id": {
+          "label": "Sequence ID",
+          "description": "The sequence, from List Sequences.",
+          "required": true,
+          "list": "sequences"
+        }
+      },
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.convertkit.com/v3/automations/hooks",
+          "body": {
+            "event": {
+              "name": "subscriber.course_complete"
+            },
+            "target_url": "{{webhookUrl}}"
+          }
+        },
+        "id": "$.rule.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.convertkit.com/v3/automations/hooks/{{webhookId}}"
+        },
+        "beforeRequest": "request.body.event.sequence_id = Number(inputs.sequence_id);\nreturn request;"
+      },
+      "afterResponse": "return [response.subscriber];",
+      "items": "$"
+    },
+    "webhook_link_clicked": {
+      "label": "Link clicked",
+      "description": "Trigger when a link is clicked",
+      "inputs": {
+        "initiator_value": {
+          "label": "Initiator Value URL",
+          "description": "The initiator value URL that will trigger the webhook",
+          "required": true
+        }
+      },
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.convertkit.com/v3/automations/hooks",
+          "body": {
+            "event": {
+              "name": "subscriber.link_click",
+              "initiator_value": "{{initiator_value}}"
+            },
+            "target_url": "{{webhookUrl}}"
+          }
+        },
+        "id": "$.rule.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.convertkit.com/v3/automations/hooks/{{webhookId}}"
+        }
+      },
+      "afterResponse": "return [response.subscriber, inputs.initiator_value];",
+      "items": "$"
+    },
+    "webhook_product_purchased": {
+      "label": "Product purchased",
+      "description": "Trigger when a product is purchased",
+      "inputs": {
+        "product_id": {
+          "label": "Product ID",
+          "description": "The product ID",
+          "type": "number",
+          "required": true
+        }
+      },
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.convertkit.com/v3/automations/hooks",
+          "body": {
+            "event": {
+              "name": "subscriber.product_purchase"
+            },
+            "target_url": "{{webhookUrl}}"
+          }
+        },
+        "id": "$.rule.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.convertkit.com/v3/automations/hooks/{{webhookId}}"
+        },
+        "beforeRequest": "request.body.event.product_id = Number(inputs.product_id);\nreturn request;"
+      },
+      "afterResponse": "return [response.subscriber, Number(inputs.product_id)];",
+      "items": "$"
+    },
+    "webhook_purchase_created": {
+      "label": "Purchase created",
+      "description": "Trigger when a purchase is created",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.convertkit.com/v3/automations/hooks",
+          "body": {
+            "event": {
+              "name": "purchase.purchase_create"
+            },
+            "target_url": "{{webhookUrl}}"
+          }
+        },
+        "id": "$.rule.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.convertkit.com/v3/automations/hooks/{{webhookId}}"
+        }
+      },
+      "afterResponse": "return [response.purchase.subscriber];",
+      "items": "$"
+    }
+  }
+}

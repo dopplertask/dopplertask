@@ -2,7 +2,7 @@
 import { BRAND_ICONS } from './brand-icons';
 
 export default function boot() {
-  const { ACTIONS, FAILURE_FIELDS, formatDuration, formatAgo } = window.DT;
+  const { ACTIONS, FAILURE_FIELDS, INITIALS, formatDuration, formatAgo } = window.DT;
 
   const ICON_PATHS = {
     logOut: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
@@ -50,13 +50,34 @@ export default function boot() {
     webhook: '<circle cx="12" cy="6" r="3"/><circle cx="6" cy="17" r="3"/><circle cx="18" cy="17" r="3"/><path d="m10.5 8.6-3 5.8M9 17h6M13.5 8.6l3 5.8"/>',
   };
 
+  /* A service without a free logo shows its initials, in a colour that stays the same for its name. */
+  const initialsOf = (name) => {
+    const words = name.replace(/([a-z])([A-Z])/g, '$1 $2').split(/[\s\-_.]+/).filter(Boolean);
+    return words.length > 1 ? (words[0][0] + words[1][0]).toUpperCase() : name.slice(0, 1).toUpperCase() + name.slice(1, 2).toLowerCase();
+  };
+  const hueOf = (name) => [...name].reduce((hash, character) => (hash * 31 + character.charCodeAt(0)) % 360, 7);
+  const initialsIcon = (connector, className) => `<svg class="icon brand-icon ${className}" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="6" fill="hsl(${hueOf(connector)} 52% 42%)"/><text x="12" y="16" text-anchor="middle" font-size="10.5" font-weight="600" font-family="inherit" fill="#fff">${escapeHtml(initialsOf(ACTIONS[connector]?.label ?? connector))}</text></svg>`;
+
   const icon = (name, className = '') => {
     if (BRAND_ICONS[name]) return `<svg class="icon brand-icon ${className}" viewBox="${BRAND_ICONS[name].viewBox}" aria-hidden="true">${BRAND_ICONS[name].body}</svg>`;
+    if (name.startsWith(INITIALS)) return initialsIcon(name.slice(INITIALS.length), className);
     if (!ICON_PATHS[name]) console.error(`There is no icon called ${name}.`);
     return `<svg class="icon ${className}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[name] || ''}</svg>`;
   };
 
 
+  // The fields each form loaded from its service, by step and field, for as long as the page is open.
+  const loadedForms = new Map();
+  const formValues = (text) => { try { return JSON.parse(text || '{}'); } catch { return {}; } };
+
+  // Above this many choices a list is searched by typing.
+  const LONG_LIST = 12;
+  // Where a step sends its key, and the notes such an address can get. They only inform; the address is the person's choice.
+  const ADDRESS_FIELDS = ['baseUrl', 'siteUrl', 'signInUrl', 'servers', 'hostname', 'brokerUrl', 'jenkinsUrl', 'region'];
+  const ADDRESS_NOTES = {
+    unencrypted: { text: 'Not encrypted', applies: (address) => /^\s*http:\/\//i.test(address) },
+    taskData: { text: 'Uses task data: data from outside the task can choose where your key goes.', applies: (address) => /[$#]/.test(address) },
+  };
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
   const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
   const modKey = isMac ? '⌘' : 'Ctrl+';
@@ -160,6 +181,11 @@ export default function boot() {
       case 'select': {
         const options = field.options.map((option) => (typeof option === 'string' ? { value: option, label: option } : option));
         const current = fieldValue ?? options[0].value;
+        /* A long list, such as the actions of a big connector, opens a picker that is searched by typing. */
+        if (options.length > LONG_LIST) {
+          const shown = options.find((option) => option.value === current)?.label ?? current;
+          return wrap(`${label.replace('<span class="ui-optional">optional</span>', '')}<button type="button" class="ui-input ui-picker" aria-haspopup="listbox" data-picker ${common}><span>${escapeHtml(shown)}</span>${icon('chevronDown')}</button>`);
+        }
         return wrap(`${label.replace('<span class="ui-optional">optional</span>', '')}<div class="ui-select"><select ${common}>${options.map((option) => `<option value="${escapeHtml(option.value)}" ${option.value === current ? 'selected' : ''}>${escapeHtml(option.label)}</option>`).join('')}</select>${icon('chevronDown')}</div>`);
       }
       case 'credential': {
@@ -173,14 +199,30 @@ export default function boot() {
       case 'toggle': return wrap(`<label class="ui-toggle"><input type="checkbox" ${common} ${fieldValue ? 'checked' : ''}><span class="ui-toggle-track"></span><span>${escapeHtml(field.label)}</span></label>`);
       case 'code': return wrap(`${label}<textarea class="ui-input is-mono" rows="${Math.min(8, Math.max(3, String(fieldValue ?? '').split('\n').length + 1))}" spellcheck="false" data-variables ${common} ${placeholder}>${escapeHtml(fieldValue ?? '')}</textarea><p class="ui-hint">Type <code>$</code> to insert a parameter or earlier output.</p>`);
       case 'expression': {
-        /* Which task to run is picked from the saved ones, rather than typed from memory. */
-        const taskChoices = node.type === 'linkedTask' && field.key === 'name'
-          ? `<datalist id="${inputId}-tasks">${DT.canvas.store.tasks.filter((task) => task.name !== DT.canvas.store.task.name).map((task) => `<option value="${escapeHtml(task.name)}">`).join('')}</datalist>`
-          : '';
+        /* Which task to run is picked from the saved ones, and a connector reads the choices of a field from its service
+           when the field is entered, rather than a person typing an id from memory. */
+        const savedTasks = node.type === 'linkedTask' && field.key === 'name'
+          ? DT.canvas.store.tasks.filter((task) => task.name !== DT.canvas.store.task.name).map((task) => `<option value="${escapeHtml(task.name)}">`).join('')
+          : null;
+        const suggestions = (field.files ? DT.canvas.store.filesBefore(node.id).map((name) => ({ value: name, label: name })) : field.suggestions)
+          ?.map((choice) => `<option value="${escapeHtml(choice.value)}" label="${escapeHtml(choice.label)}">`).join('');
+        const choices = savedTasks ?? suggestions ?? (field.choices ? '' : null);
+        const list = choices === null ? '' : `<datalist id="${inputId}-choices">${choices}</datalist>`;
         const control = field.multiline
           ? `<textarea class="ui-input is-mono" rows="3" spellcheck="false" data-variables ${common} ${placeholder}>${escapeHtml(fieldValue ?? '')}</textarea>`
-          : `<input class="ui-input is-mono" spellcheck="false" autocomplete="off" data-variables ${taskChoices ? `list="${inputId}-tasks"` : ''} ${common} ${placeholder} value="${escapeHtml(fieldValue ?? '')}">`;
-        return wrap(`${label}${control}${taskChoices}<p class="ui-preview" data-preview="${field.key}"></p>`);
+          : `<input class="ui-input is-mono" spellcheck="false" autocomplete="off" data-variables ${list ? `list="${inputId}-choices"` : ''} ${field.choices ? 'data-choices' : ''} ${common} ${placeholder} value="${escapeHtml(fieldValue ?? '')}">`;
+        const addressNotes = ADDRESS_FIELDS.includes(field.key)
+          ? Object.entries(ADDRESS_NOTES).map(([name, note]) => `<p class="ui-hint" data-address-note="${name}" data-for="${field.key}" hidden>${escapeHtml(note.text)}</p>`).join('')
+          : '';
+        return wrap(`${label}${control}${list}${addressNotes}${field.choices ? `<p class="ui-hint" data-choices-note="${field.key}" hidden></p>` : ''}<p class="ui-preview" data-preview="${field.key}"></p>`);
+      }
+      case 'form': {
+        /* Saved values show by their key until the fields are loaded, which gives their labels and any new ones. */
+        const values = formValues(fieldValue);
+        const fields = loadedForms.get(`${node.id}.${field.key}`) || Object.keys(values).map((key) => ({ key, label: key }));
+        return `<fieldset class="ui-field ui-list" data-form="${field.key}"><legend class="ui-label">${escapeHtml(field.label)}${field.required ? '' : '<span class="ui-optional">optional</span>'}</legend>
+          ${fields.map((one) => `<label class="ui-label" for="${inputId}-${escapeHtml(one.key)}">${escapeHtml(one.label)}</label><input class="ui-input is-mono" id="${inputId}-${escapeHtml(one.key)}" spellcheck="false" autocomplete="off" data-variables data-form-key="${escapeHtml(one.key)}" value="${escapeHtml(values[one.key] ?? '')}">`).join('')}
+          <button type="button" class="ui-button" data-form-load>${icon('download')}${fields.length ? 'Load the fields again' : 'Load the fields'}</button>${hint}</fieldset>`;
       }
       case 'map': {
         const rows = fieldValue || [];
@@ -189,6 +231,11 @@ export default function boot() {
           : `<input class="ui-input is-mono" data-variables placeholder="${escapeHtml(column.label)}" aria-label="${escapeHtml(column.label)}" data-map-index="${index}" data-map-part="${column.key}" value="${escapeHtml(row[column.key] ?? '')}">`);
         return `<fieldset class="ui-field ui-list" data-map="${field.key}"><legend class="ui-label">${escapeHtml(field.label)}${field.required ? '' : '<span class="ui-optional">optional</span>'}</legend>${rows.map((row, index) => `<div class="ui-list-row">${field.columns.map((column) => cell(column, row, index)).join('')}<button type="button" class="ui-icon-button" data-map-remove="${index}" aria-label="Remove">${icon('x')}</button></div>`).join('')}<button type="button" class="ui-link-button" data-map-add>${icon('plus')}Add</button></fieldset>`;
       }
+      case 'address': {
+        /* The server gives where services reach it, which a proxy can make differ from this page's address. */
+        const address = field.defaultValue.replace('{suffix}', node.config.triggerSuffix);
+        return addressRow(field.label, address.startsWith('http') ? address : window.location.origin + address, `${field.hint} Works once the task is saved with its trigger on.`);
+      }
       default: return wrap(`${label}<input class="ui-input ${field.mono ? 'is-mono' : ''}" autocomplete="off" spellcheck="false" ${common} ${placeholder} value="${escapeHtml(fieldValue ?? '')}">`);
     }
   }
@@ -196,6 +243,9 @@ export default function boot() {
   function webhookUrl(task, node) {
     return `${window.location.origin}/webhook/${encodeURIComponent(task.name)}/Webhook/${node.config.triggerSuffix}/${node.config.path || ''}`;
   }
+
+  /* An address that a service calls, with a button that copies it. */
+  const addressRow = (label, url, hint) => `<div class="ui-field"><span class="ui-label">${escapeHtml(label)}</span><div class="ui-copy-row"><code data-address>${escapeHtml(url)}</code><button type="button" class="ui-icon-button" data-copy="${escapeHtml(url)}" aria-label="Copy address">${icon('copy')}</button></div><p class="ui-hint">${escapeHtml(hint)}</p></div>`;
 
   function renderForm(node, store) {
     const action = ACTIONS[node.type];
@@ -209,7 +259,7 @@ export default function boot() {
     return `
       ${issues.map((issue) => `<p class="ui-note is-warn">${icon('alert')}${escapeHtml(issue.message)}</p>`).join('')}
       <div class="ui-field-grid">${visibleFields.map((field) => renderField(field, node)).join('')}</div>
-      ${node.type === 'start' && node.config.trigger === 'webhook' ? `<div class="ui-field"><span class="ui-label">Call this URL</span><div class="ui-copy-row"><code data-webhook-url>${escapeHtml(webhookUrl(store.task, node))}</code><button type="button" class="ui-icon-button" data-copy="${escapeHtml(webhookUrl(store.task, node))}" aria-label="Copy URL">${icon('copy')}</button></div><p class="ui-hint">Works once the task is saved with its trigger on.</p></div>` : ''}
+      ${node.type === 'start' && node.config.trigger === 'webhook' ? addressRow('Call this URL', webhookUrl(store.task, node), 'Works once the task is saved with its trigger on.') : ''}
       ${canFail ? `<details class="ui-disclosure" ${hasFailureSettings ? 'open' : ''}><summary>${icon('chevronRight')}If this step fails${node.config.retries ? `<span class="ui-pill">${node.config.retries} ${node.config.retries === 1 ? 'retry' : 'retries'}</span>` : ''}</summary><div class="ui-field-grid">${FAILURE_FIELDS.map((field) => renderField(field, node)).join('')}</div></details>` : ''}
       ${advancedFields.length ? `<details class="ui-disclosure" ${node.config.scriptLanguage === 'JAVASCRIPT' || node.config.baseUrl ? 'open' : ''}><summary>${icon('chevronRight')}Advanced</summary><div class="ui-field-grid">${advancedFields.map((field) => renderField(field, node)).join('')}</div></details>` : ''}
       <p class="ui-backend-name">${escapeHtml(action.backend)}</p>`;
@@ -225,6 +275,14 @@ export default function boot() {
       const resolved = DT.interpolate(input.value, lastStep.variables);
       previewElement.hidden = false;
       previewElement.innerHTML = `<span>Last run</span> ${escapeHtml(resolved).slice(0, 140)}`;
+    });
+    updateAddressNotes(root);
+  }
+
+  /* Shows the notes that apply to each address as it is typed, in a step or in its credential. */
+  function updateAddressNotes(root) {
+    root.querySelectorAll('[data-address-note]').forEach((note) => {
+      note.hidden = !ADDRESS_NOTES[note.dataset.addressNote].applies(root.querySelector(`[data-field="${note.dataset.for}"]`)?.value ?? '');
     });
   }
 
@@ -248,11 +306,15 @@ export default function boot() {
         if (node.config[target.dataset.field] !== newValue) store.updateConfig(nodeId, target.dataset.field, newValue);
         if (event.type === 'change' && (target.tagName === 'SELECT' || target.type === 'checkbox') && (hasConditionalFields() || target.dataset.field === 'credential')) render();
         updatePreviews(root, store);
-        const urlElement = root.querySelector('[data-webhook-url]');
+        const urlElement = node.config.trigger === 'webhook' && root.querySelector('[data-address]');
         if (urlElement) {
           urlElement.textContent = webhookUrl(store.task, node);
           urlElement.nextElementSibling.dataset.copy = urlElement.textContent;
         }
+      } else if (target.dataset.formKey !== undefined) {
+        const key = target.closest('[data-form]').dataset.form;
+        const values = { ...formValues(node.config[key]), [target.dataset.formKey]: target.value };
+        store.updateConfig(nodeId, key, JSON.stringify(Object.fromEntries(Object.entries(values).filter(([, value]) => value !== ''))));
       } else if (target.dataset.mapIndex !== undefined) {
         const key = target.closest('[data-map]').dataset.map;
         const rows = node.config[key].map((row) => ({ ...row }));
@@ -265,10 +327,21 @@ export default function boot() {
       if (!button) return;
       const node = currentNode();
       const mapKey = button.closest('[data-map]')?.dataset.map;
+      if (button.dataset.picker !== undefined) {
+        const key = button.dataset.field;
+        const { options } = ACTIONS[node.type].fields.find((field) => field.key === key);
+        openPicker(button, options, node.config[key] ?? options[0].value, (value) => { store.updateConfig(nodeId, key, value); render(); root.querySelector(`[data-field="${key}"]`)?.focus(); });
+        return;
+      }
       if (button.dataset.credentialNew !== undefined || button.dataset.credentialEdit !== undefined) {
         const field = ACTIONS[node.type].fields.find((candidate) => candidate.key === 'credential' && DT.fieldVisible(candidate, node.config));
         const editing = button.dataset.credentialEdit !== undefined ? store.credentials.find((credential) => credential.name === node.config.credential) : null;
         openCredentialDialog(store, field, editing, (name) => { store.updateConfig(nodeId, 'credential', name); render(); });
+        return;
+      }
+      if (button.dataset.formLoad !== undefined) {
+        const key = button.closest('[data-form]').dataset.form;
+        store.connectorFields(node, key).then((fields) => { loadedForms.set(`${nodeId}.${key}`, fields); render(); }, (error) => toast(error.message, { tone: 'danger' }));
         return;
       }
       if (button.dataset.mapAdd !== undefined) {
@@ -285,12 +358,86 @@ export default function boot() {
         button.setAttribute('aria-label', revealing ? 'Hide value' : 'Show value');
       } else if (button.dataset.copy) { navigator.clipboard?.writeText(button.dataset.copy); toast('Webhook URL copied'); }
     };
+    /* A list is read when its field is entered, and again once a setting it is read with has changed. What is
+       still missing is said under the field, rather than asked of the service. */
+    const readLists = new Map();
+    const onFocus = async (event) => {
+      const input = event.target;
+      if (input.dataset.choices === undefined) return;
+      const node = currentNode();
+      const visible = (key) => ACTIONS[node.type].fields.find((field) => field.key === key && DT.fieldVisible(field, node.config));
+      const { dependsOn } = visible(input.dataset.field);
+      const note = root.querySelector(`[data-choices-note="${input.dataset.field}"]`);
+      const missing = node.config.credential ? dependsOn.find((key) => !node.config[key]) : 'credential';
+      note.hidden = !missing;
+      note.textContent = missing ? `Choose ${visible(missing)?.label ?? missing} first, to pick from a list.` : '';
+      if (missing) return;
+      const readWith = JSON.stringify([input.dataset.field, node.config.credential, ...dependsOn.map((key) => node.config[key])]);
+      try {
+        if (!readLists.has(readWith)) readLists.set(readWith, store.connectorChoices(node, input.dataset.field));
+        const choices = await readLists.get(readWith);
+        input.list.innerHTML = choices.map((choice) => `<option value="${escapeHtml(choice.value)}" label="${escapeHtml(choice.label)}">`).join('');
+      } catch (error) {
+        readLists.delete(readWith);
+        note.hidden = false;
+        note.textContent = error.message;
+      }
+    };
     const onVariableKey = attachVariableMenu(root, store);
+    root.addEventListener('focusin', onFocus);
     root.addEventListener('input', onInput);
     root.addEventListener('change', onInput);
     root.addEventListener('click', onClick);
     render();
-    return { render, dispose() { root.removeEventListener('input', onInput); root.removeEventListener('change', onInput); root.removeEventListener('click', onClick); onVariableKey(); } };
+    return { render, dispose() { root.removeEventListener('focusin', onFocus); root.removeEventListener('input', onInput); root.removeEventListener('change', onInput); root.removeEventListener('click', onClick); onVariableKey(); } };
+  }
+
+  /* Shows every choice of a long list at once, narrowed by the words typed and headed by the group in a
+     "Group: Choice" label. Keeps the order of the list inside each group. */
+  function openPicker(anchor, options, current, onPick) {
+    const groupOf = (option) => (option.label.includes(': ') ? option.label.slice(0, option.label.indexOf(': ')) : '');
+    const sorted = [...options].sort((first, second) => groupOf(first).localeCompare(groupOf(second)));
+    let shown = sorted;
+    let activeIndex = Math.max(0, sorted.findIndex((option) => option.value === current));
+    const listHtml = (query) => {
+      const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+      shown = sorted.filter((option) => words.every((word) => option.label.toLowerCase().includes(word)));
+      activeIndex = Math.min(activeIndex, Math.max(0, shown.length - 1));
+      if (!shown.length) return `<p class="ui-empty">Nothing matches “${escapeHtml(query)}”.</p>`;
+      return shown.map((option, index) => {
+        const group = groupOf(option);
+        const heading = group && group !== groupOf(shown[index - 1] ?? { label: '' }) ? `<h3>${escapeHtml(group)}</h3>` : '';
+        const name = group ? option.label.slice(group.length + 2) : option.label;
+        const isCurrent = option.value === current;
+        return `${heading}<button type="button" role="option" aria-selected="${isCurrent}" class="ui-palette-item ${index === activeIndex ? 'is-active' : ''}" data-index="${index}"><span class="ui-palette-label">${escapeHtml(name)}</span>${isCurrent ? icon('check') : ''}</button>`;
+      }).join('');
+    };
+    const { element, close } = openPopover(anchor, `<div class="ui-palette-search">${icon('search')}<input placeholder="Search" aria-label="Search the choices" autocomplete="off" spellcheck="false"></div><div class="ui-palette-list" role="listbox">${listHtml('')}</div>`, { className: 'ui-picker-menu' });
+    element.style.width = `${anchor.offsetWidth}px`;
+    const input = element.querySelector('input');
+    const list = element.querySelector('.ui-palette-list');
+    const draw = () => { list.innerHTML = listHtml(input.value); list.querySelector('.is-active')?.scrollIntoView({ block: 'nearest' }); };
+    const pick = (option) => { if (!option) return; close(); onPick(option.value); };
+    input.addEventListener('input', () => { activeIndex = 0; draw(); });
+    input.addEventListener('keydown', (event) => {
+      if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && shown.length) {
+        event.preventDefault();
+        activeIndex = (activeIndex + (event.key === 'ArrowDown' ? 1 : -1) + shown.length) % shown.length;
+        draw();
+      } else if (event.key === 'Enter') { event.preventDefault(); pick(shown[activeIndex]); }
+    });
+    list.addEventListener('click', (event) => { const button = event.target.closest('[data-index]'); if (button) pick(shown[Number(button.dataset.index)]); });
+    list.querySelector('.is-active')?.scrollIntoView({ block: 'center' });
+    input.focus();
+  }
+
+  /* The ways a task can start, built in and from every app, in one searchable list. */
+  function openTriggerPicker(store, anchor) {
+    const builtIn = ACTIONS.start.fields.find((field) => field.key === 'trigger').options
+      .filter((option) => option.value !== 'manual' && option.value !== DT.APP_TRIGGER)
+      .map((option) => ({ value: option.value, label: `Built in: ${option.label}` }));
+    const apps = Object.entries(ACTIONS).filter(([, action]) => action.category === 'starts').map(([type, action]) => ({ value: type, label: `Apps: ${action.label}` }));
+    openPicker(anchor, [...builtIn, ...apps], null, (value) => (ACTIONS[value] ? store.addStep(value) : store.addTrigger(value)));
   }
 
   /* `$` in any expression-capable input opens a menu of what is available at this point. */
@@ -526,6 +673,7 @@ export default function boot() {
         <footer class="ui-dialog-foot"><button type="button" class="ui-button" data-dialog-close>Cancel</button>${accountFields.length ? `<button type="button" class="ui-button" data-connect>${connected ? 'Save and connect again' : 'Save and connect'}</button>` : ''}<button type="submit" class="ui-button is-primary">Save</button></footer>
       </form>`);
     dialog.querySelector('.ui-input')?.focus();
+    dialog.addEventListener('input', () => updateAddressNotes(dialog));
     dialog.addEventListener('click', (event) => {
       const reveal = event.target.closest('[data-reveal]');
       if (reveal) { const input = reveal.parentElement.querySelector('input'); input.type = input.type === 'password' ? 'text' : 'password'; }
@@ -583,16 +731,21 @@ export default function boot() {
 
   function openCredentialsDialog(store) {
     const usedBy = ({ usedBy: names }) => (names.length ? `Used by ${names.join(', ')}` : 'Not used by a task');
-    const types = [...new Set(Object.values(ACTIONS).flatMap((action) => action.fields).filter((field) => field.type === 'credential').map((field) => field.credentialType))]
-      .sort((first, second) => typeLabel(first).localeCompare(typeLabel(second)));
+    /* There is a kind for every service, so the kind is searched for by name, and the kinds already in use come first. */
+    const used = new Set(store.credentials.map((credential) => credential.type));
+    const kinds = [...new Set(Object.values(ACTIONS).flatMap((action) => action.fields).filter((field) => field.type === 'credential').map((field) => field.credentialType))]
+      .map((type) => [typeLabel(type), type])
+      .sort(([first, firstType], [second, secondType]) => used.has(secondType) - used.has(firstType) || first.localeCompare(second));
+    const kindByLabel = new Map(kinds);
     const dialog = openDialog(`${dialogHeader('Credentials', 'What steps sign in with. Tasks only hold the name, so they can be shared and exported safely.')}
       <div class="ui-task-list">${store.credentials.length ? store.credentials.map((credential) => `<div class="ui-task-row" data-credential="${escapeHtml(credential.name)}"><span><b>${escapeHtml(credential.name)}</b><small>${escapeHtml(typeLabel(credential.type))}. ${escapeHtml(usedBy(credential))}</small></span><button type="button" class="ui-button" data-edit>Edit</button><button type="button" class="ui-button" data-delete>Delete</button></div>`).join('') : '<p class="ui-hint">No credentials yet. Create one here, or from a step that needs it.</p>'}</div>
-      <footer class="ui-dialog-foot"><div class="ui-select"><select id="credential-kind" aria-label="Kind of credential">${types.map((type) => `<option value="${escapeHtml(type)}">${escapeHtml(typeLabel(type))}</option>`).join('')}</select>${icon('chevronDown')}</div><button type="button" class="ui-button is-primary" data-new>New credential</button><button type="button" class="ui-button" data-dialog-close>Close</button></footer>`);
+      <footer class="ui-dialog-foot"><input class="ui-input" id="credential-kind" list="credential-kinds" autocomplete="off" placeholder="Kind, such as Slack" aria-label="Kind of credential"><datalist id="credential-kinds">${kinds.map(([label]) => `<option value="${escapeHtml(label)}">`).join('')}</datalist><button type="button" class="ui-button is-primary" data-new>New credential</button><button type="button" class="ui-button" data-dialog-close>Close</button></footer>`);
     dialog.addEventListener('click', (event) => {
       const name = event.target.closest('[data-credential]')?.dataset.credential;
       const credential = store.credentials.find((candidate) => candidate.name === name);
       if (event.target.closest('[data-new]')) {
-        const type = dialog.querySelector('#credential-kind').value;
+        const type = kindByLabel.get(dialog.querySelector('#credential-kind').value.trim());
+        if (!type) { toast('Choose a kind from the list, such as Slack.', { tone: 'danger' }); return; }
         dialog.close();
         openCredentialDialog(store, credentialFieldOf(type), null);
       }
@@ -601,6 +754,9 @@ export default function boot() {
         dialog.close();
         store.deleteCredential(name).then(() => toast(`Deleted ${name}`), (error) => toast(error.message, { tone: 'danger' }));
       }
+    });
+    dialog.querySelector('#credential-kind').addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') dialog.querySelector('[data-new]').click();
     });
   }
 
@@ -672,7 +828,7 @@ export default function boot() {
   function removeWithUndo(store, nodeId) {
     const node = DT.nodeById(store.task, nodeId);
     if (!node) return;
-    if (node.type === 'start') { toast('Every task needs its Start step.'); return; }
+    if (node === DT.rootNode(store.task)) { toast('The first start stays, since running by hand starts there.'); return; }
     const name = node.name;
     store.removeNode(nodeId);
     toast(`Deleted “${name}”`, { actionLabel: 'Undo', onAction: () => store.undo() });
@@ -693,15 +849,15 @@ export default function boot() {
       ${step.output ? `<div class="ui-result"><div class="ui-result-head"><span class="ui-label">Output</span>${navigator.clipboard ? `<button type="button" class="ui-link-button" data-copy-output>${icon('copy')}Copy</button>` : ''}</div><pre>${escapeHtml(readableOutput(step.output))}</pre></div>` : ''}`;
   }
 
-  const STATE_GLYPHS = { success: 'check', failed: 'x', warning: 'alert', stopped: 'stop' };
+  const STATE_GLYPHS = { success: 'check', failed: 'x', warning: 'alert', waiting: 'pause', stopped: 'stop' };
   const statusGlyph = (state) => `<span class="status-glyph is-${state}" role="img" aria-label="${state}">${STATE_GLYPHS[state] ? icon(STATE_GLYPHS[state]) : ''}</span>`;
 
-  const RUN_STATUS_LABELS = { success: 'Succeeded', failed: 'Failed', warning: 'Finished with warnings', running: 'Running', stopped: 'Stopped' };
+  const RUN_STATUS_LABELS = { success: 'Succeeded', failed: 'Failed', warning: 'Finished with warnings', running: 'Running', waiting: 'Waiting for an answer', stopped: 'Stopped' };
   const runParameterSummary = (run) => Object.values(run.parameters).join(' · ');
 
   window.DT.ui = {
     statusGlyph, RUN_STATUS_LABELS, runParameterSummary,
-    icon, escapeHtml, modKey, toast, openPopover, mountForm, openPalette,
+    icon, escapeHtml, modKey, toast, openPopover, mountForm, openPalette, openTriggerPicker,
     openRunDialog, openParametersDialog, openTaskDialog, openCredentialsDialog, openSaveAsDialog, exportTask, importTask, openShortcutsDialog,
     saveStatus, bindShortcuts, removeWithUndo, renderStepResult, formatDuration, formatAgo,
   };

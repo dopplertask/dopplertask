@@ -1,0 +1,657 @@
+{
+  "name": "sendr",
+  "label": "Sendr",
+  "description": "Create personalized landing pages, dynamic audio, video, and manage campaigns with Sendr.",
+  "icon": "",
+  "hosts": [
+    "api.sendr.io"
+  ],
+  "baseUrl": "https://api.sendr.io/api/v1",
+  "upstream": {
+    "package": "@activepieces/piece-sendr",
+    "version": "0.1.1"
+  },
+  "credential": {
+    "fields": {
+      "apiKey": {
+        "label": "API Key",
+        "description": "Log in to your Sendr dashboard at https://app.sendr.io, go to **Settings > API Keys**, click **Create New Key** and paste the key here.",
+        "secret": true,
+        "required": true
+      }
+    },
+    "headers": {
+      "Authorization": "Bearer {{credential.apiKey}}"
+    }
+  },
+  "lists": {
+    "sheets": {
+      "request": {
+        "url": "https://api.sendr.io/api/v1/sheet"
+      },
+      "items": "$.sheets",
+      "label": "$.name",
+      "value": "$.id"
+    },
+    "campaigns": {
+      "request": {
+        "url": "https://api.sendr.io/api/v1/campaigns",
+        "query": {
+          "limit": "200"
+        }
+      },
+      "items": "$.items",
+      "label": "$.name",
+      "value": "$.id"
+    },
+    "templates": {
+      "request": {
+        "url": "https://api.sendr.io/api/v1/page-template/list"
+      },
+      "items": "$.templates",
+      "label": "$.name",
+      "value": "$.id"
+    },
+    "webhooks": {
+      "request": {
+        "url": "https://api.sendr.io/api/v1/webhook"
+      },
+      "items": "$",
+      "label": "$.name",
+      "value": "$.url"
+    }
+  },
+  "actions": {
+    "get_user_info": {
+      "label": "Get Account Info",
+      "description": "Returns information about the currently connected Sendr API user. Useful for verifying that your API key is valid.",
+      "request": {
+        "url": "https://api.sendr.io/seat/me"
+      },
+      "afterResponse": "const flat = (o, p) => { const r = {}; for (const [k, v] of Object.entries(o || {})) { const key = p ? p + '_' + k : k; if (v == null) r[key] = null; else if (Array.isArray(v)) r[key] = v.map(x => typeof x === 'object' ? JSON.stringify(x) : String(x)).join(', '); else if (typeof v === 'object') Object.assign(r, flat(v, key)); else r[key] = v; } return r; }; return flat(response);"
+    },
+    "list_sheets": {
+      "label": "List Sheets",
+      "description": "Lists all available contact lists (sheets) in your Sendr workspace.",
+      "request": {
+        "url": "https://api.sendr.io/api/v1/sheet"
+      },
+      "afterResponse": "return (response.items || []).map(i => ({ id: i.id, name: i.name ?? null, campaign_id: i.campaignId ?? null, created_at: i.createdAt ?? null, updated_at: i.updatedAt ?? null }));"
+    },
+    "get_sheet": {
+      "label": "Get Sheet",
+      "description": "Returns details of a specific contact list (sheet).",
+      "inputs": {
+        "sheet": {
+          "label": "Sheet",
+          "description": "Select the contact list (sheet) to use.",
+          "required": true,
+          "list": "sheets"
+        }
+      },
+      "request": {
+        "url": "https://api.sendr.io/api/v1/sheet/{{sheet}}"
+      },
+      "afterResponse": "const flat = (o, p) => { const r = {}; for (const [k, v] of Object.entries(o || {})) { const key = p ? p + '_' + k : k; if (v == null) r[key] = null; else if (Array.isArray(v)) r[key] = v.map(x => typeof x === 'object' ? JSON.stringify(x) : String(x)).join(', '); else if (typeof v === 'object') Object.assign(r, flat(v, key)); else r[key] = v; } return r; }; return flat(response);"
+    },
+    "get_sheet_columns": {
+      "label": "Get Sheet Columns",
+      "description": "Returns all columns (fields) of a contact list, including their enrichment status.",
+      "inputs": {
+        "sheet": {
+          "label": "Sheet",
+          "description": "Select the contact list (sheet) to use.",
+          "required": true,
+          "list": "sheets"
+        }
+      },
+      "request": {
+        "url": "https://api.sendr.io/api/v1/sheet/{{sheet}}/column"
+      },
+      "afterResponse": "return (response.columns || []).map(c => ({ id: c.id, name: c.name ?? null, type: c.type ?? null, enriched: c.enriched ?? null }));"
+    },
+    "add_row_to_sheet": {
+      "label": "Add Row to Sheet",
+      "description": "Adds a new contact or record to a selected contact list (sheet).",
+      "inputs": {
+        "sheet": {
+          "label": "Sheet",
+          "description": "Select the contact list (sheet) to use.",
+          "required": true,
+          "list": "sheets"
+        },
+        "rowData": {
+          "label": "Row Data",
+          "description": "Key-value pairs representing the new row. Keys should match the sheet column names. Example: { \"Email\": \"john@example.com\", \"First Name\": \"John\" }",
+          "required": true,
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.sendr.io/api/v1/sheet/{{sheet}}/row",
+        "body": "{{rowData}}"
+      },
+      "afterResponse": "const flat = (o, p) => { const r = {}; for (const [k, v] of Object.entries(o || {})) { const key = p ? p + '_' + k : k; if (v == null) r[key] = null; else if (Array.isArray(v)) r[key] = v.map(x => typeof x === 'object' ? JSON.stringify(x) : String(x)).join(', '); else if (typeof v === 'object') Object.assign(r, flat(v, key)); else r[key] = v; } return r; }; return flat(response);"
+    },
+    "list_campaigns": {
+      "label": "List Campaigns",
+      "description": "Lists all campaigns in your Sendr workspace, optionally filtered by status.",
+      "inputs": {
+        "status": {
+          "label": "Status Filter",
+          "description": "Filter campaigns by their current status.",
+          "type": "select",
+          "options": [
+            {
+              "label": "All",
+              "value": ""
+            },
+            {
+              "label": "Draft",
+              "value": "DRAFT"
+            },
+            {
+              "label": "Active",
+              "value": "ACTIVE"
+            },
+            {
+              "label": "Paused",
+              "value": "PAUSED"
+            }
+          ]
+        }
+      },
+      "request": {
+        "url": "https://api.sendr.io/api/v1/campaigns",
+        "query": {
+          "limit": "50",
+          "status": "{{status}}"
+        }
+      },
+      "afterResponse": "return (response.items || []).map(i => ({ id: i.id, name: i.name ?? null, status: i.status ?? null, created_at: i.createdAt ?? null }));"
+    },
+    "get_campaign": {
+      "label": "Get Campaign",
+      "description": "Returns detailed information about a specific campaign.",
+      "inputs": {
+        "campaign": {
+          "label": "Campaign",
+          "description": "Select the campaign.",
+          "required": true,
+          "list": "campaigns"
+        }
+      },
+      "request": {
+        "url": "https://api.sendr.io/api/v1/campaigns/{{campaign}}"
+      },
+      "afterResponse": "const flat = (o, p) => { const r = {}; for (const [k, v] of Object.entries(o || {})) { const key = p ? p + '_' + k : k; if (v == null) r[key] = null; else if (Array.isArray(v)) r[key] = v.map(x => typeof x === 'object' ? JSON.stringify(x) : String(x)).join(', '); else if (typeof v === 'object') Object.assign(r, flat(v, key)); else r[key] = v; } return r; }; return flat(response);"
+    },
+    "list_page_templates": {
+      "label": "List Page Templates",
+      "description": "Lists all available Sendr Page templates you can use to create personalized landing pages.",
+      "request": {
+        "url": "https://api.sendr.io/api/v1/page-template/list"
+      },
+      "afterResponse": "return (response.templates || []).map(t => ({ id: t.id, name: t.name ?? null, created_at: t.createdAt ?? null }));"
+    },
+    "get_page_template_variables": {
+      "label": "Get Page Template Variables",
+      "description": "Returns the custom variables (placeholders) defined in a selected page template, for example first_name, company, or email.",
+      "inputs": {
+        "template": {
+          "label": "Page Template",
+          "description": "Select a Sendr Page template to generate content from.",
+          "required": true,
+          "list": "templates"
+        }
+      },
+      "request": {
+        "url": "https://api.sendr.io/api/v1/page-template/{{template}}/variables"
+      },
+      "afterResponse": "return (response.variables || []).map(v => ({ id: v.id, name: v.name ?? null, type: v.type ?? null, default_value: v.defaultValue ?? null }));"
+    },
+    "generate_sendr_page": {
+      "label": "Generate Sendr Page",
+      "description": "Creates a personalized Sendr landing page from a template with custom variables.",
+      "inputs": {
+        "template": {
+          "label": "Page Template",
+          "description": "Select a Sendr Page template to generate content from.",
+          "required": true,
+          "list": "templates"
+        },
+        "websiteUrl": {
+          "label": "Website to Screenshot URL",
+          "description": "A website URL to use as the background screenshot, if the template supports it."
+        },
+        "renderGif": {
+          "label": "Render GIF",
+          "description": "If enabled, Sendr will generate an animated GIF version of the page.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "attributes": {
+          "label": "Page Attributes",
+          "description": "Metadata attributes for the generated page (key-value pairs).",
+          "type": "json"
+        },
+        "webhookUrl": {
+          "label": "Status Callback URL",
+          "description": "The address Sendr calls with status updates when the GIF or audio is ready."
+        },
+        "variables": {
+          "label": "Template Variables",
+          "description": "Key-value pairs matching the template variables. Example: { \"first_name\": \"Anna\", \"company\": \"Acme Inc\" }",
+          "required": true,
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.sendr.io/api/v1/enrichment/sendr-page",
+        "body": {
+          "templateId": "{{template}}",
+          "variablesValues": "{{variables}}",
+          "websiteToScreenshotUrl": "{{websiteUrl}}",
+          "renderGif": "{{renderGif}}",
+          "attributes": "{{attributes}}",
+          "webhookUrl": "{{webhookUrl}}"
+        }
+      },
+      "beforeRequest": "if (!request.body.renderGif) delete request.body.renderGif; return request;",
+      "afterResponse": "const flat = (o, p) => { const r = {}; for (const [k, v] of Object.entries(o || {})) { const key = p ? p + '_' + k : k; if (v == null) r[key] = null; else if (Array.isArray(v)) r[key] = v.map(x => typeof x === 'object' ? JSON.stringify(x) : String(x)).join(', '); else if (typeof v === 'object') Object.assign(r, flat(v, key)); else r[key] = v; } return r; }; return flat(response);"
+    },
+    "queue_dynamic_audio": {
+      "label": "Queue Dynamic Audio Generation",
+      "description": "Queues a job to generate personalized audio by replacing a target word in a base audio file.",
+      "inputs": {
+        "audioUrl": {
+          "label": "Base Audio URL",
+          "description": "Public URL of the base audio file to personalize.",
+          "required": true
+        },
+        "targetWord": {
+          "label": "Target Word",
+          "description": "The word to find and replace in the audio (e.g. \"first_name\" or \"[NAME]\").",
+          "required": true
+        },
+        "replacementWord": {
+          "label": "Replacement Word",
+          "description": "The word to insert in place of the target word (e.g. \"Anna\").",
+          "required": true
+        },
+        "elevenlabsId": {
+          "label": "ElevenLabs Voice ID",
+          "description": "The ElevenLabs voice ID for the generated audio."
+        },
+        "languageCode": {
+          "label": "Language Code",
+          "description": "The language code of the audio (e.g. \"en-US\", \"de-DE\").",
+          "defaultValue": "en-US"
+        },
+        "webhookUrl": {
+          "label": "Status Callback URL",
+          "description": "The address Sendr calls with status updates when the audio job is done."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.sendr.io/api/v1/enrichment/dynamic-audio",
+        "body": {
+          "audioUrl": "{{audioUrl}}",
+          "targetWord": "{{targetWord}}",
+          "replacementWord": "{{replacementWord}}",
+          "elevenlabsId": "{{elevenlabsId}}",
+          "languageCode": "{{languageCode}}",
+          "webhookUrl": "{{webhookUrl}}"
+        }
+      },
+      "afterResponse": "const flat = (o, p) => { const r = {}; for (const [k, v] of Object.entries(o || {})) { const key = p ? p + '_' + k : k; if (v == null) r[key] = null; else if (Array.isArray(v)) r[key] = v.map(x => typeof x === 'object' ? JSON.stringify(x) : String(x)).join(', '); else if (typeof v === 'object') Object.assign(r, flat(v, key)); else r[key] = v; } return r; }; return flat(response);"
+    },
+    "queue_video_generation": {
+      "label": "Queue Video Generation",
+      "description": "Queues a job to merge audio and video or generate a lipsync video.",
+      "inputs": {
+        "mode": {
+          "label": "Mode",
+          "description": "Choose the video generation mode.",
+          "required": true,
+          "type": "select",
+          "defaultValue": "merge",
+          "options": [
+            {
+              "label": "Merge Audio + Video",
+              "value": "merge"
+            },
+            {
+              "label": "Lipsync",
+              "value": "lipsync"
+            }
+          ]
+        },
+        "audioUrl": {
+          "label": "Audio URL",
+          "description": "Public URL of the audio track to use.",
+          "required": true
+        },
+        "videoUrl": {
+          "label": "Video URL",
+          "description": "Public URL of the base video to use."
+        },
+        "muxAssetId": {
+          "label": "Mux Asset ID",
+          "description": "The Mux asset ID of the video source."
+        },
+        "targetWord": {
+          "label": "Target Word",
+          "description": "The word to replace for personalization."
+        },
+        "replacementWord": {
+          "label": "Replacement Word",
+          "description": "The word to insert in place of the target word."
+        },
+        "pageSlug": {
+          "label": "Page Slug",
+          "description": "The slug of the Sendr Page to associate with this video."
+        },
+        "webhookUrl": {
+          "label": "Status Callback URL",
+          "description": "The address Sendr calls with status updates when the video job is done."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.sendr.io/api/v1/enrichment/generate-video",
+        "body": {
+          "audioUrl": "{{audioUrl}}",
+          "mode": "{{mode}}",
+          "videoUrl": "{{videoUrl}}",
+          "muxAssetId": "{{muxAssetId}}",
+          "targetWord": "{{targetWord}}",
+          "replacementWord": "{{replacementWord}}",
+          "pageSlug": "{{pageSlug}}",
+          "webhookUrl": "{{webhookUrl}}"
+        }
+      },
+      "afterResponse": "const flat = (o, p) => { const r = {}; for (const [k, v] of Object.entries(o || {})) { const key = p ? p + '_' + k : k; if (v == null) r[key] = null; else if (Array.isArray(v)) r[key] = v.map(x => typeof x === 'object' ? JSON.stringify(x) : String(x)).join(', '); else if (typeof v === 'object') Object.assign(r, flat(v, key)); else r[key] = v; } return r; }; return flat(response);"
+    },
+    "list_webhooks": {
+      "label": "List Webhooks",
+      "description": "Lists all registered webhooks in your Sendr workspace.",
+      "request": {
+        "url": "https://api.sendr.io/api/v1/webhook"
+      },
+      "afterResponse": "return (response.webhooks || []).map(w => ({ url: w.url, name: w.name ?? null, events: Array.isArray(w.events) ? w.events.join(', ') : null, enabled: w.enabled ?? null }));"
+    },
+    "create_webhook": {
+      "label": "Create Webhook",
+      "description": "Registers a new webhook in Sendr to receive event notifications.",
+      "inputs": {
+        "name": {
+          "label": "Webhook Name",
+          "description": "A human-readable name for the webhook.",
+          "required": true
+        },
+        "url": {
+          "label": "Webhook URL",
+          "description": "The endpoint URL that Sendr will call when events occur.",
+          "required": true
+        },
+        "events": {
+          "label": "Events",
+          "description": "List of event names to subscribe to (e.g. [\"page_render.created\", \"contact_page_engagement.created\"]).",
+          "required": true,
+          "type": "json"
+        },
+        "attributes": {
+          "label": "Attributes",
+          "description": "Metadata attributes for the webhook.",
+          "type": "json"
+        },
+        "resourceType": {
+          "label": "Resource Type",
+          "description": "The resource type the webhook is limited to."
+        },
+        "resourceId": {
+          "label": "Resource ID",
+          "description": "The resource ID the webhook is limited to."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.sendr.io/api/v1/webhook",
+        "body": {
+          "name": "{{name}}",
+          "url": "{{url}}",
+          "events": "{{events}}",
+          "attributes": "{{attributes}}",
+          "resourceType": "{{resourceType}}",
+          "resourceId": "{{resourceId}}"
+        }
+      },
+      "afterResponse": "const flat = (o, p) => { const r = {}; for (const [k, v] of Object.entries(o || {})) { const key = p ? p + '_' + k : k; if (v == null) r[key] = null; else if (Array.isArray(v)) r[key] = v.map(x => typeof x === 'object' ? JSON.stringify(x) : String(x)).join(', '); else if (typeof v === 'object') Object.assign(r, flat(v, key)); else r[key] = v; } return r; }; return flat(response);"
+    },
+    "update_webhook": {
+      "label": "Update Webhook",
+      "description": "Updates an existing Sendr webhook by its URL.",
+      "inputs": {
+        "webhook": {
+          "label": "Webhook",
+          "description": "Select the webhook to manage.",
+          "required": true,
+          "list": "webhooks"
+        },
+        "name": {
+          "label": "Webhook Name",
+          "description": "New name for the webhook."
+        },
+        "events": {
+          "label": "Events",
+          "description": "Updated list of event names to subscribe to.",
+          "type": "json"
+        },
+        "attributes": {
+          "label": "Attributes",
+          "description": "Updated metadata attributes.",
+          "type": "json"
+        },
+        "resourceType": {
+          "label": "Resource Type",
+          "description": "Updated resource type filter."
+        },
+        "resourceId": {
+          "label": "Resource ID",
+          "description": "Updated resource ID filter."
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://api.sendr.io/api/v1/webhook",
+        "body": {
+          "name": "{{name}}",
+          "events": "{{events}}",
+          "attributes": "{{attributes}}",
+          "resourceType": "{{resourceType}}",
+          "resourceId": "{{resourceId}}",
+          "url": "{{webhook}}"
+        }
+      },
+      "afterResponse": "const flat = (o, p) => { const r = {}; for (const [k, v] of Object.entries(o || {})) { const key = p ? p + '_' + k : k; if (v == null) r[key] = null; else if (Array.isArray(v)) r[key] = v.map(x => typeof x === 'object' ? JSON.stringify(x) : String(x)).join(', '); else if (typeof v === 'object') Object.assign(r, flat(v, key)); else r[key] = v; } return r; }; return flat(response);"
+    },
+    "delete_webhook": {
+      "label": "Delete Webhook",
+      "description": "Deletes a registered Sendr webhook by its URL.",
+      "inputs": {
+        "webhook": {
+          "label": "Webhook",
+          "description": "Select the webhook to manage.",
+          "required": true,
+          "list": "webhooks"
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.sendr.io/api/v1/webhook",
+        "body": {
+          "url": "{{webhook}}"
+        }
+      },
+      "afterResponse": "const flat = (o, p) => { const r = {}; for (const [k, v] of Object.entries(o || {})) { const key = p ? p + '_' + k : k; if (v == null) r[key] = null; else if (Array.isArray(v)) r[key] = v.map(x => typeof x === 'object' ? JSON.stringify(x) : String(x)).join(', '); else if (typeof v === 'object') Object.assign(r, flat(v, key)); else r[key] = v; } return r; }; return flat(response);"
+    },
+    "reveal_webhook_secret": {
+      "label": "Reveal Webhook Secret",
+      "description": "Reveals the secret key for a registered webhook so you can verify incoming signatures.",
+      "inputs": {
+        "webhook": {
+          "label": "Webhook",
+          "description": "Select the webhook to manage.",
+          "required": true,
+          "list": "webhooks"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.sendr.io/api/v1/webhook/reveal-secret",
+        "body": {
+          "url": "{{webhook}}"
+        }
+      },
+      "afterResponse": "const flat = (o, p) => { const r = {}; for (const [k, v] of Object.entries(o || {})) { const key = p ? p + '_' + k : k; if (v == null) r[key] = null; else if (Array.isArray(v)) r[key] = v.map(x => typeof x === 'object' ? JSON.stringify(x) : String(x)).join(', '); else if (typeof v === 'object') Object.assign(r, flat(v, key)); else r[key] = v; } return r; }; return flat(response);"
+    },
+    "toggle_webhook": {
+      "label": "Toggle Webhook",
+      "description": "Enables or disables a registered Sendr webhook.",
+      "inputs": {
+        "webhook": {
+          "label": "Webhook",
+          "description": "Select the webhook to manage.",
+          "required": true,
+          "list": "webhooks"
+        },
+        "enabled": {
+          "label": "Enabled",
+          "description": "Check to enable the webhook, uncheck to disable it.",
+          "required": true,
+          "type": "boolean",
+          "defaultValue": "true"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.sendr.io/api/v1/webhook/enabling",
+        "body": {
+          "url": "{{webhook}}",
+          "enabled": "{{enabled}}"
+        }
+      },
+      "afterResponse": "const flat = (o, p) => { const r = {}; for (const [k, v] of Object.entries(o || {})) { const key = p ? p + '_' + k : k; if (v == null) r[key] = null; else if (Array.isArray(v)) r[key] = v.map(x => typeof x === 'object' ? JSON.stringify(x) : String(x)).join(', '); else if (typeof v === 'object') Object.assign(r, flat(v, key)); else r[key] = v; } return r; }; return flat(response);"
+    }
+  },
+  "triggers": {
+    "page_render_created": {
+      "label": "New Page Render",
+      "description": "Triggers when a new Sendr Page is rendered.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.sendr.io/api/v1/webhook",
+          "body": {
+            "name": "Activepieces - New Page Render",
+            "url": "{{webhookUrl}}",
+            "events": [
+              "page_render.created"
+            ]
+          }
+        },
+        "afterResponse": "// Sendr sends the webhook's secret in x-webhook-secret, so deliveries are checked against it.\ndelete memory.webhookSecret;\nmemory.webhookUrl = inputs.webhookUrl;\ntry { const revealed = call({ method: 'POST', url: '/webhook/reveal-secret', body: { url: inputs.webhookUrl } }); if (revealed?.secret) memory.webhookSecret = revealed.secret; } catch (error) { /* deliveries are then taken unchecked */ }\nreturn inputs.webhookUrl;",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.sendr.io/api/v1/webhook",
+          "body": {
+            "url": "{{webhookId}}"
+          }
+        }
+      },
+      "afterResponse": "if (memory.webhookSecret && received.headers['x-webhook-secret'] !== memory.webhookSecret) return [];\nreturn [{ event_type: response.event ?? 'page_render.created', page_id: response.pageId ?? null, page_url: response.pageUrl ?? null, page_slug: response.pageSlug ?? null, template_id: response.templateId ?? null, event_status: response.eventStatus ?? null }];"
+    },
+    "page_render_updated": {
+      "label": "Page Render Updated",
+      "description": "Triggers when a Sendr Page render is updated (e.g. GIF or audio is ready).",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.sendr.io/api/v1/webhook",
+          "body": {
+            "name": "Activepieces - Page Render Updated",
+            "url": "{{webhookUrl}}",
+            "events": [
+              "page_render.updated"
+            ]
+          }
+        },
+        "afterResponse": "// Sendr sends the webhook's secret in x-webhook-secret, so deliveries are checked against it.\ndelete memory.webhookSecret;\nmemory.webhookUrl = inputs.webhookUrl;\ntry { const revealed = call({ method: 'POST', url: '/webhook/reveal-secret', body: { url: inputs.webhookUrl } }); if (revealed?.secret) memory.webhookSecret = revealed.secret; } catch (error) { /* deliveries are then taken unchecked */ }\nreturn inputs.webhookUrl;",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.sendr.io/api/v1/webhook",
+          "body": {
+            "url": "{{webhookId}}"
+          }
+        }
+      },
+      "afterResponse": "if (memory.webhookSecret && received.headers['x-webhook-secret'] !== memory.webhookSecret) return [];\nreturn [{ event_type: response.event ?? 'page_render.updated', page_id: response.pageId ?? null, page_url: response.pageUrl ?? null, page_slug: response.pageSlug ?? null, gif_url: response.gifUrl ?? null, audio_url: response.audioUrl ?? null, lipsync_video: response.lipsyncVideo ?? null, event_status: response.eventStatus ?? null }];"
+    },
+    "contact_page_engagement_created": {
+      "label": "New Contact Page Engagement",
+      "description": "Triggers when a contact visits a Sendr Page for the first time.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.sendr.io/api/v1/webhook",
+          "body": {
+            "name": "Activepieces - New Contact Page Engagement",
+            "url": "{{webhookUrl}}",
+            "events": [
+              "contact_page_engagement.created"
+            ]
+          }
+        },
+        "afterResponse": "// Sendr sends the webhook's secret in x-webhook-secret, so deliveries are checked against it.\ndelete memory.webhookSecret;\nmemory.webhookUrl = inputs.webhookUrl;\ntry { const revealed = call({ method: 'POST', url: '/webhook/reveal-secret', body: { url: inputs.webhookUrl } }); if (revealed?.secret) memory.webhookSecret = revealed.secret; } catch (error) { /* deliveries are then taken unchecked */ }\nreturn inputs.webhookUrl;",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.sendr.io/api/v1/webhook",
+          "body": {
+            "url": "{{webhookId}}"
+          }
+        }
+      },
+      "afterResponse": "if (memory.webhookSecret && received.headers['x-webhook-secret'] !== memory.webhookSecret) return [];\nreturn [{ event_type: response.event ?? 'contact_page_engagement.created', page_id: response.pageId ?? null, page_slug: response.pageSlug ?? null, page_url: response.pageUrl ?? null, attributes: response.attributes ? JSON.stringify(response.attributes) : null, timestamp: response.timestamp ?? null }];"
+    },
+    "contact_page_engagement_updated": {
+      "label": "Contact Page Engagement Updated",
+      "description": "Triggers when a contact interacts with a Sendr Page again (e.g. replays, re-visits).",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.sendr.io/api/v1/webhook",
+          "body": {
+            "name": "Activepieces - Contact Page Engagement Updated",
+            "url": "{{webhookUrl}}",
+            "events": [
+              "contact_page_engagement.updated"
+            ]
+          }
+        },
+        "afterResponse": "// Sendr sends the webhook's secret in x-webhook-secret, so deliveries are checked against it.\ndelete memory.webhookSecret;\nmemory.webhookUrl = inputs.webhookUrl;\ntry { const revealed = call({ method: 'POST', url: '/webhook/reveal-secret', body: { url: inputs.webhookUrl } }); if (revealed?.secret) memory.webhookSecret = revealed.secret; } catch (error) { /* deliveries are then taken unchecked */ }\nreturn inputs.webhookUrl;",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.sendr.io/api/v1/webhook",
+          "body": {
+            "url": "{{webhookId}}"
+          }
+        }
+      },
+      "afterResponse": "if (memory.webhookSecret && received.headers['x-webhook-secret'] !== memory.webhookSecret) return [];\nreturn [{ event_type: response.event ?? 'contact_page_engagement.updated', page_id: response.pageId ?? null, page_slug: response.pageSlug ?? null, page_url: response.pageUrl ?? null, attributes: response.attributes ? JSON.stringify(response.attributes) : null, event_status: response.eventStatus ?? null, timestamp: response.timestamp ?? null }];"
+    }
+  }
+}

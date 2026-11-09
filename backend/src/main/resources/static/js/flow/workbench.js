@@ -44,12 +44,12 @@ export default function boot() {
 
   /* ---------- Task controls ---------- */
 
-  const TRIGGER_ICONS = { webhook: 'webhook', schedule: 'clock', interval: 'clock', activemq: 'server', manual: 'play' };
   function triggerText(config) {
     if (config.trigger === 'webhook') return `${config.method || 'POST'} /${config.path || ''}`;
     if (config.trigger === 'schedule') return DT.scheduleText(config).replace(/^./, (letter) => letter.toUpperCase());
     if (config.trigger === 'interval') return `Every ${DT.intervalText(config)}`;
     if (config.trigger === 'activemq') return config.queue || 'Queue';
+    if (config.trigger === 'app') return DT.ACTIONS[config.app]?.label || 'Choose an app';
     return 'Run by hand';
   }
 
@@ -76,8 +76,9 @@ export default function boot() {
     const trigger = config.trigger || 'manual';
     const active = !!store.task.active;
     const host = byId('barTrigger');
+    const otherTriggers = store.task.nodes.filter((node) => node.type === 'start' && node.config.trigger !== 'manual').length - (trigger === 'manual' ? 0 : 1);
     host.classList.toggle('is-off', trigger !== 'manual' && !active);
-    host.innerHTML = `<button type="button" class="trigger-open" data-wb="trigger" title="Change how this task starts">${icon(TRIGGER_ICONS[trigger])}${trigger === 'manual' ? `<span>${triggerText(config)}</span>` : `<span>Trigger</span><code>${escapeHtml(triggerText(config))}</code>`}</button>
+    host.innerHTML = `<button type="button" class="trigger-open" data-wb="trigger" title="Change how this task starts">${icon(DT.iconOf(rootNode(store.task)))}${trigger === 'manual' ? `<span>${triggerText(config)}</span>` : `<span>Trigger</span><code>${escapeHtml(triggerText(config))}${otherTriggers ? ` and ${otherTriggers} more` : ''}</code>`}</button>
       ${trigger === 'manual' ? '' : `<label class="ui-toggle"><input type="checkbox" data-wb-trigger ${active ? 'checked' : ''}><span class="ui-toggle-track"></span><span>${active ? 'On' : 'Off'}</span></label>`}`;
   }
 
@@ -125,14 +126,16 @@ export default function boot() {
   const TRIGGER_DATA = {
     webhook: [['Request body', 'TRIGGER_body']],
     activemq: [['Queue message', 'TRIGGER_Message']],
+    app: [['New item', 'TRIGGER_item']],
   };
 
   function dataRows(node) {
     const values = variablesBefore(node.id);
     const rows = store.task.parameters.map((parameter) => ({ label: parameter.name, insert: `$parameters.get("${parameter.name}")`, value: values.parameters[parameter.name] ?? parameter.defaultValue }));
     store.task.nodes.filter((candidate) => candidate.type === 'setVariable').flatMap((candidate) => candidate.config.setVariableList || []).forEach((variable) => { if (variable.name) rows.push({ label: variable.name, insert: `$parameters.get("${variable.name}")`, value: values.parameters[variable.name] ?? '' }); });
-    TRIGGER_DATA[rootNode(store.task).config.trigger]?.forEach(([label, name]) => rows.push({ label, insert: `$parameters.get("${name}")`, value: 'Set by the trigger' }));
-    if (rootNode(store.task).id !== node.id) rows.push({ label: 'Previous output', insert: '$lastLog.output', value: values.lastOutput });
+    new Set(store.task.nodes.filter((candidate) => candidate.type === 'start').flatMap((start) => TRIGGER_DATA[start.config.trigger] || []))
+      .forEach(([label, name]) => rows.push({ label, insert: `$parameters.get("${name}")`, value: 'Set by the trigger' }));
+    if (node.type !== 'start') rows.push({ label: 'Previous output', insert: '$lastLog.output', value: values.lastOutput });
     Object.entries(store.outputsBefore(node.id)).forEach(([name, label]) => rows.push({ label, insert: `$lastLog.outputVariables.${name}`, value: values.lastOutputVariables?.[name]?.toString() }));
     rows.push({ label: 'Run ID', insert: '$executionId', value: values.executionId });
     return rows;
@@ -230,7 +233,7 @@ export default function boot() {
     const isStart = node.type === 'start';
     panel.innerHTML = `
       <div class="panel-head">
-        <span class="node-icon ${isStart ? 'is-start' : ''}" data-category="${action.category}">${icon(action.icon)}</span>
+        <span class="node-icon ${isStart ? 'is-start' : ''}" data-category="${action.category}">${icon(DT.iconOf(node))}</span>
         <div class="panel-title">
           <input class="inspector-name" aria-label="Step name" title="Click to rename this step" value="${escapeHtml(node.name)}" ${isStart ? 'readonly' : ''}>
           <small>${escapeHtml(isStart ? 'How this task starts' : action.description)}</small>
@@ -242,7 +245,7 @@ export default function boot() {
         <section class="panel-section"><h3>Settings</h3><div id="panelForm"></div></section>
         <section class="panel-section" id="panelData"></section>
       </div>
-      ${isStart ? '' : `<div class="panel-foot"><div class="panel-foot-row"><button type="button" class="ui-button" data-wb="test" id="testButton" ${testing ? 'disabled' : ''}>${icon('play')}${testing ? 'Testing…' : 'Test this step'}</button><span class="panel-foot-space"></span><button type="button" class="labelled-button" data-inspector="duplicate" title="Duplicate (${modKey}D)">${icon('copy')}<span>Duplicate</span></button><button type="button" class="labelled-button" data-inspector="delete" title="Delete (⌫)">${icon('trash')}<span>Delete</span></button></div><small>Test runs only this step, with the values shown under Data you can use.</small></div>`}`;
+      ${isStart ? `<div class="panel-foot"><div class="panel-foot-row"><button type="button" class="ui-button" data-inspector="add-trigger" aria-haspopup="listbox">${icon('plus')}Add a trigger</button><span class="panel-foot-space"></span>${node === rootNode(store.task) ? '' : `<button type="button" class="labelled-button" data-inspector="delete" title="Delete (⌫)">${icon('trash')}<span>Delete</span></button>`}</div><small>A task can start in several ways. Running by hand starts at the first start.</small></div>` : `<div class="panel-foot"><div class="panel-foot-row"><button type="button" class="ui-button" data-wb="test" id="testButton" ${testing ? 'disabled' : ''}>${icon('play')}${testing ? 'Testing…' : 'Test this step'}</button><span class="panel-foot-space"></span><button type="button" class="labelled-button" data-inspector="duplicate" title="Duplicate (${modKey}D)">${icon('copy')}<span>Duplicate</span></button><button type="button" class="labelled-button" data-inspector="delete" title="Delete (⌫)">${icon('trash')}<span>Delete</span></button></div><small>Test runs only this step, with the values shown under Data you can use.</small></div>`}`;
     form = DT.ui.mountForm(byId('panelForm'), store, node.id);
     panel.querySelector('.inspector-name').addEventListener('input', (event) => store.rename(node.id, event.target.value));
     byId('panelForm').addEventListener('focusin', (event) => { if (event.target.matches('[data-variables]')) lastDataField = event.target; });
@@ -343,7 +346,7 @@ export default function boot() {
     toggle.title = runner.playing ? 'Pause this run' : runner.finished ? 'Watch this run again' : 'Continue this run';
     const failed = failedStepOf(run);
     byId('stripActions').innerHTML = `${runner.finished ? restartActionsHtml(failed) : ''}
-      ${run.live ? `<button type="button" class="labelled-button" data-wb="stop" title="Stop this run. The step that is going is asked to stop, and no further step starts.">${icon('stop')}<span>Stop</span></button>` : ''}
+      ${run.live || run.status === 'waiting' ? `<button type="button" class="labelled-button" data-wb="stop" title="Stop this run. The step that is going is asked to stop, and no further step starts. A run that waits for an answer ends.">${icon('stop')}<span>Stop</span></button>` : ''}
       ${historyToggle()}
       <button type="button" class="labelled-button" data-run-action="close" title="Close this run and go back to editing (esc)">${icon('x')}<span>Close</span></button>`;
   }

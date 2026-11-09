@@ -14,29 +14,18 @@ import com.dopplertask.dopplertask.domain.action.connection.RedisAction
 import com.dopplertask.dopplertask.domain.action.connection.SSHAction
 import com.dopplertask.dopplertask.domain.action.connection.SecureCopyAction
 import com.dopplertask.dopplertask.domain.action.integration.anthropic.ClaudeAction
-import com.dopplertask.dopplertask.domain.action.integration.chat.DiscordAction
 import com.dopplertask.dopplertask.domain.action.integration.chat.MattermostAction
-import com.dopplertask.dopplertask.domain.action.integration.chat.SlackAction
 import com.dopplertask.dopplertask.domain.action.integration.chat.TeamsAction
 import com.dopplertask.dopplertask.domain.action.integration.chat.TelegramAction
 import com.dopplertask.dopplertask.domain.action.integration.chat.TwilioAction
 import com.dopplertask.dopplertask.domain.action.integration.chat.WhatsAppAction
-import com.dopplertask.dopplertask.domain.action.integration.code.AsanaAction
 import com.dopplertask.dopplertask.domain.action.integration.code.BitbucketAction
 import com.dopplertask.dopplertask.domain.action.integration.code.CircleCIAction
 import com.dopplertask.dopplertask.domain.action.integration.code.ClickUpAction
 import com.dopplertask.dopplertask.domain.action.integration.code.FreshdeskAction
-import com.dopplertask.dopplertask.domain.action.integration.code.GitHubAction
-import com.dopplertask.dopplertask.domain.action.integration.code.GitLabAction
 import com.dopplertask.dopplertask.domain.action.integration.code.GiteaAction
-import com.dopplertask.dopplertask.domain.action.integration.code.IntercomAction
 import com.dopplertask.dopplertask.domain.action.integration.code.JiraAction
-import com.dopplertask.dopplertask.domain.action.integration.code.LinearAction
-import com.dopplertask.dopplertask.domain.action.integration.code.MondayAction
-import com.dopplertask.dopplertask.domain.action.integration.code.TrelloAction
-import com.dopplertask.dopplertask.domain.action.integration.code.ZendeskAction
 import com.dopplertask.dopplertask.domain.action.integration.commerce.PayPalAction
-import com.dopplertask.dopplertask.domain.action.integration.commerce.ShopifyAction
 import com.dopplertask.dopplertask.domain.action.integration.commerce.StripeAction
 import com.dopplertask.dopplertask.domain.action.integration.commerce.WooCommerceAction
 import com.dopplertask.dopplertask.domain.action.integration.connection.ElasticsearchAction
@@ -58,20 +47,13 @@ import com.dopplertask.dopplertask.domain.action.integration.mail.OutlookAction
 import com.dopplertask.dopplertask.domain.action.integration.mail.ReadEmailAction
 import com.dopplertask.dopplertask.domain.action.integration.mail.SendGridAction
 import com.dopplertask.dopplertask.domain.action.integration.openai.OpenAIAction
-import com.dopplertask.dopplertask.domain.action.integration.sales.HubSpotAction
 import com.dopplertask.dopplertask.domain.action.integration.sales.MailchimpAction
-import com.dopplertask.dopplertask.domain.action.integration.sales.PipedriveAction
-import com.dopplertask.dopplertask.domain.action.integration.sales.SalesforceAction
-import com.dopplertask.dopplertask.domain.action.integration.storage.AirtableAction
 import com.dopplertask.dopplertask.domain.action.integration.storage.BoxAction
-import com.dopplertask.dopplertask.domain.action.integration.storage.ConfluenceAction
 import com.dopplertask.dopplertask.domain.action.integration.storage.GoogleCalendarAction
 import com.dopplertask.dopplertask.domain.action.integration.storage.GoogleDriveAction
 import com.dopplertask.dopplertask.domain.action.integration.storage.GoogleSheetsAction
-import com.dopplertask.dopplertask.domain.action.integration.storage.NotionAction
 import com.dopplertask.dopplertask.domain.action.integration.storage.OneDriveAction
 import com.dopplertask.dopplertask.domain.action.integration.storage.S3Action
-import com.dopplertask.dopplertask.domain.action.integration.storage.SupabaseAction
 import com.dopplertask.dopplertask.domain.action.integration.storage.WordPressAction
 import com.dopplertask.dopplertask.domain.action.io.ReadFileAction
 import com.dopplertask.dopplertask.domain.action.io.WriteFileAction
@@ -90,6 +72,8 @@ import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonSubTypes
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import com.fasterxml.jackson.annotation.JsonTypeInfo.As
+import org.springframework.beans.BeanWrapperImpl
+import tools.jackson.databind.annotation.JsonTypeIdResolver
 import jakarta.persistence.CascadeType
 import jakarta.persistence.Column
 import jakarta.persistence.DiscriminatorColumn
@@ -118,7 +102,8 @@ import org.hibernate.annotations.FetchMode
 // Otherwise the table only accepts the steps that existed when it was created, and refuses every step added later.
 @DiscriminatorOptions(force = true)
 @DiscriminatorValue("noop")
-@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = As.PROPERTY)
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = As.PROPERTY, visible = true)
+@JsonTypeIdResolver(StepTypeIdResolver::class)
 @JsonSubTypes(
     JsonSubTypes.Type(value = BrowseWebAction::class, name = "BrowseWebAction"),
     JsonSubTypes.Type(value = HttpAction::class, name = "HttpAction"),
@@ -148,9 +133,7 @@ import org.hibernate.annotations.FetchMode
     JsonSubTypes.Type(value = RegexAction::class, name = "RegexAction"),
     JsonSubTypes.Type(value = OpenAIAction::class, name = "OpenAIAction"),
     JsonSubTypes.Type(value = TelegramAction::class, name = "TelegramAction"),
-    JsonSubTypes.Type(value = DiscordAction::class, name = "DiscordAction"),
     JsonSubTypes.Type(value = PagerDutyAction::class, name = "PagerDutyAction"),
-    JsonSubTypes.Type(value = GitHubAction::class, name = "GitHubAction"),
     JsonSubTypes.Type(value = JiraAction::class, name = "JiraAction"),
     JsonSubTypes.Type(value = RedisAction::class, name = "RedisAction"),
     JsonSubTypes.Type(value = PostgresAction::class, name = "PostgresAction"),
@@ -159,33 +142,17 @@ import org.hibernate.annotations.FetchMode
     JsonSubTypes.Type(value = TeamsAction::class, name = "TeamsAction"),
     JsonSubTypes.Type(value = MattermostAction::class, name = "MattermostAction"),
     JsonSubTypes.Type(value = TwilioAction::class, name = "TwilioAction"),
-    JsonSubTypes.Type(value = GitLabAction::class, name = "GitLabAction"),
-    JsonSubTypes.Type(value = LinearAction::class, name = "LinearAction"),
-    JsonSubTypes.Type(value = ZendeskAction::class, name = "ZendeskAction"),
-    JsonSubTypes.Type(value = NotionAction::class, name = "NotionAction"),
     JsonSubTypes.Type(value = GoogleSheetsAction::class, name = "GoogleSheetsAction"),
     JsonSubTypes.Type(value = ClaudeAction::class, name = "ClaudeAction"),
     JsonSubTypes.Type(value = ReadEmailAction::class, name = "ReadEmailAction"),
-    JsonSubTypes.Type(value = SlackAction::class, name = "SlackAction"),
-    JsonSubTypes.Type(value = HubSpotAction::class, name = "HubSpotAction"),
-    JsonSubTypes.Type(value = SalesforceAction::class, name = "SalesforceAction"),
-    JsonSubTypes.Type(value = PipedriveAction::class, name = "PipedriveAction"),
     JsonSubTypes.Type(value = MailchimpAction::class, name = "MailchimpAction"),
     JsonSubTypes.Type(value = StripeAction::class, name = "StripeAction"),
-    JsonSubTypes.Type(value = ShopifyAction::class, name = "ShopifyAction"),
     JsonSubTypes.Type(value = WooCommerceAction::class, name = "WooCommerceAction"),
-    JsonSubTypes.Type(value = IntercomAction::class, name = "IntercomAction"),
     JsonSubTypes.Type(value = FreshdeskAction::class, name = "FreshdeskAction"),
-    JsonSubTypes.Type(value = AsanaAction::class, name = "AsanaAction"),
-    JsonSubTypes.Type(value = TrelloAction::class, name = "TrelloAction"),
     JsonSubTypes.Type(value = ClickUpAction::class, name = "ClickUpAction"),
-    JsonSubTypes.Type(value = MondayAction::class, name = "MondayAction"),
     JsonSubTypes.Type(value = WhatsAppAction::class, name = "WhatsAppAction"),
-    JsonSubTypes.Type(value = AirtableAction::class, name = "AirtableAction"),
-    JsonSubTypes.Type(value = SupabaseAction::class, name = "SupabaseAction"),
     JsonSubTypes.Type(value = GoogleDriveAction::class, name = "GoogleDriveAction"),
     JsonSubTypes.Type(value = GoogleCalendarAction::class, name = "GoogleCalendarAction"),
-    JsonSubTypes.Type(value = ConfluenceAction::class, name = "ConfluenceAction"),
     JsonSubTypes.Type(value = MongoDBAction::class, name = "MongoDBAction"),
     JsonSubTypes.Type(value = KafkaAction::class, name = "KafkaAction"),
     JsonSubTypes.Type(value = RabbitMQAction::class, name = "RabbitMQAction"),
@@ -267,6 +234,36 @@ abstract class Action {
     @get:JsonIgnore
     open val credentialType: String
         get() = javaClass.simpleName
+
+    /** How the editor shows a kind that it does not know by name, such as a connector. */
+    @get:JsonIgnore
+    open val stepLabel: String?
+        get() = null
+
+    @get:JsonIgnore
+    open val stepIcon: String?
+        get() = null
+
+    /** The kind of step, by the name that tasks, the editor and agents use. */
+    @get:JsonIgnore
+    open val stepTypeName: String
+        get() = javaClass.simpleName
+
+    /** Takes what the step's credential holds, only while it runs. A step reads them as its own fields. */
+    open fun useCredentialValues(values: Map<String, String>) {
+        BeanWrapperImpl(this).setPropertyValues(values)
+    }
+
+    /** Credential values that were written into the step itself, which saving moves into a credential. */
+    open fun inlineCredentialValues(fields: Set<String>): Map<String, String> {
+        val step = BeanWrapperImpl(this)
+        return fields.mapNotNull { field -> step.getPropertyValue(field)?.toString()?.takeIf { it.isNotBlank() }?.let { field to it } }.toMap()
+    }
+
+    open fun forgetCredentialValues(fields: Set<String>) {
+        val step = BeanWrapperImpl(this)
+        fields.forEach { step.setPropertyValue(it, null) }
+    }
 
     /**
      * All action values are evaluated with VELOCITY as standard, but can be changed to other languages.
@@ -418,6 +415,12 @@ abstract class Action {
         var category: PropertyInformationCategory = PropertyInformationCategory.PROPERTY
         var displayOptions: Map<String, Array<String>> = mutableMapOf()
 
+        /** Whether the step cannot run without it. */
+        var required: Boolean = false
+
+        /** The other settings that its choices are read with, so that they are read again when one of them changes. */
+        var dependsOn: List<String> = emptyList()
+
 
         @JvmOverloads
         constructor(
@@ -463,7 +466,19 @@ abstract class Action {
         }
 
         enum class PropertyInformationType {
-            STRING, MULTILINE, BOOLEAN, NUMBER, DROPDOWN, MAP
+            STRING, MULTILINE, BOOLEAN, NUMBER, DROPDOWN, MAP,
+
+            /** Text, with choices that the server fetches from the step's service when a person asks for them. */
+            CHOICES,
+
+            /** A form whose fields the server fetches from the step's service, kept as one JSON object. */
+            FIELDS,
+
+            /** The name of a file the run keeps, such as one Read file read, with the run's files as suggestions. */
+            FILE,
+
+            /** The address a service sends events to, which the person copies into that service. Not set by anyone. */
+            ADDRESS
         }
 
         enum class PropertyInformationCategory {

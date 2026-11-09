@@ -1,0 +1,1104 @@
+{
+  "name": "sap-ariba",
+  "label": "SAP Ariba",
+  "description": "Automate procurement, contracts, and invoices with SAP Ariba.",
+  "icon": "",
+  "hosts": [
+    "{{credential.host}}"
+  ],
+  "baseUrl": "https://{{credential.host}}/api/{{credential.api}}/{{credential.version}}/{{credential.environment}}",
+  "upstream": {
+    "package": "@activepieces/piece-sap-ariba",
+    "version": "0.0.8"
+  },
+  "credential": {
+    "fields": {
+      "apiKey": {
+        "label": "Application Key (APIKey)",
+        "description": "The Application Key for your application.",
+        "secret": true,
+        "required": true
+      },
+      "host": {
+        "label": "API Host",
+        "description": "The host of the API runtime URL, such as openapi.ariba.com.",
+        "required": true
+      },
+      "api": {
+        "label": "API Name",
+        "description": "The API in the runtime URL, such as purchase-orders-buyer in https://openapi.ariba.com/api/purchase-orders-buyer/v1/prod. A credential reaches one API, so the actions of each group need a credential for their own API.",
+        "required": true
+      },
+      "version": {
+        "label": "API Version",
+        "description": "The version in the runtime URL, such as v1.",
+        "required": true,
+        "defaultValue": "v1"
+      },
+      "environment": {
+        "label": "Environment",
+        "description": "The environment in the runtime URL, such as prod or sandbox.",
+        "required": true,
+        "defaultValue": "prod"
+      }
+    },
+    "headers": {
+      "apiKey": "{{credential.apiKey}}"
+    }
+  },
+  "actions": {
+    "list_purchase_orders": {
+      "label": "List Purchase Orders",
+      "description": "Retrieves purchase order header information for a specified buyer.",
+      "group": "Purchase Orders",
+      "inputs": {
+        "buyerANID": {
+          "label": "Buyer ANID",
+          "description": "The buyer's Ariba Network ID, sent as X-ARIBA-NETWORK-ID.",
+          "required": true
+        },
+        "supplierANID": {
+          "label": "Supplier ANID",
+          "description": "Filter by supplier's Ariba Network ID."
+        },
+        "documentNumber": {
+          "label": "Document Number",
+          "description": "Filter by order ID / purchase order number."
+        },
+        "orderStatus": {
+          "label": "Order Status",
+          "description": "Filter by order processing state.",
+          "type": "select",
+          "options": [
+            {
+              "value": "New",
+              "label": "New"
+            },
+            {
+              "value": "Changed",
+              "label": "Changed"
+            },
+            {
+              "value": "Confirmed",
+              "label": "Confirmed"
+            },
+            {
+              "value": "Shipped",
+              "label": "Shipped"
+            },
+            {
+              "value": "Invoiced",
+              "label": "Invoiced"
+            },
+            {
+              "value": "Canceled",
+              "label": "Canceled"
+            }
+          ]
+        },
+        "routingStatus": {
+          "label": "Routing Status",
+          "description": "Filter by routing status.",
+          "type": "select",
+          "options": [
+            {
+              "value": "Queued",
+              "label": "Queued"
+            },
+            {
+              "value": "Sent",
+              "label": "Sent"
+            },
+            {
+              "value": "Acknowledged",
+              "label": "Acknowledged"
+            },
+            {
+              "value": "Failed",
+              "label": "Failed"
+            }
+          ]
+        },
+        "startDate": {
+          "label": "Start Date",
+          "description": "Filter orders received on or after this date. Max range: 31 days."
+        },
+        "endDate": {
+          "label": "End Date",
+          "description": "Filter orders received on or before this date. Max range: 31 days."
+        },
+        "top": {
+          "label": "Page Size",
+          "description": "Number of items to return.",
+          "type": "number",
+          "defaultValue": "50"
+        },
+        "skip": {
+          "label": "Offset",
+          "description": "Number of items to skip.",
+          "type": "number",
+          "defaultValue": "0"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.host}}/api/{{credential.api}}/{{credential.version}}/{{credential.environment}}/orders",
+        "headers": {
+          "X-ARIBA-NETWORK-ID": "{{buyerANID}}"
+        }
+      },
+      "beforeRequest": "const filters = [\"supplierANID\", \"documentNumber\", \"orderStatus\", \"routingStatus\", \"startDate\", \"endDate\"].filter(name => inputs[name]).map(name => name + \" eq '\" + inputs[name] + \"'\");\nif (filters.length) request.query['$filter'] = filters.join(' and ');\nfor (const name of ['top', 'skip']) if (Number(inputs[name])) request.query['$' + name] = inputs[name];\nconst form = value => encodeURIComponent(value).replace(/[!'()~]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst pairs = Object.keys(request.query).map(key => form(key) + '=' + form(request.query[key]));\nif (pairs.length) request.url += '?' + pairs.join('&');\nrequest.query = {};\nreturn request;"
+    },
+    "list_purchase_order_items": {
+      "label": "List Purchase Order Line Items",
+      "description": "Retrieves line item information from purchase orders for a specified buyer.",
+      "group": "Purchase Orders",
+      "inputs": {
+        "buyerANID": {
+          "label": "Buyer ANID",
+          "description": "The buyer's Ariba Network ID, sent as X-ARIBA-NETWORK-ID.",
+          "required": true
+        },
+        "documentNumber": {
+          "label": "Document Number",
+          "description": "Filter by order ID / purchase order number."
+        },
+        "orderStatus": {
+          "label": "Order Status",
+          "description": "Filter by order processing state.",
+          "type": "select",
+          "options": [
+            {
+              "value": "New",
+              "label": "New"
+            },
+            {
+              "value": "Changed",
+              "label": "Changed"
+            },
+            {
+              "value": "Confirmed",
+              "label": "Confirmed"
+            },
+            {
+              "value": "Shipped",
+              "label": "Shipped"
+            },
+            {
+              "value": "Invoiced",
+              "label": "Invoiced"
+            },
+            {
+              "value": "Canceled",
+              "label": "Canceled"
+            }
+          ]
+        },
+        "routingStatus": {
+          "label": "Routing Status",
+          "description": "Filter by routing status.",
+          "type": "select",
+          "options": [
+            {
+              "value": "Queued",
+              "label": "Queued"
+            },
+            {
+              "value": "Sent",
+              "label": "Sent"
+            },
+            {
+              "value": "Acknowledged",
+              "label": "Acknowledged"
+            },
+            {
+              "value": "Failed",
+              "label": "Failed"
+            }
+          ]
+        },
+        "startDate": {
+          "label": "Start Date",
+          "description": "Filter orders received on or after this date. Max range: 31 days."
+        },
+        "endDate": {
+          "label": "End Date",
+          "description": "Filter orders received on or before this date. Max range: 31 days."
+        },
+        "top": {
+          "label": "Page Size",
+          "description": "Number of items to return.",
+          "type": "number",
+          "defaultValue": "50"
+        },
+        "skip": {
+          "label": "Offset",
+          "description": "Number of items to skip.",
+          "type": "number",
+          "defaultValue": "0"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.host}}/api/{{credential.api}}/{{credential.version}}/{{credential.environment}}/items",
+        "headers": {
+          "X-ARIBA-NETWORK-ID": "{{buyerANID}}"
+        }
+      },
+      "beforeRequest": "const filters = [\"documentNumber\", \"orderStatus\", \"routingStatus\", \"startDate\", \"endDate\"].filter(name => inputs[name]).map(name => name + \" eq '\" + inputs[name] + \"'\");\nif (filters.length) request.query['$filter'] = filters.join(' and ');\nfor (const name of ['top', 'skip']) if (Number(inputs[name])) request.query['$' + name] = inputs[name];\nconst form = value => encodeURIComponent(value).replace(/[!'()~]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst pairs = Object.keys(request.query).map(key => form(key) + '=' + form(request.query[key]));\nif (pairs.length) request.url += '?' + pairs.join('&');\nrequest.query = {};\nreturn request;"
+    },
+    "get_document_changes": {
+      "label": "Get Document Changes",
+      "description": "Returns the list of changes to approvable documents.",
+      "group": "Approvals",
+      "inputs": {
+        "realm": {
+          "label": "Realm",
+          "description": "The name of the SAP Ariba realm (site), such as testrealm.",
+          "required": true
+        },
+        "changeSequenceId": {
+          "label": "Change Sequence ID",
+          "description": "Only return changes after this sequence ID. Leave empty to get all changes.",
+          "type": "number"
+        },
+        "count": {
+          "label": "Include Count",
+          "description": "Include total count in response.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "top": {
+          "label": "Page Size",
+          "description": "Number of records to return (max 1000, default 10).",
+          "type": "number"
+        },
+        "skip": {
+          "label": "Offset",
+          "description": "Number of records to skip.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.host}}/api/{{credential.api}}/{{credential.version}}/{{credential.environment}}/changes",
+        "query": {
+          "realm": "{{realm}}"
+        }
+      },
+      "beforeRequest": "if (inputs.changeSequenceId) request.query['$filter'] = 'changeSequenceId gt ' + inputs.changeSequenceId;\nif (inputs.count === 'true') request.query['$count'] = 'true';\nfor (const name of ['top', 'skip']) if (Number(inputs[name])) request.query['$' + name] = inputs[name];\nconst form = value => encodeURIComponent(value).replace(/[!'()~]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst pairs = Object.keys(request.query).map(key => form(key) + '=' + form(request.query[key]));\nif (pairs.length) request.url += '?' + pairs.join('&');\nrequest.query = {};\nreturn request;"
+    },
+    "get_pending_approvables": {
+      "label": "Get Pending Approvables",
+      "description": "List all documents/tasks that are pending approval.",
+      "group": "Approvals",
+      "inputs": {
+        "realm": {
+          "label": "Realm",
+          "description": "The name of the SAP Ariba realm (site), such as testrealm.",
+          "required": true
+        },
+        "approvableType": {
+          "label": "Approvable Type",
+          "description": "Filter by document type.",
+          "type": "select",
+          "options": [
+            {
+              "value": "requisitions",
+              "label": "Requisitions"
+            },
+            {
+              "value": "invoices",
+              "label": "Invoices"
+            },
+            {
+              "value": "contracts",
+              "label": "Contracts"
+            },
+            {
+              "value": "payment",
+              "label": "Payment"
+            }
+          ]
+        },
+        "user": {
+          "label": "User",
+          "description": "Filter by username."
+        },
+        "passwordAdapter": {
+          "label": "Password Adapter",
+          "description": "Filter by password adapter."
+        },
+        "count": {
+          "label": "Include Count",
+          "description": "Include total count in response.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "top": {
+          "label": "Page Size",
+          "description": "Number of records to return (max 100, default 100).",
+          "type": "number"
+        },
+        "skip": {
+          "label": "Offset",
+          "description": "Number of records to skip.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.host}}/api/{{credential.api}}/{{credential.version}}/{{credential.environment}}/pendingApprovables",
+        "query": {
+          "realm": "{{realm}}"
+        }
+      },
+      "beforeRequest": "const filters = [\"approvableType\", \"user\", \"passwordAdapter\"].filter(name => inputs[name]).map(name => name + \" eq '\" + inputs[name] + \"'\");\nif (filters.length) request.query['$filter'] = filters.join(' and ');\nif (inputs.count === 'true') request.query['$count'] = 'true';\nfor (const name of ['top', 'skip']) if (Number(inputs[name])) request.query['$' + name] = inputs[name];\nconst form = value => encodeURIComponent(value).replace(/[!'()~]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst pairs = Object.keys(request.query).map(key => form(key) + '=' + form(request.query[key]));\nif (pairs.length) request.url += '?' + pairs.join('&');\nrequest.query = {};\nreturn request;"
+    },
+    "get_catalog_items": {
+      "label": "Get Catalog Items",
+      "description": "Get list of filtered catalog items for a specific supplier.",
+      "group": "Catalogs",
+      "inputs": {
+        "realm": {
+          "label": "Realm",
+          "description": "The name of the SAP Ariba realm (site), such as testrealm.",
+          "required": true
+        },
+        "catalogName": {
+          "label": "Catalog Name",
+          "description": "Name of the catalog.",
+          "required": true
+        },
+        "supplierId": {
+          "label": "Supplier ID",
+          "description": "The supplier's domain and ID, such as buyersystemid:Supplier16.",
+          "required": true
+        },
+        "select": {
+          "label": "Select Fields",
+          "description": "Output fields to return, comma-separated (e.g., SupplierPartId,SupplierId,LeadTime).",
+          "required": true,
+          "defaultValue": "SupplierPartId,SupplierId"
+        },
+        "rsqlfilter": {
+          "label": "RSQL Filter",
+          "description": "Optional RSQL filter expression (e.g., CatalogName==JCNTechnologies)."
+        },
+        "offset": {
+          "label": "Offset",
+          "description": "Starting position for results.",
+          "type": "number",
+          "required": true,
+          "defaultValue": "1"
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (default 1000).",
+          "type": "number",
+          "defaultValue": "1000"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.host}}/api/{{credential.api}}/{{credential.version}}/{{credential.environment}}/catalogname/{{catalogName}}/supplierid/{{supplierId}}/items",
+        "headers": {
+          "realm": "{{realm}}"
+        },
+        "query": {
+          "select": "{{select}}",
+          "offset": "{{offset}}",
+          "rsqlfilter": "{{rsqlfilter}}",
+          "limit": "{{limit}}"
+        }
+      },
+      "beforeRequest": "if (!Number(inputs.limit)) delete request.query.limit;\nconst form = value => encodeURIComponent(value).replace(/[!'()~]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst pairs = Object.keys(request.query).map(key => form(key) + '=' + form(request.query[key]));\nif (pairs.length) request.url += '?' + pairs.join('&');\nrequest.query = {};\nreturn request;"
+    },
+    "get_active_catalogs": {
+      "label": "Get Active Catalogs",
+      "description": "Get list of active catalog data and supplier values from the specified date.",
+      "group": "Catalogs",
+      "inputs": {
+        "realm": {
+          "label": "Realm",
+          "description": "The name of the SAP Ariba realm (site), such as testrealm.",
+          "required": true
+        },
+        "date": {
+          "label": "Activated From Date",
+          "description": "Get catalogs activated from this date (ISO format).",
+          "required": true
+        },
+        "supplierdomain": {
+          "label": "Supplier Domain",
+          "description": "Filter by the supplier's domain and ID, such as buyersystemid:Supplier16."
+        },
+        "subscriptionName": {
+          "label": "Subscription Name",
+          "description": "Filter by Subscription Name."
+        },
+        "showAll": {
+          "label": "Show All",
+          "description": "Show all records.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "showAdditionalFields": {
+          "label": "Show Additional Fields",
+          "description": "Include additional fields in response.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.host}}/api/{{credential.api}}/{{credential.version}}/{{credential.environment}}/catalogs",
+        "headers": {
+          "realm": "{{realm}}"
+        },
+        "query": {
+          "date": "{{date}}",
+          "supplierdomain": "{{supplierdomain}}",
+          "subscriptionName": "{{subscriptionName}}",
+          "showAll": "{{showAll}}",
+          "showAdditionalFields": "{{showAdditionalFields}}"
+        }
+      },
+      "beforeRequest": "const form = value => encodeURIComponent(value).replace(/[!'()~]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst pairs = Object.keys(request.query).map(key => form(key) + '=' + form(request.query[key]));\nif (pairs.length) request.url += '?' + pairs.join('&');\nrequest.query = {};\nreturn request;"
+    },
+    "get_facet_data": {
+      "label": "Get Facet Data",
+      "description": "Get list of facet data for a realm.",
+      "group": "Catalogs",
+      "inputs": {
+        "realm": {
+          "label": "Realm",
+          "description": "The name of the SAP Ariba realm (site), such as testrealm.",
+          "required": true
+        },
+        "select": {
+          "label": "Select Field",
+          "description": "Facet field to select (e.g., ClassificationCode).",
+          "required": true,
+          "defaultValue": "ClassificationCode"
+        },
+        "rsqlfilter": {
+          "label": "RSQL Filter",
+          "description": "RSQL Filter expression (e.g., CatalogName==JCNTechnologies).",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.host}}/api/{{credential.api}}/{{credential.version}}/{{credential.environment}}/facets",
+        "headers": {
+          "realm": "{{realm}}"
+        },
+        "query": {
+          "select": "{{select}}",
+          "rsqlfilter": "{{rsqlfilter}}"
+        }
+      },
+      "beforeRequest": "const form = value => encodeURIComponent(value).replace(/[!'()~]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst pairs = Object.keys(request.query).map(key => form(key) + '=' + form(request.query[key]));\nif (pairs.length) request.url += '?' + pairs.join('&');\nrequest.query = {};\nreturn request;"
+    },
+    "list_invoices": {
+      "label": "List Invoices",
+      "description": "Retrieves header information of one or more invoices in Ariba Network.",
+      "group": "Invoices",
+      "inputs": {
+        "anId": {
+          "label": "Ariba Network ID",
+          "description": "The buyer's or supplier's Ariba Network ID (ANID), sent as X-ARIBA-NETWORK-ID.",
+          "required": true
+        },
+        "buyerANID": {
+          "label": "Buyer ANID",
+          "description": "Filter by Buyer's ANID."
+        },
+        "supplierANID": {
+          "label": "Supplier ANID",
+          "description": "Filter by Supplier's ANID."
+        },
+        "documentNumber": {
+          "label": "Document Number",
+          "description": "Filter by Invoice Document Number."
+        },
+        "documentStatus": {
+          "label": "Document Status",
+          "description": "Filter by processing status.",
+          "type": "select",
+          "options": [
+            {
+              "value": "Sent",
+              "label": "Sent"
+            },
+            {
+              "value": "Acknowledged",
+              "label": "Acknowledged"
+            },
+            {
+              "value": "Failed",
+              "label": "Failed"
+            },
+            {
+              "value": "Rejected",
+              "label": "Rejected"
+            },
+            {
+              "value": "Paid",
+              "label": "Paid"
+            },
+            {
+              "value": "Approved",
+              "label": "Approved"
+            }
+          ]
+        },
+        "routingStatus": {
+          "label": "Routing Status",
+          "description": "Filter by routing status.",
+          "type": "select",
+          "options": [
+            {
+              "value": "Sent",
+              "label": "Sent"
+            },
+            {
+              "value": "Acknowledged",
+              "label": "Acknowledged"
+            },
+            {
+              "value": "Failed",
+              "label": "Failed"
+            }
+          ]
+        },
+        "startDate": {
+          "label": "Created Start Date",
+          "description": "Filter by creation date (start)."
+        },
+        "endDate": {
+          "label": "Created End Date",
+          "description": "Filter by creation date (end)."
+        },
+        "documentStatusUpdatedStartDate": {
+          "label": "Updated Start Date",
+          "description": "Filter by status updated date (start)."
+        },
+        "documentStatusUpdatedEndDate": {
+          "label": "Updated End Date",
+          "description": "Filter by status updated date (end)."
+        },
+        "documentPurpose": {
+          "label": "Document Purpose",
+          "description": "Filter by document purpose.",
+          "type": "select",
+          "options": [
+            {
+              "value": "standard",
+              "label": "Standard"
+            },
+            {
+              "value": "creditMemo",
+              "label": "Credit Memo"
+            },
+            {
+              "value": "debitMemo",
+              "label": "Debit Memo"
+            }
+          ]
+        },
+        "includeInvoiceProfile": {
+          "label": "Include Invoice Profile",
+          "description": "Display Invoice Profile related fields (e.g., Address, Tax Id).",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "top": {
+          "label": "Page Size",
+          "description": "Number of items to return (max 100).",
+          "type": "number",
+          "defaultValue": "100"
+        },
+        "skip": {
+          "label": "Offset",
+          "description": "Number of items to skip.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.host}}/api/{{credential.api}}/{{credential.version}}/{{credential.environment}}/invoices",
+        "headers": {
+          "X-ARIBA-NETWORK-ID": "{{anId}}"
+        }
+      },
+      "beforeRequest": "const filters = [\"buyerANID\", \"supplierANID\", \"documentNumber\", \"documentStatus\", \"routingStatus\", \"startDate\", \"endDate\", \"documentStatusUpdatedStartDate\", \"documentStatusUpdatedEndDate\", \"documentPurpose\"].filter(name => inputs[name]).map(name => name + \" eq '\" + inputs[name] + \"'\");\nif (filters.length) request.query['$filter'] = filters.join(' and ');\nif (inputs.includeInvoiceProfile === 'true') request.query.includeInvoiceProfile = 'true';\nfor (const name of ['top', 'skip']) if (Number(inputs[name])) request.query['$' + name] = inputs[name];\nconst form = value => encodeURIComponent(value).replace(/[!'()~]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst pairs = Object.keys(request.query).map(key => form(key) + '=' + form(request.query[key]));\nif (pairs.length) request.url += '?' + pairs.join('&');\nrequest.query = {};\nreturn request;"
+    },
+    "search_contract_workspaces": {
+      "label": "Search Contract Workspaces",
+      "description": "Search contract workspaces based on attributes such as title, contract ID, region, etc.",
+      "group": "Contract Workspaces",
+      "inputs": {
+        "realm": {
+          "label": "Realm",
+          "description": "The name of the SAP Ariba realm (site), such as testrealm.",
+          "required": true
+        },
+        "user": {
+          "label": "User",
+          "description": "User ID to perform the action on behalf of.",
+          "required": true
+        },
+        "passwordAdapter": {
+          "label": "Password Adapter",
+          "description": "Password adapter to authenticate the user.",
+          "required": true
+        },
+        "select": {
+          "label": "Select Fields",
+          "description": "Comma-separated metadata fields to retrieve (e.g., title,contractid,region)."
+        },
+        "filter": {
+          "label": "Filter",
+          "description": "Filter criteria (e.g., LastModified ge '2023-01-01T00:00:00Z')."
+        },
+        "top": {
+          "label": "Page Size",
+          "description": "Number of records to return (default 500, max 500).",
+          "type": "number",
+          "defaultValue": "500"
+        },
+        "skip": {
+          "label": "Offset",
+          "description": "Number of records to skip.",
+          "type": "number",
+          "defaultValue": "0"
+        },
+        "count": {
+          "label": "Include Count",
+          "description": "Include total number of records in response.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "expand": {
+          "label": "Expand",
+          "description": "Additional information to fetch (e.g., relatedFactories)."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.host}}/api/{{credential.api}}/{{credential.version}}/{{credential.environment}}/contractWorkspaces",
+        "query": {
+          "realm": "{{realm}}",
+          "user": "{{user}}",
+          "passwordAdapter": "{{passwordAdapter}}",
+          "$select": "{{select}}",
+          "$filter": "{{filter}}"
+        }
+      },
+      "beforeRequest": "for (const name of ['top', 'skip']) if (Number(inputs[name])) request.query['$' + name] = inputs[name];\nif (inputs.count === 'true') request.query['$count'] = 'true';\nif (inputs.expand) request.query['$expand'] = inputs.expand;\nconst form = value => encodeURIComponent(value).replace(/[!'()~]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst pairs = Object.keys(request.query).map(key => form(key) + '=' + form(request.query[key]));\nif (pairs.length) request.url += '?' + pairs.join('&');\nrequest.query = {};\nreturn request;"
+    },
+    "get_contract_workspace": {
+      "label": "Get Contract Workspace",
+      "description": "Search for a contract workspace using a unique identifier.",
+      "group": "Contract Workspaces",
+      "inputs": {
+        "realm": {
+          "label": "Realm",
+          "description": "The name of the SAP Ariba realm (site), such as testrealm.",
+          "required": true
+        },
+        "user": {
+          "label": "User",
+          "description": "User ID to perform the action on behalf of.",
+          "required": true
+        },
+        "passwordAdapter": {
+          "label": "Password Adapter",
+          "description": "Password adapter to authenticate the user.",
+          "required": true
+        },
+        "contractId": {
+          "label": "Contract ID",
+          "description": "Contract ID (e.g., CW0001).",
+          "required": true
+        },
+        "expand": {
+          "label": "Expand",
+          "description": "Additional information to fetch (e.g., relatedFactories)."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.host}}/api/{{credential.api}}/{{credential.version}}/{{credential.environment}}/contractWorkspaces/{{contractId}}",
+        "query": {
+          "realm": "{{realm}}",
+          "user": "{{user}}",
+          "passwordAdapter": "{{passwordAdapter}}",
+          "$expand": "{{expand}}"
+        }
+      },
+      "beforeRequest": "const form = value => encodeURIComponent(value).replace(/[!'()~]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst pairs = Object.keys(request.query).map(key => form(key) + '=' + form(request.query[key]));\nif (pairs.length) request.url += '?' + pairs.join('&');\nrequest.query = {};\nreturn request;"
+    },
+    "create_contract_workspace": {
+      "label": "Create Contract Workspace",
+      "description": "Create a new contract workspace in SAP Ariba Contracts.",
+      "group": "Contract Workspaces",
+      "inputs": {
+        "realm": {
+          "label": "Realm",
+          "description": "The name of the SAP Ariba realm (site), such as testrealm.",
+          "required": true
+        },
+        "user": {
+          "label": "User",
+          "description": "User ID to perform the action on behalf of.",
+          "required": true
+        },
+        "passwordAdapter": {
+          "label": "Password Adapter",
+          "description": "Password adapter to authenticate the user.",
+          "required": true
+        },
+        "title": {
+          "label": "Title",
+          "description": "Contract workspace title.",
+          "required": true
+        },
+        "description": {
+          "label": "Description",
+          "description": "Contract workspace description.",
+          "type": "multiline"
+        },
+        "templateId": {
+          "label": "Template ID",
+          "description": "Template ID for the contract workspace."
+        },
+        "effectiveDate": {
+          "label": "Effective Date",
+          "description": "Contract effective date."
+        },
+        "expirationDate": {
+          "label": "Expiration Date",
+          "description": "Contract expiration date."
+        },
+        "contractAmount": {
+          "label": "Contract Amount",
+          "description": "Contract amount value.",
+          "type": "number"
+        },
+        "contractCurrency": {
+          "label": "Contract Currency",
+          "description": "Currency code (e.g., USD)."
+        },
+        "ownerUniqueName": {
+          "label": "Owner Unique Name",
+          "description": "Owner user unique name."
+        },
+        "ownerPasswordAdapter": {
+          "label": "Owner Password Adapter",
+          "description": "Owner password adapter."
+        },
+        "supplierName": {
+          "label": "Supplier Name",
+          "description": "Supplier organization name."
+        },
+        "supplierSystemId": {
+          "label": "Supplier System ID",
+          "description": "Supplier system ID."
+        },
+        "isTestProject": {
+          "label": "Is Test Project",
+          "description": "Mark as test project.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "additionalFields": {
+          "label": "Additional Fields",
+          "description": "Additional fields as JSON object to merge with the request body.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.host}}/api/{{credential.api}}/{{credential.version}}/{{credential.environment}}/contractWorkspaces",
+        "query": {
+          "realm": "{{realm}}",
+          "user": "{{user}}",
+          "passwordAdapter": "{{passwordAdapter}}"
+        },
+        "body": {
+          "title": "{{title}}",
+          "description": "{{description}}",
+          "templateId": "{{templateId}}",
+          "effectiveDate": "{{effectiveDate}}",
+          "expirationDate": "{{expirationDate}}",
+          "isTestProject": "{{isTestProject}}",
+          "contractAmount": {
+            "amount": "{{contractAmount}}",
+            "currency": "{{contractCurrency}}"
+          },
+          "owner": {
+            "uniqueName": "{{ownerUniqueName}}",
+            "passwordAdapter": "{{ownerPasswordAdapter}}"
+          },
+          "supplier": {
+            "name": "{{supplierName}}",
+            "systemID": "{{supplierSystemId}}"
+          }
+        }
+      },
+      "beforeRequest": "const body = request.body;\nif (!body.owner.uniqueName) delete body.owner; else if (!body.owner.passwordAdapter) body.owner.passwordAdapter = inputs.passwordAdapter;\nif (!Object.keys(body.supplier).length) delete body.supplier;\nif (!body.contractAmount.amount || !body.contractAmount.currency) delete body.contractAmount;\nif (inputs.additionalFields) { const extra = JSON.parse(inputs.additionalFields); if (extra && typeof extra === 'object') Object.assign(body, extra); }\nconst form = value => encodeURIComponent(value).replace(/[!'()~]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst pairs = Object.keys(request.query).map(key => form(key) + '=' + form(request.query[key]));\nif (pairs.length) request.url += '?' + pairs.join('&');\nrequest.query = {};\nreturn request;"
+    },
+    "update_contract_workspace": {
+      "label": "Update Contract Workspace",
+      "description": "Update an existing contract workspace in SAP Ariba Contracts.",
+      "group": "Contract Workspaces",
+      "inputs": {
+        "realm": {
+          "label": "Realm",
+          "description": "The name of the SAP Ariba realm (site), such as testrealm.",
+          "required": true
+        },
+        "user": {
+          "label": "User",
+          "description": "User ID to perform the action on behalf of.",
+          "required": true
+        },
+        "passwordAdapter": {
+          "label": "Password Adapter",
+          "description": "Password adapter to authenticate the user.",
+          "required": true
+        },
+        "contractId": {
+          "label": "Contract ID",
+          "description": "The ID of the contract workspace to update.",
+          "required": true
+        },
+        "silentUpdate": {
+          "label": "Silent Update",
+          "description": "Update without changing the last modified date.",
+          "type": "select",
+          "options": [
+            {
+              "value": "Yes",
+              "label": "Yes"
+            },
+            {
+              "value": "No",
+              "label": "No"
+            }
+          ]
+        },
+        "title": {
+          "label": "Title",
+          "description": "New title."
+        },
+        "description": {
+          "label": "Description",
+          "description": "New description.",
+          "type": "multiline"
+        },
+        "effectiveDate": {
+          "label": "Effective Date",
+          "description": "New effective date."
+        },
+        "expirationDate": {
+          "label": "Expiration Date",
+          "description": "New expiration date."
+        },
+        "contractAmount": {
+          "label": "Contract Amount",
+          "description": "New contract amount value.",
+          "type": "number"
+        },
+        "contractCurrency": {
+          "label": "Contract Currency",
+          "description": "Currency code (e.g., USD)."
+        },
+        "amendmentReason": {
+          "label": "Amendment Reason",
+          "description": "Reason for amendment.",
+          "type": "multiline"
+        },
+        "additionalFields": {
+          "label": "Additional Fields",
+          "description": "Additional fields as JSON object to merge with the request body.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://{{credential.host}}/api/{{credential.api}}/{{credential.version}}/{{credential.environment}}/contractWorkspaces",
+        "query": {
+          "realm": "{{realm}}",
+          "user": "{{user}}",
+          "passwordAdapter": "{{passwordAdapter}}",
+          "silentUpdate": "{{silentUpdate}}"
+        },
+        "body": {
+          "contractId": "{{contractId}}",
+          "title": "{{title}}",
+          "description": "{{description}}",
+          "effectiveDate": "{{effectiveDate}}",
+          "expirationDate": "{{expirationDate}}",
+          "amendmentReason": "{{amendmentReason}}",
+          "contractAmount": {
+            "amount": "{{contractAmount}}",
+            "currency": "{{contractCurrency}}"
+          }
+        }
+      },
+      "beforeRequest": "const body = request.body;\nif (!body.contractAmount.amount || !body.contractAmount.currency) delete body.contractAmount;\nif (inputs.additionalFields) { const extra = JSON.parse(inputs.additionalFields); if (extra && typeof extra === 'object') Object.assign(body, extra); }\nconst form = value => encodeURIComponent(value).replace(/[!'()~]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst pairs = Object.keys(request.query).map(key => form(key) + '=' + form(request.query[key]));\nif (pairs.length) request.url += '?' + pairs.join('&');\nrequest.query = {};\nreturn request;"
+    },
+    "update_contract_status": {
+      "label": "Update Contract Status",
+      "description": "Change the status of a contract workspace (e.g., amend, putOnHold, resume, close).",
+      "group": "Contract Workspaces",
+      "inputs": {
+        "realm": {
+          "label": "Realm",
+          "description": "The name of the SAP Ariba realm (site), such as testrealm.",
+          "required": true
+        },
+        "user": {
+          "label": "User",
+          "description": "User ID to perform the action on behalf of.",
+          "required": true
+        },
+        "passwordAdapter": {
+          "label": "Password Adapter",
+          "description": "Password adapter to authenticate the user.",
+          "required": true
+        },
+        "contractId": {
+          "label": "Contract ID",
+          "description": "The ID of the contract workspace.",
+          "required": true
+        },
+        "action": {
+          "label": "Action",
+          "description": "The status change action to perform.",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "amend",
+              "label": "Amend"
+            },
+            {
+              "value": "completeAmendment",
+              "label": "Complete Amendment"
+            },
+            {
+              "value": "putOnHold",
+              "label": "Put on Hold"
+            },
+            {
+              "value": "resume",
+              "label": "Resume"
+            },
+            {
+              "value": "close",
+              "label": "Close"
+            }
+          ]
+        },
+        "amendmentType": {
+          "label": "Amendment Type",
+          "description": "Required if action is Amend.",
+          "type": "select",
+          "options": [
+            {
+              "value": "Administrative",
+              "label": "Administrative"
+            },
+            {
+              "value": "Renewal",
+              "label": "Renewal"
+            },
+            {
+              "value": "Amendment",
+              "label": "Amendment"
+            },
+            {
+              "value": "Termination",
+              "label": "Termination"
+            },
+            {
+              "value": "PriceUpdate",
+              "label": "Price Update"
+            }
+          ]
+        },
+        "amendmentReason": {
+          "label": "Amendment Reason",
+          "description": "Reason for the amendment.",
+          "type": "multiline"
+        },
+        "isTemplateUpgradeRequired": {
+          "label": "Is Template Upgrade Required",
+          "description": "Whether template upgrade is required (for Amend action).",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.host}}/api/{{credential.api}}/{{credential.version}}/{{credential.environment}}/contractWorkspaces/{{contractId}}/state",
+        "query": {
+          "realm": "{{realm}}",
+          "user": "{{user}}",
+          "passwordAdapter": "{{passwordAdapter}}"
+        },
+        "body": {
+          "action": "{{action}}",
+          "amendAttributes": {
+            "amendmentType": "{{amendmentType}}",
+            "amendmentReason": "{{amendmentReason}}",
+            "isTemplateUpgradeRequired": "{{isTemplateUpgradeRequired}}"
+          }
+        }
+      },
+      "beforeRequest": "if (inputs.action !== 'amend') delete request.body.amendAttributes;\nconst form = value => encodeURIComponent(value).replace(/[!'()~]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst pairs = Object.keys(request.query).map(key => form(key) + '=' + form(request.query[key]));\nif (pairs.length) request.url += '?' + pairs.join('&');\nrequest.query = {};\nreturn request;"
+    },
+    "delete_contract_workspace": {
+      "label": "Delete Contract Workspace",
+      "description": "Delete a contract workspace in SAP Ariba Contracts.",
+      "group": "Contract Workspaces",
+      "inputs": {
+        "realm": {
+          "label": "Realm",
+          "description": "The name of the SAP Ariba realm (site), such as testrealm.",
+          "required": true
+        },
+        "user": {
+          "label": "User",
+          "description": "User ID to perform the action on behalf of.",
+          "required": true
+        },
+        "passwordAdapter": {
+          "label": "Password Adapter",
+          "description": "Password adapter to authenticate the user.",
+          "required": true
+        },
+        "contractId": {
+          "label": "Contract ID",
+          "description": "The ID of the contract workspace to delete (e.g., CW0001).",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.host}}/api/{{credential.api}}/{{credential.version}}/{{credential.environment}}/contractWorkspaces/{{contractId}}",
+        "query": {
+          "realm": "{{realm}}",
+          "user": "{{user}}",
+          "passwordAdapter": "{{passwordAdapter}}"
+        }
+      },
+      "beforeRequest": "const form = value => encodeURIComponent(value).replace(/[!'()~]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nconst pairs = Object.keys(request.query).map(key => form(key) + '=' + form(request.query[key]));\nif (pairs.length) request.url += '?' + pairs.join('&');\nrequest.query = {};\nreturn request;"
+    }
+  }
+}

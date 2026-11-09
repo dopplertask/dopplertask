@@ -1,0 +1,791 @@
+{
+  "name": "smartsheet",
+  "label": "Smartsheet",
+  "description": "Dynamic work execution platform for teams to plan, capture, manage, automate, and report on work at scale.",
+  "icon": "",
+  "hosts": [
+    "api.smartsheet.com"
+  ],
+  "baseUrl": "https://api.smartsheet.com/2.0",
+  "upstream": {
+    "package": "@activepieces/piece-smartsheet",
+    "version": "0.1.11"
+  },
+  "credential": {
+    "fields": {
+      "token": {
+        "label": "Access Token",
+        "secret": true,
+        "required": true,
+        "description": "In Smartsheet, open your profile picture, Personal Settings, API Access, and click Generate new access token."
+      }
+    },
+    "headers": {
+      "Authorization": "Bearer {{credential.token}}"
+    }
+  },
+  "lists": {
+    "sheets": {
+      "request": {
+        "method": "GET",
+        "url": "https://api.smartsheet.com/2.0/sheets"
+      },
+      "items": "$.data",
+      "label": "$.name",
+      "value": "$.id"
+    },
+    "rows": {
+      "request": {
+        "method": "GET",
+        "url": "https://api.smartsheet.com/2.0/sheets/{{sheet_id}}"
+      },
+      "items": "$.rows",
+      "label": "$.rowNumber",
+      "value": "$.id"
+    }
+  },
+  "actions": {
+    "add_row_to_sheet": {
+      "label": "Add Row to Sheet",
+      "description": "Adds new row to a sheet.",
+      "inputs": {
+        "sheet_id": {
+          "label": "Sheet",
+          "description": "Select a sheet",
+          "required": true,
+          "list": "sheets"
+        },
+        "cells": {
+          "label": "Cells",
+          "description": "Cell values by column, such as {\"column_123\": \"Done\"}: the key is column_ followed by the column ID.",
+          "type": "json",
+          "required": true
+        },
+        "location_type": {
+          "label": "Add Row to Top or Bottom",
+          "type": "select",
+          "required": true,
+          "defaultValue": "bottom",
+          "options": [
+            {
+              "value": "top",
+              "label": "Top of sheet"
+            },
+            {
+              "value": "bottom",
+              "label": "Bottom of sheet"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.smartsheet.com/2.0/sheets/{{sheet_id}}/rows"
+      },
+      "outputs": {
+        "rowId": "$.row.id",
+        "rowNumber": "$.row.rowNumber"
+      },
+      "beforeRequest": "var given = typeof inputs.cells === 'string' ? (inputs.cells ? JSON.parse(inputs.cells) : {}) : (inputs.cells || {});\nvar cells = [];\nfor (var [key, value] of Object.entries(given)) {\n  if (value == null || value === '') continue;\n  if (!key.startsWith('column_')) continue;\n  cells.push({ columnId: parseInt(key.replace('column_', '')), value: value });\n}\nif (cells.length === 0) throw new Error('At least one cell value must be provided');\nvar row = { cells: cells };\nif (inputs.location_type === 'top') row.toTop = true;\nif (inputs.location_type === 'bottom') row.toBottom = true;\nrequest.body = [row];\nreturn request;",
+      "afterResponse": "return { success: true, row: response.result[0], message: 'Row added successfully', cells_processed: request.body[0].cells.length };"
+    },
+    "update_row": {
+      "label": "Update Row",
+      "description": "Updates an existing row.",
+      "inputs": {
+        "sheet_id": {
+          "label": "Sheet",
+          "description": "Select a sheet",
+          "required": true,
+          "list": "sheets"
+        },
+        "row_id": {
+          "label": "Row",
+          "required": true,
+          "list": "rows"
+        },
+        "cells": {
+          "label": "Cells",
+          "description": "Cell values by column, such as {\"column_123\": \"Done\"}: the key is column_ followed by the column ID.",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.smartsheet.com/2.0/sheets/{{sheet_id}}/rows"
+      },
+      "outputs": {
+        "rowId": "$.row.id",
+        "rowNumber": "$.row.rowNumber"
+      },
+      "beforeRequest": "var given = typeof inputs.cells === 'string' ? (inputs.cells ? JSON.parse(inputs.cells) : {}) : (inputs.cells || {});\nvar cells = [];\nfor (var [key, value] of Object.entries(given)) {\n  if (value == null || value === '') continue;\n  if (!key.startsWith('column_')) continue;\n  cells.push({ columnId: parseInt(key.replace('column_', '')), value: value });\n}\nvar row = { id: inputs.row_id };\nif (cells.length > 0) row.cells = cells;\nrequest.body = [row];\nreturn request;",
+      "afterResponse": "return { success: true, row: response.result[0], message: 'Row updated successfully', cells_processed: (request.body[0].cells || []).length };"
+    },
+    "attach_file_to_row": {
+      "label": "Attach Link to Row",
+      "description": "Adds a link attachment to a row, such as a web, Box, Dropbox, Google Drive or OneDrive link.",
+      "inputs": {
+        "sheet_id": {
+          "label": "Sheet",
+          "description": "Select a sheet",
+          "required": true,
+          "list": "sheets"
+        },
+        "row_id": {
+          "label": "Row",
+          "required": true,
+          "list": "rows"
+        },
+        "attachment_type": {
+          "label": "Attachment Type",
+          "description": "Type of attachment to add",
+          "type": "select",
+          "required": true,
+          "defaultValue": "LINK",
+          "options": [
+            {
+              "value": "LINK",
+              "label": "URL Link"
+            },
+            {
+              "value": "BOX_COM",
+              "label": "Box.com"
+            },
+            {
+              "value": "DROPBOX",
+              "label": "Dropbox"
+            },
+            {
+              "value": "EGNYTE",
+              "label": "Egnyte"
+            },
+            {
+              "value": "EVERNOTE",
+              "label": "Evernote"
+            },
+            {
+              "value": "GOOGLE_DRIVE",
+              "label": "Google Drive"
+            },
+            {
+              "value": "ONEDRIVE",
+              "label": "OneDrive"
+            }
+          ]
+        },
+        "url": {
+          "label": "URL",
+          "description": "The URL to attach",
+          "required": true
+        },
+        "attachment_name": {
+          "label": "Attachment Name",
+          "description": "Name for the attachment (optional, will use the URL if not provided)"
+        },
+        "attachment_sub_type": {
+          "label": "Attachment Sub Type",
+          "description": "Sub type for Google Drive and Egnyte attachments",
+          "type": "select",
+          "options": [
+            {
+              "value": "DOCUMENT",
+              "label": "Document"
+            },
+            {
+              "value": "DRAWING",
+              "label": "Drawing"
+            },
+            {
+              "value": "FOLDER",
+              "label": "Folder"
+            },
+            {
+              "value": "PDF",
+              "label": "PDF"
+            },
+            {
+              "value": "PRESENTATION",
+              "label": "Presentation"
+            },
+            {
+              "value": "SPREADSHEET",
+              "label": "Spreadsheet"
+            }
+          ]
+        },
+        "mime_type": {
+          "label": "MIME Type",
+          "description": "MIME type of the attachment (optional)"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.smartsheet.com/2.0/sheets/{{sheet_id}}/rows/{{row_id}}/attachments",
+        "body": {
+          "attachmentType": "{{attachment_type}}",
+          "url": "{{url}}",
+          "name": "{{attachment_name}}",
+          "attachmentSubType": "{{attachment_sub_type}}",
+          "mimeType": "{{mime_type}}"
+        }
+      },
+      "outputs": {
+        "attachmentId": "$.attachment_id"
+      },
+      "beforeRequest": "var type = inputs.attachment_type, url = inputs.url;\nif (!url) throw new Error('URL is required for URL-based attachment types');\nif (type === 'BOX_COM' && !url.includes('box.com')) throw new Error('Box.com URLs should contain \"box.com\" in the domain');\nif (type === 'DROPBOX' && !url.includes('dropbox.com')) throw new Error('Dropbox URLs should contain \"dropbox.com\" in the domain');\nif (type === 'GOOGLE_DRIVE' && !url.includes('drive.google.com')) throw new Error('Google Drive URLs should contain \"drive.google.com\" in the domain');\nif (type === 'ONEDRIVE' && !url.includes('onedrive')) throw new Error('OneDrive URLs should contain \"onedrive\" in the domain');\nreturn request;",
+      "afterResponse": "var result = response.result || {};\nreturn { success: true, attachment: response.result, message: 'Attachment added successfully', attachment_id: result.id, attachment_type: result.attachmentType,\n  attachment_name: result.name, size_kb: result.sizeInKb, created_at: result.createdAt, created_by: result.createdBy, version: response.version };"
+    },
+    "find_rows_by_query": {
+      "label": "Find Row",
+      "description": "Finds rows in a specific sheet or across all accessible sheets using text queries with advanced filtering options.",
+      "inputs": {
+        "search_scope": {
+          "label": "Search Scope",
+          "description": "Choose whether to search within a specific sheet or across all accessible sheets.",
+          "type": "select",
+          "required": true,
+          "defaultValue": "specific_sheet",
+          "options": [
+            {
+              "value": "specific_sheet",
+              "label": "Specific Sheet"
+            },
+            {
+              "value": "all_sheets",
+              "label": "All Accessible Sheets"
+            }
+          ]
+        },
+        "sheet_id": {
+          "label": "Sheet",
+          "description": "Select a sheet",
+          "required": false,
+          "list": "sheets"
+        },
+        "query": {
+          "label": "Search Query",
+          "description": "Text to search for. Use double quotes for exact phrase matching (e.g., \"project status\")",
+          "required": true
+        },
+        "search_scopes": {
+          "label": "Search Scopes",
+          "description": "Specify what types of content to search in (leave empty to search all), as a list such as [\"cellData\", \"comments\"]",
+          "type": "json",
+          "options": [
+            {
+              "value": "cellData",
+              "label": "Cell Data"
+            },
+            {
+              "value": "comments",
+              "label": "Comments"
+            },
+            {
+              "value": "attachments",
+              "label": "Attachments"
+            },
+            {
+              "value": "sheetNames",
+              "label": "Sheet Names"
+            },
+            {
+              "value": "folderNames",
+              "label": "Folder Names"
+            },
+            {
+              "value": "reportNames",
+              "label": "Report Names"
+            },
+            {
+              "value": "sightNames",
+              "label": "Dashboard Names"
+            },
+            {
+              "value": "templateNames",
+              "label": "Template Names"
+            },
+            {
+              "value": "workspaceNames",
+              "label": "Workspace Names"
+            },
+            {
+              "value": "summaryFields",
+              "label": "Summary Fields"
+            }
+          ]
+        },
+        "include_favorites": {
+          "label": "Include Favorite Flags",
+          "description": "Include information about which items are marked as favorites",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "modified_since": {
+          "label": "Modified Since",
+          "description": "Only return results modified on or after this date/time, such as 2026-01-01T00:00:00Z"
+        },
+        "max_results": {
+          "label": "Max Results",
+          "description": "Maximum number of results to return (default: 50, max: 100)",
+          "type": "number",
+          "defaultValue": "50"
+        },
+        "object_types_filter": {
+          "label": "Filter by Object Types",
+          "description": "Only return results of specific object types (leave empty for all types), as a list such as [\"row\"]",
+          "type": "json",
+          "options": [
+            {
+              "value": "row",
+              "label": "Rows"
+            },
+            {
+              "value": "sheet",
+              "label": "Sheets"
+            },
+            {
+              "value": "attachment",
+              "label": "Attachments"
+            },
+            {
+              "value": "discussion",
+              "label": "Comments/Discussions"
+            },
+            {
+              "value": "dashboard",
+              "label": "Dashboards"
+            },
+            {
+              "value": "report",
+              "label": "Reports"
+            },
+            {
+              "value": "folder",
+              "label": "Folders"
+            },
+            {
+              "value": "template",
+              "label": "Templates"
+            },
+            {
+              "value": "workspace",
+              "label": "Workspaces"
+            },
+            {
+              "value": "summaryField",
+              "label": "Summary Fields"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.smartsheet.com/2.0/search"
+      },
+      "outputs": {
+        "totalCount": "$.total_count",
+        "returnedCount": "$.returned_count"
+      },
+      "beforeRequest": "var flag = (v) => (v === undefined || v === '' ? undefined : String(v) === 'true');\nvar list = (v) => (v === undefined || v === '' ? undefined : typeof v === 'string' ? JSON.parse(v) : v);\nvar text = (v) => (v === undefined || v === '' ? undefined : v);\nvar scope = text(inputs.search_scope), sheetId = text(inputs.sheet_id), scopes = list(inputs.search_scopes), since = text(inputs.modified_since);\nif (scope === 'specific_sheet' && !sheetId) throw new Error('Sheet ID is required when searching within a specific sheet');\nvar query = { query: inputs.query };\nif (scopes && scopes.length > 0) query.scopes = scopes.join(',');\nif (flag(inputs.include_favorites)) query.include = 'favoriteFlag';\nif (since) query.modifiedSince = new Date(since).toISOString();\nrequest.url = scope === 'specific_sheet' ? '/search/sheets/' + encodeURIComponent(sheetId) : '/search';\nrequest.query = query;\nreturn request;",
+      "afterResponse": "var num = (v) => (v === undefined || v === '' ? undefined : Number(v));\nvar list = (v) => (v === undefined || v === '' ? undefined : typeof v === 'string' ? JSON.parse(v) : v);\nvar text = (v) => (v === undefined || v === '' ? undefined : v);\nvar scope = text(inputs.search_scope), sheetId = text(inputs.sheet_id), types = list(inputs.object_types_filter), most = num(inputs.max_results);\nvar found = response.results || [];\nif (types && types.length > 0) found = found.filter((item) => types.includes(item.objectType));\nvar limit = Math.min(most || 50, 100);\nif (found.length > limit) found = found.slice(0, limit);\nvar byType = {};\nfound.forEach((item) => { if (!byType[item.objectType]) byType[item.objectType] = []; byType[item.objectType].push(item); });\nvar count = (type) => (byType[type] || []).length;\nreturn { success: true, total_count: response.totalCount, returned_count: found.length, search_query: inputs.query, search_scope: scope, results: found,\n  results_by_type: byType, sheet_searched: scope === 'specific_sheet' ? sheetId : 'all_accessible_sheets',\n  summary: { rows_found: count('row'), sheets_found: count('sheet'), attachments_found: count('attachment'), discussions_found: count('discussion'),\n    other_objects_found: found.length - count('row') - count('sheet') - count('attachment') - count('discussion') } };"
+    },
+    "find_attachment_by_row_id": {
+      "label": "List Row Attachments",
+      "description": "Lists the attachments of a row, including those of its comments, with paging and filters.",
+      "inputs": {
+        "sheet_id": {
+          "label": "Sheet",
+          "description": "Select a sheet",
+          "required": true,
+          "list": "sheets"
+        },
+        "row_id": {
+          "label": "Row",
+          "required": true,
+          "list": "rows"
+        },
+        "include_all": {
+          "label": "Include All Results",
+          "description": "If true, include all results without pagination (overrides page and page size)",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "page": {
+          "label": "Page Number",
+          "description": "Which page to return (defaults to 1, ignored if \"Include All Results\" is true)",
+          "type": "number",
+          "defaultValue": "1"
+        },
+        "page_size": {
+          "label": "Page Size",
+          "description": "Maximum number of items to return per page (defaults to 100, max 10000, ignored if \"Include All Results\" is true)",
+          "type": "number",
+          "defaultValue": "100"
+        },
+        "attachment_type_filter": {
+          "label": "Filter by Attachment Type",
+          "description": "Only return attachments of specific types (leave empty for all types), as a list such as [\"FILE\"]",
+          "type": "json",
+          "options": [
+            {
+              "value": "FILE",
+              "label": "Files"
+            },
+            {
+              "value": "LINK",
+              "label": "URLs/Links"
+            },
+            {
+              "value": "BOX_COM",
+              "label": "Box.com"
+            },
+            {
+              "value": "DROPBOX",
+              "label": "Dropbox"
+            },
+            {
+              "value": "EGNYTE",
+              "label": "Egnyte"
+            },
+            {
+              "value": "EVERNOTE",
+              "label": "Evernote"
+            },
+            {
+              "value": "GOOGLE_DRIVE",
+              "label": "Google Drive"
+            },
+            {
+              "value": "ONEDRIVE",
+              "label": "OneDrive"
+            },
+            {
+              "value": "TRELLO",
+              "label": "Trello"
+            }
+          ]
+        },
+        "parent_type_filter": {
+          "label": "Filter by Parent Type",
+          "description": "Only return attachments from specific parent types (leave empty for all), as a list such as [\"ROW\"]",
+          "type": "json",
+          "options": [
+            {
+              "value": "ROW",
+              "label": "Row Attachments"
+            },
+            {
+              "value": "COMMENT",
+              "label": "Comment Attachments"
+            },
+            {
+              "value": "SHEET",
+              "label": "Sheet Attachments"
+            },
+            {
+              "value": "PROOF",
+              "label": "Proof Attachments"
+            }
+          ]
+        },
+        "min_file_size_kb": {
+          "label": "Minimum File Size (KB)",
+          "description": "Only return files with size greater than or equal to this value (applies to FILE type only)",
+          "type": "number"
+        },
+        "max_file_size_kb": {
+          "label": "Maximum File Size (KB)",
+          "description": "Only return files with size less than or equal to this value (applies to FILE type only)",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.smartsheet.com/2.0/sheets/{{sheet_id}}/rows/{{row_id}}/attachments"
+      },
+      "outputs": {
+        "totalAttachments": "$.summary.total_attachments"
+      },
+      "beforeRequest": "var flag = (v) => (v === undefined || v === '' ? undefined : String(v) === 'true');\nvar num = (v) => (v === undefined || v === '' ? undefined : Number(v));\nvar query = {};\nif (flag(inputs.include_all)) query.includeAll = true;\nelse {\n  var page = num(inputs.page), size = num(inputs.page_size);\n  if (page && page > 1) query.page = page;\n  if (size && size !== 100) query.pageSize = Math.min(size, 10000);\n}\nrequest.query = query;\nreturn request;",
+      "afterResponse": "var num = (v) => (v === undefined || v === '' ? undefined : Number(v));\nvar list = (v) => (v === undefined || v === '' ? undefined : typeof v === 'string' ? JSON.parse(v) : v);\nvar types = list(inputs.attachment_type_filter), parents = list(inputs.parent_type_filter), least = num(inputs.min_file_size_kb), most = num(inputs.max_file_size_kb);\nvar found = response.data || [];\nif (types && types.length > 0) found = found.filter((item) => types.includes(item.attachmentType));\nif (parents && parents.length > 0) found = found.filter((item) => parents.includes(item.parentType));\nif (least !== undefined || most !== undefined) found = found.filter((item) => {\n  if (item.attachmentType !== 'FILE' || !item.sizeInKb) return true;\n  var size = item.sizeInKb;\n  return !((least !== undefined && size < least) || (most !== undefined && size > most));\n});\nvar byType = {}, byParent = {}, totalKb = 0;\nfound.forEach((item) => {\n  if (!byType[item.attachmentType]) byType[item.attachmentType] = [];\n  byType[item.attachmentType].push(item);\n  if (!byParent[item.parentType]) byParent[item.parentType] = [];\n  byParent[item.parentType].push(item);\n  if (item.attachmentType === 'FILE' && item.sizeInKb) totalKb += item.sizeInKb;\n});\nvar count = (group, key) => (group[key] || []).length;\nreturn { success: true,\n  pagination: { page_number: response.pageNumber, page_size: response.pageSize, total_pages: response.totalPages, total_count: response.totalCount, filtered_count: found.length },\n  attachments: found, attachments_by_type: byType, attachments_by_parent: byParent,\n  summary: { total_attachments: found.length, files_count: count(byType, 'FILE'), links_count: count(byType, 'LINK'),\n    cloud_storage_count: found.length - count(byType, 'FILE') - count(byType, 'LINK'), row_attachments: count(byParent, 'ROW'),\n    comment_attachments: count(byParent, 'COMMENT'), total_file_size_kb: totalKb, total_file_size_mb: Math.round((totalKb / 1024) * 100) / 100 },\n  download_info: found.filter((item) => item.attachmentType === 'FILE' && item.url).map((item) => ({ attachment_id: item.id, name: item.name, download_url: item.url,\n    url_expires_in_millis: item.urlExpiresInMillis, url_expires_at: item.urlExpiresInMillis ? new Date(Date.now() + item.urlExpiresInMillis).toISOString() : null, size_kb: item.sizeInKb })),\n  filters_applied: { attachment_types: types || [], parent_types: parents || [], min_file_size_kb: least, max_file_size_kb: most },\n  row_id: inputs.row_id, sheet_id: inputs.sheet_id };"
+    },
+    "find_sheet_by_name": {
+      "label": "Find Sheet(s)",
+      "description": "Finds the sheets that match the given filters.",
+      "inputs": {
+        "sheet_name": {
+          "label": "Sheet Name Filter",
+          "description": "Filter sheets by name (partial or exact match). Leave empty to list all sheets."
+        },
+        "exact_match": {
+          "label": "Exact Name Match",
+          "description": "When filtering by name, require exact match instead of partial match",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "include_all": {
+          "label": "Include All Results",
+          "description": "If true, include all results without pagination (overrides page and page size)",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "page": {
+          "label": "Page Number",
+          "description": "Which page to return (defaults to 1, ignored if \"Include All Results\" is true)",
+          "type": "number",
+          "defaultValue": "1"
+        },
+        "page_size": {
+          "label": "Page Size",
+          "description": "Maximum number of items to return per page (defaults to 100, max 10000, ignored if \"Include All Results\" is true)",
+          "type": "number",
+          "defaultValue": "100"
+        },
+        "access_api_level": {
+          "label": "Access API Level",
+          "description": "API access level for viewing and filtering permissions",
+          "type": "select",
+          "defaultValue": "0",
+          "options": [
+            {
+              "value": "0",
+              "label": "Viewer (default)"
+            },
+            {
+              "value": "1",
+              "label": "Commenter"
+            }
+          ]
+        },
+        "access_level_filter": {
+          "label": "Filter by Access Level",
+          "description": "Only return sheets where you have specific access levels (leave empty for all), as a list such as [\"OWNER\"]",
+          "type": "json",
+          "options": [
+            {
+              "value": "OWNER",
+              "label": "Owner"
+            },
+            {
+              "value": "ADMIN",
+              "label": "Admin"
+            },
+            {
+              "value": "EDITOR_SHARE",
+              "label": "Editor (with sharing)"
+            },
+            {
+              "value": "EDITOR",
+              "label": "Editor"
+            },
+            {
+              "value": "COMMENTER",
+              "label": "Commenter"
+            },
+            {
+              "value": "VIEWER",
+              "label": "Viewer"
+            }
+          ]
+        },
+        "modified_since": {
+          "label": "Modified Since",
+          "description": "Only return sheets modified on or after this date/time, such as 2026-01-01T00:00:00Z"
+        },
+        "include_sheet_version": {
+          "label": "Include Sheet Version",
+          "description": "Include current version number of each sheet",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "include_source_info": {
+          "label": "Include Source Information",
+          "description": "Include information about the source (template/sheet) each sheet was created from",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "numeric_dates": {
+          "label": "Numeric Dates",
+          "description": "Return dates as milliseconds since UNIX epoch instead of ISO strings",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "created_date_range": {
+          "label": "Created Date Range",
+          "description": "Filter sheets by creation date range",
+          "type": "select",
+          "options": [
+            {
+              "value": "all",
+              "label": "All time"
+            },
+            {
+              "value": "week",
+              "label": "Last 7 days"
+            },
+            {
+              "value": "month",
+              "label": "Last 30 days"
+            },
+            {
+              "value": "quarter",
+              "label": "Last 90 days"
+            },
+            {
+              "value": "year",
+              "label": "Last 365 days"
+            }
+          ]
+        },
+        "sort_by": {
+          "label": "Sort Results By",
+          "description": "How to sort the returned sheets",
+          "type": "select",
+          "defaultValue": "name",
+          "options": [
+            {
+              "value": "name",
+              "label": "Sheet Name"
+            },
+            {
+              "value": "created_desc",
+              "label": "Creation Date (newest first)"
+            },
+            {
+              "value": "created_asc",
+              "label": "Creation Date (oldest first)"
+            },
+            {
+              "value": "modified_desc",
+              "label": "Modified Date (newest first)"
+            },
+            {
+              "value": "modified_asc",
+              "label": "Modified Date (oldest first)"
+            },
+            {
+              "value": "access",
+              "label": "Access Level"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.smartsheet.com/2.0/sheets"
+      },
+      "outputs": {
+        "totalSheets": "$.summary.total_sheets"
+      },
+      "beforeRequest": "var flag = (v) => (v === undefined || v === '' ? undefined : String(v) === 'true');\nvar num = (v) => (v === undefined || v === '' ? undefined : Number(v));\nvar text = (v) => (v === undefined || v === '' ? undefined : v);\nvar query = {};\nif (flag(inputs.include_all)) query.includeAll = true;\nelse {\n  var page = num(inputs.page), size = num(inputs.page_size);\n  if (page && page > 1) query.page = page;\n  if (size && size !== 100) query.pageSize = Math.min(size, 10000);\n}\nvar level = text(inputs.access_api_level), since = text(inputs.modified_since), include = [];\nif (level && level !== '0') query.accessApiLevel = parseInt(level);\nif (since) query.modifiedSince = new Date(since).toISOString();\nif (flag(inputs.include_sheet_version)) include.push('sheetVersion');\nif (flag(inputs.include_source_info)) include.push('source');\nif (include.length > 0) query.include = include.join(',');\nif (flag(inputs.numeric_dates)) query.numericDates = true;\nrequest.query = query;\nreturn request;",
+      "afterResponse": "var flag = (v) => (v === undefined || v === '' ? undefined : String(v) === 'true');\nvar list = (v) => (v === undefined || v === '' ? undefined : typeof v === 'string' ? JSON.parse(v) : v);\nvar text = (v) => (v === undefined || v === '' ? undefined : v);\nvar name = text(inputs.sheet_name), exact = flag(inputs.exact_match), levels = list(inputs.access_level_filter), since = text(inputs.modified_since);\nvar range = text(inputs.created_date_range), sort = text(inputs.sort_by), level = text(inputs.access_api_level);\nvar found = response.data || [];\nif (name) {\n  var wanted = name.toLowerCase();\n  found = found.filter((sheet) => { var own = sheet.name.toLowerCase(); return exact ? own === wanted : own.includes(wanted); });\n}\nif (levels && levels.length > 0) found = found.filter((sheet) => levels.includes(sheet.accessLevel));\nif (range && range !== 'all') {\n  var now = new Date(), from = new Date();\n  var days = { week: 7, month: 30, quarter: 90, year: 365 }[range];\n  if (days) from.setDate(now.getDate() - days);\n  found = found.filter((sheet) => new Date(sheet.createdAt) >= from);\n}\nvar order = ['OWNER', 'ADMIN', 'EDITOR_SHARE', 'EDITOR', 'COMMENTER', 'VIEWER'];\nvar time = (value) => new Date(value).getTime();\nif (sort) found.sort((a, b) => {\n  switch (sort) {\n    case 'name': return a.name.localeCompare(b.name);\n    case 'created_desc': return time(b.createdAt) - time(a.createdAt);\n    case 'created_asc': return time(a.createdAt) - time(b.createdAt);\n    case 'modified_desc': return time(b.modifiedAt) - time(a.modifiedAt);\n    case 'modified_asc': return time(a.modifiedAt) - time(b.modifiedAt);\n    case 'access': return order.indexOf(a.accessLevel) - order.indexOf(b.accessLevel);\n    default: return 0;\n  }\n});\nvar byLevel = {}, bySource = {};\nfound.forEach((sheet) => {\n  if (!byLevel[sheet.accessLevel]) byLevel[sheet.accessLevel] = [];\n  byLevel[sheet.accessLevel].push(sheet);\n  if (sheet.source) {\n    var type = sheet.source.type || 'unknown';\n    if (!bySource[type]) bySource[type] = [];\n    bySource[type].push(sheet);\n  }\n});\nvar today = new Date();\nvar recent = (value) => (today.getTime() - new Date(value).getTime()) / (1000 * 3600 * 24) <= 7;\nvar count = (key) => (byLevel[key] || []).length;\nreturn { success: true,\n  pagination: { page_number: response.pageNumber, page_size: response.pageSize, total_pages: response.totalPages, total_count: response.totalCount, filtered_count: found.length },\n  sheets: found, sheets_by_access_level: byLevel, sheets_by_source_type: bySource,\n  summary: { total_sheets: found.length, owned_sheets: count('OWNER'), admin_sheets: count('ADMIN'), editor_sheets: count('EDITOR') + count('EDITOR_SHARE'),\n    commenter_sheets: count('COMMENTER'), viewer_sheets: count('VIEWER'), recently_modified: found.filter((sheet) => recent(sheet.modifiedAt)).length,\n    recently_created: found.filter((sheet) => recent(sheet.createdAt)).length, sheets_with_source: Object.values(bySource).flat().length },\n  access_breakdown: Object.keys(byLevel).map((key) => ({ access_level: key, count: byLevel[key].length, percentage: Math.round((byLevel[key].length / found.length) * 100) })),\n  filters_applied: { name_filter: name || null, exact_match: exact, access_levels: levels || [], modified_since: since || null, created_date_range: range || 'all', sort_by: sort || 'name' },\n  api_options: { access_api_level: level, include_sheet_version: flag(inputs.include_sheet_version), include_source_info: flag(inputs.include_source_info), numeric_dates: flag(inputs.numeric_dates) } };"
+    }
+  },
+  "triggers": {
+    "new_row_added": {
+      "label": "New Row Added",
+      "description": "Triggers when a new row is added.",
+      "inputs": {
+        "sheet_id": {
+          "label": "Sheet",
+          "description": "Select a sheet",
+          "required": true,
+          "list": "sheets"
+        }
+      },
+      "webhook": {
+        "subscribe": {
+          "method": "GET",
+          "url": "https://api.smartsheet.com/2.0/webhooks"
+        },
+        "beforeRequest": "if (!inputs.sheet_id) throw new Error('Sheet ID is required to enable the webhook.');\nreturn request;",
+        "afterResponse": "const storeKey = 'smartsheet_new_row_trigger';\nconst webhookUrl = inputs.webhookUrl, sheetId = inputs.sheet_id;\n// One webhook per address and sheet: an existing one is used, turned on if it is off; a new one is made and turned on.\nconst enable = (id) => call({ method: 'PUT', url: `/webhooks/${id}`, body: { enabled: true } }).result;\nconst existing = (response.data || []).find((hook) => hook.callbackUrl === webhookUrl && hook.scopeObjectId.toString() === sheetId);\nconst name = `AP-${webhookUrl.substring(webhookUrl.lastIndexOf('/') + 1).slice(-8)}-Sheet${sheetId}`;\nconst webhook = existing ? (!existing.enabled || existing.status !== 'ENABLED' ? enable(existing.id.toString()) : existing)\n  : enable(call({ method: 'POST', url: '/webhooks', body: { name, callbackUrl: webhookUrl, scope: 'sheet', scopeObjectId: parseInt(sheetId), events: ['*.*'], version: 1 } }).result.id.toString());\nmemory[storeKey] = { webhookId: webhook.id.toString(), sharedSecret: webhook.sharedSecret, webhookName: webhook.name };\nreturn memory[storeKey].webhookId;",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.smartsheet.com/2.0/webhooks/{{webhookId}}"
+        },
+        "reply": "// Smartsheet checks the address by sending a challenge, which it expects back.\nreturn response !== null && typeof response === 'object' && 'challenge' in response ? { smartsheetHookResponse: response.challenge } : null;"
+      },
+      "afterResponse": "const storeKey = 'smartsheet_new_row_trigger';\nconst utf8 = (text) => { const bytes = []; for (const character of text) { let code = character.codePointAt(0); if (code >= 0xd800 && code <= 0xdfff) code = 0xfffd; if (code < 0x80) bytes.push(code); else if (code < 0x800) bytes.push(0xc0 | (code >> 6), 0x80 | (code & 63)); else if (code < 0x10000) bytes.push(0xe0 | (code >> 12), 0x80 | ((code >> 6) & 63), 0x80 | (code & 63)); else bytes.push(0xf0 | (code >> 18), 0x80 | ((code >> 12) & 63), 0x80 | ((code >> 6) & 63), 0x80 | (code & 63)); } return bytes; };\nconst sha256 = (message) => {\n  const rounds = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];\n  let state = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];\n  const bytes = [...message], bits = bytes.length * 8;\n  bytes.push(0x80);\n  while (bytes.length % 64 !== 56) bytes.push(0);\n  for (let shift = 7; shift >= 0; shift--) bytes.push(Math.floor(bits / 2 ** (8 * shift)) & 255);\n  const rotate = (word, count) => (word >>> count) | (word << (32 - count));\n  for (let block = 0; block < bytes.length; block += 64) {\n    const words = [];\n    for (let index = 0; index < 16; index++) words[index] = (bytes[block + 4 * index] << 24) | (bytes[block + 4 * index + 1] << 16) | (bytes[block + 4 * index + 2] << 8) | bytes[block + 4 * index + 3];\n    for (let index = 16; index < 64; index++) words[index] = (words[index - 16] + (rotate(words[index - 15], 7) ^ rotate(words[index - 15], 18) ^ (words[index - 15] >>> 3)) + words[index - 7] + (rotate(words[index - 2], 17) ^ rotate(words[index - 2], 19) ^ (words[index - 2] >>> 10))) | 0;\n    let [a, b, c, d, e, f, g, h] = state;\n    for (let index = 0; index < 64; index++) {\n      const first = (h + (rotate(e, 6) ^ rotate(e, 11) ^ rotate(e, 25)) + ((e & f) ^ (~e & g)) + rounds[index] + words[index]) | 0;\n      const second = ((rotate(a, 2) ^ rotate(a, 13) ^ rotate(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) | 0;\n      h = g; g = f; f = e; e = (d + first) | 0; d = c; c = b; b = a; a = (first + second) | 0;\n    }\n    state = state.map((word, index) => (word + [a, b, c, d, e, f, g, h][index]) | 0);\n  }\n  return state.flatMap((word) => [word >>> 24 & 255, word >>> 16 & 255, word >>> 8 & 255, word & 255]);\n};\nconst hmac = (key, message) => { const padded = [...(key.length > 64 ? sha256(key) : key)]; while (padded.length < 64) padded.push(0); return sha256([...padded.map((byte) => byte ^ 0x5c), ...sha256([...padded.map((byte) => byte ^ 0x36), ...message])]); };\nconst hexBytes = (hex) => { const bytes = []; for (let index = 0; index + 1 < hex.length && /^[0-9a-f]{2}$/i.test(hex.substr(index, 2)); index += 2) bytes.push(parseInt(hex.substr(index, 2), 16)); return bytes; };\n// Smartsheet signs each delivery with the shared secret it gave when the trigger subscribed.\nconst signed = (secret) => {\n  const given = received.headers['smartsheet-hmac-sha256'], body = received.text;\n  if (!secret || !given || !body) return false;\n  const digest = hmac(utf8(secret), utf8(body)), bytes = hexBytes(given);\n  return bytes.length === digest.length && bytes.every((byte, index) => byte === digest[index]);\n};\nconst webhook = memory[storeKey];\nif (!webhook || received.headers['smartsheet-hook-challenge'] || !signed(webhook.sharedSecret)) return [];\nif (response.newWebhookStatus || !Array.isArray(response.events) || response.events.length === 0) return [];\nconst sheetId = response.scopeObjectId?.toString();\nreturn response.events.filter((event) => event.objectType === 'row' && event.eventType === 'created').map((event) => {\n  const item = { ...event, sheetId };\n  if (!sheetId) return { ...item, fetchError: 'scopeObjectId missing, cannot fetch row details.' };\n  try {\n    item.rowData = call({ method: 'GET', url: `/sheets/${sheetId}/rows/${event.id.toString()}` });\n  } catch (error) {\n    // A detail that is gone is null, as the original gives it.\n    if (/status 404\\b/.test(error.message)) item.rowData = null;\n    else item.fetchError = error.message;\n  }\n  return item;\n});"
+    },
+    "updated_row": {
+      "label": "Row Updated",
+      "description": "Triggers when an existing row is updated.",
+      "inputs": {
+        "sheet_id": {
+          "label": "Sheet",
+          "description": "Select a sheet",
+          "required": true,
+          "list": "sheets"
+        }
+      },
+      "webhook": {
+        "subscribe": {
+          "method": "GET",
+          "url": "https://api.smartsheet.com/2.0/webhooks"
+        },
+        "beforeRequest": "if (!inputs.sheet_id) throw new Error('Sheet ID is required.');\nreturn request;",
+        "afterResponse": "const storeKey = 'smartsheet_updated_row_trigger';\nconst webhookUrl = inputs.webhookUrl, sheetId = inputs.sheet_id;\n// One webhook per address and sheet: an existing one is used, turned on if it is off; a new one is made and turned on.\nconst enable = (id) => call({ method: 'PUT', url: `/webhooks/${id}`, body: { enabled: true } }).result;\nconst existing = (response.data || []).find((hook) => hook.callbackUrl === webhookUrl && hook.scopeObjectId.toString() === sheetId);\nconst name = `AP-${webhookUrl.substring(webhookUrl.lastIndexOf('/') + 1).slice(-8)}-Sheet${sheetId}`;\nconst webhook = existing ? (!existing.enabled || existing.status !== 'ENABLED' ? enable(existing.id.toString()) : existing)\n  : enable(call({ method: 'POST', url: '/webhooks', body: { name, callbackUrl: webhookUrl, scope: 'sheet', scopeObjectId: parseInt(sheetId), events: ['*.*'], version: 1 } }).result.id.toString());\nmemory[storeKey] = { webhookId: webhook.id.toString(), sharedSecret: webhook.sharedSecret, webhookName: webhook.name };\nreturn memory[storeKey].webhookId;",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.smartsheet.com/2.0/webhooks/{{webhookId}}"
+        },
+        "reply": "// Smartsheet checks the address by sending a challenge, which it expects back.\nreturn response !== null && typeof response === 'object' && 'challenge' in response ? { smartsheetHookResponse: response.challenge } : null;"
+      },
+      "afterResponse": "const storeKey = 'smartsheet_updated_row_trigger';\nconst utf8 = (text) => { const bytes = []; for (const character of text) { let code = character.codePointAt(0); if (code >= 0xd800 && code <= 0xdfff) code = 0xfffd; if (code < 0x80) bytes.push(code); else if (code < 0x800) bytes.push(0xc0 | (code >> 6), 0x80 | (code & 63)); else if (code < 0x10000) bytes.push(0xe0 | (code >> 12), 0x80 | ((code >> 6) & 63), 0x80 | (code & 63)); else bytes.push(0xf0 | (code >> 18), 0x80 | ((code >> 12) & 63), 0x80 | ((code >> 6) & 63), 0x80 | (code & 63)); } return bytes; };\nconst sha256 = (message) => {\n  const rounds = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];\n  let state = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];\n  const bytes = [...message], bits = bytes.length * 8;\n  bytes.push(0x80);\n  while (bytes.length % 64 !== 56) bytes.push(0);\n  for (let shift = 7; shift >= 0; shift--) bytes.push(Math.floor(bits / 2 ** (8 * shift)) & 255);\n  const rotate = (word, count) => (word >>> count) | (word << (32 - count));\n  for (let block = 0; block < bytes.length; block += 64) {\n    const words = [];\n    for (let index = 0; index < 16; index++) words[index] = (bytes[block + 4 * index] << 24) | (bytes[block + 4 * index + 1] << 16) | (bytes[block + 4 * index + 2] << 8) | bytes[block + 4 * index + 3];\n    for (let index = 16; index < 64; index++) words[index] = (words[index - 16] + (rotate(words[index - 15], 7) ^ rotate(words[index - 15], 18) ^ (words[index - 15] >>> 3)) + words[index - 7] + (rotate(words[index - 2], 17) ^ rotate(words[index - 2], 19) ^ (words[index - 2] >>> 10))) | 0;\n    let [a, b, c, d, e, f, g, h] = state;\n    for (let index = 0; index < 64; index++) {\n      const first = (h + (rotate(e, 6) ^ rotate(e, 11) ^ rotate(e, 25)) + ((e & f) ^ (~e & g)) + rounds[index] + words[index]) | 0;\n      const second = ((rotate(a, 2) ^ rotate(a, 13) ^ rotate(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) | 0;\n      h = g; g = f; f = e; e = (d + first) | 0; d = c; c = b; b = a; a = (first + second) | 0;\n    }\n    state = state.map((word, index) => (word + [a, b, c, d, e, f, g, h][index]) | 0);\n  }\n  return state.flatMap((word) => [word >>> 24 & 255, word >>> 16 & 255, word >>> 8 & 255, word & 255]);\n};\nconst hmac = (key, message) => { const padded = [...(key.length > 64 ? sha256(key) : key)]; while (padded.length < 64) padded.push(0); return sha256([...padded.map((byte) => byte ^ 0x5c), ...sha256([...padded.map((byte) => byte ^ 0x36), ...message])]); };\nconst hexBytes = (hex) => { const bytes = []; for (let index = 0; index + 1 < hex.length && /^[0-9a-f]{2}$/i.test(hex.substr(index, 2)); index += 2) bytes.push(parseInt(hex.substr(index, 2), 16)); return bytes; };\n// Smartsheet signs each delivery with the shared secret it gave when the trigger subscribed.\nconst signed = (secret) => {\n  const given = received.headers['smartsheet-hmac-sha256'], body = received.text;\n  if (!secret || !given || !body) return false;\n  const digest = hmac(utf8(secret), utf8(body)), bytes = hexBytes(given);\n  return bytes.length === digest.length && bytes.every((byte, index) => byte === digest[index]);\n};\nconst webhook = memory[storeKey];\nif (!webhook || received.headers['smartsheet-hook-challenge'] || !signed(webhook.sharedSecret)) return [];\nif (response.newWebhookStatus || !Array.isArray(response.events) || response.events.length === 0) return [];\nconst sheetId = response.scopeObjectId?.toString();\nreturn response.events.filter((event) => event.objectType === 'row' && event.eventType === 'updated').map((event) => {\n  const item = { ...event, sheetId };\n  if (!sheetId) return { ...item, fetchError: 'scopeObjectId missing' };\n  try {\n    item.rowData = call({ method: 'GET', url: `/sheets/${sheetId}/rows/${event.id.toString()}` });\n  } catch (error) {\n    // A detail that is gone is null, as the original gives it.\n    if (/status 404\\b/.test(error.message)) item.rowData = null;\n    else item.fetchError = error.message;\n  }\n  return item;\n});"
+    },
+    "new_attachment_": {
+      "label": "New Attachment Added",
+      "description": "Triggers when a new attachment is added to a row or sheet.",
+      "inputs": {
+        "sheet_id": {
+          "label": "Sheet",
+          "description": "Select a sheet",
+          "required": true,
+          "list": "sheets"
+        }
+      },
+      "webhook": {
+        "subscribe": {
+          "method": "GET",
+          "url": "https://api.smartsheet.com/2.0/webhooks"
+        },
+        "beforeRequest": "if (!inputs.sheet_id) throw new Error('Sheet ID is required to enable the webhook.');\nreturn request;",
+        "afterResponse": "const storeKey = 'smartsheet_new_attachment_trigger';\nconst webhookUrl = inputs.webhookUrl, sheetId = inputs.sheet_id;\n// One webhook per address and sheet: an existing one is used, turned on if it is off; a new one is made and turned on.\nconst enable = (id) => call({ method: 'PUT', url: `/webhooks/${id}`, body: { enabled: true } }).result;\nconst existing = (response.data || []).find((hook) => hook.callbackUrl === webhookUrl && hook.scopeObjectId.toString() === sheetId);\nconst name = `AP-${webhookUrl.substring(webhookUrl.lastIndexOf('/') + 1).slice(-8)}-Sheet${sheetId}`;\nconst webhook = existing ? (!existing.enabled || existing.status !== 'ENABLED' ? enable(existing.id.toString()) : existing)\n  : enable(call({ method: 'POST', url: '/webhooks', body: { name, callbackUrl: webhookUrl, scope: 'sheet', scopeObjectId: parseInt(sheetId), events: ['*.*'], version: 1 } }).result.id.toString());\nmemory[storeKey] = { webhookId: webhook.id.toString(), sharedSecret: webhook.sharedSecret, webhookName: webhook.name };\nreturn memory[storeKey].webhookId;",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.smartsheet.com/2.0/webhooks/{{webhookId}}"
+        },
+        "reply": "// Smartsheet checks the address by sending a challenge, which it expects back.\nreturn response !== null && typeof response === 'object' && 'challenge' in response ? { smartsheetHookResponse: response.challenge } : null;"
+      },
+      "afterResponse": "const storeKey = 'smartsheet_new_attachment_trigger';\nconst utf8 = (text) => { const bytes = []; for (const character of text) { let code = character.codePointAt(0); if (code >= 0xd800 && code <= 0xdfff) code = 0xfffd; if (code < 0x80) bytes.push(code); else if (code < 0x800) bytes.push(0xc0 | (code >> 6), 0x80 | (code & 63)); else if (code < 0x10000) bytes.push(0xe0 | (code >> 12), 0x80 | ((code >> 6) & 63), 0x80 | (code & 63)); else bytes.push(0xf0 | (code >> 18), 0x80 | ((code >> 12) & 63), 0x80 | ((code >> 6) & 63), 0x80 | (code & 63)); } return bytes; };\nconst sha256 = (message) => {\n  const rounds = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];\n  let state = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];\n  const bytes = [...message], bits = bytes.length * 8;\n  bytes.push(0x80);\n  while (bytes.length % 64 !== 56) bytes.push(0);\n  for (let shift = 7; shift >= 0; shift--) bytes.push(Math.floor(bits / 2 ** (8 * shift)) & 255);\n  const rotate = (word, count) => (word >>> count) | (word << (32 - count));\n  for (let block = 0; block < bytes.length; block += 64) {\n    const words = [];\n    for (let index = 0; index < 16; index++) words[index] = (bytes[block + 4 * index] << 24) | (bytes[block + 4 * index + 1] << 16) | (bytes[block + 4 * index + 2] << 8) | bytes[block + 4 * index + 3];\n    for (let index = 16; index < 64; index++) words[index] = (words[index - 16] + (rotate(words[index - 15], 7) ^ rotate(words[index - 15], 18) ^ (words[index - 15] >>> 3)) + words[index - 7] + (rotate(words[index - 2], 17) ^ rotate(words[index - 2], 19) ^ (words[index - 2] >>> 10))) | 0;\n    let [a, b, c, d, e, f, g, h] = state;\n    for (let index = 0; index < 64; index++) {\n      const first = (h + (rotate(e, 6) ^ rotate(e, 11) ^ rotate(e, 25)) + ((e & f) ^ (~e & g)) + rounds[index] + words[index]) | 0;\n      const second = ((rotate(a, 2) ^ rotate(a, 13) ^ rotate(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) | 0;\n      h = g; g = f; f = e; e = (d + first) | 0; d = c; c = b; b = a; a = (first + second) | 0;\n    }\n    state = state.map((word, index) => (word + [a, b, c, d, e, f, g, h][index]) | 0);\n  }\n  return state.flatMap((word) => [word >>> 24 & 255, word >>> 16 & 255, word >>> 8 & 255, word & 255]);\n};\nconst hmac = (key, message) => { const padded = [...(key.length > 64 ? sha256(key) : key)]; while (padded.length < 64) padded.push(0); return sha256([...padded.map((byte) => byte ^ 0x5c), ...sha256([...padded.map((byte) => byte ^ 0x36), ...message])]); };\nconst hexBytes = (hex) => { const bytes = []; for (let index = 0; index + 1 < hex.length && /^[0-9a-f]{2}$/i.test(hex.substr(index, 2)); index += 2) bytes.push(parseInt(hex.substr(index, 2), 16)); return bytes; };\n// Smartsheet signs each delivery with the shared secret it gave when the trigger subscribed.\nconst signed = (secret) => {\n  const given = received.headers['smartsheet-hmac-sha256'], body = received.text;\n  if (!secret || !given || !body) return false;\n  const digest = hmac(utf8(secret), utf8(body)), bytes = hexBytes(given);\n  return bytes.length === digest.length && bytes.every((byte, index) => byte === digest[index]);\n};\nconst webhook = memory[storeKey];\nif (!webhook || received.headers['smartsheet-hook-challenge'] || !signed(webhook.sharedSecret)) return [];\nif (response.newWebhookStatus || !Array.isArray(response.events) || response.events.length === 0) return [];\nconst sheetId = response.scopeObjectId?.toString();\nreturn response.events.filter((event) => event.objectType === 'attachment' && event.eventType === 'created').map((event) => {\n  const item = { ...event, sheetId };\n  if (!sheetId) return { ...item, fetchError: 'scopeObjectId missing' };\n  try {\n    item.attachmentData = call({ method: 'GET', url: `/sheets/${sheetId}/attachments/${event.id.toString()}` });\n  } catch (error) {\n    // A detail that is gone is null, as the original gives it.\n    if (/status 404\\b/.test(error.message)) item.attachmentData = null;\n    else item.fetchError = error.message;\n  }\n  return item;\n});"
+    },
+    "new_comment_webhook": {
+      "label": "New Comment Added",
+      "description": "Triggers when a new comment is added to a discussion on a sheet.",
+      "inputs": {
+        "sheet_id": {
+          "label": "Sheet",
+          "description": "Select a sheet",
+          "required": true,
+          "list": "sheets"
+        }
+      },
+      "webhook": {
+        "subscribe": {
+          "method": "GET",
+          "url": "https://api.smartsheet.com/2.0/webhooks"
+        },
+        "beforeRequest": "if (!inputs.sheet_id) throw new Error('Sheet ID is required to enable the webhook.');\nreturn request;",
+        "afterResponse": "const storeKey = 'smartsheet_new_comment_trigger';\nconst webhookUrl = inputs.webhookUrl, sheetId = inputs.sheet_id;\n// One webhook per address and sheet: an existing one is used, turned on if it is off; a new one is made and turned on.\nconst enable = (id) => call({ method: 'PUT', url: `/webhooks/${id}`, body: { enabled: true } }).result;\nconst existing = (response.data || []).find((hook) => hook.callbackUrl === webhookUrl && hook.scopeObjectId.toString() === sheetId);\nconst name = `AP-${webhookUrl.substring(webhookUrl.lastIndexOf('/') + 1).slice(-8)}-Sheet${sheetId}`;\nconst webhook = existing ? (!existing.enabled || existing.status !== 'ENABLED' ? enable(existing.id.toString()) : existing)\n  : enable(call({ method: 'POST', url: '/webhooks', body: { name, callbackUrl: webhookUrl, scope: 'sheet', scopeObjectId: parseInt(sheetId), events: ['*.*'], version: 1 } }).result.id.toString());\nmemory[storeKey] = { webhookId: webhook.id.toString(), sharedSecret: webhook.sharedSecret, webhookName: webhook.name };\nreturn memory[storeKey].webhookId;",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.smartsheet.com/2.0/webhooks/{{webhookId}}"
+        },
+        "reply": "// Smartsheet checks the address by sending a challenge, which it expects back.\nreturn response !== null && typeof response === 'object' && 'challenge' in response ? { smartsheetHookResponse: response.challenge } : null;"
+      },
+      "afterResponse": "const storeKey = 'smartsheet_new_comment_trigger';\nconst utf8 = (text) => { const bytes = []; for (const character of text) { let code = character.codePointAt(0); if (code >= 0xd800 && code <= 0xdfff) code = 0xfffd; if (code < 0x80) bytes.push(code); else if (code < 0x800) bytes.push(0xc0 | (code >> 6), 0x80 | (code & 63)); else if (code < 0x10000) bytes.push(0xe0 | (code >> 12), 0x80 | ((code >> 6) & 63), 0x80 | (code & 63)); else bytes.push(0xf0 | (code >> 18), 0x80 | ((code >> 12) & 63), 0x80 | ((code >> 6) & 63), 0x80 | (code & 63)); } return bytes; };\nconst sha256 = (message) => {\n  const rounds = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];\n  let state = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];\n  const bytes = [...message], bits = bytes.length * 8;\n  bytes.push(0x80);\n  while (bytes.length % 64 !== 56) bytes.push(0);\n  for (let shift = 7; shift >= 0; shift--) bytes.push(Math.floor(bits / 2 ** (8 * shift)) & 255);\n  const rotate = (word, count) => (word >>> count) | (word << (32 - count));\n  for (let block = 0; block < bytes.length; block += 64) {\n    const words = [];\n    for (let index = 0; index < 16; index++) words[index] = (bytes[block + 4 * index] << 24) | (bytes[block + 4 * index + 1] << 16) | (bytes[block + 4 * index + 2] << 8) | bytes[block + 4 * index + 3];\n    for (let index = 16; index < 64; index++) words[index] = (words[index - 16] + (rotate(words[index - 15], 7) ^ rotate(words[index - 15], 18) ^ (words[index - 15] >>> 3)) + words[index - 7] + (rotate(words[index - 2], 17) ^ rotate(words[index - 2], 19) ^ (words[index - 2] >>> 10))) | 0;\n    let [a, b, c, d, e, f, g, h] = state;\n    for (let index = 0; index < 64; index++) {\n      const first = (h + (rotate(e, 6) ^ rotate(e, 11) ^ rotate(e, 25)) + ((e & f) ^ (~e & g)) + rounds[index] + words[index]) | 0;\n      const second = ((rotate(a, 2) ^ rotate(a, 13) ^ rotate(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) | 0;\n      h = g; g = f; f = e; e = (d + first) | 0; d = c; c = b; b = a; a = (first + second) | 0;\n    }\n    state = state.map((word, index) => (word + [a, b, c, d, e, f, g, h][index]) | 0);\n  }\n  return state.flatMap((word) => [word >>> 24 & 255, word >>> 16 & 255, word >>> 8 & 255, word & 255]);\n};\nconst hmac = (key, message) => { const padded = [...(key.length > 64 ? sha256(key) : key)]; while (padded.length < 64) padded.push(0); return sha256([...padded.map((byte) => byte ^ 0x5c), ...sha256([...padded.map((byte) => byte ^ 0x36), ...message])]); };\nconst hexBytes = (hex) => { const bytes = []; for (let index = 0; index + 1 < hex.length && /^[0-9a-f]{2}$/i.test(hex.substr(index, 2)); index += 2) bytes.push(parseInt(hex.substr(index, 2), 16)); return bytes; };\n// Smartsheet signs each delivery with the shared secret it gave when the trigger subscribed.\nconst signed = (secret) => {\n  const given = received.headers['smartsheet-hmac-sha256'], body = received.text;\n  if (!secret || !given || !body) return false;\n  const digest = hmac(utf8(secret), utf8(body)), bytes = hexBytes(given);\n  return bytes.length === digest.length && bytes.every((byte, index) => byte === digest[index]);\n};\nconst webhook = memory[storeKey];\nif (!webhook || received.headers['smartsheet-hook-challenge'] || !signed(webhook.sharedSecret)) return [];\nif (response.newWebhookStatus || !Array.isArray(response.events) || response.events.length === 0) return [];\nconst sheetId = response.scopeObjectId?.toString();\nreturn response.events.filter((event) => event.objectType === 'comment' && event.eventType === 'created').map((event) => {\n  const item = { ...event, sheetId };\n  if (!sheetId) return { ...item, fetchError: 'scopeObjectId missing' };\n  try {\n    // The original reads the comment's discussion first, so a comment without one gives fetchError.\n    event.discussionId.toString();\n    item.commentData = call({ method: 'GET', url: `/sheets/${sheetId}/comments/${event.id.toString()}` });\n  } catch (error) {\n    // A detail that is gone is null, as the original gives it.\n    if (/status 404\\b/.test(error.message)) item.commentData = null;\n    else item.fetchError = error.message;\n  }\n  return item;\n});"
+    }
+  }
+}

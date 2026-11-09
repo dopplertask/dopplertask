@@ -1,0 +1,1380 @@
+{
+  "name": "zoho-crm",
+  "label": "Zoho CRM",
+  "description": "Customer relationship management software",
+  "icon": "zoho",
+  "hosts": [
+    "{{credential.apiDomain}}"
+  ],
+  "baseUrl": "https://{{credential.apiDomain}}/crm/v8",
+  "upstream": {
+    "package": "@activepieces/piece-zoho-crm",
+    "version": "0.4.3"
+  },
+  "credential": {
+    "fields": {
+      "accessToken": {
+        "label": "Access Token",
+        "secret": true,
+        "required": true,
+        "description": "An OAuth access token of your Zoho CRM account, such as one from a Self Client in the Zoho API Console (https://api-console.zoho.com) with the scopes ZohoCRM.users.ALL, ZohoCRM.org.ALL, ZohoCRM.settings.ALL, ZohoCRM.modules.ALL, ZohoCRM.bulk.ALL, ZohoCRM.bulk.backup.ALL and ZohoFiles.files.ALL."
+      },
+      "apiDomain": {
+        "label": "API Domain",
+        "required": true,
+        "description": "The api_domain Zoho gives with the token, for your account's location, such as https://www.zohoapis.com, https://www.zohoapis.eu, https://www.zohoapis.in, https://www.zohoapis.com.au, https://www.zohoapis.jp or https://www.zohoapis.ca."
+      }
+    },
+    "headers": {
+      "Authorization": "Zoho-oauthtoken {{credential.accessToken}}"
+    }
+  },
+  "lists": {
+    "modules": {
+      "request": {
+        "url": "https://{{credential.apiDomain}}/crm/v8/settings/modules"
+      },
+      "items": "$.modules",
+      "label": "$.plural_label",
+      "value": "$.api_name"
+    },
+    "records": {
+      "request": {
+        "url": "https://{{credential.apiDomain}}/crm/v8/{{module}}",
+        "query": {
+          "fields": "id",
+          "per_page": "200",
+          "sort_by": "Modified_Time",
+          "sort_order": "desc"
+        }
+      },
+      "items": "$.data",
+      "label": "$.id",
+      "value": "$.id"
+    },
+    "leads": {
+      "request": {
+        "url": "https://{{credential.apiDomain}}/crm/v8/Leads",
+        "query": {
+          "fields": "id,Full_Name",
+          "per_page": "200",
+          "sort_by": "Modified_Time",
+          "sort_order": "desc"
+        }
+      },
+      "items": "$.data",
+      "label": "$.Full_Name",
+      "value": "$.id"
+    },
+    "accounts": {
+      "request": {
+        "url": "https://{{credential.apiDomain}}/crm/v8/Accounts",
+        "query": {
+          "fields": "id,Account_Name",
+          "per_page": "200",
+          "sort_by": "Modified_Time",
+          "sort_order": "desc"
+        }
+      },
+      "items": "$.data",
+      "label": "$.Account_Name",
+      "value": "$.id"
+    },
+    "contacts": {
+      "request": {
+        "url": "https://{{credential.apiDomain}}/crm/v8/Contacts",
+        "query": {
+          "fields": "id,Full_Name",
+          "per_page": "200",
+          "sort_by": "Modified_Time",
+          "sort_order": "desc"
+        }
+      },
+      "items": "$.data",
+      "label": "$.Full_Name",
+      "value": "$.id"
+    },
+    "users": {
+      "request": {
+        "url": "https://{{credential.apiDomain}}/crm/v8/users",
+        "query": {
+          "type": "ActiveUsers",
+          "per_page": "200",
+          "page": "1"
+        }
+      },
+      "items": "$.users",
+      "label": "$.full_name",
+      "value": "$.id"
+    }
+  },
+  "actions": {
+    "create_record": {
+      "label": "Create Record",
+      "description": "Creates a record in any module, including custom fields.",
+      "inputs": {
+        "module": {
+          "label": "Module",
+          "required": true,
+          "description": "The Zoho CRM module (for example Leads, Contacts, Deals or a custom module).",
+          "list": "modules"
+        },
+        "fields": {
+          "label": "Fields",
+          "type": "json",
+          "required": true,
+          "description": "Standard and custom fields of the module, as a JSON object of field API names and values. Read-only, formula, subform and file fields are not listed."
+        },
+        "additional_fields": {
+          "label": "Additional Fields (JSON)",
+          "type": "json",
+          "description": "Optional raw fields by API name, for fields the form does not list (e.g. subform rows). Values set in the form above win over the same key here."
+        },
+        "triggers": {
+          "label": "Automation to Run",
+          "type": "json",
+          "description": "Empty runs Zoho's default workflows; pick some to run only those: workflow, approval, blueprint, pathfinder, orchestration, as a JSON list."
+        },
+        "skip_automation": {
+          "label": "Skip All Automation",
+          "type": "boolean",
+          "description": "Run no workflow, approval or blueprint for this record.",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.apiDomain}}/crm/v8/{{module}}"
+      },
+      "beforeRequest": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __list = (v) => { if (v == null || v === '') return []; const one = (t) => { const s = t.trim(); if (!s.startsWith('[') || !s.endsWith(']')) return undefined; try { const o = JSON.parse(s); return Array.isArray(o) ? o : undefined; } catch (e) { return undefined; } }; const items = Array.isArray(v) ? v.flatMap((o) => Array.isArray(o) ? o : typeof o === 'string' ? (one(o) ?? [o]) : [o]) : (one(String(v)) ?? String(v).split(',')); return items.map((t) => typeof t === 'string' ? t.trim() : typeof t === 'number' ? String(t) : '').filter((t) => t.length > 0); };\ninputs.module = __api(inputs.module, 'Module');\nrequest.url = '/' + encodeURIComponent(String(inputs.module ?? ''));\nconst automation = (value, skip) => { if (skip === 'true') return []; const list = __list(value); if (list.length === 0) return undefined; const allowed = ['workflow', 'approval', 'blueprint', 'pathfinder', 'orchestration']; const unknown = list.filter((t) => !allowed.includes(t)); if (unknown.length > 0) throw new Error('Unknown automation trigger(s): ' + unknown.join(', ') + '. Allowed: ' + allowed.join(', ') + '.'); return list; };\nconst withTrigger = (body, trigger) => Object.assign(body, trigger !== undefined ? { trigger } : {});\nconst fieldsOf = (module) => { try { return call({ method: 'GET', url: '/settings/fields', query: { module } }).fields ?? []; } catch (e) { if (/403|NO_PERMISSION|OAUTH_SCOPE_MISMATCH/.test(String((e && e.message) || e))) return undefined; throw e; } };\nconst isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst jsonObject = (v, name) => { if (v == null || v === '') return {}; let o = v; if (typeof v === 'string') { try { o = JSON.parse(v); } catch (e) { o = undefined; } } if (!isRec(o)) throw new Error(name + ' must be a JSON object, e.g. {\"Lead_Source\": \"Web\"}.'); return o; };\nconst dateOnly = (v, api) => { const m = /^(\\d{4})-(\\d{2})-(\\d{2})(?:T\\d{2}:\\d{2}(?::\\d{2}(?:\\.\\d+)?)?(?:Z|[+-]\\d{2}:?\\d{2})?)?$/.exec(String(v).trim()); const d = m ? new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))) : undefined; if (!m || d.getUTCMonth() !== Number(m[2]) - 1 || d.getUTCDate() !== Number(m[3])) throw new Error(api + ' must be a date as yyyy-MM-dd, e.g. 2026-10-01.'); return m[1] + '-' + m[2] + '-' + m[3]; };\nconst dateTime = (v, api) => { const s = String(v); if (/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}[+-]\\d{2}:\\d{2}$/.test(s)) return s; const d = new Date(s); if (Number.isNaN(d.getTime())) throw new Error(api + ' must be an ISO 8601 date-time such as 2026-10-01T09:00:00+02:00.'); return d.toISOString().replace(/\\.\\d{3}Z$/, '+00:00'); };\nconst numberOf = (v, api) => { const n = typeof v === 'number' ? v : Number(v); if (!Number.isFinite(n)) throw new Error(api + ' must be a number.'); return n; };\nconst toValue = (f, v) => { if (!f) return v; const type = f.data_type ?? '', api = f.api_name; if (['integer', 'double', 'decimal', 'currency', 'percent'].includes(type)) return numberOf(v, api); if (['bigint', 'long'].includes(type)) { if (typeof v === 'number') return String(v); const s = String(v).trim(); if (!/^-?\\d{1,18}$/.test(s)) throw new Error(api + ' must be a whole number of at most 18 digits.'); return s; } if (type === 'boolean') { if (v === true || v === 'true') return true; if (v === false || v === 'false') return false; throw new Error(api + ' must be true or false.'); } if (type === 'date') return dateOnly(v, api); if (type === 'datetime') return dateTime(v, api); if (type === 'multiselectpicklist') return __list(v); if (['lookup', 'ownerlookup', 'userlookup'].includes(type)) return typeof v === 'object' && v !== null ? v : { id: __id(v, api) }; return v; };\nconst recordOf = (values, fields, extra, clear, what) => { const byName = new Map((fields ?? []).map((f) => [f.api_name, f])); const { __fields_json: typed, ...rest } = jsonObject(values, 'Fields'); const given = Object.fromEntries(Object.entries(rest).filter(([, v]) => !(v == null || v === '' || (Array.isArray(v) && v.length === 0))).map(([k, v]) => [k, toValue(byName.get(k), v)])); const record = { ...jsonObject(extra, 'Additional fields'), ...jsonObject(typed, 'Fields'), ...given, ...Object.fromEntries((clear ?? []).map((k) => [k, null])) }; if (Object.keys(record).length === 0) throw new Error(what + ': no fields were provided.'); return record; };\nconst record = recordOf(inputs.fields, fieldsOf(inputs.module), inputs.additional_fields, [], 'Create record');\nrequest.body = withTrigger({ data: [record] }, automation(inputs.triggers, inputs.skip_automation));\nreturn request;",
+      "afterResponse": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\ninputs.module = __api(inputs.module, 'Module');\nconst isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst field = (v, k) => isRec(v) ? v[k] : undefined;\nconst text = (v) => typeof v === 'string' ? v : undefined;\nconst writeItem = (e) => isRec(e) ? { code: text(e.code), status: text(e.status), message: text(e.message), action: text(e.action), duplicate_field: typeof e.duplicate_field === 'string' ? e.duplicate_field : null, details: isRec(e.details) ? e.details : undefined } : {};\nconst firstItem = (body, key) => { key = key || 'data'; const list = field(body, key); if (!Array.isArray(list) || list.length === 0) throw new Error('Zoho CRM returned an unexpected response (no \"' + key + '\" array).'); const items = list.map(writeItem); const failed = items.find((i) => i.status === 'error'); if (failed) throw new Error('Zoho CRM ' + (failed.code ?? 'ERROR') + ': ' + (failed.message ?? 'request failed')); return items[0]; };\nconst userRef = (v) => ({ id: text(field(v, 'id')) ?? null, name: text(field(v, 'name')) ?? null });\nconst written = (e) => { const d = e.details ?? {}; const by = userRef(d.Created_By), last = userRef(d.Modified_By); return { id: text(d.id) ?? null, status: e.status ?? null, code: e.code ?? null, message: e.message ?? null, action: e.action ?? null, duplicate_field: e.duplicate_field ?? null, created_time: text(d.Created_Time) ?? null, modified_time: text(d.Modified_Time) ?? null, created_by_id: by.id, created_by_name: by.name, modified_by_id: last.id, modified_by_name: last.name }; };\nreturn Object.assign({ module: inputs.module }, written(firstItem(response)));"
+    },
+    "update_record": {
+      "label": "Update Record",
+      "description": "Updates fields of a record in any module. Fields left empty are not changed.",
+      "inputs": {
+        "module": {
+          "label": "Module",
+          "required": true,
+          "description": "The Zoho CRM module (for example Leads, Contacts, Deals or a custom module).",
+          "list": "modules"
+        },
+        "record_id": {
+          "label": "Record",
+          "required": true,
+          "description": "Pick one of the 200 most recently modified records, or map a record id from an earlier step.",
+          "list": "records"
+        },
+        "fields": {
+          "label": "Fields",
+          "type": "json",
+          "description": "Only the fields you fill in are changed. Use \"Clear Fields\" to blank a field."
+        },
+        "clear_fields": {
+          "label": "Clear Fields",
+          "type": "json",
+          "description": "Field API names to set to empty (e.g. \"Phone\", \"Custom_Field__c\")."
+        },
+        "additional_fields": {
+          "label": "Additional Fields (JSON)",
+          "type": "json",
+          "description": "Optional raw fields by API name, for fields the form does not list (e.g. subform rows). Values set in the form above win over the same key here."
+        },
+        "skip_automation": {
+          "label": "Skip All Automation",
+          "type": "boolean",
+          "description": "Run no workflow, approval or blueprint for this update.",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://{{credential.apiDomain}}/crm/v8/{{module}}/{{record_id}}"
+      },
+      "beforeRequest": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __list = (v) => { if (v == null || v === '') return []; const one = (t) => { const s = t.trim(); if (!s.startsWith('[') || !s.endsWith(']')) return undefined; try { const o = JSON.parse(s); return Array.isArray(o) ? o : undefined; } catch (e) { return undefined; } }; const items = Array.isArray(v) ? v.flatMap((o) => Array.isArray(o) ? o : typeof o === 'string' ? (one(o) ?? [o]) : [o]) : (one(String(v)) ?? String(v).split(',')); return items.map((t) => typeof t === 'string' ? t.trim() : typeof t === 'number' ? String(t) : '').filter((t) => t.length > 0); };\ninputs.module = __api(inputs.module, 'Module');\ninputs.record_id = __id(inputs.record_id, 'Record');\n__list(inputs.clear_fields).forEach((v) => __api(v, 'Clear Fields'));\nrequest.url = '/' + encodeURIComponent(String(inputs.module ?? '')) + '/' + encodeURIComponent(String(inputs.record_id ?? ''));\nconst automation = (value, skip) => { if (skip === 'true') return []; const list = __list(value); if (list.length === 0) return undefined; const allowed = ['workflow', 'approval', 'blueprint', 'pathfinder', 'orchestration']; const unknown = list.filter((t) => !allowed.includes(t)); if (unknown.length > 0) throw new Error('Unknown automation trigger(s): ' + unknown.join(', ') + '. Allowed: ' + allowed.join(', ') + '.'); return list; };\nconst withTrigger = (body, trigger) => Object.assign(body, trigger !== undefined ? { trigger } : {});\nconst fieldsOf = (module) => { try { return call({ method: 'GET', url: '/settings/fields', query: { module } }).fields ?? []; } catch (e) { if (/403|NO_PERMISSION|OAUTH_SCOPE_MISMATCH/.test(String((e && e.message) || e))) return undefined; throw e; } };\nconst isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst jsonObject = (v, name) => { if (v == null || v === '') return {}; let o = v; if (typeof v === 'string') { try { o = JSON.parse(v); } catch (e) { o = undefined; } } if (!isRec(o)) throw new Error(name + ' must be a JSON object, e.g. {\"Lead_Source\": \"Web\"}.'); return o; };\nconst dateOnly = (v, api) => { const m = /^(\\d{4})-(\\d{2})-(\\d{2})(?:T\\d{2}:\\d{2}(?::\\d{2}(?:\\.\\d+)?)?(?:Z|[+-]\\d{2}:?\\d{2})?)?$/.exec(String(v).trim()); const d = m ? new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))) : undefined; if (!m || d.getUTCMonth() !== Number(m[2]) - 1 || d.getUTCDate() !== Number(m[3])) throw new Error(api + ' must be a date as yyyy-MM-dd, e.g. 2026-10-01.'); return m[1] + '-' + m[2] + '-' + m[3]; };\nconst dateTime = (v, api) => { const s = String(v); if (/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}[+-]\\d{2}:\\d{2}$/.test(s)) return s; const d = new Date(s); if (Number.isNaN(d.getTime())) throw new Error(api + ' must be an ISO 8601 date-time such as 2026-10-01T09:00:00+02:00.'); return d.toISOString().replace(/\\.\\d{3}Z$/, '+00:00'); };\nconst numberOf = (v, api) => { const n = typeof v === 'number' ? v : Number(v); if (!Number.isFinite(n)) throw new Error(api + ' must be a number.'); return n; };\nconst toValue = (f, v) => { if (!f) return v; const type = f.data_type ?? '', api = f.api_name; if (['integer', 'double', 'decimal', 'currency', 'percent'].includes(type)) return numberOf(v, api); if (['bigint', 'long'].includes(type)) { if (typeof v === 'number') return String(v); const s = String(v).trim(); if (!/^-?\\d{1,18}$/.test(s)) throw new Error(api + ' must be a whole number of at most 18 digits.'); return s; } if (type === 'boolean') { if (v === true || v === 'true') return true; if (v === false || v === 'false') return false; throw new Error(api + ' must be true or false.'); } if (type === 'date') return dateOnly(v, api); if (type === 'datetime') return dateTime(v, api); if (type === 'multiselectpicklist') return __list(v); if (['lookup', 'ownerlookup', 'userlookup'].includes(type)) return typeof v === 'object' && v !== null ? v : { id: __id(v, api) }; return v; };\nconst recordOf = (values, fields, extra, clear, what) => { const byName = new Map((fields ?? []).map((f) => [f.api_name, f])); const { __fields_json: typed, ...rest } = jsonObject(values, 'Fields'); const given = Object.fromEntries(Object.entries(rest).filter(([, v]) => !(v == null || v === '' || (Array.isArray(v) && v.length === 0))).map(([k, v]) => [k, toValue(byName.get(k), v)])); const record = { ...jsonObject(extra, 'Additional fields'), ...jsonObject(typed, 'Fields'), ...given, ...Object.fromEntries((clear ?? []).map((k) => [k, null])) }; if (Object.keys(record).length === 0) throw new Error(what + ': no fields were provided.'); return record; };\nconst clear = __list(inputs.clear_fields);\nconst record = recordOf(inputs.fields, fieldsOf(inputs.module), inputs.additional_fields, clear, 'Update record');\nrequest.body = withTrigger({ data: [record] }, automation(undefined, inputs.skip_automation));\nreturn request;",
+      "afterResponse": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __list = (v) => { if (v == null || v === '') return []; const one = (t) => { const s = t.trim(); if (!s.startsWith('[') || !s.endsWith(']')) return undefined; try { const o = JSON.parse(s); return Array.isArray(o) ? o : undefined; } catch (e) { return undefined; } }; const items = Array.isArray(v) ? v.flatMap((o) => Array.isArray(o) ? o : typeof o === 'string' ? (one(o) ?? [o]) : [o]) : (one(String(v)) ?? String(v).split(',')); return items.map((t) => typeof t === 'string' ? t.trim() : typeof t === 'number' ? String(t) : '').filter((t) => t.length > 0); };\ninputs.module = __api(inputs.module, 'Module');\n__list(inputs.clear_fields).forEach((v) => __api(v, 'Clear Fields'));\nconst isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst field = (v, k) => isRec(v) ? v[k] : undefined;\nconst text = (v) => typeof v === 'string' ? v : undefined;\nconst writeItem = (e) => isRec(e) ? { code: text(e.code), status: text(e.status), message: text(e.message), action: text(e.action), duplicate_field: typeof e.duplicate_field === 'string' ? e.duplicate_field : null, details: isRec(e.details) ? e.details : undefined } : {};\nconst firstItem = (body, key) => { key = key || 'data'; const list = field(body, key); if (!Array.isArray(list) || list.length === 0) throw new Error('Zoho CRM returned an unexpected response (no \"' + key + '\" array).'); const items = list.map(writeItem); const failed = items.find((i) => i.status === 'error'); if (failed) throw new Error('Zoho CRM ' + (failed.code ?? 'ERROR') + ': ' + (failed.message ?? 'request failed')); return items[0]; };\nconst userRef = (v) => ({ id: text(field(v, 'id')) ?? null, name: text(field(v, 'name')) ?? null });\nconst written = (e) => { const d = e.details ?? {}; const by = userRef(d.Created_By), last = userRef(d.Modified_By); return { id: text(d.id) ?? null, status: e.status ?? null, code: e.code ?? null, message: e.message ?? null, action: e.action ?? null, duplicate_field: e.duplicate_field ?? null, created_time: text(d.Created_Time) ?? null, modified_time: text(d.Modified_Time) ?? null, created_by_id: by.id, created_by_name: by.name, modified_by_id: last.id, modified_by_name: last.name }; };\nreturn Object.assign({ module: inputs.module }, written(firstItem(response)));"
+    },
+    "upsert_record": {
+      "label": "Create or Update Record",
+      "description": "Updates the record that matches on the duplicate-check fields, or creates it if none matches.",
+      "inputs": {
+        "module": {
+          "label": "Module",
+          "required": true,
+          "description": "The Zoho CRM module (for example Leads, Contacts, Deals or a custom module).",
+          "list": "modules"
+        },
+        "duplicate_check_fields": {
+          "label": "Duplicate Check Fields",
+          "type": "json",
+          "description": "Fields used to find an existing record, as a JSON list. Leave empty to use Zoho's default (Email for Leads/Contacts, Account_Name for Accounts, Deal_Name for Deals, Name for custom modules)."
+        },
+        "fields": {
+          "label": "Fields",
+          "type": "json",
+          "description": "Standard and custom fields of the module, as a JSON object of field API names and values."
+        },
+        "additional_fields": {
+          "label": "Additional Fields (JSON)",
+          "type": "json",
+          "description": "Optional raw fields by API name, for fields the form does not list (e.g. subform rows). Values set in the form above win over the same key here."
+        },
+        "skip_automation": {
+          "label": "Skip All Automation",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.apiDomain}}/crm/v8/{{module}}/upsert"
+      },
+      "beforeRequest": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __list = (v) => { if (v == null || v === '') return []; const one = (t) => { const s = t.trim(); if (!s.startsWith('[') || !s.endsWith(']')) return undefined; try { const o = JSON.parse(s); return Array.isArray(o) ? o : undefined; } catch (e) { return undefined; } }; const items = Array.isArray(v) ? v.flatMap((o) => Array.isArray(o) ? o : typeof o === 'string' ? (one(o) ?? [o]) : [o]) : (one(String(v)) ?? String(v).split(',')); return items.map((t) => typeof t === 'string' ? t.trim() : typeof t === 'number' ? String(t) : '').filter((t) => t.length > 0); };\ninputs.module = __api(inputs.module, 'Module');\nrequest.url = '/' + encodeURIComponent(String(inputs.module ?? '')) + '/upsert';\nconst automation = (value, skip) => { if (skip === 'true') return []; const list = __list(value); if (list.length === 0) return undefined; const allowed = ['workflow', 'approval', 'blueprint', 'pathfinder', 'orchestration']; const unknown = list.filter((t) => !allowed.includes(t)); if (unknown.length > 0) throw new Error('Unknown automation trigger(s): ' + unknown.join(', ') + '. Allowed: ' + allowed.join(', ') + '.'); return list; };\nconst withTrigger = (body, trigger) => Object.assign(body, trigger !== undefined ? { trigger } : {});\nconst fieldsOf = (module) => { try { return call({ method: 'GET', url: '/settings/fields', query: { module } }).fields ?? []; } catch (e) { if (/403|NO_PERMISSION|OAUTH_SCOPE_MISMATCH/.test(String((e && e.message) || e))) return undefined; throw e; } };\nconst isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst jsonObject = (v, name) => { if (v == null || v === '') return {}; let o = v; if (typeof v === 'string') { try { o = JSON.parse(v); } catch (e) { o = undefined; } } if (!isRec(o)) throw new Error(name + ' must be a JSON object, e.g. {\"Lead_Source\": \"Web\"}.'); return o; };\nconst dateOnly = (v, api) => { const m = /^(\\d{4})-(\\d{2})-(\\d{2})(?:T\\d{2}:\\d{2}(?::\\d{2}(?:\\.\\d+)?)?(?:Z|[+-]\\d{2}:?\\d{2})?)?$/.exec(String(v).trim()); const d = m ? new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))) : undefined; if (!m || d.getUTCMonth() !== Number(m[2]) - 1 || d.getUTCDate() !== Number(m[3])) throw new Error(api + ' must be a date as yyyy-MM-dd, e.g. 2026-10-01.'); return m[1] + '-' + m[2] + '-' + m[3]; };\nconst dateTime = (v, api) => { const s = String(v); if (/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}[+-]\\d{2}:\\d{2}$/.test(s)) return s; const d = new Date(s); if (Number.isNaN(d.getTime())) throw new Error(api + ' must be an ISO 8601 date-time such as 2026-10-01T09:00:00+02:00.'); return d.toISOString().replace(/\\.\\d{3}Z$/, '+00:00'); };\nconst numberOf = (v, api) => { const n = typeof v === 'number' ? v : Number(v); if (!Number.isFinite(n)) throw new Error(api + ' must be a number.'); return n; };\nconst toValue = (f, v) => { if (!f) return v; const type = f.data_type ?? '', api = f.api_name; if (['integer', 'double', 'decimal', 'currency', 'percent'].includes(type)) return numberOf(v, api); if (['bigint', 'long'].includes(type)) { if (typeof v === 'number') return String(v); const s = String(v).trim(); if (!/^-?\\d{1,18}$/.test(s)) throw new Error(api + ' must be a whole number of at most 18 digits.'); return s; } if (type === 'boolean') { if (v === true || v === 'true') return true; if (v === false || v === 'false') return false; throw new Error(api + ' must be true or false.'); } if (type === 'date') return dateOnly(v, api); if (type === 'datetime') return dateTime(v, api); if (type === 'multiselectpicklist') return __list(v); if (['lookup', 'ownerlookup', 'userlookup'].includes(type)) return typeof v === 'object' && v !== null ? v : { id: __id(v, api) }; return v; };\nconst recordOf = (values, fields, extra, clear, what) => { const byName = new Map((fields ?? []).map((f) => [f.api_name, f])); const { __fields_json: typed, ...rest } = jsonObject(values, 'Fields'); const given = Object.fromEntries(Object.entries(rest).filter(([, v]) => !(v == null || v === '' || (Array.isArray(v) && v.length === 0))).map(([k, v]) => [k, toValue(byName.get(k), v)])); const record = { ...jsonObject(extra, 'Additional fields'), ...jsonObject(typed, 'Fields'), ...given, ...Object.fromEntries((clear ?? []).map((k) => [k, null])) }; if (Object.keys(record).length === 0) throw new Error(what + ': no fields were provided.'); return record; };\nconst record = recordOf(inputs.fields, fieldsOf(inputs.module), inputs.additional_fields, [], 'Upsert record');\nconst unique = __list(inputs.duplicate_check_fields);\nunique.forEach((v) => __api(v, 'Duplicate Check Fields'));\nrequest.body = withTrigger(Object.assign({ data: [record] }, unique.length > 0 ? { duplicate_check_fields: unique } : {}), automation(undefined, inputs.skip_automation));\nreturn request;",
+      "afterResponse": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __list = (v) => { if (v == null || v === '') return []; const one = (t) => { const s = t.trim(); if (!s.startsWith('[') || !s.endsWith(']')) return undefined; try { const o = JSON.parse(s); return Array.isArray(o) ? o : undefined; } catch (e) { return undefined; } }; const items = Array.isArray(v) ? v.flatMap((o) => Array.isArray(o) ? o : typeof o === 'string' ? (one(o) ?? [o]) : [o]) : (one(String(v)) ?? String(v).split(',')); return items.map((t) => typeof t === 'string' ? t.trim() : typeof t === 'number' ? String(t) : '').filter((t) => t.length > 0); };\ninputs.module = __api(inputs.module, 'Module');\n__list(inputs.duplicate_check_fields).forEach((v) => __api(v, 'Duplicate Check Fields'));\nconst isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst field = (v, k) => isRec(v) ? v[k] : undefined;\nconst text = (v) => typeof v === 'string' ? v : undefined;\nconst writeItem = (e) => isRec(e) ? { code: text(e.code), status: text(e.status), message: text(e.message), action: text(e.action), duplicate_field: typeof e.duplicate_field === 'string' ? e.duplicate_field : null, details: isRec(e.details) ? e.details : undefined } : {};\nconst firstItem = (body, key) => { key = key || 'data'; const list = field(body, key); if (!Array.isArray(list) || list.length === 0) throw new Error('Zoho CRM returned an unexpected response (no \"' + key + '\" array).'); const items = list.map(writeItem); const failed = items.find((i) => i.status === 'error'); if (failed) throw new Error('Zoho CRM ' + (failed.code ?? 'ERROR') + ': ' + (failed.message ?? 'request failed')); return items[0]; };\nconst userRef = (v) => ({ id: text(field(v, 'id')) ?? null, name: text(field(v, 'name')) ?? null });\nconst written = (e) => { const d = e.details ?? {}; const by = userRef(d.Created_By), last = userRef(d.Modified_By); return { id: text(d.id) ?? null, status: e.status ?? null, code: e.code ?? null, message: e.message ?? null, action: e.action ?? null, duplicate_field: e.duplicate_field ?? null, created_time: text(d.Created_Time) ?? null, modified_time: text(d.Modified_Time) ?? null, created_by_id: by.id, created_by_name: by.name, modified_by_id: last.id, modified_by_name: last.name }; };\nreturn Object.assign({ module: inputs.module }, written(firstItem(response)));"
+    },
+    "delete_record": {
+      "label": "Delete Record",
+      "description": "Deletes a record (it moves to the Zoho CRM Recycle Bin).",
+      "inputs": {
+        "module": {
+          "label": "Module",
+          "required": true,
+          "description": "The Zoho CRM module (for example Leads, Contacts, Deals or a custom module).",
+          "list": "modules"
+        },
+        "record_id": {
+          "label": "Record",
+          "required": true,
+          "description": "Pick one of the 200 most recently modified records, or map a record id from an earlier step.",
+          "list": "records"
+        },
+        "run_workflows": {
+          "label": "Run Workflows",
+          "type": "boolean",
+          "description": "Run delete workflows configured in Zoho (Zoho default: on).",
+          "defaultValue": "true"
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.apiDomain}}/crm/v8/{{module}}/{{record_id}}"
+      },
+      "beforeRequest": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\ninputs.module = __api(inputs.module, 'Module');\ninputs.record_id = __id(inputs.record_id, 'Record');\nrequest.url = '/' + encodeURIComponent(String(inputs.module ?? '')) + '/' + encodeURIComponent(String(inputs.record_id ?? ''));\nif (inputs.run_workflows === 'false') request.query = { wf_trigger: 'false' };\nreturn request;",
+      "afterResponse": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\ninputs.module = __api(inputs.module, 'Module');\ninputs.record_id = __id(inputs.record_id, 'Record');\nconst text = (v) => typeof v === 'string' ? v : undefined;\nconst isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst field = (v, k) => isRec(v) ? v[k] : undefined;\nconst writeItem = (e) => isRec(e) ? { code: text(e.code), status: text(e.status), message: text(e.message), action: text(e.action), duplicate_field: typeof e.duplicate_field === 'string' ? e.duplicate_field : null, details: isRec(e.details) ? e.details : undefined } : {};\nconst firstItem = (body, key) => { key = key || 'data'; const list = field(body, key); if (!Array.isArray(list) || list.length === 0) throw new Error('Zoho CRM returned an unexpected response (no \"' + key + '\" array).'); const items = list.map(writeItem); const failed = items.find((i) => i.status === 'error'); if (failed) throw new Error('Zoho CRM ' + (failed.code ?? 'ERROR') + ': ' + (failed.message ?? 'request failed')); return items[0]; };\nconst userRef = (v) => ({ id: text(field(v, 'id')) ?? null, name: text(field(v, 'name')) ?? null });\nconst written = (e) => { const d = e.details ?? {}; const by = userRef(d.Created_By), last = userRef(d.Modified_By); return { id: text(d.id) ?? null, status: e.status ?? null, code: e.code ?? null, message: e.message ?? null, action: e.action ?? null, duplicate_field: e.duplicate_field ?? null, created_time: text(d.Created_Time) ?? null, modified_time: text(d.Modified_Time) ?? null, created_by_id: by.id, created_by_name: by.name, modified_by_id: last.id, modified_by_name: last.name }; };\nconst item = firstItem(response);\nreturn Object.assign({ module: inputs.module, deleted: true }, written(item), { id: text(item.details && item.details.id) ?? inputs.record_id });"
+    },
+    "convert_lead": {
+      "label": "Convert Lead",
+      "description": "Converts a lead into a contact and account, and optionally a deal.",
+      "inputs": {
+        "lead_id": {
+          "label": "Lead",
+          "required": true,
+          "description": "Pick one of the 200 most recently modified records, or map a record id from an earlier step.",
+          "list": "leads"
+        },
+        "account_id": {
+          "label": "Existing Account",
+          "description": "Link to this account; the lead's Company must match its name.",
+          "list": "accounts"
+        },
+        "contact_id": {
+          "label": "Existing Contact",
+          "description": "Merge into this contact; the lead's name and email must match.",
+          "list": "contacts"
+        },
+        "overwrite": {
+          "label": "Overwrite Contact's Account",
+          "type": "boolean",
+          "description": "Move the existing contact to the given account.",
+          "defaultValue": "false"
+        },
+        "assign_to": {
+          "label": "Owner",
+          "description": "Active user who owns the new records; empty keeps the lead owner.",
+          "list": "users"
+        },
+        "notify_lead_owner": {
+          "label": "Notify Lead Owner",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "notify_new_entity_owner": {
+          "label": "Notify New Owner",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "create_deal": {
+          "label": "Create a Deal",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "deal_name": {
+          "label": "Deal Name"
+        },
+        "deal_stage": {
+          "label": "Deal Stage",
+          "description": "A Stage picklist value of your org, e.g. \"Qualification\"."
+        },
+        "deal_closing_date": {
+          "label": "Deal Closing Date",
+          "description": "Date as yyyy-MM-dd, e.g. 2026-12-31."
+        },
+        "deal_amount": {
+          "label": "Deal Amount",
+          "type": "number"
+        },
+        "deal_pipeline": {
+          "label": "Deal Pipeline",
+          "description": "Required when your org uses pipelines, e.g. \"Standard (Standard)\"."
+        },
+        "deal_extra": {
+          "label": "Other Deal Fields (JSON)",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.apiDomain}}/crm/v8/Leads/{{lead_id}}/actions/convert"
+      },
+      "beforeRequest": "const __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __optId = (v, name) => v == null || v === '' ? v : __id(v, name);\ninputs.lead_id = __id(inputs.lead_id, 'Lead');\ninputs.account_id = __optId(inputs.account_id, 'Existing Account');\ninputs.contact_id = __optId(inputs.contact_id, 'Existing Contact');\ninputs.assign_to = __optId(inputs.assign_to, 'Owner');\nrequest.url = '/Leads/' + encodeURIComponent(String(inputs.lead_id ?? '')) + '/actions/convert';\nconst isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst jsonObject = (v, name) => { if (v == null || v === '') return {}; let o = v; if (typeof v === 'string') { try { o = JSON.parse(v); } catch (e) { o = undefined; } } if (!isRec(o)) throw new Error(name + ' must be a JSON object, e.g. {\"Lead_Source\": \"Web\"}.'); return o; };\nconst dateOnly = (v, api) => { const m = /^(\\d{4})-(\\d{2})-(\\d{2})(?:T\\d{2}:\\d{2}(?::\\d{2}(?:\\.\\d+)?)?(?:Z|[+-]\\d{2}:?\\d{2})?)?$/.exec(String(v).trim()); const d = m ? new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))) : undefined; if (!m || d.getUTCMonth() !== Number(m[2]) - 1 || d.getUTCDate() !== Number(m[3])) throw new Error(api + ' must be a date as yyyy-MM-dd, e.g. 2026-10-01.'); return m[1] + '-' + m[2] + '-' + m[3]; };\nconst optionalId = (v, name) => v == null || v === '' ? undefined : __id(v, name);\nconst conversion = (inputs, deal) => { const t = {}; if (inputs.overwrite === 'true') t.overwrite = true; if (inputs.notify_lead_owner === 'true') t.notify_lead_owner = true; if (inputs.notify_new_entity_owner === 'true') t.notify_new_entity_owner = true; const account = optionalId(inputs.account_id, 'account_id'), contact = optionalId(inputs.contact_id, 'contact_id'), owner = optionalId(inputs.assign_to, 'assign_to'); if (account) t.Accounts = { id: account }; if (contact) t.Contacts = { id: contact }; if (owner) t.assign_to = { id: owner }; if (Object.keys(deal).length > 0) t.Deals = deal; return { data: [t] }; };\nconst deal = {};\nif (inputs.create_deal === 'true') {\n  Object.assign(deal, jsonObject(inputs.deal_extra, 'Other Deal Fields'));\n  if (!inputs.deal_name || !inputs.deal_stage || !inputs.deal_closing_date) throw new Error('To create a deal, Deal Name, Deal Stage and Deal Closing Date are required.');\n  deal.Deal_Name = inputs.deal_name;\n  deal.Stage = inputs.deal_stage;\n  deal.Closing_Date = dateOnly(inputs.deal_closing_date, 'Deal Closing Date');\n  if (inputs.deal_amount != null && inputs.deal_amount !== '') deal.Amount = Number(inputs.deal_amount);\n  if (inputs.deal_pipeline) deal.Pipeline = inputs.deal_pipeline;\n}\nrequest.body = conversion(inputs, deal);\nreturn request;",
+      "afterResponse": "const __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\ninputs.lead_id = __id(inputs.lead_id, 'Lead');\nconst text = (v) => typeof v === 'string' ? v : undefined;\nconst isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst field = (v, k) => isRec(v) ? v[k] : undefined;\nconst writeItem = (e) => isRec(e) ? { code: text(e.code), status: text(e.status), message: text(e.message), action: text(e.action), duplicate_field: typeof e.duplicate_field === 'string' ? e.duplicate_field : null, details: isRec(e.details) ? e.details : undefined } : {};\nconst firstItem = (body, key) => { key = key || 'data'; const list = field(body, key); if (!Array.isArray(list) || list.length === 0) throw new Error('Zoho CRM returned an unexpected response (no \"' + key + '\" array).'); const items = list.map(writeItem); const failed = items.find((i) => i.status === 'error'); if (failed) throw new Error('Zoho CRM ' + (failed.code ?? 'ERROR') + ': ' + (failed.message ?? 'request failed')); return items[0]; };\nconst converted = (inputs, response) => { const item = firstItem(response); const d = item.details ?? {}; const ref = (e, k) => text(field(d[e], k)) ?? null; return { lead_id: __id(inputs.lead_id, 'lead_id'), status: item.status ?? null, message: item.message ?? null, contact_id: ref('Contacts', 'id'), contact_name: ref('Contacts', 'name'), account_id: ref('Accounts', 'id'), account_name: ref('Accounts', 'name'), deal_id: ref('Deals', 'id'), deal_name: ref('Deals', 'name') }; };\nreturn converted(inputs, response);"
+    },
+    "add_note": {
+      "label": "Add Note",
+      "description": "Adds a note to a record.",
+      "inputs": {
+        "module": {
+          "label": "Module",
+          "required": true,
+          "description": "The Zoho CRM module (for example Leads, Contacts, Deals or a custom module).",
+          "list": "modules"
+        },
+        "record_id": {
+          "label": "Record",
+          "required": true,
+          "description": "Pick one of the 200 most recently modified records, or map a record id from an earlier step.",
+          "list": "records"
+        },
+        "title": {
+          "label": "Title"
+        },
+        "content": {
+          "label": "Content",
+          "type": "multiline",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.apiDomain}}/crm/v8/Notes",
+        "body": {
+          "data": [
+            {
+              "Parent_Id": {
+                "module": {
+                  "api_name": "{{module}}"
+                },
+                "id": "{{record_id}}"
+              },
+              "Note_Content": "{{content}}",
+              "Note_Title": "{{title}}"
+            }
+          ]
+        }
+      },
+      "afterResponse": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\ninputs.module = __api(inputs.module, 'Module');\ninputs.record_id = __id(inputs.record_id, 'Record');\nconst isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst field = (v, k) => isRec(v) ? v[k] : undefined;\nconst text = (v) => typeof v === 'string' ? v : undefined;\nconst writeItem = (e) => isRec(e) ? { code: text(e.code), status: text(e.status), message: text(e.message), action: text(e.action), duplicate_field: typeof e.duplicate_field === 'string' ? e.duplicate_field : null, details: isRec(e.details) ? e.details : undefined } : {};\nconst firstItem = (body, key) => { key = key || 'data'; const list = field(body, key); if (!Array.isArray(list) || list.length === 0) throw new Error('Zoho CRM returned an unexpected response (no \"' + key + '\" array).'); const items = list.map(writeItem); const failed = items.find((i) => i.status === 'error'); if (failed) throw new Error('Zoho CRM ' + (failed.code ?? 'ERROR') + ': ' + (failed.message ?? 'request failed')); return items[0]; };\nconst userRef = (v) => ({ id: text(field(v, 'id')) ?? null, name: text(field(v, 'name')) ?? null });\nconst written = (e) => { const d = e.details ?? {}; const by = userRef(d.Created_By), last = userRef(d.Modified_By); return { id: text(d.id) ?? null, status: e.status ?? null, code: e.code ?? null, message: e.message ?? null, action: e.action ?? null, duplicate_field: e.duplicate_field ?? null, created_time: text(d.Created_Time) ?? null, modified_time: text(d.Modified_Time) ?? null, created_by_id: by.id, created_by_name: by.name, modified_by_id: last.id, modified_by_name: last.name }; };\nreturn Object.assign({ parent_module: inputs.module, parent_id: inputs.record_id }, written(firstItem(response)));",
+      "beforeRequest": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\ninputs.module = __api(inputs.module, 'Module');\ninputs.record_id = __id(inputs.record_id, 'Record');\nrequest.body.data[0].Parent_Id.module.api_name = inputs.module;\nrequest.body.data[0].Parent_Id.id = inputs.record_id;\nreturn request;"
+    },
+    "zoho_crm_list_modules": {
+      "label": "List Modules",
+      "description": "Lists the modules available through the API.",
+      "inputs": {},
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.apiDomain}}/crm/v8/settings/modules"
+      },
+      "afterResponse": "const isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst field = (v, k) => isRec(v) ? v[k] : undefined;\nconst modules = (field(response, 'modules') ?? []).filter((o) => o.api_supported !== false).map((o) => ({ api_name: o.api_name, module_name: o.module_name ?? null, plural_label: o.plural_label ?? null, singular_label: o.singular_label ?? null, generated_type: o.generated_type ?? null, creatable: o.creatable ?? null, editable: o.editable ?? null, deletable: o.deletable ?? null }));\nreturn { modules, count: modules.length };"
+    },
+    "zoho_crm_get_module_fields": {
+      "label": "Get Module Fields",
+      "description": "Lists the fields of a module, custom fields included.",
+      "inputs": {
+        "module": {
+          "label": "Module",
+          "required": true,
+          "description": "Module API name from List Modules, e.g. \"Leads\", \"Contacts\", \"Deals\", \"Accounts\" or \"CustomModule1\". Not the display label.",
+          "list": "modules"
+        },
+        "include_read_only": {
+          "label": "Include Read-Only Fields",
+          "type": "boolean",
+          "description": "Also list fields that cannot be written (formula, system, auto-number).",
+          "defaultValue": "true"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.apiDomain}}/crm/v8/settings/fields",
+        "query": {
+          "module": "{{module}}"
+        }
+      },
+      "afterResponse": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\ninputs.module = __api(inputs.module, 'Module');\nconst isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst field = (v, k) => isRec(v) ? v[k] : undefined;\nconst readOnly = (f) => f.read_only === true || (f.field_read_only === true && !(f.data_type === 'ownerlookup' && f.api_name === 'Owner'));\nconst fields = (field(response, 'fields') ?? []).filter((i) => i.visible !== false).filter((i) => inputs.include_read_only !== 'false' || !readOnly(i)).map((i) => ({ api_name: i.api_name, field_label: i.display_label ?? i.field_label ?? i.api_name, data_type: i.data_type ?? null, required: i.system_mandatory === true, read_only: readOnly(i), custom_field: i.custom_field === true, lookup_module: (i.lookup && i.lookup.module && i.lookup.module.api_name) ?? null, max_length: i.length ?? null, picklist_values: (i.pick_list_values ?? []).map((a) => a.actual_value).filter((a) => typeof a === 'string' && a !== '-None-') }));\nreturn { module: inputs.module, fields, count: fields.length };",
+      "beforeRequest": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\ninputs.module = __api(inputs.module, 'Module');\nif (request.query && request.query.module !== undefined) request.query.module = inputs.module;\nreturn request;"
+    },
+    "zoho_crm_get_related_lists": {
+      "label": "Get Related Lists",
+      "description": "Lists the related lists of a module.",
+      "inputs": {
+        "module": {
+          "label": "Module",
+          "required": true,
+          "description": "Module API name from List Modules, e.g. \"Leads\", \"Contacts\", \"Deals\", \"Accounts\" or \"CustomModule1\". Not the display label.",
+          "list": "modules"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.apiDomain}}/crm/v8/settings/related_lists",
+        "query": {
+          "module": "{{module}}"
+        }
+      },
+      "afterResponse": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\ninputs.module = __api(inputs.module, 'Module');\nconst isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst field = (v, k) => isRec(v) ? v[k] : undefined;\nconst plain = (v) => typeof v === 'string' ? v : (typeof v === 'number' || typeof v === 'boolean') ? String(v) : null;\nconst objOf = (v) => isRec(v) ? v : {};\nconst related_lists = (field(response, 'related_lists') ?? []).map((e) => ({ api_name: plain(e.api_name), display_label: plain(e.display_label), module_api_name: plain(objOf(e.module).api_name), type: plain(e.type), href: plain(e.href), status: plain(e.status), id: plain(e.id) }));\nreturn { module: inputs.module, related_lists, count: related_lists.length };",
+      "beforeRequest": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\ninputs.module = __api(inputs.module, 'Module');\nif (request.query && request.query.module !== undefined) request.query.module = inputs.module;\nreturn request;"
+    },
+    "zoho_crm_list_users": {
+      "label": "List Users",
+      "description": "Lists CRM users.",
+      "inputs": {
+        "type": {
+          "label": "User Type",
+          "type": "select",
+          "defaultValue": "ActiveUsers",
+          "options": [
+            {
+              "value": "AllUsers",
+              "label": "AllUsers"
+            },
+            {
+              "value": "ActiveUsers",
+              "label": "ActiveUsers"
+            },
+            {
+              "value": "DeactiveUsers",
+              "label": "DeactiveUsers"
+            },
+            {
+              "value": "ConfirmedUsers",
+              "label": "ConfirmedUsers"
+            },
+            {
+              "value": "NotConfirmedUsers",
+              "label": "NotConfirmedUsers"
+            },
+            {
+              "value": "DeletedUsers",
+              "label": "DeletedUsers"
+            },
+            {
+              "value": "ActiveConfirmedUsers",
+              "label": "ActiveConfirmedUsers"
+            },
+            {
+              "value": "AdminUsers",
+              "label": "AdminUsers"
+            },
+            {
+              "value": "ActiveConfirmedAdmins",
+              "label": "ActiveConfirmedAdmins"
+            }
+          ]
+        },
+        "page": {
+          "label": "Page",
+          "type": "number",
+          "description": "Page number, starting at 1."
+        },
+        "per_page": {
+          "label": "Per Page",
+          "type": "number",
+          "description": "1 to 200 (default 200)."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.apiDomain}}/crm/v8/users",
+        "query": {
+          "page": "{{page}}",
+          "per_page": "{{per_page}}"
+        }
+      },
+      "beforeRequest": "\nconst __types = ['AllUsers', 'ActiveUsers', 'DeactiveUsers', 'ConfirmedUsers', 'NotConfirmedUsers', 'DeletedUsers', 'ActiveConfirmedUsers', 'AdminUsers', 'ActiveConfirmedAdmins'];\nif (inputs.type && !__types.includes(inputs.type)) throw new Error('type must be one of ' + __types.join(', ') + '.');\nconst pageOf = (v, name, max) => { if (v == null || v === '') return undefined; const n = Number(v); if (!Number.isInteger(n) || n < 1 || n > max) throw new Error(name + ' must be a whole number between 1 and ' + max + '.'); return n; };\nconst page = pageOf(inputs.page, 'page', 2000), perPage = pageOf(inputs.per_page, 'per_page', 200);\nif (page !== undefined && page * (perPage ?? 200) > 2000) throw new Error('Zoho only serves the first 2,000 items by page number (page x per_page).');\nrequest.query = Object.assign({ type: inputs.type || 'ActiveUsers' }, page ? { page: String(page) } : {}, perPage ? { per_page: String(perPage) } : {});\nreturn request;",
+      "afterResponse": "const isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst field = (v, k) => isRec(v) ? v[k] : undefined;\nconst plain = (v) => typeof v === 'string' ? v : (typeof v === 'number' || typeof v === 'boolean') ? String(v) : null;\nconst objOf = (v) => isRec(v) ? v : {};\nconst userOf = (e) => { const role = objOf(e.role), profile = objOf(e.profile); return { id: plain(e.id), full_name: plain(e.full_name), first_name: plain(e.first_name), last_name: plain(e.last_name), email: plain(e.email), status: plain(e.status), role_id: plain(role.id), role_name: plain(role.name), profile_id: plain(profile.id), profile_name: plain(profile.name), time_zone: plain(e.time_zone), confirm: typeof e.confirm === 'boolean' ? e.confirm : null }; };\nconst users = (field(response, 'users') ?? []).map(userOf);\nreturn { users, count: users.length, more_records: (response.info && response.info.more_records) === true };"
+    },
+    "zoho_crm_get_user": {
+      "label": "Get User",
+      "description": "Gets a CRM user by id.",
+      "inputs": {
+        "user_id": {
+          "label": "User ID",
+          "required": true,
+          "description": "Numeric user id, e.g. \"5725767000000411001\".",
+          "list": "users"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.apiDomain}}/crm/v8/users/{{user_id}}"
+      },
+      "afterResponse": "const __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\ninputs.user_id = __id(inputs.user_id, 'user_id');\nconst isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst field = (v, k) => isRec(v) ? v[k] : undefined;\nconst plain = (v) => typeof v === 'string' ? v : (typeof v === 'number' || typeof v === 'boolean') ? String(v) : null;\nconst objOf = (v) => isRec(v) ? v : {};\nconst userOf = (e) => { const role = objOf(e.role), profile = objOf(e.profile); return { id: plain(e.id), full_name: plain(e.full_name), first_name: plain(e.first_name), last_name: plain(e.last_name), email: plain(e.email), status: plain(e.status), role_id: plain(role.id), role_name: plain(role.name), profile_id: plain(profile.id), profile_name: plain(profile.name), time_zone: plain(e.time_zone), confirm: typeof e.confirm === 'boolean' ? e.confirm : null }; };\nconst user = (field(response, 'users') ?? [])[0];\nif (!user) throw new Error('No user with id ' + inputs.user_id + ' was found.');\nreturn userOf(user);",
+      "beforeRequest": "const __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\ninputs.user_id = __id(inputs.user_id, 'user_id');\nrequest.url = '/users/' + encodeURIComponent(String(inputs.user_id ?? ''));\nreturn request;"
+    },
+    "zoho_crm_get_current_user": {
+      "label": "Get Current User",
+      "description": "Gets the connected CRM user.",
+      "inputs": {},
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.apiDomain}}/crm/v8/users",
+        "query": {
+          "type": "CurrentUser"
+        }
+      },
+      "afterResponse": "const isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst field = (v, k) => isRec(v) ? v[k] : undefined;\nconst plain = (v) => typeof v === 'string' ? v : (typeof v === 'number' || typeof v === 'boolean') ? String(v) : null;\nconst objOf = (v) => isRec(v) ? v : {};\nconst userOf = (e) => { const role = objOf(e.role), profile = objOf(e.profile); return { id: plain(e.id), full_name: plain(e.full_name), first_name: plain(e.first_name), last_name: plain(e.last_name), email: plain(e.email), status: plain(e.status), role_id: plain(role.id), role_name: plain(role.name), profile_id: plain(profile.id), profile_name: plain(profile.name), time_zone: plain(e.time_zone), confirm: typeof e.confirm === 'boolean' ? e.confirm : null }; };\nconst user = (field(response, 'users') ?? [])[0];\nif (!user) throw new Error('Zoho did not return the current user.');\nreturn userOf(user);"
+    },
+    "zoho_crm_list_records": {
+      "label": "List Records",
+      "description": "Lists records of a module, one page at a time.",
+      "inputs": {
+        "module": {
+          "label": "Module",
+          "required": true,
+          "description": "Module API name from List Modules, e.g. \"Leads\", \"Contacts\", \"Deals\" or \"CustomModule1\".",
+          "list": "modules"
+        },
+        "fields": {
+          "label": "Fields",
+          "type": "json",
+          "description": "Field API names to return (max 50), as a JSON list. Leave empty for id, then the custom fields of the module, then its standard fields (50 in total)."
+        },
+        "per_page": {
+          "label": "Per Page",
+          "type": "number",
+          "description": "1 to 200. Default 50."
+        },
+        "page": {
+          "label": "Page",
+          "type": "number",
+          "description": "Page number for the first 2,000 records. Do not combine with page_token."
+        },
+        "page_token": {
+          "label": "Page Token",
+          "description": "next_page_token from a previous call, needed beyond 2,000 records."
+        },
+        "sort_by": {
+          "label": "Sort By",
+          "type": "select",
+          "options": [
+            {
+              "value": "id",
+              "label": "id"
+            },
+            {
+              "value": "Created_Time",
+              "label": "Created_Time"
+            },
+            {
+              "value": "Modified_Time",
+              "label": "Modified_Time"
+            }
+          ]
+        },
+        "sort_order": {
+          "label": "Sort Order",
+          "type": "select",
+          "options": [
+            {
+              "value": "desc",
+              "label": "Descending"
+            },
+            {
+              "value": "asc",
+              "label": "Ascending"
+            }
+          ]
+        },
+        "custom_view_id": {
+          "label": "Custom View ID",
+          "description": "Optional id of a custom view (cvid) to list only its records."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.apiDomain}}/crm/v8/settings/fields",
+        "query": {
+          "module": "{{module}}"
+        }
+      },
+      "beforeRequest": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __optId = (v, name) => v == null || v === '' ? v : __id(v, name);\nconst __list = (v) => { if (v == null || v === '') return []; const one = (t) => { const s = t.trim(); if (!s.startsWith('[') || !s.endsWith(']')) return undefined; try { const o = JSON.parse(s); return Array.isArray(o) ? o : undefined; } catch (e) { return undefined; } }; const items = Array.isArray(v) ? v.flatMap((o) => Array.isArray(o) ? o : typeof o === 'string' ? (one(o) ?? [o]) : [o]) : (one(String(v)) ?? String(v).split(',')); return items.map((t) => typeof t === 'string' ? t.trim() : typeof t === 'number' ? String(t) : '').filter((t) => t.length > 0); };\ninputs.module = __api(inputs.module, 'Module');\ninputs.custom_view_id = __optId(inputs.custom_view_id, 'custom_view_id');\n__list(inputs.fields).forEach((v) => __api(v, 'fields'));\nif (request.query && request.query.module !== undefined) request.query.module = inputs.module;\nconst enc = encodeURIComponent;\nconst optionalId = (v, name) => v == null || v === '' ? undefined : __id(v, name);\nconst pageOf = (v, name, max) => { if (v == null || v === '') return undefined; const n = Number(v); if (!Number.isInteger(n) || n < 1 || n > max) throw new Error(name + ' must be a whole number between 1 and ' + max + '.'); return n; };\nconst recordsQuery = (fields) => { const perPage = pageOf(inputs.per_page, 'per_page', 200) ?? 50, page = pageOf(inputs.page, 'page', 2000), token = (inputs.page_token || '').trim() || undefined;\n  if (page !== undefined && token) throw new Error('Use either page or page_token, not both.');\n  if (page !== undefined && page * perPage > 2000) throw new Error('Zoho only serves the first 2,000 items by page number (page x per_page). Pass next_page_token from the previous result instead.');\n  return Object.assign({ fields: fields.join(','), per_page: String(perPage) }, page ? { page: String(page) } : {}, token ? { page_token: token } : {}, inputs.sort_by ? { sort_by: inputs.sort_by } : {}, inputs.sort_order ? { sort_order: inputs.sort_order } : {}, optionalId(inputs.custom_view_id, 'custom_view_id') ? { cvid: optionalId(inputs.custom_view_id, 'custom_view_id') } : {}); };\nconst chosen = __list(inputs.fields);\nif (chosen.length > 50) throw new Error('Zoho returns at most 50 fields per call.');\nrecordsQuery(chosen);\nif (chosen.length > 0) { request.url = '/' + enc(inputs.module); request.query = recordsQuery(chosen); }\nreturn request;",
+      "afterResponse": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __optId = (v, name) => v == null || v === '' ? v : __id(v, name);\nconst __list = (v) => { if (v == null || v === '') return []; const one = (t) => { const s = t.trim(); if (!s.startsWith('[') || !s.endsWith(']')) return undefined; try { const o = JSON.parse(s); return Array.isArray(o) ? o : undefined; } catch (e) { return undefined; } }; const items = Array.isArray(v) ? v.flatMap((o) => Array.isArray(o) ? o : typeof o === 'string' ? (one(o) ?? [o]) : [o]) : (one(String(v)) ?? String(v).split(',')); return items.map((t) => typeof t === 'string' ? t.trim() : typeof t === 'number' ? String(t) : '').filter((t) => t.length > 0); };\ninputs.module = __api(inputs.module, 'Module');\ninputs.custom_view_id = __optId(inputs.custom_view_id, 'custom_view_id');\n__list(inputs.fields).forEach((v) => __api(v, 'fields'));\nconst isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst field = (v, k) => isRec(v) ? v[k] : undefined;\nconst objOf = (v) => isRec(v) ? v : {};\nconst enc = encodeURIComponent;\nconst lowValue = (f) => ['Latitude', 'Longitude', 'Coordinates', 'Record_Image'].includes(f.api_name) || f.api_name.endsWith('__s') || f.api_name.startsWith('$');\nconst defaultFields = (fields) => { const shown = fields.filter((a) => a.visible !== false && a.api_name && a.api_name !== 'id'); const custom = shown.filter((a) => a.custom_field === true && !lowValue(a)); const standard = shown.filter((a) => a.custom_field !== true && !lowValue(a)); const low = shown.filter((a) => lowValue(a)); return ['id', ...[...custom, ...standard, ...low].map((a) => a.api_name)].slice(0, 50); };\nconst optionalId = (v, name) => v == null || v === '' ? undefined : __id(v, name);\nconst pageOf = (v, name, max) => { if (v == null || v === '') return undefined; const n = Number(v); if (!Number.isInteger(n) || n < 1 || n > max) throw new Error(name + ' must be a whole number between 1 and ' + max + '.'); return n; };\nconst recordsQuery = (fields) => { const perPage = pageOf(inputs.per_page, 'per_page', 200) ?? 50, page = pageOf(inputs.page, 'page', 2000), token = (inputs.page_token || '').trim() || undefined;\n  if (page !== undefined && token) throw new Error('Use either page or page_token, not both.');\n  if (page !== undefined && page * perPage > 2000) throw new Error('Zoho only serves the first 2,000 items by page number (page x per_page). Pass next_page_token from the previous result instead.');\n  return Object.assign({ fields: fields.join(','), per_page: String(perPage) }, page ? { page: String(page) } : {}, token ? { page_token: token } : {}, inputs.sort_by ? { sort_by: inputs.sort_by } : {}, inputs.sort_order ? { sort_order: inputs.sort_order } : {}, optionalId(inputs.custom_view_id, 'custom_view_id') ? { cvid: optionalId(inputs.custom_view_id, 'custom_view_id') } : {}); };\nconst chosen = __list(inputs.fields);\nif (chosen.length > 50) throw new Error('Zoho returns at most 50 fields per call.');\nlet fields = chosen, page = response;\nif (chosen.length === 0) { fields = defaultFields(field(response, 'fields') ?? []); page = call({ method: 'GET', url: '/' + enc(inputs.module), query: recordsQuery(fields) }); }\nconst records = field(page, 'data') ?? [], info = objOf(field(page, 'info'));\nreturn { module: inputs.module, records, count: records.length, more_records: info.more_records === true, page: info.page ?? pageOf(inputs.page, 'page', 2000) ?? null, next_page_token: info.next_page_token ?? null, fields_requested: fields.join(',') };"
+    },
+    "zoho_crm_get_record": {
+      "label": "Get Record",
+      "description": "Gets one record by id.",
+      "inputs": {
+        "module": {
+          "label": "Module",
+          "required": true,
+          "description": "Module API name from List Modules, e.g. \"Leads\", \"Contacts\", \"Deals\" or \"CustomModule1\".",
+          "list": "modules"
+        },
+        "record_id": {
+          "label": "Record",
+          "required": true,
+          "description": "Numeric Zoho record id, e.g. \"5725767000000524157\" (from List Records or a create result).",
+          "list": "records"
+        },
+        "fields": {
+          "label": "Fields",
+          "type": "json",
+          "description": "Optional field API names to return, as a JSON list; empty returns all fields."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.apiDomain}}/crm/v8/{{module}}/{{record_id}}"
+      },
+      "beforeRequest": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __list = (v) => { if (v == null || v === '') return []; const one = (t) => { const s = t.trim(); if (!s.startsWith('[') || !s.endsWith(']')) return undefined; try { const o = JSON.parse(s); return Array.isArray(o) ? o : undefined; } catch (e) { return undefined; } }; const items = Array.isArray(v) ? v.flatMap((o) => Array.isArray(o) ? o : typeof o === 'string' ? (one(o) ?? [o]) : [o]) : (one(String(v)) ?? String(v).split(',')); return items.map((t) => typeof t === 'string' ? t.trim() : typeof t === 'number' ? String(t) : '').filter((t) => t.length > 0); };\ninputs.module = __api(inputs.module, 'Module');\ninputs.record_id = __id(inputs.record_id, 'record_id');\n__list(inputs.fields).forEach((v) => __api(v, 'fields'));\nrequest.url = '/' + encodeURIComponent(String(inputs.module ?? '')) + '/' + encodeURIComponent(String(inputs.record_id ?? ''));\nconst fields = __list(inputs.fields);\nif (fields.length > 0) request.query = { fields: fields.join(',') };\nreturn request;",
+      "afterResponse": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __list = (v) => { if (v == null || v === '') return []; const one = (t) => { const s = t.trim(); if (!s.startsWith('[') || !s.endsWith(']')) return undefined; try { const o = JSON.parse(s); return Array.isArray(o) ? o : undefined; } catch (e) { return undefined; } }; const items = Array.isArray(v) ? v.flatMap((o) => Array.isArray(o) ? o : typeof o === 'string' ? (one(o) ?? [o]) : [o]) : (one(String(v)) ?? String(v).split(',')); return items.map((t) => typeof t === 'string' ? t.trim() : typeof t === 'number' ? String(t) : '').filter((t) => t.length > 0); };\ninputs.module = __api(inputs.module, 'Module');\ninputs.record_id = __id(inputs.record_id, 'record_id');\n__list(inputs.fields).forEach((v) => __api(v, 'fields'));\nconst isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst field = (v, k) => isRec(v) ? v[k] : undefined;\nconst found = field(response, 'data');\nif (!Array.isArray(found) || !found[0]) throw new Error('No ' + inputs.module + ' record with id ' + inputs.record_id + ' was found.');\nreturn found[0];"
+    },
+    "zoho_crm_create_event": {
+      "label": "Create Event",
+      "description": "Creates a calendar event (meeting).",
+      "inputs": {
+        "event_title": {
+          "label": "Title",
+          "required": true
+        },
+        "start_datetime": {
+          "label": "Start",
+          "required": true,
+          "description": "ISO 8601 with offset, e.g. \"2026-10-01T09:00:00+02:00\"."
+        },
+        "end_datetime": {
+          "label": "End",
+          "required": true,
+          "description": "ISO 8601 with offset, after Start."
+        },
+        "all_day": {
+          "label": "All Day",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "venue": {
+          "label": "Venue"
+        },
+        "description": {
+          "label": "Description",
+          "type": "multiline"
+        },
+        "module": {
+          "label": "Module",
+          "description": "Module API name of the record to link (What_Id), e.g. \"Deals\" or \"Accounts\". Give with related_record_id.",
+          "list": "modules"
+        },
+        "related_record_id": {
+          "label": "Related Record ID",
+          "list": "records"
+        },
+        "owner_id": {
+          "label": "Owner User ID",
+          "description": "Optional user id (from List Users or Get Current User). Default: the connected user.",
+          "list": "users"
+        },
+        "additional_fields": {
+          "label": "Additional Fields",
+          "type": "json",
+          "description": "Optional JSON of other field API names, including custom fields, e.g. {\"Custom_Field__c\": \"x\"}. The named props above win over the same key here."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.apiDomain}}/crm/v8/Events"
+      },
+      "beforeRequest": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __optId = (v, name) => v == null || v === '' ? v : __id(v, name);\n\ninputs.related_record_id = __optId(inputs.related_record_id, 'related_record_id');\nif ((inputs.related_record_id == null || inputs.related_record_id === '') !== !inputs.module) throw new Error('Give module and related_record_id together.');\nif (inputs.module) inputs.module = __api(inputs.module, 'Module');\nconst compact = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v != null && v !== ''));\nconst optionalId = (v, name) => v == null || v === '' ? undefined : __id(v, name);\nconst dateTime = (v, api) => { const s = String(v); if (/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}[+-]\\d{2}:\\d{2}$/.test(s)) return s; const d = new Date(s); if (Number.isNaN(d.getTime())) throw new Error(api + ' must be an ISO 8601 date-time such as 2026-10-01T09:00:00+02:00.'); return d.toISOString().replace(/\\.\\d{3}Z$/, '+00:00'); };\nconst notEmpty = (record, what) => { if (Object.keys(record).length === 0) throw new Error(what + ': no fields were provided.'); return record; };\nconst isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst jsonObject = (v, name) => { if (v == null || v === '') return {}; let o = v; if (typeof v === 'string') { try { o = JSON.parse(v); } catch (e) { o = undefined; } } if (!isRec(o)) throw new Error(name + ' must be a JSON object, e.g. {\"Lead_Source\": \"Web\"}.'); return o; };\nconst withCommon = (record, extra, owner) => { const id = optionalId(owner, 'owner_id'); return { ...jsonObject(extra, 'additional_fields'), ...record, ...(id ? { Owner: { id } } : {}) }; };\nconst start = dateTime(inputs.start_datetime, 'start_datetime'), end = dateTime(inputs.end_datetime, 'end_datetime');\nif (Date.parse(end) < Date.parse(start)) throw new Error('end_datetime must not be before start_datetime.');\nconst related = optionalId(inputs.related_record_id, 'related_record_id');\nif ((related === undefined) !== !inputs.module) throw new Error('Give module and related_record_id together.');\nrequest.body = { data: [notEmpty(withCommon(compact({ Event_Title: inputs.event_title, Start_DateTime: start, End_DateTime: end, All_day: inputs.all_day === 'true' ? true : undefined, Venue: inputs.venue, Description: inputs.description, What_Id: related ? { id: related } : undefined, $se_module: related && inputs.module ? inputs.module.trim() : undefined }), inputs.additional_fields, inputs.owner_id), 'Create record')] };\nreturn request;",
+      "afterResponse": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __optId = (v, name) => v == null || v === '' ? v : __id(v, name);\n\ninputs.related_record_id = __optId(inputs.related_record_id, 'related_record_id');\nif ((inputs.related_record_id == null || inputs.related_record_id === '') !== !inputs.module) throw new Error('Give module and related_record_id together.');\nif (inputs.module) inputs.module = __api(inputs.module, 'Module');\nconst isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst field = (v, k) => isRec(v) ? v[k] : undefined;\nconst text = (v) => typeof v === 'string' ? v : undefined;\nconst writeItem = (e) => isRec(e) ? { code: text(e.code), status: text(e.status), message: text(e.message), action: text(e.action), duplicate_field: typeof e.duplicate_field === 'string' ? e.duplicate_field : null, details: isRec(e.details) ? e.details : undefined } : {};\nconst firstItem = (body, key) => { key = key || 'data'; const list = field(body, key); if (!Array.isArray(list) || list.length === 0) throw new Error('Zoho CRM returned an unexpected response (no \"' + key + '\" array).'); const items = list.map(writeItem); const failed = items.find((i) => i.status === 'error'); if (failed) throw new Error('Zoho CRM ' + (failed.code ?? 'ERROR') + ': ' + (failed.message ?? 'request failed')); return items[0]; };\nconst userRef = (v) => ({ id: text(field(v, 'id')) ?? null, name: text(field(v, 'name')) ?? null });\nconst written = (e) => { const d = e.details ?? {}; const by = userRef(d.Created_By), last = userRef(d.Modified_By); return { id: text(d.id) ?? null, status: e.status ?? null, code: e.code ?? null, message: e.message ?? null, action: e.action ?? null, duplicate_field: e.duplicate_field ?? null, created_time: text(d.Created_Time) ?? null, modified_time: text(d.Modified_Time) ?? null, created_by_id: by.id, created_by_name: by.name, modified_by_id: last.id, modified_by_name: last.name }; };\nreturn Object.assign({ module: 'Events' }, written(firstItem(response)));"
+    },
+    "zoho_crm_list_notes": {
+      "label": "List Notes",
+      "description": "Lists notes of a record, or all notes.",
+      "inputs": {
+        "module": {
+          "label": "Module",
+          "description": "Module API name of the record, e.g. \"Leads\". Give with parent_id.",
+          "list": "modules"
+        },
+        "parent_id": {
+          "label": "Parent Record ID",
+          "list": "records"
+        },
+        "page": {
+          "label": "Page",
+          "type": "number"
+        },
+        "per_page": {
+          "label": "Per Page",
+          "type": "number",
+          "description": "1 to 200 (default 50)."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.apiDomain}}/crm/v8/Notes"
+      },
+      "beforeRequest": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\n\nif (!inputs.module !== !inputs.parent_id) throw new Error('Give module and parent_id together, or neither.');\nif (inputs.module) { inputs.module = __api(inputs.module, 'Module'); inputs.parent_id = __id(inputs.parent_id, 'parent_id'); }\nconst enc = encodeURIComponent;\nconst pageOf = (v, name, max) => { if (v == null || v === '') return undefined; const n = Number(v); if (!Number.isInteger(n) || n < 1 || n > max) throw new Error(name + ' must be a whole number between 1 and ' + max + '.'); return n; };\nif (!inputs.module !== !inputs.parent_id) throw new Error('Give module and parent_id together, or neither.');\nif (inputs.module) request.url = '/' + enc(inputs.module.trim()) + '/' + __id(inputs.parent_id, 'parent_id') + '/Notes';\nconst page = pageOf(inputs.page, 'page', 2000), perPage = pageOf(inputs.per_page, 'per_page', 200) ?? 50;\nif (page !== undefined && page * perPage > 2000) throw new Error('Zoho only serves the first 2,000 items by page number (page x per_page).');\nrequest.query = Object.assign({ fields: 'Note_Title,Note_Content,Parent_Id,Owner,Created_Time,Modified_Time', per_page: String(perPage) }, page ? { page: String(page) } : {});\nreturn request;",
+      "afterResponse": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\n\nif (!inputs.module !== !inputs.parent_id) throw new Error('Give module and parent_id together, or neither.');\nif (inputs.module) { inputs.module = __api(inputs.module, 'Module'); inputs.parent_id = __id(inputs.parent_id, 'parent_id'); }\nconst isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst field = (v, k) => isRec(v) ? v[k] : undefined;\nconst objOf = (v) => isRec(v) ? v : {};\nconst plain = (v) => typeof v === 'string' ? v : (typeof v === 'number' || typeof v === 'boolean') ? String(v) : null;\nconst noteOf = (e) => { const parent = objOf(e.Parent_Id), module = objOf(parent.module), owner = objOf(e.Owner); return { id: plain(e.id), title: plain(e.Note_Title), content: plain(e.Note_Content), parent_id: plain(parent.id), parent_name: plain(parent.name), parent_module: plain(module.api_name) ?? plain(e.$se_module), owner_id: plain(owner.id), owner_name: plain(owner.name), created_time: plain(e.Created_Time), modified_time: plain(e.Modified_Time) }; };\nconst notes = (field(response, 'data') ?? []).map(noteOf);\nreturn { notes, count: notes.length, more_records: objOf(field(response, 'info')).more_records === true };"
+    },
+    "zoho_crm_get_note": {
+      "label": "Get Note",
+      "description": "Gets a note by id.",
+      "inputs": {
+        "note_id": {
+          "label": "Note ID",
+          "required": true,
+          "description": "Numeric note id from List Notes."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.apiDomain}}/crm/v8/Notes/{{note_id}}",
+        "query": {
+          "fields": "Note_Title,Note_Content,Parent_Id,Owner,Created_Time,Modified_Time"
+        }
+      },
+      "afterResponse": "const __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\ninputs.note_id = __id(inputs.note_id, 'note_id');\nconst isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst field = (v, k) => isRec(v) ? v[k] : undefined;\nconst plain = (v) => typeof v === 'string' ? v : (typeof v === 'number' || typeof v === 'boolean') ? String(v) : null;\nconst objOf = (v) => isRec(v) ? v : {};\nconst noteOf = (e) => { const parent = objOf(e.Parent_Id), module = objOf(parent.module), owner = objOf(e.Owner); return { id: plain(e.id), title: plain(e.Note_Title), content: plain(e.Note_Content), parent_id: plain(parent.id), parent_name: plain(parent.name), parent_module: plain(module.api_name) ?? plain(e.$se_module), owner_id: plain(owner.id), owner_name: plain(owner.name), created_time: plain(e.Created_Time), modified_time: plain(e.Modified_Time) }; };\nconst note = (field(response, 'data') ?? [])[0];\nif (!note) throw new Error('No note with id ' + inputs.note_id + ' was found.');\nreturn noteOf(note);",
+      "beforeRequest": "const __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\ninputs.note_id = __id(inputs.note_id, 'note_id');\nrequest.url = '/Notes/' + encodeURIComponent(String(inputs.note_id ?? ''));\nreturn request;"
+    },
+    "zoho_crm_update_note": {
+      "label": "Update Note",
+      "description": "Changes the title or content of a note.",
+      "inputs": {
+        "note_id": {
+          "label": "Note ID",
+          "required": true,
+          "description": "Numeric note id from List Notes."
+        },
+        "title": {
+          "label": "Title"
+        },
+        "content": {
+          "label": "Content",
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://{{credential.apiDomain}}/crm/v8/Notes/{{note_id}}",
+        "body": {
+          "data": [
+            {
+              "Note_Title": "{{title}}",
+              "Note_Content": "{{content}}"
+            }
+          ]
+        }
+      },
+      "beforeRequest": "const __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\ninputs.note_id = __id(inputs.note_id, 'note_id');\nrequest.url = '/Notes/' + encodeURIComponent(String(inputs.note_id ?? ''));\nif (!inputs.title && !inputs.content) throw new Error('Give a new title or content.');\nreturn request;",
+      "afterResponse": "const __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\ninputs.note_id = __id(inputs.note_id, 'note_id');\nconst isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst field = (v, k) => isRec(v) ? v[k] : undefined;\nconst text = (v) => typeof v === 'string' ? v : undefined;\nconst writeItem = (e) => isRec(e) ? { code: text(e.code), status: text(e.status), message: text(e.message), action: text(e.action), duplicate_field: typeof e.duplicate_field === 'string' ? e.duplicate_field : null, details: isRec(e.details) ? e.details : undefined } : {};\nconst firstItem = (body, key) => { key = key || 'data'; const list = field(body, key); if (!Array.isArray(list) || list.length === 0) throw new Error('Zoho CRM returned an unexpected response (no \"' + key + '\" array).'); const items = list.map(writeItem); const failed = items.find((i) => i.status === 'error'); if (failed) throw new Error('Zoho CRM ' + (failed.code ?? 'ERROR') + ': ' + (failed.message ?? 'request failed')); return items[0]; };\nconst userRef = (v) => ({ id: text(field(v, 'id')) ?? null, name: text(field(v, 'name')) ?? null });\nconst written = (e) => { const d = e.details ?? {}; const by = userRef(d.Created_By), last = userRef(d.Modified_By); return { id: text(d.id) ?? null, status: e.status ?? null, code: e.code ?? null, message: e.message ?? null, action: e.action ?? null, duplicate_field: e.duplicate_field ?? null, created_time: text(d.Created_Time) ?? null, modified_time: text(d.Modified_Time) ?? null, created_by_id: by.id, created_by_name: by.name, modified_by_id: last.id, modified_by_name: last.name }; };\nreturn Object.assign(written(firstItem(response)), { id: inputs.note_id });"
+    },
+    "zoho_crm_delete_note": {
+      "label": "Delete Note",
+      "description": "Deletes a note.",
+      "inputs": {
+        "note_id": {
+          "label": "Note ID",
+          "required": true,
+          "description": "Numeric note id from List Notes."
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.apiDomain}}/crm/v8/Notes/{{note_id}}"
+      },
+      "afterResponse": "const __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\ninputs.note_id = __id(inputs.note_id, 'note_id');\nconst isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst field = (v, k) => isRec(v) ? v[k] : undefined;\nconst text = (v) => typeof v === 'string' ? v : undefined;\nconst writeItem = (e) => isRec(e) ? { code: text(e.code), status: text(e.status), message: text(e.message), action: text(e.action), duplicate_field: typeof e.duplicate_field === 'string' ? e.duplicate_field : null, details: isRec(e.details) ? e.details : undefined } : {};\nconst firstItem = (body, key) => { key = key || 'data'; const list = field(body, key); if (!Array.isArray(list) || list.length === 0) throw new Error('Zoho CRM returned an unexpected response (no \"' + key + '\" array).'); const items = list.map(writeItem); const failed = items.find((i) => i.status === 'error'); if (failed) throw new Error('Zoho CRM ' + (failed.code ?? 'ERROR') + ': ' + (failed.message ?? 'request failed')); return items[0]; };\nconst userRef = (v) => ({ id: text(field(v, 'id')) ?? null, name: text(field(v, 'name')) ?? null });\nconst written = (e) => { const d = e.details ?? {}; const by = userRef(d.Created_By), last = userRef(d.Modified_By); return { id: text(d.id) ?? null, status: e.status ?? null, code: e.code ?? null, message: e.message ?? null, action: e.action ?? null, duplicate_field: e.duplicate_field ?? null, created_time: text(d.Created_Time) ?? null, modified_time: text(d.Modified_Time) ?? null, created_by_id: by.id, created_by_name: by.name, modified_by_id: last.id, modified_by_name: last.name }; };\nreturn Object.assign(written(firstItem(response)), { id: inputs.note_id });",
+      "beforeRequest": "const __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\ninputs.note_id = __id(inputs.note_id, 'note_id');\nrequest.url = '/Notes/' + encodeURIComponent(String(inputs.note_id ?? ''));\nreturn request;"
+    },
+    "zoho_crm_list_tags": {
+      "label": "List Tags",
+      "description": "Lists the tags of a module.",
+      "inputs": {
+        "module": {
+          "label": "Module",
+          "required": true,
+          "description": "Module API name from List Modules, e.g. \"Leads\" or \"Deals\".",
+          "list": "modules"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.apiDomain}}/crm/v8/settings/tags",
+        "query": {
+          "module": "{{module}}"
+        }
+      },
+      "afterResponse": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\ninputs.module = __api(inputs.module, 'Module');\nconst isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst field = (v, k) => isRec(v) ? v[k] : undefined;\nconst tags = (field(response, 'tags') ?? []).map((r) => ({ id: r.id, name: r.name, color_code: r.color_code ?? null, created_time: r.created_time ?? null, modified_time: r.modified_time ?? null }));\nreturn { module: inputs.module, tags, count: tags.length };",
+      "beforeRequest": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\ninputs.module = __api(inputs.module, 'Module');\nif (request.query && request.query.module !== undefined) request.query.module = inputs.module;\nreturn request;"
+    },
+    "zoho_crm_create_tag": {
+      "label": "Create Tag",
+      "description": "Creates a tag in a module, or returns it if it exists.",
+      "inputs": {
+        "module": {
+          "label": "Module",
+          "required": true,
+          "description": "Module API name from List Modules, e.g. \"Leads\" or \"Deals\".",
+          "list": "modules"
+        },
+        "name": {
+          "label": "Tag Name",
+          "required": true
+        },
+        "color_code": {
+          "label": "Color",
+          "type": "select",
+          "options": [
+            {
+              "value": "#F17574",
+              "label": "#F17574"
+            },
+            {
+              "value": "#F48435",
+              "label": "#F48435"
+            },
+            {
+              "value": "#E7A826",
+              "label": "#E7A826"
+            },
+            {
+              "value": "#A8C026",
+              "label": "#A8C026"
+            },
+            {
+              "value": "#63C57E",
+              "label": "#63C57E"
+            },
+            {
+              "value": "#1DB9B4",
+              "label": "#1DB9B4"
+            },
+            {
+              "value": "#57B1FD",
+              "label": "#57B1FD"
+            },
+            {
+              "value": "#879BFC",
+              "label": "#879BFC"
+            },
+            {
+              "value": "#D297EE",
+              "label": "#D297EE"
+            },
+            {
+              "value": "#FD87BD",
+              "label": "#FD87BD"
+            },
+            {
+              "value": "#969696",
+              "label": "#969696"
+            },
+            {
+              "value": "#658BA8",
+              "label": "#658BA8"
+            },
+            {
+              "value": "#B88562",
+              "label": "#B88562"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.apiDomain}}/crm/v8/settings/tags",
+        "query": {
+          "module": "{{module}}"
+        }
+      },
+      "afterResponse": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\ninputs.module = __api(inputs.module, 'Module');\nconst isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst field = (v, k) => isRec(v) ? v[k] : undefined;\nconst text = (v) => typeof v === 'string' ? v : undefined;\nconst writeItem = (e) => isRec(e) ? { code: text(e.code), status: text(e.status), message: text(e.message), action: text(e.action), duplicate_field: typeof e.duplicate_field === 'string' ? e.duplicate_field : null, details: isRec(e.details) ? e.details : undefined } : {};\nconst firstItem = (body, key) => { key = key || 'data'; const list = field(body, key); if (!Array.isArray(list) || list.length === 0) throw new Error('Zoho CRM returned an unexpected response (no \"' + key + '\" array).'); const items = list.map(writeItem); const failed = items.find((i) => i.status === 'error'); if (failed) throw new Error('Zoho CRM ' + (failed.code ?? 'ERROR') + ': ' + (failed.message ?? 'request failed')); return items[0]; };\nconst colors = ['#F17574', '#F48435', '#E7A826', '#A8C026', '#63C57E', '#1DB9B4', '#57B1FD', '#879BFC', '#D297EE', '#FD87BD', '#969696', '#658BA8', '#B88562'];\nconst ensureTag = (module, name, color, known) => { const wanted = name.trim(); if (wanted.length === 0) throw new Error('Tag name is required.'); if (color && !colors.includes(color.toUpperCase())) throw new Error('color_code must be one of ' + colors.join(', ') + '.'); const tags = known ?? (call({ method: 'GET', url: '/settings/tags', query: { module } }).tags ?? []); const found = tags.find((t) => t.name.toLowerCase() === wanted.toLowerCase()); if (found) return { tag: found, created: false }; const answer = call({ method: 'POST', url: '/settings/tags', query: { module }, body: { tags: [Object.assign({ name: wanted }, color ? { color_code: color.toUpperCase() } : {})] } }); const d = firstItem(answer, 'tags').details ?? {}; return { tag: { id: String(d.id ?? ''), name: wanted, color_code: color || null, created_time: text(d.created_time) }, created: true }; };\nconst { tag, created } = ensureTag(inputs.module, inputs.name, inputs.color_code, field(response, 'tags') ?? []);\nreturn { id: tag.id, name: tag.name, color_code: tag.color_code ?? null, module: inputs.module, created };",
+      "beforeRequest": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\ninputs.module = __api(inputs.module, 'Module');\nconst __colors = ['#F17574', '#F48435', '#E7A826', '#A8C026', '#63C57E', '#1DB9B4', '#57B1FD', '#879BFC', '#D297EE', '#FD87BD', '#969696', '#658BA8', '#B88562'];\nif (String(inputs.name ?? '').trim().length === 0) throw new Error('Tag name is required.');\nif (inputs.color_code && !__colors.includes(inputs.color_code.toUpperCase())) throw new Error('color_code must be one of ' + __colors.join(', ') + '.');\nif (request.query && request.query.module !== undefined) request.query.module = inputs.module;\nreturn request;"
+    },
+    "zoho_crm_add_tags": {
+      "label": "Add Tags",
+      "description": "Adds tags to one or more records.",
+      "inputs": {
+        "module": {
+          "label": "Module",
+          "required": true,
+          "description": "Module API name from List Modules, e.g. \"Leads\" or \"Deals\".",
+          "list": "modules"
+        },
+        "record_ids": {
+          "label": "Record IDs",
+          "type": "json",
+          "required": true,
+          "description": "Numeric record ids (max 500), as a JSON list."
+        },
+        "tags": {
+          "label": "Tag Names",
+          "type": "json",
+          "required": true,
+          "description": "Tag names, e.g. [\"VIP\", \"Webinar 2026\"]."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.apiDomain}}/crm/v8/{{module}}/actions/add_tags"
+      },
+      "beforeRequest": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __list = (v) => { if (v == null || v === '') return []; const one = (t) => { const s = t.trim(); if (!s.startsWith('[') || !s.endsWith(']')) return undefined; try { const o = JSON.parse(s); return Array.isArray(o) ? o : undefined; } catch (e) { return undefined; } }; const items = Array.isArray(v) ? v.flatMap((o) => Array.isArray(o) ? o : typeof o === 'string' ? (one(o) ?? [o]) : [o]) : (one(String(v)) ?? String(v).split(',')); return items.map((t) => typeof t === 'string' ? t.trim() : typeof t === 'number' ? String(t) : '').filter((t) => t.length > 0); };\ninputs.module = __api(inputs.module, 'Module');\n__list(inputs.record_ids).forEach((v) => __id(v, 'record_ids'));\nrequest.url = '/' + encodeURIComponent(String(inputs.module ?? '')) + '/actions/add_tags';\nconst ids = __list(inputs.record_ids).map((r) => __id(r, 'record_ids')), tags = __list(inputs.tags);\nif (tags.length > 10) throw new Error('Zoho allows at most 10 tags per record.');\nif (ids.length === 0) throw new Error('At least one record id is required.');\nif (ids.length > 500) throw new Error('Zoho accepts at most 500 record ids per call.');\nif (tags.length === 0) throw new Error('At least one tag is required.');\nrequest.body = Object.assign({ tags: tags.map((name) => ({ name })), ids }, { over_write: false });\nreturn request;",
+      "afterResponse": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\ninputs.module = __api(inputs.module, 'Module');\nconst text = (v) => typeof v === 'string' ? v : undefined;\nconst isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst field = (v, k) => isRec(v) ? v[k] : undefined;\nconst tagNames = (e) => Array.isArray(e) ? e.map((t) => text(field(t, 'name'))).filter((t) => typeof t === 'string' && t.length > 0).join(', ') : null;\nconst tagResults = (module, response) => { const results = (field(response, 'data') ?? []).map((u) => ({ id: text(u.details && u.details.id) ?? null, status: u.status ?? null, code: u.code ?? null, message: u.message ?? null, tags: tagNames(u.details && u.details.tags) })); const failed = results.filter((u) => u.status === 'error'); if (results.length > 0 && failed.length === results.length) throw new Error('Zoho CRM ' + failed[0].code + ': ' + failed[0].message); return { module, results, success_count: results.length - failed.length, failed_count: failed.length }; };\nreturn tagResults(inputs.module, response);"
+    },
+    "zoho_crm_remove_tags": {
+      "label": "Remove Tags",
+      "description": "Removes tags from one or more records.",
+      "inputs": {
+        "module": {
+          "label": "Module",
+          "required": true,
+          "description": "Module API name from List Modules, e.g. \"Leads\" or \"Deals\".",
+          "list": "modules"
+        },
+        "record_ids": {
+          "label": "Record IDs",
+          "type": "json",
+          "required": true,
+          "description": "Numeric record ids (max 500), as a JSON list."
+        },
+        "tags": {
+          "label": "Tag Names",
+          "type": "json",
+          "required": true,
+          "description": "Tag names, e.g. [\"VIP\", \"Webinar 2026\"]."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.apiDomain}}/crm/v8/{{module}}/actions/remove_tags"
+      },
+      "beforeRequest": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __list = (v) => { if (v == null || v === '') return []; const one = (t) => { const s = t.trim(); if (!s.startsWith('[') || !s.endsWith(']')) return undefined; try { const o = JSON.parse(s); return Array.isArray(o) ? o : undefined; } catch (e) { return undefined; } }; const items = Array.isArray(v) ? v.flatMap((o) => Array.isArray(o) ? o : typeof o === 'string' ? (one(o) ?? [o]) : [o]) : (one(String(v)) ?? String(v).split(',')); return items.map((t) => typeof t === 'string' ? t.trim() : typeof t === 'number' ? String(t) : '').filter((t) => t.length > 0); };\ninputs.module = __api(inputs.module, 'Module');\n__list(inputs.record_ids).forEach((v) => __id(v, 'record_ids'));\nrequest.url = '/' + encodeURIComponent(String(inputs.module ?? '')) + '/actions/remove_tags';\nconst ids = __list(inputs.record_ids).map((r) => __id(r, 'record_ids')), tags = __list(inputs.tags);\nif (tags.length > 10) throw new Error('Zoho allows at most 10 tags per record.');\nif (ids.length === 0) throw new Error('At least one record id is required.');\nif (ids.length > 500) throw new Error('Zoho accepts at most 500 record ids per call.');\nif (tags.length === 0) throw new Error('At least one tag is required.');\nrequest.body = Object.assign({ tags: tags.map((name) => ({ name })), ids });\nreturn request;",
+      "afterResponse": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\ninputs.module = __api(inputs.module, 'Module');\nconst text = (v) => typeof v === 'string' ? v : undefined;\nconst isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst field = (v, k) => isRec(v) ? v[k] : undefined;\nconst tagNames = (e) => Array.isArray(e) ? e.map((t) => text(field(t, 'name'))).filter((t) => typeof t === 'string' && t.length > 0).join(', ') : null;\nconst tagResults = (module, response) => { const results = (field(response, 'data') ?? []).map((u) => ({ id: text(u.details && u.details.id) ?? null, status: u.status ?? null, code: u.code ?? null, message: u.message ?? null, tags: tagNames(u.details && u.details.tags) })); const failed = results.filter((u) => u.status === 'error'); if (results.length > 0 && failed.length === results.length) throw new Error('Zoho CRM ' + failed[0].code + ': ' + failed[0].message); return { module, results, success_count: results.length - failed.length, failed_count: failed.length }; };\nreturn tagResults(inputs.module, response);"
+    },
+    "zoho_crm_list_related_records": {
+      "label": "List Related Records",
+      "description": "Lists records in a related list of a record.",
+      "inputs": {
+        "module": {
+          "label": "Module",
+          "required": true,
+          "description": "Module API name of the parent record, e.g. \"Accounts\" or \"Leads\".",
+          "list": "modules"
+        },
+        "record_id": {
+          "label": "Record",
+          "required": true,
+          "description": "Numeric id of the parent record.",
+          "list": "records"
+        },
+        "related_list_api_name": {
+          "label": "Related List API Name",
+          "required": true,
+          "description": "api_name from Get Related Lists, e.g. \"Contacts\", \"Deals\", \"Campaigns\", \"Products\"."
+        },
+        "fields": {
+          "label": "Fields",
+          "type": "json",
+          "description": "Field API names to return (max 50), as a JSON list."
+        },
+        "page": {
+          "label": "Page",
+          "type": "number"
+        },
+        "per_page": {
+          "label": "Per Page",
+          "type": "number",
+          "description": "1 to 200 (default 50)."
+        },
+        "page_token": {
+          "label": "Page Token",
+          "description": "next_page_token from a previous call (beyond 2,000 records)."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.apiDomain}}/crm/v8/settings/related_lists",
+        "query": {
+          "module": "{{module}}"
+        }
+      },
+      "beforeRequest": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __list = (v) => { if (v == null || v === '') return []; const one = (t) => { const s = t.trim(); if (!s.startsWith('[') || !s.endsWith(']')) return undefined; try { const o = JSON.parse(s); return Array.isArray(o) ? o : undefined; } catch (e) { return undefined; } }; const items = Array.isArray(v) ? v.flatMap((o) => Array.isArray(o) ? o : typeof o === 'string' ? (one(o) ?? [o]) : [o]) : (one(String(v)) ?? String(v).split(',')); return items.map((t) => typeof t === 'string' ? t.trim() : typeof t === 'number' ? String(t) : '').filter((t) => t.length > 0); };\ninputs.module = __api(inputs.module, 'Module');\ninputs.record_id = __id(inputs.record_id, 'record_id');\ninputs.related_list_api_name = __api(inputs.related_list_api_name, 'related_list_api_name');\n__list(inputs.fields).forEach((v) => __api(v, 'fields'));\nif (request.query && request.query.module !== undefined) request.query.module = inputs.module;\nconst enc = encodeURIComponent;\nconst pageOf = (v, name, max) => { if (v == null || v === '') return undefined; const n = Number(v); if (!Number.isInteger(n) || n < 1 || n > max) throw new Error(name + ' must be a whole number between 1 and ' + max + '.'); return n; };\nconst recordsQuery = (fields) => { const perPage = pageOf(inputs.per_page, 'per_page', 200) ?? 50, page = pageOf(inputs.page, 'page', 2000), token = (inputs.page_token || '').trim() || undefined;\n  if (page !== undefined && token) throw new Error('Use either page or page_token, not both.');\n  if (page !== undefined && page * perPage > 2000) throw new Error('Zoho only serves the first 2,000 items by page number (page x per_page). Pass next_page_token from the previous result instead.');\n  return Object.assign({ fields: fields.join(','), per_page: String(perPage) }, page ? { page: String(page) } : {}, token ? { page_token: token } : {}); };\nconst relatedPath = '/' + enc(inputs.module) + '/' + __id(inputs.record_id, 'record_id') + '/' + enc(inputs.related_list_api_name);\nconst chosen = __list(inputs.fields);\nif (chosen.length > 50) throw new Error('Zoho returns at most 50 fields per call.');\nrecordsQuery(chosen);\nif (chosen.length > 0) { request.url = relatedPath; request.query = recordsQuery(chosen); }\nreturn request;",
+      "afterResponse": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __list = (v) => { if (v == null || v === '') return []; const one = (t) => { const s = t.trim(); if (!s.startsWith('[') || !s.endsWith(']')) return undefined; try { const o = JSON.parse(s); return Array.isArray(o) ? o : undefined; } catch (e) { return undefined; } }; const items = Array.isArray(v) ? v.flatMap((o) => Array.isArray(o) ? o : typeof o === 'string' ? (one(o) ?? [o]) : [o]) : (one(String(v)) ?? String(v).split(',')); return items.map((t) => typeof t === 'string' ? t.trim() : typeof t === 'number' ? String(t) : '').filter((t) => t.length > 0); };\ninputs.module = __api(inputs.module, 'Module');\ninputs.record_id = __id(inputs.record_id, 'record_id');\ninputs.related_list_api_name = __api(inputs.related_list_api_name, 'related_list_api_name');\n__list(inputs.fields).forEach((v) => __api(v, 'fields'));\nconst isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst field = (v, k) => isRec(v) ? v[k] : undefined;\nconst objOf = (v) => isRec(v) ? v : {};\nconst enc = encodeURIComponent;\nconst fieldsOf = (module) => { try { return call({ method: 'GET', url: '/settings/fields', query: { module } }).fields ?? []; } catch (e) { if (/403|NO_PERMISSION|OAUTH_SCOPE_MISMATCH/.test(String((e && e.message) || e))) return undefined; throw e; } };\nconst lowValue = (f) => ['Latitude', 'Longitude', 'Coordinates', 'Record_Image'].includes(f.api_name) || f.api_name.endsWith('__s') || f.api_name.startsWith('$');\nconst defaultFields = (fields) => { const shown = fields.filter((a) => a.visible !== false && a.api_name && a.api_name !== 'id'); const custom = shown.filter((a) => a.custom_field === true && !lowValue(a)); const standard = shown.filter((a) => a.custom_field !== true && !lowValue(a)); const low = shown.filter((a) => lowValue(a)); return ['id', ...[...custom, ...standard, ...low].map((a) => a.api_name)].slice(0, 50); };\nconst pageOf = (v, name, max) => { if (v == null || v === '') return undefined; const n = Number(v); if (!Number.isInteger(n) || n < 1 || n > max) throw new Error(name + ' must be a whole number between 1 and ' + max + '.'); return n; };\nconst recordsQuery = (fields) => { const perPage = pageOf(inputs.per_page, 'per_page', 200) ?? 50, page = pageOf(inputs.page, 'page', 2000), token = (inputs.page_token || '').trim() || undefined;\n  if (page !== undefined && token) throw new Error('Use either page or page_token, not both.');\n  if (page !== undefined && page * perPage > 2000) throw new Error('Zoho only serves the first 2,000 items by page number (page x per_page). Pass next_page_token from the previous result instead.');\n  return Object.assign({ fields: fields.join(','), per_page: String(perPage) }, page ? { page: String(page) } : {}, token ? { page_token: token } : {}); };\nconst relatedPath = '/' + enc(inputs.module) + '/' + __id(inputs.record_id, 'record_id') + '/' + enc(inputs.related_list_api_name);\nconst chosen = __list(inputs.fields);\nif (chosen.length > 50) throw new Error('Zoho returns at most 50 fields per call.');\nlet fields = chosen;\nif (chosen.length === 0) {\n  const list = (field(response, 'related_lists') ?? []).find((a) => a.api_name === inputs.related_list_api_name);\n  const related = list && list.module && list.module.api_name;\n  const known = related ? fieldsOf(related) : undefined;\n  fields = known ? defaultFields(known) : ['id'];\n}\nconst page = chosen.length === 0 ? call({ method: 'GET', url: relatedPath, query: recordsQuery(fields) }) : response;\nconst records = field(page, 'data') ?? [], info = objOf(field(page, 'info'));\nreturn { module: inputs.module, record_id: inputs.record_id, related_list: inputs.related_list_api_name, records, count: records.length, more_records: info.more_records === true, next_page_token: info.next_page_token ?? null };"
+    },
+    "zoho_crm_link_related_record": {
+      "label": "Link Related Record",
+      "description": "Associates a record with another record through a related list.",
+      "inputs": {
+        "module": {
+          "label": "Module",
+          "required": true,
+          "description": "Module API name of the parent record, e.g. \"Accounts\" or \"Leads\".",
+          "list": "modules"
+        },
+        "record_id": {
+          "label": "Record",
+          "required": true,
+          "description": "Numeric id of the parent record.",
+          "list": "records"
+        },
+        "related_list_api_name": {
+          "label": "Related List API Name",
+          "required": true,
+          "description": "api_name from Get Related Lists, e.g. \"Contacts\", \"Deals\", \"Campaigns\", \"Products\"."
+        },
+        "related_record_id": {
+          "label": "Related Record ID",
+          "required": true,
+          "description": "Id of the record to link."
+        },
+        "relation_fields": {
+          "label": "Relation Fields",
+          "type": "json",
+          "description": "Optional fields of the relation, e.g. {\"Member_Status\": \"Invited\"}."
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://{{credential.apiDomain}}/crm/v8/{{module}}/{{record_id}}/{{related_list_api_name}}"
+      },
+      "beforeRequest": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\ninputs.module = __api(inputs.module, 'Module');\ninputs.record_id = __id(inputs.record_id, 'record_id');\ninputs.related_list_api_name = __api(inputs.related_list_api_name, 'related_list_api_name');\ninputs.related_record_id = __id(inputs.related_record_id, 'related_record_id');\nrequest.url = '/' + encodeURIComponent(String(inputs.module ?? '')) + '/' + encodeURIComponent(String(inputs.record_id ?? '')) + '/' + encodeURIComponent(String(inputs.related_list_api_name ?? ''));\nconst isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst jsonObject = (v, name) => { if (v == null || v === '') return {}; let o = v; if (typeof v === 'string') { try { o = JSON.parse(v); } catch (e) { o = undefined; } } if (!isRec(o)) throw new Error(name + ' must be a JSON object, e.g. {\"Lead_Source\": \"Web\"}.'); return o; };\nrequest.body = { data: [{ ...jsonObject(inputs.relation_fields, 'relation_fields'), id: __id(inputs.related_record_id, 'related_record_id') }] };\nreturn request;",
+      "afterResponse": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\ninputs.module = __api(inputs.module, 'Module');\ninputs.record_id = __id(inputs.record_id, 'record_id');\ninputs.related_list_api_name = __api(inputs.related_list_api_name, 'related_list_api_name');\ninputs.related_record_id = __id(inputs.related_record_id, 'related_record_id');\nconst isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst field = (v, k) => isRec(v) ? v[k] : undefined;\nconst text = (v) => typeof v === 'string' ? v : undefined;\nconst writeItem = (e) => isRec(e) ? { code: text(e.code), status: text(e.status), message: text(e.message), action: text(e.action), duplicate_field: typeof e.duplicate_field === 'string' ? e.duplicate_field : null, details: isRec(e.details) ? e.details : undefined } : {};\nconst firstItem = (body, key) => { key = key || 'data'; const list = field(body, key); if (!Array.isArray(list) || list.length === 0) throw new Error('Zoho CRM returned an unexpected response (no \"' + key + '\" array).'); const items = list.map(writeItem); const failed = items.find((i) => i.status === 'error'); if (failed) throw new Error('Zoho CRM ' + (failed.code ?? 'ERROR') + ': ' + (failed.message ?? 'request failed')); return items[0]; };\nconst item = firstItem(response);\nreturn { module: inputs.module, record_id: inputs.record_id, related_list: inputs.related_list_api_name, related_record_id: inputs.related_record_id, status: item.status ?? null, code: item.code ?? null, message: item.message ?? null };"
+    },
+    "zoho_crm_list_attachments": {
+      "label": "List Attachments",
+      "description": "Lists the attachments of a record.",
+      "inputs": {
+        "module": {
+          "label": "Module",
+          "required": true,
+          "description": "Module API name of the parent record, e.g. \"Accounts\" or \"Leads\".",
+          "list": "modules"
+        },
+        "record_id": {
+          "label": "Record",
+          "required": true,
+          "description": "Numeric id of the parent record.",
+          "list": "records"
+        },
+        "page": {
+          "label": "Page",
+          "type": "number"
+        },
+        "per_page": {
+          "label": "Per Page",
+          "type": "number",
+          "description": "1 to 200 (default 50)."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.apiDomain}}/crm/v8/{{module}}/{{record_id}}/Attachments"
+      },
+      "beforeRequest": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\ninputs.module = __api(inputs.module, 'Module');\ninputs.record_id = __id(inputs.record_id, 'record_id');\nrequest.url = '/' + encodeURIComponent(String(inputs.module ?? '')) + '/' + encodeURIComponent(String(inputs.record_id ?? '')) + '/Attachments';\nconst pageOf = (v, name, max) => { if (v == null || v === '') return undefined; const n = Number(v); if (!Number.isInteger(n) || n < 1 || n > max) throw new Error(name + ' must be a whole number between 1 and ' + max + '.'); return n; };\nconst page = pageOf(inputs.page, 'page', 2000), perPage = pageOf(inputs.per_page, 'per_page', 200) ?? 50;\nif (page !== undefined && page * perPage > 2000) throw new Error('Zoho only serves the first 2,000 items by page number (page x per_page).');\nrequest.query = Object.assign({ fields: 'id,File_Name,Size,Created_Time,Modified_Time,Owner,Created_By,$file_id,$se_module,$type,$link_url', per_page: String(perPage) }, page ? { page: String(page) } : {});\nreturn request;",
+      "afterResponse": "const isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst field = (v, k) => isRec(v) ? v[k] : undefined;\nconst objOf = (v) => isRec(v) ? v : {};\nconst plain = (v) => typeof v === 'string' ? v : (typeof v === 'number' || typeof v === 'boolean') ? String(v) : null;\nconst attachmentOf = (e) => { const owner = objOf(e.Owner), by = objOf(e.Created_By), size = e.Size; return { id: plain(e.id), file_name: plain(e.File_Name), size: typeof size === 'number' ? size : typeof size === 'string' && size !== '' ? Number(size) : null, file_id: plain(e.$file_id), type: plain(e.$type), link_url: plain(e.$link_url), created_time: plain(e.Created_Time), modified_time: plain(e.Modified_Time), owner_name: plain(owner.name), created_by_name: plain(by.name), parent_module: plain(e.$se_module) }; };\nconst attachments = (field(response, 'data') ?? []).map(attachmentOf);\nreturn { attachments, count: attachments.length, more_records: objOf(field(response, 'info')).more_records === true };"
+    },
+    "zoho_crm_upload_attachment": {
+      "label": "Attach Link",
+      "description": "Attaches a URL to a record as a link attachment.",
+      "inputs": {
+        "module": {
+          "label": "Module",
+          "required": true,
+          "description": "Module API name of the parent record, e.g. \"Accounts\" or \"Leads\".",
+          "list": "modules"
+        },
+        "record_id": {
+          "label": "Record",
+          "required": true,
+          "description": "Numeric id of the parent record.",
+          "list": "records"
+        },
+        "attachment_url": {
+          "label": "Attachment URL",
+          "required": true,
+          "description": "Full URL, e.g. \"https://example.com/proposal.pdf\"."
+        },
+        "title": {
+          "label": "Title"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.apiDomain}}/crm/v8/{{module}}/{{record_id}}/Attachments",
+        "headers": {
+          "Content-Type": "multipart/form-data"
+        },
+        "body": {
+          "attachmentUrl": "{{attachment_url}}",
+          "title": "{{title}}"
+        }
+      },
+      "beforeRequest": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\ninputs.module = __api(inputs.module, 'Module');\ninputs.record_id = __id(inputs.record_id, 'Record');\nconst isHttpUrl = (value) => {\n  const text = String(value).replace(/^[\\u0000- ]+|[\\u0000- ]+$/g, '').replace(/[\\t\\n\\r]/g, '');\n  const scheme = /^([A-Za-z][A-Za-z0-9+.-]*):/.exec(text);\n  if (!scheme || !/^https?$/i.test(scheme[1])) return false;\n  const authority = text.slice(scheme[0].length).replace(/^[/\\\\]*/, '').split(/[/\\\\?#]/)[0];\n  const hostAndPort = authority.slice(authority.lastIndexOf('@') + 1);\n  let inBrackets = false, colon = -1;\n  for (let i = 0; i < hostAndPort.length && colon < 0; i++) { const c = hostAndPort[i]; if (c === '[') inBrackets = true; else if (c === ']') inBrackets = false; else if (c === ':' && !inBrackets) colon = i; }\n  const host = colon < 0 ? hostAndPort : hostAndPort.slice(0, colon), port = colon < 0 ? '' : hostAndPort.slice(colon + 1);\n  if (host === '' || !/^[0-9]*$/.test(port) || (port !== '' && Number(port) > 65535)) return false;\n  if (host[0] === '[') return host.endsWith(']') && isIpv6(host.slice(1, -1));\n  let domain;\n  try { domain = decodeURIComponent(host.replace(/%(?![0-9A-Fa-f]{2})/g, '%25')).toLowerCase(); } catch (e) { return false; }\n  if (/[\\u0000- #%/:<>?@[\\\\\\]^|\\u007F�]/.test(domain)) return false;\n  const labels = domain.split('.');\n  if (labels[labels.length - 1] === '' && labels.length > 1) labels.pop();\n  const last = labels[labels.length - 1];\n  return !(last !== '' && (/^[0-9]+$/.test(last) || ipv4Number(last) !== null)) || isIpv4(labels);\n};\nconst ipv4Number = (part) => {\n  let digits = part, radix = 10;\n  if (/^0x/i.test(digits)) { digits = digits.slice(2); radix = 16; } else if (digits.length > 1 && digits[0] === '0') { digits = digits.slice(1); radix = 8; }\n  if (part === '') return null;\n  if (digits === '') return 0;\n  return ({ 8: /^[0-7]+$/, 10: /^[0-9]+$/, 16: /^[0-9a-f]+$/i })[radix].test(digits) ? parseInt(digits, radix) : null;\n};\nconst isIpv4 = (labels) => {\n  const numbers = labels.map(ipv4Number);\n  if (labels.length > 4 || numbers.includes(null) || numbers.slice(0, -1).some((n) => n > 255)) return false;\n  return numbers[numbers.length - 1] < Math.pow(256, 5 - numbers.length);\n};\nconst isIpv6 = (text) => {\n  let piece = 0, compressed = false, at = 0;\n  const hex = (c) => c !== undefined && /[0-9A-Fa-f]/.test(c), digit = (c) => c !== undefined && /[0-9]/.test(c);\n  if (text[0] === ':') { if (text[1] !== ':') return false; at = 2; piece = 1; compressed = true; }\n  while (at < text.length) {\n    if (piece === 8) return false;\n    if (text[at] === ':') { if (compressed) return false; at++; piece++; compressed = true; continue; }\n    let length = 0;\n    while (length < 4 && hex(text[at])) { at++; length++; }\n    if (text[at] === '.') {\n      if (length === 0 || piece > 6) return false;\n      at -= length;\n      let seen = 0;\n      while (at < text.length) {\n        if (seen > 0) { if (text[at] === '.' && seen < 4) at++; else return false; }\n        if (!digit(text[at])) return false;\n        let value = null;\n        while (digit(text[at])) { const n = Number(text[at]); if (value === 0) return false; value = value === null ? n : value * 10 + n; if (value > 255) return false; at++; }\n        seen++;\n        if (seen === 2 || seen === 4) piece++;\n      }\n      return seen === 4 && (compressed || piece === 8);\n    }\n    if (text[at] === ':') { at++; if (at >= text.length) return false; } else if (at < text.length) return false;\n    piece++;\n  }\n  return compressed || piece === 8;\n};\nif (!isHttpUrl(inputs.attachment_url)) throw new Error('attachment_url must be a full http(s) URL.');\nrequest.url = '/' + encodeURIComponent(inputs.module) + '/' + encodeURIComponent(inputs.record_id) + '/Attachments';\nrequest.body = Object.assign({ attachmentUrl: inputs.attachment_url }, inputs.title ? { title: inputs.title } : {});\nreturn request;",
+      "afterResponse": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\ninputs.module = __api(inputs.module, 'Module');\ninputs.record_id = __id(inputs.record_id, 'Record');\nconst isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst field = (v, k) => isRec(v) ? v[k] : undefined;\nconst text = (v) => typeof v === 'string' ? v : undefined;\nconst writeItem = (e) => isRec(e) ? { code: text(e.code), status: text(e.status), message: text(e.message), action: text(e.action), duplicate_field: typeof e.duplicate_field === 'string' ? e.duplicate_field : null, details: isRec(e.details) ? e.details : undefined } : {};\nconst firstItem = (body, key) => { key = key || 'data'; const list = field(body, key); if (!Array.isArray(list) || list.length === 0) throw new Error('Zoho CRM returned an unexpected response (no \"' + key + '\" array).'); const items = list.map(writeItem); const failed = items.find((i) => i.status === 'error'); if (failed) throw new Error('Zoho CRM ' + (failed.code ?? 'ERROR') + ': ' + (failed.message ?? 'request failed')); return items[0]; };\nconst userRef = (v) => ({ id: text(field(v, 'id')) ?? null, name: text(field(v, 'name')) ?? null });\nconst written = (e) => { const d = e.details ?? {}; const by = userRef(d.Created_By), last = userRef(d.Modified_By); return { id: text(d.id) ?? null, status: e.status ?? null, code: e.code ?? null, message: e.message ?? null, action: e.action ?? null, duplicate_field: e.duplicate_field ?? null, created_time: text(d.Created_Time) ?? null, modified_time: text(d.Modified_Time) ?? null, created_by_id: by.id, created_by_name: by.name, modified_by_id: last.id, modified_by_name: last.name }; };\nreturn Object.assign({ parent_module: inputs.module, parent_id: inputs.record_id }, written(firstItem(response)));"
+    },
+    "zoho_crm_create_email_draft": {
+      "label": "Create Email Draft",
+      "description": "Saves an email draft on a record without sending it.",
+      "inputs": {
+        "module": {
+          "label": "Module",
+          "required": true,
+          "description": "Module of the record, e.g. \"Leads\", \"Contacts\", \"Deals\" or \"Accounts\".",
+          "list": "modules"
+        },
+        "record_id": {
+          "label": "Record",
+          "required": true,
+          "description": "Numeric id of the record the draft belongs to.",
+          "list": "records"
+        },
+        "from": {
+          "label": "From",
+          "required": true,
+          "description": "Sender email, e.g. the connected user's email."
+        },
+        "to": {
+          "label": "To",
+          "type": "json",
+          "description": "Recipient emails, as a JSON list."
+        },
+        "cc": {
+          "label": "Cc",
+          "type": "json"
+        },
+        "bcc": {
+          "label": "Bcc",
+          "type": "json"
+        },
+        "subject": {
+          "label": "Subject"
+        },
+        "content": {
+          "label": "Body",
+          "type": "multiline"
+        },
+        "rich_text": {
+          "label": "Content Format",
+          "type": "select",
+          "description": "HTML (rich text) or plain text. Default HTML.",
+          "options": [
+            {
+              "value": "true",
+              "label": "HTML"
+            },
+            {
+              "value": "false",
+              "label": "Plain text"
+            }
+          ]
+        },
+        "reply_to": {
+          "label": "Reply To"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.apiDomain}}/crm/v8/{{module}}/{{record_id}}/__email_drafts"
+      },
+      "beforeRequest": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __list = (v) => { if (v == null || v === '') return []; const one = (t) => { const s = t.trim(); if (!s.startsWith('[') || !s.endsWith(']')) return undefined; try { const o = JSON.parse(s); return Array.isArray(o) ? o : undefined; } catch (e) { return undefined; } }; const items = Array.isArray(v) ? v.flatMap((o) => Array.isArray(o) ? o : typeof o === 'string' ? (one(o) ?? [o]) : [o]) : (one(String(v)) ?? String(v).split(',')); return items.map((t) => typeof t === 'string' ? t.trim() : typeof t === 'number' ? String(t) : '').filter((t) => t.length > 0); };\ninputs.module = __api(inputs.module, 'Module');\ninputs.record_id = __id(inputs.record_id, 'record_id');\nrequest.url = '/' + encodeURIComponent(String(inputs.module ?? '')) + '/' + encodeURIComponent(String(inputs.record_id ?? '')) + '/__email_drafts';\nconst email = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(s)) throw new Error(name + ' must be an email address.'); return s; };\nconst recipients = (v, name) => __list(v).map((o) => ({ email: email(o, name) }));\nconst richText = (v) => v === 'true' ? true : v === 'false' ? false : undefined;\nconst to = recipients(inputs.to, 'to'), cc = recipients(inputs.cc, 'cc'), bcc = recipients(inputs.bcc, 'bcc');\nconst draft = Object.assign({ from: email(inputs.from, 'from'), rich_text: richText(inputs.rich_text) ?? true }, to.length > 0 ? { to } : {}, cc.length > 0 ? { cc } : {}, bcc.length > 0 ? { bcc } : {}, inputs.subject ? { subject: inputs.subject } : {}, inputs.content ? { content: inputs.content } : {}, inputs.reply_to ? { reply_to: email(inputs.reply_to, 'reply_to') } : {});\nrequest.body = { __email_drafts: [draft] };\nreturn request;",
+      "afterResponse": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\ninputs.module = __api(inputs.module, 'Module');\ninputs.record_id = __id(inputs.record_id, 'record_id');\nconst text = (v) => typeof v === 'string' ? v : undefined;\nconst isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst field = (v, k) => isRec(v) ? v[k] : undefined;\nconst writeItem = (e) => isRec(e) ? { code: text(e.code), status: text(e.status), message: text(e.message), action: text(e.action), duplicate_field: typeof e.duplicate_field === 'string' ? e.duplicate_field : null, details: isRec(e.details) ? e.details : undefined } : {};\nconst firstItem = (body, key) => { key = key || 'data'; const list = field(body, key); if (!Array.isArray(list) || list.length === 0) throw new Error('Zoho CRM returned an unexpected response (no \"' + key + '\" array).'); const items = list.map(writeItem); const failed = items.find((i) => i.status === 'error'); if (failed) throw new Error('Zoho CRM ' + (failed.code ?? 'ERROR') + ': ' + (failed.message ?? 'request failed')); return items[0]; };\nconst item = firstItem(response, '__email_drafts');\nreturn { id: text(item.details && item.details.id) ?? null, module: inputs.module, record_id: inputs.record_id, status: item.status ?? null, message: item.message ?? null };"
+    },
+    "zoho_crm_list_email_drafts": {
+      "label": "List Email Drafts",
+      "description": "Lists the email drafts saved on a record.",
+      "inputs": {
+        "module": {
+          "label": "Module",
+          "required": true,
+          "description": "Module of the record, e.g. \"Leads\", \"Contacts\", \"Deals\" or \"Accounts\".",
+          "list": "modules"
+        },
+        "record_id": {
+          "label": "Record",
+          "required": true,
+          "description": "Numeric id of the record the draft belongs to.",
+          "list": "records"
+        },
+        "draft_id": {
+          "label": "Draft ID",
+          "description": "Optional: return only this draft."
+        },
+        "page": {
+          "label": "Page",
+          "type": "number"
+        },
+        "per_page": {
+          "label": "Per Page",
+          "type": "number",
+          "description": "1 to 10 (Zoho maximum 10)."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.apiDomain}}/crm/v8/{{module}}/{{record_id}}/__email_drafts"
+      },
+      "beforeRequest": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\ninputs.module = __api(inputs.module, 'Module');\ninputs.record_id = __id(inputs.record_id, 'record_id');\nrequest.url = '/' + encodeURIComponent(String(inputs.module ?? '')) + '/' + encodeURIComponent(String(inputs.record_id ?? '')) + '/__email_drafts';\nconst pageOf = (v, name, max) => { if (v == null || v === '') return undefined; const n = Number(v); if (!Number.isInteger(n) || n < 1 || n > max) throw new Error(name + ' must be a whole number between 1 and ' + max + '.'); return n; };\nconst draft = (inputs.draft_id || '').trim();\nif (inputs.draft_id && !/^[A-Za-z0-9]{1,200}$/.test(draft)) throw new Error('draft_id must be the id string returned by Zoho (letters and digits only).');\nconst page = pageOf(inputs.page, 'page', 2000), perPage = pageOf(inputs.per_page, 'per_page', 10);\nif (page !== undefined && page * (perPage ?? 10) > 2000) throw new Error('Zoho only serves the first 2,000 items by page number (page x per_page).');\nif (draft) { request.url = request.url + '/' + draft; request.query = {}; } else request.query = Object.assign({}, page ? { page: String(page) } : {}, perPage ? { per_page: String(perPage) } : {});\nreturn request;",
+      "afterResponse": "const isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst field = (v, k) => isRec(v) ? v[k] : undefined;\nconst objOf = (v) => isRec(v) ? v : {};\nconst plain = (v) => typeof v === 'string' ? v : (typeof v === 'number' || typeof v === 'boolean') ? String(v) : null;\nconst emailOf = (e) => typeof e === 'string' ? e : plain(objOf(e).email);\nconst emailList = (e) => { if (!Array.isArray(e)) return null; const t = e.map(emailOf).filter((o) => o !== null); return t.length > 0 ? t.join(', ') : null; };\nconst draftOf = (e) => { const schedule = objOf(e.schedule_details), files = Array.isArray(e.attachments) ? e.attachments : []; return { id: plain(e.id), subject: plain(e.subject), from: emailOf(e.from), to: emailList(e.to), cc: emailList(e.cc), bcc: emailList(e.bcc), reply_to: emailOf(e.reply_to), summary: plain(e.summary), content: plain(e.content), rich_text: typeof e.rich_text === 'boolean' ? e.rich_text : null, scheduled_time: plain(schedule.time), attachment_count: files.length, created_time: plain(e.created_time), modified_time: plain(e.modified_time) }; };\nconst drafts = (field(response, '__email_drafts') ?? []).map(draftOf);\nreturn { drafts, count: drafts.length, more_records: objOf(field(response, 'info')).more_records === true };"
+    },
+    "zoho_crm_update_email_draft": {
+      "label": "Update Email Draft",
+      "description": "Changes an email draft; fields you leave empty keep their value.",
+      "inputs": {
+        "module": {
+          "label": "Module",
+          "required": true,
+          "description": "Module of the record, e.g. \"Leads\", \"Contacts\", \"Deals\" or \"Accounts\".",
+          "list": "modules"
+        },
+        "record_id": {
+          "label": "Record",
+          "required": true,
+          "description": "Numeric id of the record the draft belongs to.",
+          "list": "records"
+        },
+        "draft_id": {
+          "label": "Draft ID",
+          "required": true,
+          "description": "Draft id from List Email Drafts (a long hex string)."
+        },
+        "from": {
+          "label": "From"
+        },
+        "to": {
+          "label": "To",
+          "type": "json",
+          "description": "Replaces the To list; omit it to keep the current list."
+        },
+        "cc": {
+          "label": "Cc",
+          "type": "json",
+          "description": "Replaces the Cc list; omit it to keep the current list."
+        },
+        "bcc": {
+          "label": "Bcc",
+          "type": "json",
+          "description": "Replaces the Bcc list; omit it to keep the current list."
+        },
+        "subject": {
+          "label": "Subject"
+        },
+        "content": {
+          "label": "Body",
+          "type": "multiline"
+        },
+        "rich_text": {
+          "label": "Content Format",
+          "type": "select",
+          "description": "Leave empty to keep the current format.",
+          "options": [
+            {
+              "value": "true",
+              "label": "HTML"
+            },
+            {
+              "value": "false",
+              "label": "Plain text"
+            }
+          ]
+        },
+        "reply_to": {
+          "label": "Reply To"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://{{credential.apiDomain}}/crm/v8/{{module}}/{{record_id}}/__email_drafts"
+      },
+      "beforeRequest": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __list = (v) => { if (v == null || v === '') return []; const one = (t) => { const s = t.trim(); if (!s.startsWith('[') || !s.endsWith(']')) return undefined; try { const o = JSON.parse(s); return Array.isArray(o) ? o : undefined; } catch (e) { return undefined; } }; const items = Array.isArray(v) ? v.flatMap((o) => Array.isArray(o) ? o : typeof o === 'string' ? (one(o) ?? [o]) : [o]) : (one(String(v)) ?? String(v).split(',')); return items.map((t) => typeof t === 'string' ? t.trim() : typeof t === 'number' ? String(t) : '').filter((t) => t.length > 0); };\ninputs.module = __api(inputs.module, 'Module');\ninputs.record_id = __id(inputs.record_id, 'record_id');\nrequest.url = '/' + encodeURIComponent(String(inputs.module ?? '')) + '/' + encodeURIComponent(String(inputs.record_id ?? '')) + '/__email_drafts';\nconst text = (v) => typeof v === 'string' ? v : undefined;\nconst isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst field = (v, k) => isRec(v) ? v[k] : undefined;\nconst enc = encodeURIComponent;\nconst email = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(s)) throw new Error(name + ' must be an email address.'); return s; };\nconst recipients = (v, name) => __list(v).map((o) => ({ email: email(o, name) }));\nconst richText = (v) => v === 'true' ? true : v === 'false' ? false : undefined;\nconst draft = (inputs.draft_id || '').trim();\nif (!/^[A-Za-z0-9]{1,200}$/.test(draft)) throw new Error('draft_id must be the id string returned by Zoho (letters and digits only).');\nconst replacing = (v, name) => { if (v == null || v === '') return undefined; const list = recipients(v, name); if (list.length === 0) throw new Error(name + ' is empty. Zoho keeps a draft\\'s ' + name + ' recipients when asked to remove them all, so pass the new addresses, or leave ' + name + ' out to keep the current list.'); return list; };\nconst changes = { from: inputs.from ? email(inputs.from, 'from') : undefined, to: replacing(inputs.to, 'to'), cc: replacing(inputs.cc, 'cc'), bcc: replacing(inputs.bcc, 'bcc'), subject: inputs.subject || undefined, content: inputs.content || undefined, rich_text: richText(inputs.rich_text), reply_to: inputs.reply_to ? email(inputs.reply_to, 'reply_to') : undefined };\nconst current = (field(call({ method: 'GET', url: '/' + enc(inputs.module) + '/' + __id(inputs.record_id, 'record_id') + '/__email_drafts/' + draft }), '__email_drafts') ?? [])[0];\nif (!current) throw new Error('No draft ' + draft + ' on ' + inputs.module + ' ' + inputs.record_id + '.');\nconst people = (e) => Array.isArray(e) ? e.flatMap((t) => { if (typeof t === 'string') return [{ email: t }]; const address = text(field(t, 'email')); if (address === undefined) return []; const name = text(field(t, 'user_name')); return [Object.assign({ email: address }, name !== undefined ? { user_name: name } : {})]; }) : undefined;\nconst addressOf = (e) => typeof e === 'string' ? e : text(field(e, 'email'));\nconst merged = { id: draft, from: changes.from ?? addressOf(current.from), rich_text: changes.rich_text ?? (typeof current.rich_text === 'boolean' ? current.rich_text : true) };\nconst to = changes.to ?? people(current.to), cc = changes.cc ?? people(current.cc), bcc = changes.bcc ?? people(current.bcc);\nif (to) merged.to = to; if (cc) merged.cc = cc; if (bcc) merged.bcc = bcc;\nconst subject = changes.subject ?? current.subject, content = changes.content ?? current.content, replyTo = changes.reply_to ?? addressOf(current.reply_to);\nif (typeof subject === 'string') merged.subject = subject; if (typeof content === 'string') merged.content = content; if (replyTo) merged.reply_to = replyTo;\nif (current.schedule_details) merged.schedule_details = current.schedule_details;\nif (Array.isArray(current.attachments) && current.attachments.length > 0) merged.attachments = current.attachments;\nif (!merged.from) throw new Error('The draft has no from address; pass from.');\nrequest.body = { __email_drafts: [merged] };\nreturn request;",
+      "afterResponse": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __id = (v, name) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; if (!/^[0-9]{1,25}$/.test(s)) throw new Error(name + ' must be a numeric Zoho id such as \"5725767000000524157\" (got \"' + String(v ?? '') + '\").'); return s; };\ninputs.module = __api(inputs.module, 'Module');\ninputs.record_id = __id(inputs.record_id, 'record_id');\nconst text = (v) => typeof v === 'string' ? v : undefined;\nconst isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst field = (v, k) => isRec(v) ? v[k] : undefined;\nconst writeItem = (e) => isRec(e) ? { code: text(e.code), status: text(e.status), message: text(e.message), action: text(e.action), duplicate_field: typeof e.duplicate_field === 'string' ? e.duplicate_field : null, details: isRec(e.details) ? e.details : undefined } : {};\nconst firstItem = (body, key) => { key = key || 'data'; const list = field(body, key); if (!Array.isArray(list) || list.length === 0) throw new Error('Zoho CRM returned an unexpected response (no \"' + key + '\" array).'); const items = list.map(writeItem); const failed = items.find((i) => i.status === 'error'); if (failed) throw new Error('Zoho CRM ' + (failed.code ?? 'ERROR') + ': ' + (failed.message ?? 'request failed')); return items[0]; };\nconst item = firstItem(response, '__email_drafts');\nreturn { id: text(item.details && item.details.id) ?? (inputs.draft_id || '').trim(), module: inputs.module, record_id: inputs.record_id, status: item.status ?? null, message: item.message ?? null };"
+    }
+  },
+  "triggers": {
+    "new_record": {
+      "label": "New Record",
+      "description": "Triggers when a record is created in any module (custom fields included).",
+      "inputs": {
+        "module": {
+          "label": "Module",
+          "required": true,
+          "description": "The module to watch (standard or custom).",
+          "list": "modules"
+        },
+        "fields": {
+          "label": "Fields to Include",
+          "type": "json",
+          "description": "Optional, up to 47, as a JSON list. Leave empty for id, then custom, then standard fields (50 in total)."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.apiDomain}}/crm/v8/{{module}}",
+        "query": {
+          "sort_by": "Created_Time",
+          "sort_order": "desc",
+          "per_page": "200",
+          "page": "1"
+        }
+      },
+      "beforeRequest": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __list = (v) => { if (v == null || v === '') return []; const one = (t) => { const s = t.trim(); if (!s.startsWith('[') || !s.endsWith(']')) return undefined; try { const o = JSON.parse(s); return Array.isArray(o) ? o : undefined; } catch (e) { return undefined; } }; const items = Array.isArray(v) ? v.flatMap((o) => Array.isArray(o) ? o : typeof o === 'string' ? (one(o) ?? [o]) : [o]) : (one(String(v)) ?? String(v).split(',')); return items.map((t) => typeof t === 'string' ? t.trim() : typeof t === 'number' ? String(t) : '').filter((t) => t.length > 0); };\ninputs.module = __api(inputs.module, 'Module');\nrequest.url = '/' + encodeURIComponent(String(inputs.module ?? ''));\nconst isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst field = (v, k) => isRec(v) ? v[k] : undefined;\nconst fieldsOf = (module) => { try { return call({ method: 'GET', url: '/settings/fields', query: { module } }).fields ?? []; } catch (e) { if (/403|NO_PERMISSION|OAUTH_SCOPE_MISMATCH/.test(String((e && e.message) || e))) return undefined; throw e; } };\nconst lowValue = (f) => ['Latitude', 'Longitude', 'Coordinates', 'Record_Image'].includes(f.api_name) || f.api_name.endsWith('__s') || f.api_name.startsWith('$');\nconst defaultFields = (fields) => { const shown = fields.filter((a) => a.visible !== false && a.api_name && a.api_name !== 'id'); const custom = shown.filter((a) => a.custom_field === true && !lowValue(a)); const standard = shown.filter((a) => a.custom_field !== true && !lowValue(a)); const low = shown.filter((a) => lowValue(a)); return ['id', ...[...custom, ...standard, ...low].map((a) => a.api_name)].slice(0, 50); };\nconst always = ['id', 'Created_Time', 'Modified_Time'];\nconst picked = [...new Set(__list(inputs.fields).filter((o) => !always.includes(o)))];\nif (picked.length > 47) throw new Error('Fields to Include has ' + picked.length + ' fields. Zoho returns at most 50 fields per record, and id, Created_Time and Modified_Time are always included, so pick at most 47.');\nlet fields;\nif (picked.length > 0) fields = [...new Set([...always, ...picked])];\nelse {\n  const known = fieldsOf(inputs.module);\n  if (!known) throw new Error('Zoho CRM did not let this connection read the ' + inputs.module + ' field list, so the default fields cannot be chosen. Pick the fields to include in the trigger settings.');\n  fields = [...new Set([...always, ...defaultFields(known)])].slice(0, 50);\n}\nrequest.query.fields = fields.join(',');\nreturn request;",
+      "items": "$.data",
+      "newBy": "time",
+      "key": "$.Created_Time"
+    },
+    "updated_record": {
+      "label": "Updated Record",
+      "description": "Triggers when a record is modified in any module.",
+      "inputs": {
+        "module": {
+          "label": "Module",
+          "required": true,
+          "description": "The module to watch (standard or custom).",
+          "list": "modules"
+        },
+        "fields": {
+          "label": "Fields to Include",
+          "type": "json",
+          "description": "Optional, up to 47, as a JSON list. Leave empty for id, then custom, then standard fields (50 in total)."
+        },
+        "include_new": {
+          "label": "Include Newly Created Records",
+          "type": "boolean",
+          "description": "Also fire for records created but not edited since the last check.",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.apiDomain}}/crm/v8/{{module}}",
+        "query": {
+          "sort_by": "Modified_Time",
+          "sort_order": "desc",
+          "per_page": "200",
+          "page": "1"
+        }
+      },
+      "beforeRequest": "const __api = (v, name) => { const s = typeof v === 'string' ? v.trim() : ''; if (!/^[A-Za-z0-9_$]{1,100}$/.test(s)) throw new Error(name + ' must be a Zoho API name such as \"Leads\" or \"Custom_Field__c\" (got \"' + String(v ?? '') + '\").'); return s; };\nconst __list = (v) => { if (v == null || v === '') return []; const one = (t) => { const s = t.trim(); if (!s.startsWith('[') || !s.endsWith(']')) return undefined; try { const o = JSON.parse(s); return Array.isArray(o) ? o : undefined; } catch (e) { return undefined; } }; const items = Array.isArray(v) ? v.flatMap((o) => Array.isArray(o) ? o : typeof o === 'string' ? (one(o) ?? [o]) : [o]) : (one(String(v)) ?? String(v).split(',')); return items.map((t) => typeof t === 'string' ? t.trim() : typeof t === 'number' ? String(t) : '').filter((t) => t.length > 0); };\ninputs.module = __api(inputs.module, 'Module');\nrequest.url = '/' + encodeURIComponent(String(inputs.module ?? ''));\nconst isRec = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);\nconst field = (v, k) => isRec(v) ? v[k] : undefined;\nconst fieldsOf = (module) => { try { return call({ method: 'GET', url: '/settings/fields', query: { module } }).fields ?? []; } catch (e) { if (/403|NO_PERMISSION|OAUTH_SCOPE_MISMATCH/.test(String((e && e.message) || e))) return undefined; throw e; } };\nconst lowValue = (f) => ['Latitude', 'Longitude', 'Coordinates', 'Record_Image'].includes(f.api_name) || f.api_name.endsWith('__s') || f.api_name.startsWith('$');\nconst defaultFields = (fields) => { const shown = fields.filter((a) => a.visible !== false && a.api_name && a.api_name !== 'id'); const custom = shown.filter((a) => a.custom_field === true && !lowValue(a)); const standard = shown.filter((a) => a.custom_field !== true && !lowValue(a)); const low = shown.filter((a) => lowValue(a)); return ['id', ...[...custom, ...standard, ...low].map((a) => a.api_name)].slice(0, 50); };\nconst always = ['id', 'Created_Time', 'Modified_Time'];\nconst picked = [...new Set(__list(inputs.fields).filter((o) => !always.includes(o)))];\nif (picked.length > 47) throw new Error('Fields to Include has ' + picked.length + ' fields. Zoho returns at most 50 fields per record, and id, Created_Time and Modified_Time are always included, so pick at most 47.');\nlet fields;\nif (picked.length > 0) fields = [...new Set([...always, ...picked])];\nelse {\n  const known = fieldsOf(inputs.module);\n  if (!known) throw new Error('Zoho CRM did not let this connection read the ' + inputs.module + ' field list, so the default fields cannot be chosen. Pick the fields to include in the trigger settings.');\n  fields = [...new Set([...always, ...defaultFields(known)])].slice(0, 50);\n}\nrequest.query.fields = fields.join(',');\nreturn request;",
+      "afterResponse": "const records = (response && response.data) || [];\nreturn inputs.include_new === 'true' ? records : records.filter((r) => r.Modified_Time !== r.Created_Time);",
+      "items": "$",
+      "newBy": "time",
+      "key": "$.Modified_Time"
+    }
+  }
+}

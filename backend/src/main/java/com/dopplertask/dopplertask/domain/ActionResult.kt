@@ -8,6 +8,9 @@ data class ActionResult(
     var isBroadcastMessage: Boolean,
     var outputVariables: MutableMap<String, Any>
 ) {
+    /** Set by a step that waits for an answer: the run stops after it, and continues when its key is called once. */
+    var waitKey: String? = null
+
     constructor(statusCode: StatusCode, output: String, errorMsg: String) : this(
         statusCode,
         output,

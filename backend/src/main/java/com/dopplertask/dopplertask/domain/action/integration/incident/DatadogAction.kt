@@ -69,7 +69,7 @@ class DatadogAction : Action() {
         if (operationValue == POST_EVENT && read(eventText).isBlank()) return ActionResult.failure("Datadog needs the text of the event.")
         if (operationValue != POST_EVENT && monitorValue.toLongOrNull() == null) return ActionResult.failure("Datadog needs the monitor ID as a number, and got \"$monitorValue\".")
 
-        val base = read(baseUrl).trim().trimEnd('/')
+        val base = JsonApi.baseAddress(read(baseUrl))
         val headers = mutableMapOf("DD-API-KEY" to apiKeyValue)
         if (applicationValue.isNotEmpty()) headers["DD-APPLICATION-KEY"] = applicationValue
         val result = when (operationValue) {

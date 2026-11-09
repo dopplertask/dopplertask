@@ -1,7 +1,7 @@
 package com.dopplertask.dopplertask;
 
-import com.dopplertask.dopplertask.service.LegacySecretMigration;
 import com.dopplertask.dopplertask.service.RunHousekeeping;
+import com.dopplertask.dopplertask.service.TaskService;
 import org.apache.activemq.broker.BrokerService;
 import org.apache.velocity.app.VelocityEngine;
 import org.apache.velocity.runtime.RuntimeConstants;
@@ -36,13 +36,14 @@ public class Application {
     }
 
     /**
-     * After everything is created and before any listener or the web server starts, so that no new run is touched.
+     * After everything is created and before any listener or the web server starts, so that no new run is touched and no
+     * answer to a waiting run arrives while the ones that arrived before are queued.
      */
     @Bean
-    public SmartInitializingSingleton prepareSavedData(RunHousekeeping housekeeping, LegacySecretMigration secrets) {
+    public SmartInitializingSingleton prepareSavedData(RunHousekeeping housekeeping, TaskService taskService) {
         return () -> {
-            secrets.migrate();
             housekeeping.failInterruptedRuns();
+            taskService.continueAnsweredRuns();
         };
     }
 

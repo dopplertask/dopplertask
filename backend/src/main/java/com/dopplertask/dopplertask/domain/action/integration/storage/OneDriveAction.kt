@@ -74,9 +74,9 @@ class OneDriveAction : Action() {
         if (operationValue == READ_TEXT_FILE && fileValue.isBlank()) return ActionResult.failure("OneDrive needs the ID of the file.")
         if (operationValue == SAVE_TEXT_FILE && pathValue.isBlank()) return ActionResult.failure("OneDrive needs a path, such as reports/week-45.txt.")
 
-        val signIn = MicrosoftAccount.signIn("OneDrive", read(signInUrl).trim(), read(tenantId).trim(), read(clientId).trim(), read(clientSecret))
+        val signIn = MicrosoftAccount.signIn("OneDrive", JsonApi.baseAddress(read(signInUrl)), read(tenantId).trim(), read(clientId).trim(), read(clientSecret))
         signIn.failure?.let { return it }
-        val api = read(baseUrl).trim().trimEnd('/') + "/v1.0"
+        val api = JsonApi.baseAddress(read(baseUrl)) + "/v1.0"
         // The API addresses files through a drive, while a person knows whose files they are.
         val drive = JsonApi.call("OneDrive", "GET", "$api/users/${JsonApi.encoded(personValue)}/drive", signIn.headers, null)
         if (drive.statusCode == StatusCode.FAILURE) return drive

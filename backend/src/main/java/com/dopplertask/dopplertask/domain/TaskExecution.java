@@ -56,6 +56,22 @@ public class TaskExecution {
     @Column
     private String resumePortId;
 
+    // The one-time key that continues a waiting run.
+    @Column(unique = true)
+    private String waitKey;
+
+    // The run this run continues, so that a person who stops it before it starts also stops what it would continue.
+    @Column
+    private Long resumedFrom;
+
+    // Whether this run goes on after a person answered a waiting run, so that a resume keeps the values they saw.
+    @Column(columnDefinition = "boolean default false")
+    private boolean afterAnswer = false;
+
+    // What arrived at the address of a waiting run, kept until the run that continues it hands it to that step.
+    @Column(columnDefinition = "TEXT")
+    private String resumeEvent;
+
     @Transient
     private Map<Long, Integer> actionAccessCountMap = new HashMap<>();
 
@@ -247,6 +263,50 @@ public class TaskExecution {
 
     public void setResumePortId(String resumePortId) {
         this.resumePortId = resumePortId;
+    }
+
+    public String getWaitKey() {
+        return waitKey;
+    }
+
+    public void setWaitKey(String waitKey) {
+        this.waitKey = waitKey;
+    }
+
+    public Long getResumedFrom() {
+        return resumedFrom;
+    }
+
+    public void setResumedFrom(Long resumedFrom) {
+        this.resumedFrom = resumedFrom;
+    }
+
+    /** A person stops a waiting run: its address answers nothing more, and an answer it got is dropped. */
+    public void stopWaiting(String reason) {
+        waitKey = null;
+        resumeEvent = null;
+        abort(reason);
+    }
+
+    public boolean isAfterAnswer() {
+        return afterAnswer;
+    }
+
+    public void setAfterAnswer(boolean afterAnswer) {
+        this.afterAnswer = afterAnswer;
+    }
+
+    /** Whether the address of this waiting run was called, so that a run may continue it with what arrived. */
+    public boolean isAnswered() {
+        return status == TaskExecutionStatus.WAITING && waitKey == null && resumeEvent != null;
+    }
+
+    public String getResumeEvent() {
+        return resumeEvent;
+    }
+
+    public void setResumeEvent(String resumeEvent) {
+        this.resumeEvent = resumeEvent;
     }
 
     public Action getCurrentAction() {

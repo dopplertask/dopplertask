@@ -29,6 +29,9 @@ object JsonApi {
     fun callText(service: String, method: String, url: String, headers: Map<String, String>, text: String, contentType: String): ActionResult =
         send(service, method, url, headers + mapOf("Content-Type" to contentType), text, Duration.ofMinutes(1))
 
+    /** Where a service starts, once the step has read it, without spaces or a slash at the end. */
+    fun baseAddress(read: String?): String = read.orEmpty().trim().trimEnd('/')
+
     /** A value that a person typed, made safe to put in the address of a request. */
     fun encoded(text: String): String = URLEncoder.encode(text, StandardCharsets.UTF_8).replace("+", "%20")
 
@@ -40,10 +43,14 @@ object JsonApi {
         null
     }
 
-    private fun send(service: String, method: String, url: String, headers: Map<String, String>, body: String, timeout: Duration): ActionResult {
+    fun send(service: String, method: String, url: String, headers: Map<String, String>, body: String, timeout: Duration = Duration.ofMinutes(1)): ActionResult =
+        send(service, method, url, headers, body.toByteArray(), timeout) {}
+
+    /** The same with a body of bytes, such as a form with a file, and the answer's bytes handed to [answer]. */
+    fun send(service: String, method: String, url: String, headers: Map<String, String>, body: ByteArray, timeout: Duration = Duration.ofMinutes(1), answer: (ByteArray) -> Unit): ActionResult {
         val request = HttpAction()
         request.method = method
-        val result = request.send(url, body, headers + mapOf("Accept" to "application/json"), timeout = timeout)
+        val result = request.send(url, body, mapOf("Accept" to "application/json") + headers, timeout = timeout, answer = answer)
         if (result.statusCode == StatusCode.FAILURE && result.outputVariables.containsKey("statusCode")) {
             val reason = reasonIn(result.output)
             result.errorMsg = "$service answered with status ${result.outputVariables["statusCode"]}" + (if (reason.isEmpty()) "." else ": ${reason.trimEnd('.')}.")

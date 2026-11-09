@@ -1,0 +1,276 @@
+{
+  "name": "crisp",
+  "label": "Crisp",
+  "description": "Customer messaging platform for chat, notes and contacts.",
+  "icon": "",
+  "hosts": [
+    "api.crisp.chat"
+  ],
+  "baseUrl": "https://api.crisp.chat/v1",
+  "upstream": {
+    "package": "@activepieces/piece-crisp",
+    "version": "0.2.3"
+  },
+  "credential": {
+    "fields": {
+      "identifier": {
+        "label": "Identifier",
+        "description": "The identifier of your Crisp Marketplace plugin's production token keypair.",
+        "secret": true,
+        "required": true
+      },
+      "key": {
+        "label": "Key",
+        "description": "The key of your Crisp Marketplace plugin's production token keypair.",
+        "secret": true,
+        "required": true
+      }
+    },
+    "basic": {
+      "username": "{{credential.identifier}}",
+      "password": "{{credential.key}}"
+    },
+    "headers": {
+      "X-Crisp-Tier": "plugin"
+    }
+  },
+  "actions": {
+    "add_note": {
+      "label": "Add Note to Conversation",
+      "description": "Adds an internal note to a conversation.",
+      "inputs": {
+        "websiteId": {
+          "label": "Website ID",
+          "description": "You can obtain website ID by navigating to Settings -> Workspace Settings -> Setup & Integrations.",
+          "required": true
+        },
+        "sessionId": {
+          "label": "Conversation ID",
+          "description": "You can find it in the address bar. It starts with 'session_'.",
+          "required": true
+        },
+        "content": {
+          "label": "Note Content",
+          "type": "multiline",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.crisp.chat/v1/website/{{websiteId}}/conversation/{{sessionId}}/message",
+        "body": {
+          "type": "note",
+          "from": "operator",
+          "origin": "chat",
+          "content": "{{content}}"
+        }
+      },
+      "outputs": {
+        "fingerprint": "$.data.fingerprint"
+      }
+    },
+    "create_conversation": {
+      "label": "Create Conversation",
+      "description": "Creates a new conversation.",
+      "inputs": {
+        "websiteId": {
+          "label": "Website ID",
+          "description": "You can obtain website ID by navigating to Settings -> Workspace Settings -> Setup & Integrations.",
+          "required": true
+        },
+        "email": {
+          "label": "Email",
+          "required": true
+        },
+        "name": {
+          "label": "Name",
+          "required": true
+        },
+        "messageFrom": {
+          "label": "Message From",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "user",
+              "label": "User"
+            },
+            {
+              "value": "operator",
+              "label": "Operator"
+            }
+          ]
+        },
+        "message": {
+          "label": "Message",
+          "type": "multiline",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.crisp.chat/v1/website/{{websiteId}}/conversation"
+      },
+      "beforeRequest": "const profile = '/website/' + inputs.websiteId + '/people/profile';\nconst upsert = (body) => {\n  try {\n    call({method: 'PUT', url: profile + '/' + inputs.email, body});\n  } catch (e) {\n    const message = String(e && e.message || e);\n    // The original creates the profile on a 404, goes on after any other status and stops on other errors.\n    if (message.includes('status 404')) call({method: 'POST', url: profile, body});\n    else if (!message.includes('with status ')) throw e;\n  }\n};\nupsert({email: inputs.email, person: {nickname: inputs.name}});\nconst site = '/website/' + inputs.websiteId + '/conversation';\nconst session = call({method: 'POST', url: site, body: {}}).data.session_id;\ncall({method: 'POST', url: site + '/' + session + '/message', body: {type: 'text', from: inputs.messageFrom, origin: 'chat', content: inputs.message}});\ncall({method: 'PATCH', url: site + '/' + session + '/meta', body: {email: inputs.email, nickname: inputs.name}});\nrequest.url = site + '/' + session;\nreturn request;",
+      "outputs": {
+        "sessionId": "$.data.session_id"
+      }
+    },
+    "create_update_contact": {
+      "label": "Create/Update Contact",
+      "description": "Creates a new contact or updates an existing contact.",
+      "inputs": {
+        "websiteId": {
+          "label": "Website ID",
+          "description": "You can obtain website ID by navigating to Settings -> Workspace Settings -> Setup & Integrations.",
+          "required": true
+        },
+        "email": {
+          "label": "Email",
+          "required": true
+        },
+        "name": {
+          "label": "Name",
+          "required": true
+        },
+        "phone": {
+          "label": "Phone Number"
+        },
+        "address": {
+          "label": "Address",
+          "type": "multiline"
+        },
+        "company": {
+          "label": "Company"
+        },
+        "website": {
+          "label": "Contact Website"
+        },
+        "notepad": {
+          "label": "Notepad",
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.crisp.chat/v1/website/{{websiteId}}/people/profile"
+      },
+      "beforeRequest": "const profile = '/website/' + inputs.websiteId + '/people/profile';\nconst upsert = (body) => {\n  try {\n    call({method: 'PUT', url: profile + '/' + inputs.email, body});\n  } catch (e) {\n    const message = String(e && e.message || e);\n    // The original creates the profile on a 404, goes on after any other status and stops on other errors.\n    if (message.includes('status 404')) call({method: 'POST', url: profile, body});\n    else if (!message.includes('with status ')) throw e;\n  }\n};\nconst contact = {email: inputs.email, person: {nickname: inputs.name}};\nif (inputs.notepad) contact.notepad = inputs.notepad;\nif (inputs.phone) contact.person.phone = inputs.phone;\nif (inputs.address) contact.person.address = inputs.address;\nif (inputs.website) contact.person.website = inputs.website;\nif (inputs.company) contact.company = {name: inputs.company};\nupsert(contact);\n// The original puts the email in the address as it is.\nrequest.url = profile + '/' + inputs.email;\nreturn request;",
+      "outputs": {
+        "peopleId": "$.data.people_id"
+      }
+    },
+    "change_state": {
+      "label": "Change Conversation State",
+      "description": "Updates the state of a conversation.",
+      "inputs": {
+        "websiteId": {
+          "label": "Website ID",
+          "description": "You can obtain website ID by navigating to Settings -> Workspace Settings -> Setup & Integrations.",
+          "required": true
+        },
+        "sessionId": {
+          "label": "Conversation ID",
+          "description": "You can find it in the address bar. It starts with 'session_'.",
+          "required": true
+        },
+        "state": {
+          "label": "State",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "unresolved",
+              "label": "Unresolved"
+            },
+            {
+              "value": "resolved",
+              "label": "Resolved"
+            },
+            {
+              "value": "pending",
+              "label": "Pending"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://api.crisp.chat/v1/website/{{websiteId}}/conversation/{{sessionId}}/state",
+        "body": {
+          "state": "{{state}}"
+        }
+      }
+    },
+    "find_conversation": {
+      "label": "Find Conversation",
+      "description": "Searches for conversations matching the specified criteria.",
+      "inputs": {
+        "websiteId": {
+          "label": "Website ID",
+          "description": "You can obtain website ID by navigating to Settings -> Workspace Settings -> Setup & Integrations.",
+          "required": true
+        },
+        "searchQuery": {
+          "label": "Search Query",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.crisp.chat/v1/website/{{websiteId}}/conversations/1",
+        "query": {
+          "search_query": "{{searchQuery}}",
+          "search_type": "text"
+        }
+      },
+      "afterResponse": "return { found: response.data.length > 0, data: response.data };",
+      "outputs": {
+        "found": "$.found",
+        "data": "$.data"
+      }
+    }
+  },
+  "triggers": {
+    "new_contact": {
+      "label": "New Contact Created",
+      "description": "Triggers when a new contact is added.",
+      "inputs": {
+        "websiteId": {
+          "label": "Website ID",
+          "description": "You can obtain website ID by navigating to Settings -> Workspace Settings -> Setup & Integrations.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.crisp.chat/v1/website/{{websiteId}}/people/profiles/1?per_page=50"
+      },
+      "items": "$",
+      "newBy": "time",
+      "key": "$.created_at",
+      "beforeRequest": "// The original sends the time with spaces as +.\nif (inputs.lastPollTime) request.url += '&filter_date_start=' + encodeURIComponent(new Date(Number(inputs.lastPollTime)).toUTCString()).replace(/%20/g, '+');\nreturn request;",
+      "afterResponse": "if (!inputs.lastPollTime) return response.data || [];\nconst since = encodeURIComponent(new Date(Number(inputs.lastPollTime)).toUTCString()).replace(/%20/g, '+');\nconst items = [];\nlet page = response.data || [];\nfor (let number = 2; page.length > 0; number++) {\n  items.push(...page);\n  page = call({method: 'GET', url: '/website/' + inputs.websiteId + '/people/profiles/' + number + '?per_page=50&filter_date_start=' + since}).data || [];\n}\nreturn items;"
+    },
+    "new_conversation": {
+      "label": "New Conversation Created",
+      "description": "Triggers when a new conversation is started.",
+      "inputs": {
+        "websiteId": {
+          "label": "Website ID",
+          "description": "You can obtain website ID by navigating to Settings -> Workspace Settings -> Setup & Integrations.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.crisp.chat/v1/website/{{websiteId}}/conversations/1?per_page=50"
+      },
+      "items": "$",
+      "newBy": "time",
+      "key": "$.created_at",
+      "beforeRequest": "// The original sends the time with spaces as +.\nif (inputs.lastPollTime) request.url += '&filter_date_start=' + encodeURIComponent(new Date(Number(inputs.lastPollTime)).toUTCString()).replace(/%20/g, '+');\nreturn request;",
+      "afterResponse": "if (!inputs.lastPollTime) return response.data || [];\nconst since = encodeURIComponent(new Date(Number(inputs.lastPollTime)).toUTCString()).replace(/%20/g, '+');\nconst items = [];\nlet page = response.data || [];\nfor (let number = 2; page.length > 0; number++) {\n  items.push(...page);\n  page = call({method: 'GET', url: '/website/' + inputs.websiteId + '/conversations/' + number + '?per_page=50&filter_date_start=' + since}).data || [];\n}\nreturn items;"
+    }
+  }
+}

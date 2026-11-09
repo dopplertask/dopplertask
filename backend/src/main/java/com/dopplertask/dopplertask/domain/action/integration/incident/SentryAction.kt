@@ -56,7 +56,7 @@ class SentryAction : Action() {
         if (operationValue != LIST_ISSUES && issueValue.isBlank()) return ActionResult.failure("Sentry needs the ID of the issue.")
 
         val headers = mapOf("Authorization" to "Bearer $tokenValue")
-        val issues = read(baseUrl).trim().trimEnd('/') + "/api/0/organizations/${JsonApi.encoded(organizationValue)}/issues/"
+        val issues = JsonApi.baseAddress(read(baseUrl)) + "/api/0/organizations/${JsonApi.encoded(organizationValue)}/issues/"
         val issue = "$issues${JsonApi.encoded(issueValue)}/"
         val result = when (operationValue) {
             LIST_ISSUES -> JsonApi.call("Sentry", "GET", "$issues?query=${JsonApi.encoded(read(searchText).trim())}", headers, null)

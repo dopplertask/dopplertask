@@ -1,0 +1,453 @@
+{
+  "name": "mailgun",
+  "label": "Mailgun",
+  "description": "Email delivery service for sending, receiving, and tracking emails",
+  "icon": "mailgun",
+  "hosts": [
+    "{{credential.region}}.mailgun.net"
+  ],
+  "baseUrl": "https://{{credential.region}}.mailgun.net/v3",
+  "credential": {
+    "fields": {
+      "api_key": {
+        "label": "API Key",
+        "description": "Your Mailgun private API key (starts with `key-`). In the Mailgun dashboard, go to Settings > API Security and copy your Private API Key.",
+        "secret": true,
+        "required": true
+      },
+      "region": {
+        "label": "Region",
+        "description": "Select the region your Mailgun account is in. Most accounts use US.",
+        "type": "select",
+        "required": true,
+        "defaultValue": "api",
+        "options": [
+          {
+            "value": "api",
+            "label": "US"
+          },
+          {
+            "value": "api.eu",
+            "label": "EU"
+          }
+        ]
+      }
+    },
+    "basic": {
+      "username": "api",
+      "password": "{{credential.api_key}}"
+    }
+  },
+  "lists": {
+    "domains": {
+      "request": {
+        "url": "https://{{credential.region}}.mailgun.net/v3/domains",
+        "query": {
+          "limit": "1000"
+        }
+      },
+      "items": "$.items",
+      "label": "$.name",
+      "value": "$.name"
+    },
+    "mailing_lists": {
+      "request": {
+        "url": "https://{{credential.region}}.mailgun.net/v3/lists/pages",
+        "query": {
+          "limit": "100"
+        }
+      },
+      "items": "$.items",
+      "label": "$.address",
+      "value": "$.address"
+    }
+  },
+  "actions": {
+    "send_email": {
+      "label": "Send Email",
+      "description": "Send an email using your Mailgun domain",
+      "inputs": {
+        "domain": {
+          "label": "Domain",
+          "description": "Select the Mailgun domain to use",
+          "required": true,
+          "list": "domains"
+        },
+        "from": {
+          "label": "From",
+          "description": "Sender email address, e.g. \"Your Name <you@yourdomain.com>\"",
+          "required": true
+        },
+        "to": {
+          "label": "To Email Address",
+          "description": "Recipient email address. For multiple recipients, separate with commas.",
+          "required": true
+        },
+        "cc": {
+          "label": "CC Email Address",
+          "description": "Carbon copy recipients, separated by commas."
+        },
+        "bcc": {
+          "label": "BCC Email Address",
+          "description": "Blind carbon copy recipients, separated by commas."
+        },
+        "replyTo": {
+          "label": "Reply-To Email Address",
+          "description": "Email address for replies."
+        },
+        "subject": {
+          "label": "Email Subject",
+          "required": true
+        },
+        "text": {
+          "label": "Email Body (Plain Text)",
+          "description": "Plain text version of the email body.",
+          "type": "multiline"
+        },
+        "html": {
+          "label": "Email Body (HTML)",
+          "description": "HTML version of the email body.",
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.region}}.mailgun.net/v3/{{domain}}/messages",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      },
+      "beforeRequest": "if (!inputs.text && !inputs.html) throw new Error('Please provide either a plain text or HTML body for the email.');\nconst body = {from: inputs.from, to: inputs.to, subject: inputs.subject};\nif (inputs.cc) body.cc = inputs.cc;\nif (inputs.bcc) body.bcc = inputs.bcc;\nif (inputs.replyTo) body['h:Reply-To'] = inputs.replyTo;\nif (inputs.text) body.text = inputs.text;\nif (inputs.html) body.html = inputs.html;\nrequest.body = body;\nreturn request;",
+      "afterResponse": "return {message_id: response.id, message: response.message};",
+      "outputs": {
+        "message_id": "$.message_id"
+      }
+    },
+    "validate_email": {
+      "label": "Validate Email",
+      "description": "Validate an email address using Mailgun validation service. Requires a Mailgun account with email validation enabled.",
+      "inputs": {
+        "email": {
+          "label": "Email Address",
+          "description": "The email address to validate.",
+          "required": true
+        },
+        "providerLookup": {
+          "label": "Provider Lookup",
+          "description": "Enable additional mailbox provider checks for more accurate results.",
+          "type": "boolean",
+          "defaultValue": "true"
+        }
+      },
+      "request": {
+        "url": "https://{{credential.region}}.mailgun.net/v4/address/validate",
+        "query": {
+          "address": "{{email}}"
+        }
+      },
+      "beforeRequest": "request.query.provider_lookup = inputs.providerLookup || 'true';\nreturn request;",
+      "afterResponse": "return {address: response.address, is_disposable_address: response.is_disposable_address, is_role_address: response.is_role_address, reason: Array.isArray(response.reason) ? response.reason.join(', ') : null, result: response.result, risk: response.risk};",
+      "outputs": {
+        "result": "$.result"
+      }
+    },
+    "add_mailing_list_member": {
+      "label": "Add Mailing List Member",
+      "description": "Add a new member to a Mailgun mailing list",
+      "inputs": {
+        "list": {
+          "label": "Mailing List",
+          "description": "Select the mailing list",
+          "required": true,
+          "list": "mailing_lists"
+        },
+        "address": {
+          "label": "Member Email Address",
+          "description": "The email address to add to the mailing list.",
+          "required": true
+        },
+        "name": {
+          "label": "Member Name",
+          "description": "The name of the member."
+        },
+        "upsert": {
+          "label": "Update If Exists",
+          "description": "If enabled, updates the member if they already exist. Otherwise, an error is returned for duplicates.",
+          "required": true,
+          "type": "boolean",
+          "defaultValue": "true"
+        },
+        "subscribed": {
+          "label": "Subscribed",
+          "description": "Set the subscription status of the member.",
+          "type": "boolean",
+          "defaultValue": "true"
+        },
+        "vars": {
+          "label": "Custom Variables",
+          "description": "JSON object with custom variables to store with this member, e.g. {\"age\": 30, \"city\": \"Paris\"}.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.region}}.mailgun.net/v3/lists/{{list}}/members",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      },
+      "beforeRequest": "request.url = request.url.replace(encodeURIComponent(inputs.list), encodeURI(inputs.list).replace(/[?#]/g, encodeURIComponent));\nconst body = {address: inputs.address, upsert: inputs.upsert === 'true' ? 'yes' : 'no', subscribed: inputs.subscribed === 'false' ? 'no' : 'yes'};\nif (inputs.name) body.name = inputs.name;\nconst vars = inputs.vars ? JSON.parse(inputs.vars) : null;\nif (vars) body.vars = JSON.stringify(vars);\nrequest.body = body;\nreturn request;",
+      "afterResponse": "const m = response.member;\nreturn {message: response.message, member_address: m.address, member_name: m.name, member_subscribed: m.subscribed, member_vars: m.vars ? JSON.stringify(m.vars) : null};",
+      "outputs": {
+        "member_address": "$.member_address"
+      }
+    },
+    "get_events": {
+      "label": "Get Events",
+      "description": "Retrieve email events from your Mailgun domain (deliveries, failures, opens, clicks, etc.). Useful for monitoring and alerting.",
+      "inputs": {
+        "domain": {
+          "label": "Domain",
+          "description": "Select the Mailgun domain to use",
+          "required": true,
+          "list": "domains"
+        },
+        "event": {
+          "label": "Event Type",
+          "description": "Filter events by type.",
+          "required": true,
+          "type": "select",
+          "options": [
+            {
+              "value": "failed",
+              "label": "Failed (permanent + temporary)"
+            },
+            {
+              "value": "delivered",
+              "label": "Delivered"
+            },
+            {
+              "value": "accepted",
+              "label": "Accepted"
+            },
+            {
+              "value": "rejected",
+              "label": "Rejected"
+            },
+            {
+              "value": "opened",
+              "label": "Opened"
+            },
+            {
+              "value": "clicked",
+              "label": "Clicked"
+            },
+            {
+              "value": "complained",
+              "label": "Complained"
+            },
+            {
+              "value": "unsubscribed",
+              "label": "Unsubscribed"
+            },
+            {
+              "value": "stored",
+              "label": "Stored"
+            }
+          ]
+        },
+        "severity": {
+          "label": "Severity",
+          "description": "Only applies to \"failed\" events. Filter by permanent (hard bounce) or temporary (soft bounce).",
+          "type": "select",
+          "options": [
+            {
+              "value": "",
+              "label": "All"
+            },
+            {
+              "value": "permanent",
+              "label": "Permanent (hard bounce)"
+            },
+            {
+              "value": "temporary",
+              "label": "Temporary (soft bounce)"
+            }
+          ]
+        },
+        "begin": {
+          "label": "Begin Date",
+          "description": "Start of the time range. RFC 2822 date (e.g. \"Fri, 28 Mar 2026 10:00:00 -0000\") or Unix timestamp (e.g. \"1711620000\"). Leave empty for Mailgun default (about 30 days ago)."
+        },
+        "end": {
+          "label": "End Date",
+          "description": "End of the time range. Same format as Begin Date. Leave empty for now."
+        },
+        "limit": {
+          "label": "Max Results",
+          "description": "Maximum number of events to return. Default is 100, max is 1000. Mailgun returns up to 300 per page — pagination is handled automatically.",
+          "type": "number",
+          "defaultValue": "100"
+        }
+      },
+      "request": {
+        "url": "https://{{credential.region}}.mailgun.net/v3/{{domain}}/events",
+        "query": {
+          "event": "{{event}}",
+          "severity": "{{severity}}",
+          "begin": "{{begin}}",
+          "end": "{{end}}"
+        }
+      },
+      "beforeRequest": "const max = Math.min(Math.max(inputs.limit === '' ? 100 : Number(inputs.limit), 1), 1000);\nrequest.query.limit = String(Math.min(max, 300));\nreturn request;",
+      "afterResponse": "function flat(item) {\n  const r = {event: item['event'] ?? null, id: item['id'] ?? null, timestamp: item['timestamp'] ?? null, recipient: item['recipient'] ?? null, domain: item['domain'] ?? null, log_level: item['log-level'] ?? null, severity: item['severity'] ?? null, reason: item['reason'] ?? null};\n  const h = item.message && item.message.headers;\n  if (h) { r.message_id = h['message-id'] ?? null; r.from = h.from ?? null; r.to = h.to ?? null; r.subject = h.subject ?? null; }\n  const d = item['delivery-status'];\n  if (d) { r.delivery_status_code = d.code ?? null; r.delivery_status_message = d.message ?? null; r.delivery_status_description = d.description ?? null; }\n  r.tags = Array.isArray(item.tags) ? item.tags.join(', ') : null;\n  return r;\n}\nconst max = Math.min(Math.max(inputs.limit === '' ? 100 : Number(inputs.limit), 1), 1000);\nlet all = [].concat(response.items);\nlet next = (response.paging && response.paging.next) || null;\nwhile (next && all.length < max) {\n  const page = call({method: 'GET', url: next});\n  if (!page.items || page.items.length === 0) break;\n  all = all.concat(page.items);\n  next = (page.paging && page.paging.next) || null;\n}\nconst events = all.slice(0, max).map(flat);\nreturn {total_count: events.length, events};",
+      "outputs": {
+        "total_count": "$.total_count"
+      }
+    },
+    "get_domain_stats": {
+      "label": "Get Domain Stats",
+      "description": "Retrieve aggregated email statistics for a Mailgun domain (delivered, failed, opened, etc.). Useful for monitoring delivery health and detecting anomalies.",
+      "inputs": {
+        "domain": {
+          "label": "Domain",
+          "description": "Select the Mailgun domain to use",
+          "required": true,
+          "list": "domains"
+        },
+        "event": {
+          "label": "Event Types",
+          "description": "Select which event types to include in the statistics, as a JSON list such as [\"accepted\", \"delivered\"]. Choices: accepted, delivered, failed, opened, clicked, complained, unsubscribed, stored.",
+          "required": true,
+          "type": "json"
+        },
+        "duration": {
+          "label": "Duration",
+          "description": "Time period to aggregate stats over.",
+          "required": true,
+          "type": "select",
+          "defaultValue": "1h",
+          "options": [
+            {
+              "value": "1h",
+              "label": "Last 1 hour"
+            },
+            {
+              "value": "6h",
+              "label": "Last 6 hours"
+            },
+            {
+              "value": "12h",
+              "label": "Last 12 hours"
+            },
+            {
+              "value": "24h",
+              "label": "Last 24 hours"
+            },
+            {
+              "value": "7d",
+              "label": "Last 7 days"
+            },
+            {
+              "value": "30d",
+              "label": "Last 30 days"
+            }
+          ]
+        }
+      },
+      "request": {
+        "url": "https://{{credential.region}}.mailgun.net/v3/{{domain}}/stats/total"
+      },
+      "beforeRequest": "const events = JSON.parse(inputs.event);\nrequest.url += '?duration=' + encodeURIComponent(inputs.duration) + events.map((e) => '&event=' + encodeURIComponent(e)).join('');\nreturn request;",
+      "afterResponse": "const t = {accepted: 0, delivered: 0, failed_permanent: 0, failed_temporary: 0, opened: 0, clicked: 0, complained: 0, unsubscribed: 0, stored: 0};\nfor (const b of response.stats || []) {\n  for (const k of ['accepted', 'delivered', 'opened', 'clicked', 'complained', 'unsubscribed', 'stored']) t[k] += (b[k] && b[k].total) || 0;\n  t.failed_permanent += (b.failed && b.failed.permanent && b.failed.permanent.total) || 0;\n  t.failed_temporary += (b.failed && b.failed.temporary && b.failed.temporary.total) || 0;\n}\nreturn {duration: inputs.duration, accepted: t.accepted, delivered: t.delivered, failed_permanent: t.failed_permanent, failed_temporary: t.failed_temporary, failed_total: t.failed_permanent + t.failed_temporary, opened: t.opened, clicked: t.clicked, complained: t.complained, unsubscribed: t.unsubscribed, stored: t.stored};"
+    },
+    "list_bounces": {
+      "label": "List Bounces",
+      "description": "Retrieve the list of bounced email addresses for a Mailgun domain. Useful for cleanup after delivery issues or spam attacks.",
+      "inputs": {
+        "domain": {
+          "label": "Domain",
+          "description": "Select the Mailgun domain to use",
+          "required": true,
+          "list": "domains"
+        },
+        "limit": {
+          "label": "Max Results",
+          "description": "Maximum number of bounces to return (1-1000). Default is 100.",
+          "type": "number",
+          "defaultValue": "100"
+        }
+      },
+      "request": {
+        "url": "https://{{credential.region}}.mailgun.net/v3/{{domain}}/bounces"
+      },
+      "beforeRequest": "request.query = {limit: String(Math.min(Math.max(inputs.limit === '' ? 100 : Number(inputs.limit), 1), 1000))};\nreturn request;",
+      "afterResponse": "const bounces = response.items.map((i) => ({address: i.address, code: i.code, error: i.error, created_at: i.created_at}));\nreturn {total_count: bounces.length, bounces};",
+      "outputs": {
+        "total_count": "$.total_count"
+      }
+    },
+    "delete_bounces_bulk": {
+      "label": "Delete Bounces",
+      "description": "Remove bounced addresses from the Mailgun suppression list, either all at once for a domain or a single address.",
+      "inputs": {
+        "domain": {
+          "label": "Domain",
+          "description": "Select the Mailgun domain to use",
+          "required": true,
+          "list": "domains"
+        },
+        "scope": {
+          "label": "Scope",
+          "description": "Delete all bounces for the domain, or a single address.",
+          "required": true,
+          "type": "select",
+          "defaultValue": "all",
+          "options": [
+            {
+              "value": "all",
+              "label": "All bounces for this domain"
+            },
+            {
+              "value": "single",
+              "label": "Single address"
+            }
+          ]
+        },
+        "address": {
+          "label": "Address",
+          "description": "Email address to remove from the bounce list. Required when Scope is \"Single address\"."
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.region}}.mailgun.net/v3/{{domain}}/bounces"
+      },
+      "beforeRequest": "if (inputs.scope === 'single') {\n  const address = inputs.address.trim();\n  if (!address) throw new Error('An address is required when Scope is \"Single address\".');\n  request.url += '/' + encodeURIComponent(address);\n}\nreturn request;",
+      "afterResponse": "return inputs.scope === 'single' ? {scope: 'single', domain: inputs.domain, address: inputs.address.trim(), deleted: true} : {scope: 'all', domain: inputs.domain, deleted: true};"
+    },
+    "get_domain_health": {
+      "label": "Get Domain Health",
+      "description": "Fetch the health of a Mailgun domain: current state, whether it has been disabled, and DNS verification status for sending and receiving records.",
+      "inputs": {
+        "domain": {
+          "label": "Domain",
+          "description": "Select the Mailgun domain to use",
+          "required": true,
+          "list": "domains"
+        }
+      },
+      "request": {
+        "url": "https://{{credential.region}}.mailgun.net/v4/domains/{{domain}}"
+      },
+      "afterResponse": "const d = response.domain;\nconst sending = response.sending_dns_records ?? [];\nconst receiving = response.receiving_dns_records ?? [];\nconst valid = (records) => records.length > 0 && records.every((r) => r.valid === 'valid');\nreturn {name: d.name, state: d.state, is_disabled: d.is_disabled ?? false, created_at: d.created_at, wildcard: d.wildcard ?? false, spam_action: d.spam_action, require_tls: d.require_tls ?? false, sending_dns_valid: valid(sending), receiving_dns_valid: valid(receiving), sending_dns_records: sending, receiving_dns_records: receiving};",
+      "outputs": {
+        "state": "$.state"
+      }
+    }
+  },
+  "upstream": {
+    "package": "@activepieces/piece-mailgun",
+    "version": "0.1.3"
+  }
+}

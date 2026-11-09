@@ -65,7 +65,7 @@ class GiteaAction : Action() {
         broadcastListener: BroadcastListener?
     ): ActionResult {
         val read = { text: String? -> variableExtractorUtil.extract(text, execution, scriptLanguage) }
-        val site = read(siteUrl).trim().trimEnd('/')
+        val site = JsonApi.baseAddress(read(siteUrl))
         val tokenValue = read(token).trim()
         val ownerValue = read(owner).trim()
         val repositoryValue = read(repository).trim()

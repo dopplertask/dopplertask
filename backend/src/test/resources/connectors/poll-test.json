@@ -1,0 +1,199 @@
+{
+  "name": "poll-test",
+  "label": "Poll test",
+  "hosts": [
+    "api.poll-test.example"
+  ],
+  "credential": {
+    "fields": {
+      "key": {
+        "label": "Key",
+        "secret": true
+      }
+    },
+    "headers": {
+      "Authorization": "Bearer {{credential.key}}"
+    }
+  },
+  "actions": {
+    "noop": {
+      "label": "Nothing",
+      "request": {
+        "url": "https://api.poll-test.example/noop"
+      }
+    },
+    "remove_ban": {
+      "label": "Remove ban",
+      "inputs": {
+        "reason": {
+          "label": "Reason"
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.poll-test.example/bans/u1",
+        "body": {
+          "reason": "{{reason}}"
+        }
+      }
+    },
+    "echo": {
+      "label": "Echo",
+      "inputs": {
+        "note": {
+          "label": "Note"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.poll-test.example/notes",
+        "body": {
+          "note": "{{note}}"
+        }
+      },
+      "afterResponse": "return {sent: request.body, headers: request.headers};"
+    }
+  },
+  "triggers": {
+    "new_order": {
+      "label": "New order",
+      "request": {
+        "url": "https://api.poll-test.example/orders"
+      },
+      "items": "$.orders",
+      "newBy": "time",
+      "key": "$.created"
+    },
+    "new_contact": {
+      "label": "New contact",
+      "request": {
+        "url": "https://api.poll-test.example/contacts"
+      },
+      "items": "$.data",
+      "newBy": "lastItem",
+      "key": "$.id"
+    },
+    "new_event": {
+      "label": "New event",
+      "inputs": {
+        "list_id": {
+          "label": "List"
+        }
+      },
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.poll-test.example/hooks",
+          "body": {
+            "url": "{{webhookUrl}}",
+            "list": "{{list_id}}"
+          }
+        },
+        "id": "$.hook.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.poll-test.example/hooks/{{webhookId}}"
+        }
+      },
+      "afterResponse": "return response.type === 'created' ? [response.data] : [];",
+      "items": "$"
+    },
+    "changed_order": {
+      "label": "Changed order",
+      "request": {
+        "url": "https://api.poll-test.example/orders",
+        "query": {
+          "since": "{{lastPollTime}}"
+        }
+      },
+      "items": "$.orders",
+      "newBy": "time",
+      "key": "$.created"
+    },
+    "new_task": {
+      "label": "New task",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.poll-test.example/hooks",
+          "body": {
+            "url": "{{webhookUrl}}"
+          }
+        },
+        "id": "$.hook.id"
+      },
+      "afterResponse": "return [call({method: 'GET', url: 'https://api.poll-test.example/tasks/' + response.task_id})];",
+      "items": "$"
+    },
+    "pasted": {
+      "label": "Pasted",
+      "webhook": {
+        "reply": "return response.challenge ? {challenge: response.challenge} : null;"
+      },
+      "afterResponse": "return response.challenge ? [] : [response];",
+      "items": "$"
+    },
+    "new_label": {
+      "label": "New label",
+      "request": {
+        "url": "https://api.poll-test.example/labels"
+      },
+      "items": "$.labels",
+      "newBy": "unseen",
+      "key": "$.id"
+    },
+    "new_change": {
+      "label": "New change",
+      "request": {
+        "url": "https://api.poll-test.example/changes"
+      },
+      "beforeRequest": "if (memory.cursor) request.query.cursor = memory.cursor; return request;",
+      "afterResponse": "memory.cursor = response.next; return response.changes;",
+      "items": "$",
+      "newBy": "unseen",
+      "key": "$.id"
+    },
+    "with_file": {
+      "label": "With file",
+      "request": {
+        "url": "https://api.poll-test.example/notes"
+      },
+      "afterResponse": "return {data: response.data.map(item => ({id: item.id, file: keepFile('note.txt', 'aGk=')}))};",
+      "items": "$.data",
+      "newBy": "lastItem",
+      "key": "$.id"
+    },
+    "new_entry": {
+      "label": "New entry",
+      "request": {
+        "url": "https://api.poll-test.example/entries",
+        "query": {
+          "after": "{{lastItem}}"
+        }
+      },
+      "items": "$.entries",
+      "newBy": "lastItem",
+      "key": "$.id",
+      "emit": "$.data"
+    },
+    "renewed": {
+      "label": "Renewed",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.poll-test.example/channels",
+          "body": {
+            "address": "{{webhookUrl}}"
+          }
+        },
+        "id": "$.id",
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.poll-test.example/channels/{{webhookId}}"
+        },
+        "renewEvery": 12
+      },
+      "items": "$"
+    }
+  }
+}

@@ -1,0 +1,546 @@
+{
+  "name": "aiprise",
+  "label": "AiPrise",
+  "description": "KYC, KYB, and fraud prevention platform — verify user identities, onboard businesses, run AML/sanctions checks, and detect fraud signals.",
+  "icon": "",
+  "hosts": [
+    "{{credential.environment}}.aiprise.com"
+  ],
+  "baseUrl": "https://{{credential.environment}}.aiprise.com/api/v1",
+  "upstream": {
+    "package": "@activepieces/piece-aiprise",
+    "version": "0.2.4"
+  },
+  "credential": {
+    "fields": {
+      "apiKey": {
+        "label": "API Key",
+        "description": "Your AiPrise API key. Log in to your AiPrise dashboard, go to **Settings > API Keys** and copy it.",
+        "secret": true,
+        "required": true
+      },
+      "environment": {
+        "label": "Environment",
+        "description": "Select the AiPrise environment to use.",
+        "type": "select",
+        "required": true,
+        "defaultValue": "api",
+        "options": [
+          {
+            "value": "api",
+            "label": "Production"
+          },
+          {
+            "value": "api-sandbox",
+            "label": "Sandbox"
+          }
+        ]
+      }
+    },
+    "headers": {
+      "X-API-KEY": "{{credential.apiKey}}"
+    }
+  },
+  "actions": {
+    "run_user_verification_profile": {
+      "label": "Start Identity Verification",
+      "description": "Kicks off a new identity check for a person. AiPrise will run the checks defined in your chosen template (e.g. ID document scan, liveness, address).",
+      "inputs": {
+        "template_id": {
+          "label": "Verification Template",
+          "description": "Which set of checks to run. To find this: log in to AiPrise → go to **Templates** → open the template you want → copy the **Template ID** shown at the top of the page.",
+          "required": true
+        },
+        "user_profile_id": {
+          "label": "User Profile ID",
+          "description": "The ID of the user profile to verify. You can get this from the output of the **Create User Profile** action.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.environment}}.aiprise.com/api/v1/verify/run_verification_for_user_profile_id",
+        "body": {
+          "template_id": "{{template_id}}",
+          "user_profile_id": "{{user_profile_id}}"
+        }
+      }
+    },
+    "get_verification_url": {
+      "label": "Get Identity Verification Link",
+      "description": "Generates a secure link you can send to a person so they can complete their identity verification on an AiPrise-hosted page — no extra development needed.",
+      "inputs": {
+        "template_id": {
+          "label": "Verification Template",
+          "description": "Which set of checks the person will go through. To find this: log in to AiPrise → go to **Templates** → open the template you want → copy the **Template ID** shown at the top of the page.",
+          "required": true
+        },
+        "redirect_uri": {
+          "label": "Redirect URL",
+          "description": "The page the person will be sent to after they finish the verification on the AiPrise-hosted form.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.environment}}.aiprise.com/api/v1/verify/get_user_verification_url",
+        "body": {
+          "template_id": "{{template_id}}",
+          "redirect_uri": "{{redirect_uri}}"
+        }
+      }
+    },
+    "get_verification_result": {
+      "label": "Get Identity Verification Result",
+      "description": "Fetches the current status and outcome of a person's identity check — whether it is still in progress, approved, or declined.",
+      "inputs": {
+        "session_id": {
+          "label": "Verification Session ID",
+          "description": "The ID of the verification to look up. You can get this from the output of the **Start Identity Verification** action, or from the **session_id** field in any webhook payload from AiPrise.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.environment}}.aiprise.com/api/v1/verify/get_user_verification_result/{{session_id}}"
+      }
+    },
+    "get_user_input_data": {
+      "label": "Get Person's Submitted Verification Data",
+      "description": "Returns the information the person entered and the documents they uploaded during their identity check (e.g. name, date of birth, ID document details).",
+      "inputs": {
+        "session_id": {
+          "label": "Verification Session ID",
+          "description": "The ID of the verification to retrieve data from. You can get this from the output of the **Start Identity Verification** action, or from the **session_id** field in any webhook payload from AiPrise.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.environment}}.aiprise.com/api/v1/verify/get_user_input_data_from_request/{{session_id}}"
+      }
+    },
+    "update_verification_result": {
+      "label": "Override Identity Verification Decision",
+      "description": "Manually changes the outcome of an identity check — useful when a human reviewer needs to approve or decline a case that AiPrise flagged for manual review.",
+      "inputs": {
+        "session_id": {
+          "label": "Verification Session ID",
+          "description": "The ID of the verification whose decision you want to change. You can get this from the output of the **Start Identity Verification** action, or from the **session_id** field in any webhook payload from AiPrise.",
+          "required": true
+        },
+        "result": {
+          "label": "New Decision",
+          "description": "The outcome you want to set. Choose **Approved** to pass the person, **Declined** to reject them, **Review** to put the case back into manual review, or **Deactivated** to deactivate the profile.",
+          "required": true,
+          "type": "select",
+          "options": [
+            {
+              "value": "APPROVED",
+              "label": "Approved — pass the person"
+            },
+            {
+              "value": "DECLINED",
+              "label": "Declined — reject the person"
+            },
+            {
+              "value": "REVIEW",
+              "label": "Review — put in manual review"
+            },
+            {
+              "value": "DEACTIVATED",
+              "label": "Deactivated — deactivate the profile"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.environment}}.aiprise.com/api/v1/verify/update_user_verification_result",
+        "body": {
+          "verification_session_id": "{{session_id}}",
+          "result": "{{result}}"
+        }
+      }
+    },
+    "run_business_verification": {
+      "label": "Start Business Verification",
+      "description": "Kicks off a company background check. AiPrise will run the checks defined in your template — which can include company registry lookup, ownership structure (UBO), sanctions screening, and adverse media.",
+      "inputs": {
+        "template_id": {
+          "label": "Verification Template",
+          "description": "Which set of checks to run on the business. To find this: log in to AiPrise → go to **Templates** → open the template you want → copy the **Template ID** shown at the top of the page.",
+          "required": true
+        },
+        "business_profile_id": {
+          "label": "Business Profile ID",
+          "description": "The ID of the business profile you want to verify. This is returned when you create a business profile.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.environment}}.aiprise.com/api/v1/verify/run_verification_for_business_profile_id",
+        "body": {
+          "template_id": "{{template_id}}",
+          "business_profile_id": "{{business_profile_id}}"
+        }
+      }
+    },
+    "get_business_verification_result": {
+      "label": "Get Business Verification Result",
+      "description": "Fetches the current status and outcome of a company's background check — whether it is still running, approved, or declined.",
+      "inputs": {
+        "session_id": {
+          "label": "Verification Session ID",
+          "description": "The ID of the business verification to look up. You can get this from the output of the **Start Business Verification** action, or from the **session_id** field in any webhook payload from AiPrise.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.environment}}.aiprise.com/api/v1/verify/get_business_verification_result/{{session_id}}"
+      }
+    },
+    "get_business_input_data": {
+      "label": "Get Business's Submitted Verification Data",
+      "description": "Returns the company information provided during a business verification — such as company name, registration number, directors, and ownership details.",
+      "inputs": {
+        "session_id": {
+          "label": "Verification Session ID",
+          "description": "The ID of the business verification to retrieve data from. You can get this from the output of the **Start Business Verification** action, or from the **session_id** field in any webhook payload from AiPrise.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.environment}}.aiprise.com/api/v1/verify/get_business_data_from_request/{{session_id}}"
+      }
+    },
+    "run_document_check": {
+      "label": "Run Business Document Check",
+      "description": "Runs a verification check on a document belonging to an existing business profile. AiPrise will process the uploaded file against the checks defined in the chosen template.",
+      "inputs": {
+        "business_profile_id": {
+          "label": "Business Profile ID",
+          "description": "The ID of the business profile the document belongs to. You can find this in AiPrise → **Businesses** → open the business → copy the **Profile ID**.",
+          "required": true
+        },
+        "template_id": {
+          "label": "Verification Template",
+          "description": "Which set of checks to run. To find this: log in to AiPrise → go to **Templates** → open the template you want → copy the **Template ID** shown at the top of the page.",
+          "required": true
+        },
+        "file_uuid": {
+          "label": "File UUID",
+          "description": "The UUID of the document file that was previously uploaded to AiPrise.",
+          "required": true
+        },
+        "document_input_title": {
+          "label": "Document Input Title",
+          "description": "An optional unique identifier for this document input. This value is included in webhook payloads and API responses so you can distinguish between multiple documents."
+        },
+        "client_reference_id": {
+          "label": "Client Reference ID",
+          "description": "Your own identifier to associate with this request — for example an order number or internal case ID."
+        },
+        "client_reference_data": {
+          "label": "Client Reference Data",
+          "description": "Any additional JSON data you want to store alongside this request.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.environment}}.aiprise.com/api/v1/verify/run_check_on_business_document",
+        "body": {
+          "business_profile_id": "{{business_profile_id}}",
+          "template_id": "{{template_id}}",
+          "file_uuid": "{{file_uuid}}",
+          "document_input_title": "{{document_input_title}}",
+          "client_reference_id": "{{client_reference_id}}",
+          "client_reference_data": "{{client_reference_data}}"
+        }
+      }
+    },
+    "create_business_profile": {
+      "label": "Create Business Profile",
+      "description": "Creates a new business profile in AiPrise. The returned profile can then be used to run document checks or other business verifications.",
+      "inputs": {
+        "name": {
+          "label": "Business Name",
+          "description": "The business name. The legal name is preferred.",
+          "required": true
+        },
+        "alternate_name": {
+          "label": "Alternate Name (DBA)",
+          "description": "An alternate \"doing business as\" name, if any."
+        },
+        "tax_identification_number": {
+          "label": "Tax Identification Number",
+          "description": "The tax ID for this business (e.g. EIN in the US)."
+        },
+        "website": {
+          "label": "Website",
+          "description": "The business website URL."
+        },
+        "formation_date": {
+          "label": "Formation Date",
+          "description": "The date the business was formed, in YYYY-MM-DD format."
+        },
+        "country_code": {
+          "label": "Country Code",
+          "description": "The 2-letter ISO country code where the business is registered (e.g. US, GB)."
+        },
+        "state_code": {
+          "label": "State/Province Code",
+          "description": "The state or province code where the business is registered (e.g. CA, NY)."
+        },
+        "business_entity_id": {
+          "label": "Business Entity ID",
+          "description": "A government-issued entity identifier for this business."
+        },
+        "addresses": {
+          "label": "Addresses",
+          "description": "A JSON array of address objects (address_street_1, address_street_2, address_city, address_state, address_zip_code, address_country).",
+          "type": "json"
+        },
+        "phone_numbers": {
+          "label": "Phone Numbers",
+          "description": "One or more phone numbers associated with the business.",
+          "type": "json"
+        },
+        "email_addresses": {
+          "label": "Email Addresses",
+          "description": "One or more email addresses associated with the business.",
+          "type": "json"
+        },
+        "additional_information": {
+          "label": "Additional Information",
+          "description": "A JSON array of supporting documents or extra data for this business.",
+          "type": "json"
+        },
+        "client_reference_id": {
+          "label": "Client Reference ID",
+          "description": "Your own internal identifier for this business."
+        },
+        "callback_url": {
+          "label": "Callback URL",
+          "description": "A webhook URL that AiPrise will call with verification results."
+        },
+        "events_callback_url": {
+          "label": "Events Callback URL",
+          "description": "A webhook URL that AiPrise will call with event notifications."
+        },
+        "tags": {
+          "label": "Tags",
+          "description": "Tag names used to categorize this business profile.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.environment}}.aiprise.com/api/v1/verify/create_business_profile",
+        "body": {
+          "name": "{{name}}",
+          "alternate_name": "{{alternate_name}}",
+          "tax_identification_number": "{{tax_identification_number}}",
+          "website": "{{website}}",
+          "formation_date": "{{formation_date}}",
+          "country_code": "{{country_code}}",
+          "state_code": "{{state_code}}",
+          "business_entity_id": "{{business_entity_id}}",
+          "addresses": "{{addresses}}",
+          "phone_numbers": "{{phone_numbers}}",
+          "email_addresses": "{{email_addresses}}",
+          "additional_information": "{{additional_information}}",
+          "client_reference_id": "{{client_reference_id}}",
+          "callback_url": "{{callback_url}}",
+          "events_callback_url": "{{events_callback_url}}",
+          "tags": "{{tags}}"
+        }
+      },
+      "beforeRequest": "for (const key of Object.keys(request.body)) if (Array.isArray(request.body[key]) && request.body[key].length === 0 && key !== 'additional_information') delete request.body[key]; return request;"
+    },
+    "create_user_profile": {
+      "label": "Create User Profile",
+      "description": "Creates a new user profile in AiPrise. The returned profile can then be used for repeated verifications or ongoing monitoring for the same person.",
+      "inputs": {
+        "first_name": {
+          "label": "First Name"
+        },
+        "middle_name": {
+          "label": "Middle Name"
+        },
+        "last_name": {
+          "label": "Last Name"
+        },
+        "second_last_name": {
+          "label": "Second Last Name",
+          "description": "User's second surname, where applicable (e.g. in some Latin American naming conventions)."
+        },
+        "full_name": {
+          "label": "Full Name",
+          "description": "The complete name. Use this if you do not have the name split into parts."
+        },
+        "date_of_birth": {
+          "label": "Date of Birth",
+          "description": "User's date of birth in YYYY-MM-DD format."
+        },
+        "email_address": {
+          "label": "Email Address"
+        },
+        "phone_number": {
+          "label": "Phone Number"
+        },
+        "address_street_1": {
+          "label": "Street Address 1"
+        },
+        "address_street_2": {
+          "label": "Street Address 2"
+        },
+        "address_city": {
+          "label": "City"
+        },
+        "address_state": {
+          "label": "State/Province"
+        },
+        "address_zip_code": {
+          "label": "ZIP/Postal Code"
+        },
+        "address_country": {
+          "label": "Country Code",
+          "description": "2-letter ISO country code (e.g. US, GB)."
+        },
+        "client_reference_id": {
+          "label": "Client Reference ID",
+          "description": "Your own internal identifier for this user."
+        },
+        "events_callback_url": {
+          "label": "Events Callback URL",
+          "description": "A webhook URL that AiPrise will call with event notifications for this profile."
+        },
+        "tags": {
+          "label": "Tags",
+          "description": "Tag names used to categorize this user profile. Tags are created if they do not already exist.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.environment}}.aiprise.com/api/v1/verify/create_user_profile",
+        "body": {
+          "first_name": "{{first_name}}",
+          "middle_name": "{{middle_name}}",
+          "last_name": "{{last_name}}",
+          "second_last_name": "{{second_last_name}}",
+          "full_name": "{{full_name}}",
+          "date_of_birth": "{{date_of_birth}}",
+          "email_address": "{{email_address}}",
+          "phone_number": "{{phone_number}}",
+          "address": {
+            "address_street_1": "{{address_street_1}}",
+            "address_street_2": "{{address_street_2}}",
+            "address_city": "{{address_city}}",
+            "address_state": "{{address_state}}",
+            "address_zip_code": "{{address_zip_code}}",
+            "address_country": "{{address_country}}"
+          },
+          "client_reference_id": "{{client_reference_id}}",
+          "events_callback_url": "{{events_callback_url}}",
+          "tags": "{{tags}}"
+        }
+      },
+      "beforeRequest": "if (Object.keys(request.body.address || {}).length === 0) delete request.body.address; if (Array.isArray(request.body.tags) && request.body.tags.length === 0) delete request.body.tags; return request;"
+    },
+    "get_user_profile": {
+      "label": "Get User Profile",
+      "description": "Fetches a user profile from AiPrise by its ID — including the person's stored details, tags, linked verification sessions, and metadata.",
+      "inputs": {
+        "user_profile_id": {
+          "label": "User Profile ID",
+          "description": "The ID of the user profile to retrieve. You can get this from the output of the **Create User Profile** action, or from the `user_profile_id` field in any webhook payload from AiPrise.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.environment}}.aiprise.com/api/v1/verify/get_user_profile/{{user_profile_id}}"
+      }
+    },
+    "get_business_profile": {
+      "label": "Get Business Profile",
+      "description": "Fetches a business profile from AiPrise by its ID — including the stored company details, addresses, tags, linked verification sessions, and metadata.",
+      "inputs": {
+        "business_profile_id": {
+          "label": "Business Profile ID",
+          "description": "The ID of the business profile to retrieve. You can get this from the output of the **Create Business Profile** action, or from the `business_profile_id` field in any webhook payload from AiPrise.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.environment}}.aiprise.com/api/v1/verify/get_business_profile/{{business_profile_id}}"
+      }
+    },
+    "search_businesses": {
+      "label": "Search Businesses",
+      "description": "Searches public business registries by name and country, returning a list of matching companies with their entity IDs, types, and addresses.",
+      "inputs": {
+        "name": {
+          "label": "Business Name",
+          "description": "The business name to search for. Partial matches are supported by AiPrise.",
+          "required": true
+        },
+        "country_code": {
+          "label": "Country Code",
+          "description": "2-letter ISO country code where the business is registered (e.g. US, GB).",
+          "required": true
+        },
+        "state_code": {
+          "label": "State/Province Code",
+          "description": "Optional state or province code to narrow the search (e.g. CA, NY for the US). Leave empty to search the whole country."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.environment}}.aiprise.com/api/v1/data/business/search",
+        "body": {
+          "name": "{{name}}",
+          "country_code": "{{country_code}}",
+          "state_code": "{{state_code}}"
+        }
+      }
+    },
+    "get_additional_user_info": {
+      "label": "Get Person's Additional Info",
+      "description": "Fetches supplementary information collected from the person during a verification — anything beyond the primary identity fields, such as follow-up answers, extra documents, or custom form data.",
+      "inputs": {
+        "session_id": {
+          "label": "Verification Session ID",
+          "description": "The ID of the verification to look up. You can get this from the output of the **Start Identity Verification** action.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.environment}}.aiprise.com/api/v1/verify/get_additional_user_info_from_request/{{session_id}}"
+      }
+    },
+    "get_business_documents": {
+      "label": "Get Business Documents",
+      "description": "Lists all documents attached to a business profile — including file UUIDs, names, S3 URLs, timestamps, document sources, and associated verification sessions.",
+      "inputs": {
+        "business_profile_id": {
+          "label": "Business Profile ID",
+          "description": "The ID of the business profile whose documents you want to list. You can get this from the output of the **Create Business Profile** action.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.environment}}.aiprise.com/api/v1/verify/get_business_documents/{{business_profile_id}}"
+      }
+    }
+  }
+}

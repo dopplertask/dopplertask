@@ -1,0 +1,361 @@
+{
+  "name": "pushover",
+  "label": "Pushover",
+  "description": "Manage Pushover delivery groups, emergency receipts, licenses and message limits",
+  "icon": "",
+  "hosts": [
+    "api.pushover.net"
+  ],
+  "baseUrl": "https://api.pushover.net/1",
+  "upstream": {
+    "package": "@activepieces/piece-pushover",
+    "version": "0.3.2"
+  },
+  "credential": {
+    "fields": {
+      "api_token": {
+        "label": "API Token",
+        "description": "The API Token/Key of your Pushover application, under Your Applications at pushover.net.",
+        "secret": true,
+        "required": true
+      }
+    },
+    "body": {
+      "token": "{{credential.api_token}}"
+    }
+  },
+  "actions": {
+    "cancel_emergency_retries": {
+      "label": "Cancel Emergency Retries",
+      "description": "Stop the retry loop of one emergency notification receipt",
+      "inputs": {
+        "receipt": {
+          "label": "Receipt",
+          "description": "Receipt id that Pushover returned for a message sent at emergency priority (2).",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.pushover.net/1/receipts/{{receipt}}/cancel.json"
+      },
+      "outputs": {
+        "status": "$.status"
+      }
+    },
+    "cancel_emergency_retries_by_tag": {
+      "label": "Cancel Emergency Retries by Tag",
+      "description": "Stop the retry loops of every emergency notification carrying a tag",
+      "inputs": {
+        "tag": {
+          "label": "Tag",
+          "description": "A single tag that the emergency messages were sent with, for example deploy. One tag only, with no spaces or slashes.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.pushover.net/1/receipts/cancel_by_tag/{{tag}}.json"
+      },
+      "outputs": {
+        "canceled": "$.canceled"
+      }
+    },
+    "create_delivery_group": {
+      "label": "Create Delivery Group",
+      "description": "Create a Pushover delivery group, or return the existing one with that name",
+      "inputs": {
+        "name": {
+          "label": "Name",
+          "description": "Name of the delivery group, for example On-Call Engineers. Matching against existing groups ignores case, and the name is returned exactly as Pushover stores it.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.pushover.net/1/groups.json?token={{credential.api_token}}"
+      },
+      "afterResponse": "const wanted = inputs.name.trim().toLowerCase();\nconst matching = (answer) => ((answer && answer.groups) || []).find((group) => group.name.trim().toLowerCase() === wanted);\nconst existing = matching(response);\nif (existing !== undefined) return { group: existing.group, name: existing.name, created: false };\ntry {\n  return { group: call({ method: 'POST', url: '/groups.json', body: { name: inputs.name } }).group, name: inputs.name, created: true };\n} catch (error) {\n  const message = String((error && error.message) || error);\n  const status = /status (\\d+)/.exec(message);\n  if ((status && Number(status[1]) >= 500) || !/already (exists|been taken|in use)|has already been|must be unique/i.test(message)) throw error;\n  const raced = matching(call({ method: 'GET', url: request.url }));\n  if (raced === undefined) throw error;\n  return { group: raced.group, name: raced.name, created: false };\n}",
+      "outputs": {
+        "group": "$.group",
+        "name": "$.name",
+        "created": "$.created"
+      }
+    },
+    "rename_delivery_group": {
+      "label": "Rename Delivery Group",
+      "description": "Change the name of a Pushover delivery group",
+      "inputs": {
+        "group_key": {
+          "label": "Group Key",
+          "description": "The 30-character delivery group key. Resolve it with List Delivery Groups.",
+          "required": true
+        },
+        "name": {
+          "label": "New Name",
+          "description": "The new group name, for example Weekend On-Call.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.pushover.net/1/groups/{{group_key}}/rename.json",
+        "body": {
+          "name": "{{name}}"
+        }
+      },
+      "outputs": {
+        "status": "$.status"
+      }
+    },
+    "add_user_to_group": {
+      "label": "Add User to Delivery Group",
+      "description": "Add a user key as a member of a Pushover delivery group",
+      "inputs": {
+        "group_key": {
+          "label": "Group Key",
+          "description": "The 30-character delivery group key. Resolve it with List Delivery Groups.",
+          "required": true
+        },
+        "user": {
+          "label": "User Key",
+          "description": "The 30-character user key of the person to add.",
+          "required": true
+        },
+        "device": {
+          "label": "Device",
+          "description": "Limit group deliveries to this one device of the user. All of their devices receive them when omitted."
+        },
+        "memo": {
+          "label": "Memo",
+          "description": "Note stored with the membership, maximum 200 characters, for example Primary on-call."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.pushover.net/1/groups/{{group_key}}/add_user.json",
+        "body": {
+          "user": "{{user}}",
+          "device": "{{device}}",
+          "memo": "{{memo}}"
+        }
+      },
+      "outputs": {
+        "status": "$.status"
+      }
+    },
+    "remove_user_from_group": {
+      "label": "Remove User from Delivery Group",
+      "description": "Permanently remove a member from a Pushover delivery group",
+      "inputs": {
+        "group_key": {
+          "label": "Group Key",
+          "description": "The 30-character delivery group key. Resolve it with List Delivery Groups.",
+          "required": true
+        },
+        "user": {
+          "label": "User Key",
+          "description": "The 30-character user key of the member to remove. Confirm membership with Get Delivery Group first.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.pushover.net/1/groups/{{group_key}}/remove_user.json",
+        "body": {
+          "user": "{{user}}"
+        }
+      },
+      "outputs": {
+        "status": "$.status"
+      }
+    },
+    "disable_group_user": {
+      "label": "Disable User in Delivery Group",
+      "description": "Temporarily stop a group member from receiving group messages",
+      "inputs": {
+        "group_key": {
+          "label": "Group Key",
+          "description": "The 30-character delivery group key. Resolve it with List Delivery Groups.",
+          "required": true
+        },
+        "user": {
+          "label": "User Key",
+          "description": "The 30-character user key of the member to suspend. Confirm membership with Get Delivery Group first.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.pushover.net/1/groups/{{group_key}}/disable_user.json",
+        "body": {
+          "user": "{{user}}"
+        }
+      },
+      "outputs": {
+        "status": "$.status"
+      }
+    },
+    "enable_group_user": {
+      "label": "Enable User in Delivery Group",
+      "description": "Resume group deliveries to a suspended group member",
+      "inputs": {
+        "group_key": {
+          "label": "Group Key",
+          "description": "The 30-character delivery group key. Resolve it with List Delivery Groups.",
+          "required": true
+        },
+        "user": {
+          "label": "User Key",
+          "description": "The 30-character user key of the suspended member. Confirm membership with Get Delivery Group first.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.pushover.net/1/groups/{{group_key}}/enable_user.json",
+        "body": {
+          "user": "{{user}}"
+        }
+      },
+      "outputs": {
+        "status": "$.status"
+      }
+    },
+    "assign_license": {
+      "label": "Assign License",
+      "description": "Spend a prepaid credit to license a Pushover user",
+      "inputs": {
+        "user": {
+          "label": "User Key",
+          "description": "The 30-character user key to license. Supply either this or Email, not both."
+        },
+        "email": {
+          "label": "Email",
+          "description": "Pushover account email of the person to license, used when their user key is unknown. Supply either this or User Key, not both."
+        },
+        "os": {
+          "label": "Operating System",
+          "description": "Restrict the license to one platform. Any platform may be used when omitted.",
+          "type": "select",
+          "options": [
+            {
+              "value": "Android",
+              "label": "Android"
+            },
+            {
+              "value": "iOS",
+              "label": "iOS"
+            },
+            {
+              "value": "Desktop",
+              "label": "Desktop"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.pushover.net/1/licenses/assign.json",
+        "body": {
+          "user": "{{user}}",
+          "email": "{{email}}",
+          "os": "{{os}}"
+        }
+      },
+      "beforeRequest": "if (!inputs.user === !inputs.email) throw new Error('Assign License needs exactly one of User Key or Email to identify the recipient.'); return request;",
+      "outputs": {
+        "status": "$.status"
+      }
+    },
+    "get_receipt_status": {
+      "label": "Get Emergency Receipt Status",
+      "description": "Read the acknowledgement status of an emergency notification receipt",
+      "inputs": {
+        "receipt": {
+          "label": "Receipt",
+          "description": "Receipt id that Pushover returned for a message sent at emergency priority (2), for example rXXXXXXXXXXXXXXXXXXXXXXXXXXXXX.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.pushover.net/1/receipts/{{receipt}}.json?token={{credential.api_token}}"
+      },
+      "outputs": {
+        "acknowledged": "$.acknowledged",
+        "expired": "$.expired"
+      }
+    },
+    "get_app_limits": {
+      "label": "Get Monthly Message Limits",
+      "description": "Read the monthly message allowance and remaining quota of the application",
+      "inputs": {},
+      "request": {
+        "method": "GET",
+        "url": "https://api.pushover.net/1/apps/limits.json?token={{credential.api_token}}"
+      },
+      "outputs": {
+        "limit": "$.limit",
+        "remaining": "$.remaining",
+        "reset": "$.reset"
+      }
+    },
+    "list_delivery_groups": {
+      "label": "List Delivery Groups",
+      "description": "List the delivery groups owned by the Pushover account",
+      "inputs": {},
+      "request": {
+        "method": "GET",
+        "url": "https://api.pushover.net/1/groups.json?token={{credential.api_token}}"
+      },
+      "afterResponse": "const groups = response.groups || []; return { groups, count: groups.length, status: response.status, request: response.request };",
+      "outputs": {
+        "count": "$.count"
+      }
+    },
+    "get_delivery_group": {
+      "label": "Get Delivery Group",
+      "description": "Read the name and members of one Pushover delivery group",
+      "inputs": {
+        "group_key": {
+          "label": "Group Key",
+          "description": "The 30-character delivery group key. Resolve it with List Delivery Groups.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.pushover.net/1/groups/{{group_key}}.json?token={{credential.api_token}}"
+      },
+      "outputs": {
+        "name": "$.name"
+      }
+    },
+    "get_license_credits": {
+      "label": "Get License Credits",
+      "description": "Read how many prepaid Pushover license credits remain",
+      "inputs": {},
+      "request": {
+        "method": "GET",
+        "url": "https://api.pushover.net/1/licenses.json?token={{credential.api_token}}"
+      },
+      "outputs": {
+        "credits": "$.credits"
+      }
+    },
+    "list_notification_sounds": {
+      "label": "List Notification Sounds",
+      "description": "List the notification sound identifiers Pushover accepts",
+      "inputs": {},
+      "request": {
+        "method": "GET",
+        "url": "https://api.pushover.net/1/sounds.json?token={{credential.api_token}}"
+      },
+      "afterResponse": "const sounds = Object.entries(response.sounds || {}).map(([id, name]) => ({ id, name })); return { sounds, count: sounds.length, status: response.status, request: response.request };",
+      "outputs": {
+        "count": "$.count"
+      }
+    }
+  }
+}

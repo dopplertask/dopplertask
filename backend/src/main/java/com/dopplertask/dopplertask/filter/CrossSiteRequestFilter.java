@@ -1,5 +1,7 @@
 package com.dopplertask.dopplertask.filter;
 
+import com.dopplertask.dopplertask.domain.action.connector.ConnectorWebhooks;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -35,7 +37,7 @@ public class CrossSiteRequestFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain) throws ServletException, IOException {
         String origin = request.getHeader("Origin");
-        if (origin == null || READ_ONLY_METHODS.contains(request.getMethod()) || request.getRequestURI().startsWith(WEBHOOK_PATH)
+        if (origin == null || READ_ONLY_METHODS.contains(request.getMethod()) || request.getRequestURI().startsWith(WEBHOOK_PATH) || request.getRequestURI().startsWith(ConnectorWebhooks.PATH)
                 || allowedOrigins.contains(origin) || isSameSite(origin, request)) {
             chain.doFilter(request, response);
             return;

@@ -76,7 +76,7 @@ class GoogleCalendarAction : Action() {
 
         val signIn = GoogleAccount.signIn("Google Calendar", this, keyText, SCOPE)
         if (signIn.failure != null) return signIn.failure
-        val events = read(baseUrl).trim().trimEnd('/') + "/calendar/v3/calendars/${JsonApi.encoded(calendarValue)}/events"
+        val events = JsonApi.baseAddress(read(baseUrl)) + "/calendar/v3/calendars/${JsonApi.encoded(calendarValue)}/events"
         return when (operationValue) {
             CREATE_EVENT -> {
                 val event = mapOf("summary" to titleValue, "description" to read(eventDescription), "start" to mapOf("dateTime" to startValue), "end" to mapOf("dateTime" to endValue))

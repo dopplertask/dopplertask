@@ -1,0 +1,549 @@
+{
+  "name": "reachinbox",
+  "label": "ReachInbox",
+  "hosts": [
+    "api.reachinbox.ai"
+  ],
+  "baseUrl": "https://api.reachinbox.ai/api/v1",
+  "upstream": {
+    "package": "@activepieces/piece-reachinbox",
+    "version": "0.2.2"
+  },
+  "credential": {
+    "fields": {
+      "apiKey": {
+        "label": "API Key",
+        "description": "Enter your ReachInbox API key",
+        "secret": true,
+        "required": true
+      }
+    },
+    "headers": {
+      "Authorization": "Bearer {{credential.apiKey}}"
+    }
+  },
+  "lists": {
+    "campaigns": {
+      "request": {
+        "url": "https://api.reachinbox.ai/api/v1/campaigns/all",
+        "query": {
+          "sort": "newest",
+          "offset": "0",
+          "limit": "50"
+        }
+      },
+      "items": "$.data.rows",
+      "label": "$.name",
+      "value": "$.id"
+    },
+    "accounts": {
+      "request": {
+        "url": "https://api.reachinbox.ai/api/v1/account/all"
+      },
+      "items": "$.data.emailsConnected",
+      "label": "$.email",
+      "value": "$.id"
+    },
+    "leads": {
+      "request": {
+        "url": "https://api.reachinbox.ai/api/v1/leads",
+        "query": {
+          "campaignId": "{{campaignId}}",
+          "lastLead": "false"
+        }
+      },
+      "items": "$.data.leads",
+      "label": "$.email",
+      "value": "$.id"
+    }
+  },
+  "actions": {
+    "add_leads": {
+      "label": "Add Leads",
+      "description": "Add leads to campaigns dynamically by selecting a campaign, entering lead details, and including custom variables.",
+      "inputs": {
+        "campaignId": {
+          "label": "Campaign",
+          "description": "Choose a campaign from the list or enter the campaign ID manually.",
+          "required": true,
+          "list": "campaigns"
+        },
+        "email": {
+          "label": "Email Address",
+          "description": "Enter the email address for the lead",
+          "required": true
+        },
+        "firstName": {
+          "label": "First Name",
+          "description": "Enter the first name for the lead",
+          "required": true
+        },
+        "lastName": {
+          "label": "Last Name",
+          "description": "Enter the last name for the lead"
+        },
+        "customVariables": {
+          "label": "Custom Variables",
+          "description": "Add custom variables as key-value pairs for the lead, such as [{\"key\": \"company\", \"value\": \"Acme\"}].",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.reachinbox.ai/api/v1/leads/add"
+      },
+      "beforeRequest": "var vars = inputs.customVariables ? JSON.parse(inputs.customVariables) : [];\nvar custom = {};\nvars.forEach(function (v) { custom[v.key] = v.value; });\nvar lead = Object.assign({ email: inputs.email, firstName: inputs.firstName, lastName: inputs.lastName || undefined }, custom);\nrequest.body = { campaignId: inputs.campaignId, leads: [lead], newCoreVariables: ['firstName'].concat(vars.map(function (v) { return v.key; })), duplicates: [] };\nreturn request;",
+      "afterResponse": "return { success: true, message: response.message || 'Leads added successfully.', leadCount: response.leadCount };",
+      "outputs": {
+        "message": "$.message",
+        "leadCount": "$.leadCount"
+      }
+    },
+    "add_blocklist": {
+      "label": "Add to Blocklist",
+      "description": "Add email addresses, domains, and keywords to the blocklist.",
+      "inputs": {
+        "emails": {
+          "label": "Email Addresses",
+          "description": "Enter the email addresses to block (e.g., [\"abc@gmail.com\"])",
+          "type": "json"
+        },
+        "domains": {
+          "label": "Domains",
+          "description": "Enter the domains to block (e.g., [\"example.com\"])",
+          "type": "json"
+        },
+        "keywords": {
+          "label": "Keywords",
+          "description": "Enter keywords to block (e.g., [\"spam\", \"blacklist\"])",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.reachinbox.ai/api/v1/blocklist/add"
+      },
+      "beforeRequest": "var list = function (v) { return v ? JSON.parse(v) : []; };\nrequest.body = { emails: list(inputs.emails), domains: list(inputs.domains), keywords: list(inputs.keywords) };\nif (!request.body.emails.length && !request.body.domains.length && !request.body.keywords.length) throw new Error('Please provide at least one email, domain, or keyword to block.');\nreturn request;",
+      "afterResponse": "return { success: true, message: response.message || 'Blocklist updated successfully.' };",
+      "outputs": {
+        "message": "$.message"
+      }
+    },
+    "add_email": {
+      "label": "Add Email",
+      "description": "Add a sending email address to a campaign.",
+      "inputs": {
+        "campaignId": {
+          "label": "Campaign",
+          "description": "Choose a campaign from the list or enter the campaign ID manually.",
+          "required": true,
+          "type": "number",
+          "list": "campaigns"
+        },
+        "email": {
+          "label": "Email",
+          "description": "Enter the email address to add to the campaign.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.reachinbox.ai/api/v1/campaigns/add-email",
+        "body": {
+          "campaignId": "{{campaignId}}",
+          "email": "{{email}}"
+        }
+      },
+      "afterResponse": "return { success: true, message: response.message || 'Email added successfully.' };",
+      "outputs": {
+        "message": "$.message"
+      }
+    },
+    "enable_warmup": {
+      "label": "Enable Warmup",
+      "description": "Enable warmup for an email account.",
+      "inputs": {
+        "accountId": {
+          "label": "Email Account",
+          "description": "Choose an email account.",
+          "required": true,
+          "list": "accounts"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.reachinbox.ai/api/v1/account/warmup/enable",
+        "body": {
+          "ids": [
+            "{{accountId}}"
+          ]
+        }
+      },
+      "afterResponse": "return { success: true, message: 'Warmup enabled for account ID: ' + inputs.accountId };",
+      "outputs": {
+        "message": "$.message"
+      }
+    },
+    "pause_warmup": {
+      "label": "Pause Warmup",
+      "description": "Pause warmup for an email account.",
+      "inputs": {
+        "accountId": {
+          "label": "Email Account",
+          "description": "Choose an email account.",
+          "required": true,
+          "list": "accounts"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.reachinbox.ai/api/v1/account/warmup/pause",
+        "body": {
+          "ids": [
+            "{{accountId}}"
+          ]
+        }
+      },
+      "afterResponse": "return { success: true, message: 'Warmup paused for account ID: ' + inputs.accountId };",
+      "outputs": {
+        "message": "$.message"
+      }
+    },
+    "remove_email": {
+      "label": "Remove Email Account",
+      "description": "Remove an email account from the system.",
+      "inputs": {
+        "accountId": {
+          "label": "Email Account",
+          "description": "Choose an email account.",
+          "required": true,
+          "list": "accounts"
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.reachinbox.ai/api/v1/account/delete/{{accountId}}"
+      },
+      "afterResponse": "return { success: true, message: 'Email account with ID ' + inputs.accountId + ' was successfully removed.' };",
+      "outputs": {
+        "message": "$.message"
+      }
+    },
+    "set_schedule": {
+      "label": "Set Schedule",
+      "description": "Update the schedule for a specific campaign.",
+      "inputs": {
+        "campaignId": {
+          "label": "Campaign",
+          "description": "Choose a campaign from the list or enter the campaign ID manually.",
+          "required": true,
+          "list": "campaigns"
+        },
+        "scheduleName": {
+          "label": "Schedule Name",
+          "description": "Enter the schedule name here (e.g., New schedule).",
+          "required": true
+        },
+        "startDate": {
+          "label": "Start Date",
+          "description": "Enter the start date (e.g., 2023-08-01T00:00:00.000Z).",
+          "required": true
+        },
+        "endDate": {
+          "label": "End Date",
+          "description": "Enter the end date (e.g., 2024-08-25T00:00:00.000Z).",
+          "required": true
+        },
+        "startTime": {
+          "label": "Start Time",
+          "description": "Enter the start time (e.g., 09:00).",
+          "required": true
+        },
+        "endTime": {
+          "label": "End Time",
+          "description": "Enter the end time (e.g., 12:00).",
+          "required": true
+        },
+        "timezone": {
+          "label": "Timezone",
+          "description": "Enter the timezone (e.g., America/Detroit).",
+          "required": true
+        },
+        "sunday": {
+          "label": "Sunday",
+          "description": "Choose \"Yes\" if you want to set a schedule for Sunday.",
+          "type": "boolean",
+          "required": true,
+          "defaultValue": "false"
+        },
+        "monday": {
+          "label": "Monday",
+          "description": "Choose \"Yes\" if you want to set a schedule for Monday.",
+          "type": "boolean",
+          "required": true,
+          "defaultValue": "false"
+        },
+        "tuesday": {
+          "label": "Tuesday",
+          "description": "Choose \"Yes\" if you want to set a schedule for Tuesday.",
+          "type": "boolean",
+          "required": true,
+          "defaultValue": "false"
+        },
+        "wednesday": {
+          "label": "Wednesday",
+          "description": "Choose \"Yes\" if you want to set a schedule for Wednesday.",
+          "type": "boolean",
+          "required": true,
+          "defaultValue": "false"
+        },
+        "thursday": {
+          "label": "Thursday",
+          "description": "Choose \"Yes\" if you want to set a schedule for Thursday.",
+          "type": "boolean",
+          "required": true,
+          "defaultValue": "false"
+        },
+        "friday": {
+          "label": "Friday",
+          "description": "Choose \"Yes\" if you want to set a schedule for Friday.",
+          "type": "boolean",
+          "required": true,
+          "defaultValue": "false"
+        },
+        "saturday": {
+          "label": "Saturday",
+          "description": "Choose \"Yes\" if you want to set a schedule for Saturday.",
+          "type": "boolean",
+          "required": true,
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.reachinbox.ai/api/v1/campaigns/set-schedule",
+        "body": {
+          "campaignId": "{{campaignId}}",
+          "startDate": "{{startDate}}",
+          "endDate": "{{endDate}}",
+          "schedules": [
+            {
+              "name": "{{scheduleName}}",
+              "timing": {
+                "from": "{{startTime}}",
+                "to": "{{endTime}}"
+              },
+              "days": {
+                "0": "{{sunday}}",
+                "1": "{{monday}}",
+                "2": "{{tuesday}}",
+                "3": "{{wednesday}}",
+                "4": "{{thursday}}",
+                "5": "{{friday}}",
+                "6": "{{saturday}}"
+              },
+              "timezone": "{{timezone}}"
+            }
+          ]
+        }
+      },
+      "afterResponse": "return { success: true, message: response.message || 'Schedule updated successfully.' };",
+      "outputs": {
+        "message": "$.message"
+      }
+    },
+    "start_campaign": {
+      "label": "Start Campaign",
+      "description": "Start a campaign.",
+      "inputs": {
+        "campaignId": {
+          "label": "Campaign",
+          "description": "Choose a campaign from the list or enter the campaign ID manually.",
+          "required": true,
+          "type": "number",
+          "list": "campaigns"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.reachinbox.ai/api/v1/campaigns/start",
+        "body": {
+          "campaignId": "{{campaignId}}"
+        }
+      },
+      "afterResponse": "return { success: true, message: response.message || 'Campaign started successfully.' };",
+      "outputs": {
+        "message": "$.message"
+      }
+    },
+    "update_lead": {
+      "label": "Update Lead",
+      "description": "Update a lead.",
+      "inputs": {
+        "campaignId": {
+          "label": "Campaign",
+          "description": "Choose a campaign from the list or enter the campaign ID manually.",
+          "required": true,
+          "type": "number",
+          "list": "campaigns"
+        },
+        "leadId": {
+          "label": "Lead",
+          "description": "Choose a lead from the selected campaign.",
+          "required": true,
+          "list": "leads"
+        },
+        "email": {
+          "label": "Email",
+          "description": "Enter the new email address for the lead.",
+          "required": true
+        },
+        "firstName": {
+          "label": "First Name",
+          "description": "Enter the new first name for the lead."
+        },
+        "lastName": {
+          "label": "Last Name",
+          "description": "Enter the new last name for the lead."
+        },
+        "customVariables": {
+          "label": "Custom Variables",
+          "description": "Add custom variables as key-value pairs for the lead, such as [{\"key\": \"company\", \"value\": \"Acme\"}].",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.reachinbox.ai/api/v1/leads/update"
+      },
+      "beforeRequest": "var vars = inputs.customVariables ? JSON.parse(inputs.customVariables) : [];\nvar custom = {};\nvars.forEach(function (v) { custom[v.key] = v.value; });\nrequest.body = { campaignId: Number(inputs.campaignId), leadId: inputs.leadId, email: inputs.email, attributes: Object.assign({ firstName: inputs.firstName || '', lastName: inputs.lastName || '' }, custom) };\nreturn request;",
+      "afterResponse": "return { success: true, message: response.message || 'Lead updated successfully.' };",
+      "outputs": {
+        "message": "$.message"
+      }
+    },
+    "get_campaign_analytics": {
+      "label": "Get Campaign Analytics",
+      "description": "Fetch analytics data for a selected campaign based on a date range.",
+      "inputs": {
+        "campaignId": {
+          "label": "Campaign",
+          "description": "Choose a campaign from the list or enter the campaign ID manually.",
+          "required": true,
+          "list": "campaigns"
+        },
+        "startDate": {
+          "label": "Start Date",
+          "description": "Enter the start date (YYYY-MM-DD), such as 2023-10-11.",
+          "required": true
+        },
+        "endDate": {
+          "label": "End Date",
+          "description": "Enter the end date (YYYY-MM-DD), such as 2023-10-20.",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://api.reachinbox.ai/api/v1/campaign/analytics",
+        "query": {
+          "campaignId": "{{campaignId}}",
+          "startDate": "{{startDate}}",
+          "endDate": "{{endDate}}"
+        }
+      },
+      "afterResponse": "if (response.status !== 200) throw new Error('Failed to fetch analytics: ' + response.message);\nreturn { success: true, message: response.message, data: response.data };",
+      "outputs": {
+        "message": "$.message",
+        "data": "$.data"
+      }
+    },
+    "get_summary": {
+      "label": "Get Summary",
+      "description": "Get a summary of campaign analytics within a date range.",
+      "inputs": {
+        "startDate": {
+          "label": "Start Date",
+          "description": "Enter the start date (YYYY-MM-DD), such as 2023-10-11.",
+          "required": true
+        },
+        "endDate": {
+          "label": "End Date",
+          "description": "Enter the end date (YYYY-MM-DD), such as 2023-12-20.",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://api.reachinbox.ai/api/v1/analytics/summary",
+        "query": {
+          "startDate": "{{startDate}}",
+          "endDate": "{{endDate}}"
+        }
+      },
+      "afterResponse": "if (response.status !== 200) throw new Error('Failed to fetch summary: ' + response.message);\nreturn { success: true, message: response.message, data: response.data };",
+      "outputs": {
+        "message": "$.message",
+        "data": "$.data"
+      }
+    },
+    "pause_campaign": {
+      "label": "Pause Campaign",
+      "description": "Pause a selected campaign.",
+      "inputs": {
+        "campaignId": {
+          "label": "Campaign",
+          "description": "Choose a campaign from the list or enter the campaign ID manually.",
+          "required": true,
+          "list": "campaigns"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.reachinbox.ai/api/v1/campaigns/pause",
+        "body": {
+          "campaignId": "{{campaignId}}"
+        }
+      },
+      "afterResponse": "if (response.status !== 200) throw new Error('Failed to pause campaign: ' + response.message);\nreturn { success: true, message: response.message };",
+      "outputs": {
+        "message": "$.message"
+      }
+    }
+  },
+  "triggers": {
+    "campaignCompleted": {
+      "label": "Campaign Completed",
+      "description": "Triggers when a campaign is completed. Copy the trigger's address into ReachInbox: **Settings > Integrations > Webhooks > Add Webhook**, paste it as the Webhook URL and choose the event type \"Campaign Completed\".",
+      "webhook": {}
+    },
+    "emailBounced": {
+      "label": "Email Bounced",
+      "description": "Triggers when an email is bounced. Copy the trigger's address into ReachInbox: **Settings > Integrations > Webhooks > Add Webhook**, paste it as the Webhook URL and choose the event type \"Email Bounced\".",
+      "webhook": {}
+    },
+    "emailOpened": {
+      "label": "Email Opened",
+      "description": "Triggers when an email is opened. Copy the trigger's address into ReachInbox: **Settings > Integrations > Webhooks > Add Webhook**, paste it as the Webhook URL and choose the event type \"Email Opened\".",
+      "webhook": {}
+    },
+    "emailSent": {
+      "label": "Email Sent",
+      "description": "Triggers when an email is successfully sent. Copy the trigger's address into ReachInbox: **Settings > Integrations > Webhooks > Add Webhook**, paste it as the Webhook URL and choose the event type \"Email Sent\".",
+      "webhook": {}
+    },
+    "leadInterested": {
+      "label": "Lead Interested",
+      "description": "Triggers when a lead is set to interested. Copy the trigger's address into ReachInbox: **Settings > Integrations > Webhooks > Add Webhook**, paste it as the Webhook URL and choose the event type \"Lead Interested\".",
+      "webhook": {}
+    },
+    "leadNotInterested": {
+      "label": "Lead Not Interested",
+      "description": "Triggers when a lead is set to not interested. Copy the trigger's address into ReachInbox: **Settings > Integrations > Webhooks > Add Webhook**, paste it as the Webhook URL and choose the event type \"Lead Not Interested\".",
+      "webhook": {}
+    },
+    "replyReceived": {
+      "label": "Reply Received",
+      "description": "Triggers when a reply to an email is received. Copy the trigger's address into ReachInbox: **Settings > Integrations > Webhooks > Add Webhook**, paste it as the Webhook URL and choose the event type \"Reply Received\".",
+      "webhook": {}
+    }
+  }
+}

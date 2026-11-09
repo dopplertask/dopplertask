@@ -1,0 +1,1105 @@
+{
+  "name": "dropbox",
+  "label": "Dropbox",
+  "description": "Cloud storage and file synchronization",
+  "icon": "dropbox",
+  "hosts": [
+    "api.dropboxapi.com",
+    "content.dropboxapi.com"
+  ],
+  "baseUrl": "https://api.dropboxapi.com/2",
+  "upstream": {
+    "package": "@activepieces/piece-dropbox",
+    "version": "0.10.2"
+  },
+  "credential": {
+    "oauth2": {
+      "authUrl": "https://www.dropbox.com/oauth2/authorize",
+      "tokenUrl": "https://api.dropboxapi.com/oauth2/token",
+      "scope": "files.metadata.write files.metadata.read files.content.write files.content.read",
+      "authParameters": "token_access_type=offline"
+    }
+  },
+  "actions": {
+    "create_new_dropbox_text_file": {
+      "label": "Create New Text File",
+      "description": "Create a text file from the text you enter",
+      "group": "Files",
+      "inputs": {
+        "path": {
+          "label": "Path",
+          "description": "Path of the new file, including its name.",
+          "required": true
+        },
+        "text": {
+          "label": "Text",
+          "description": "Saved as plain UTF-8 text.",
+          "type": "multiline",
+          "required": true
+        },
+        "autorename": {
+          "label": "Auto Rename",
+          "description": "If the name is taken, save under a new name instead of failing.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "mute": {
+          "label": "Mute Notifications",
+          "description": "Don't notify the account's Dropbox apps about this change.",
+          "type": "boolean"
+        },
+        "strict_conflict": {
+          "label": "Strict Conflict",
+          "description": "Fail even when a file with identical contents is already there.",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://content.dropboxapi.com/2/files/upload",
+        "headers": {
+          "Content-Type": "application/octet-stream"
+        },
+        "body": "{{text}}"
+      },
+      "beforeRequest": "var flag = (value) => value === '' ? undefined : value === 'true';\nrequest.headers['Dropbox-API-Arg'] = JSON.stringify({autorename: flag(inputs.autorename), path: inputs.path, mode: 'add', mute: flag(inputs.mute), strict_conflict: flag(inputs.strict_conflict)});\nreturn request;"
+    },
+    "upload_dropbox_file": {
+      "label": "Upload File",
+      "description": "Upload a file to Dropbox, up to 150 MB",
+      "group": "Files",
+      "inputs": {
+        "path": {
+          "label": "Path",
+          "description": "Path to save to, including the file name.",
+          "required": true
+        },
+        "file": {
+          "label": "File",
+          "description": "A file from an earlier step.",
+          "type": "file",
+          "required": true
+        },
+        "autorename": {
+          "label": "Auto Rename",
+          "description": "If the name is taken, save under a new name instead of failing.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "mute": {
+          "label": "Mute Notifications",
+          "description": "Don't notify the account's Dropbox apps about this change.",
+          "type": "boolean"
+        },
+        "strict_conflict": {
+          "label": "Strict Conflict",
+          "description": "Fail even when a file with identical contents is already there.",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://content.dropboxapi.com/2/files/upload",
+        "headers": {
+          "Content-Type": "application/octet-stream"
+        },
+        "body": "{{file}}"
+      },
+      "beforeRequest": "var encode = (value) => JSON.stringify(value).replace(/[\\u007f-\\uffff]/g, (character) => '\\\\u' + ('000' + character.charCodeAt(0).toString(16)).slice(-4));\nvar flag = (value) => value === '' ? undefined : value === 'true';\nrequest.headers['Dropbox-API-Arg'] = encode({autorename: flag(inputs.autorename), path: inputs.path, mode: 'add', mute: flag(inputs.mute), strict_conflict: flag(inputs.strict_conflict)});\nreturn request;"
+    },
+    "get_dropbox_file_link": {
+      "label": "Get Temporary File Link",
+      "description": "Get a download link that expires after 4 hours",
+      "group": "Files",
+      "inputs": {
+        "path": {
+          "label": "Path",
+          "description": "File to link to. The link expires after 4 hours.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.dropboxapi.com/2/files/get_temporary_link",
+        "body": {
+          "path": "{{path}}"
+        }
+      },
+      "outputs": {
+        "link": "$.link"
+      }
+    },
+    "copy_dropbox_file": {
+      "label": "Copy File",
+      "description": "Copy a file to a new path in Dropbox",
+      "group": "Files",
+      "inputs": {
+        "from_path": {
+          "label": "From Path",
+          "description": "Path of the file to copy.",
+          "required": true
+        },
+        "to_path": {
+          "label": "To Path",
+          "description": "New path, including the file name.",
+          "required": true
+        },
+        "autorename": {
+          "label": "Auto Rename",
+          "description": "If the name is taken, save under a new name instead of failing.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "allow_ownership_transfer": {
+          "label": "Allow Ownership Transfer",
+          "description": "Has no effect on copies; Dropbox applies it to moves only.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.dropboxapi.com/2/files/copy_v2",
+        "body": {
+          "from_path": "{{from_path}}",
+          "to_path": "{{to_path}}",
+          "autorename": "{{autorename}}",
+          "allow_ownership_transfer": "{{allow_ownership_transfer}}"
+        }
+      },
+      "outputs": {
+        "id": "$.metadata.id",
+        "path": "$.metadata.path_display"
+      }
+    },
+    "move_dropbox_file": {
+      "label": "Move File",
+      "description": "Move or rename a file",
+      "group": "Files",
+      "inputs": {
+        "from_path": {
+          "label": "From Path",
+          "description": "Path of the file to move.",
+          "required": true
+        },
+        "to_path": {
+          "label": "To Path",
+          "description": "New path, including the file name.",
+          "required": true
+        },
+        "autorename": {
+          "label": "Auto Rename",
+          "description": "If the name is taken, save under a new name instead of failing.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "allow_ownership_transfer": {
+          "label": "Allow Ownership Transfer",
+          "description": "Allow the move even if it changes who owns the file.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.dropboxapi.com/2/files/move_v2",
+        "body": {
+          "from_path": "{{from_path}}",
+          "to_path": "{{to_path}}",
+          "autorename": "{{autorename}}",
+          "allow_ownership_transfer": "{{allow_ownership_transfer}}"
+        }
+      },
+      "outputs": {
+        "id": "$.metadata.id",
+        "path": "$.metadata.path_display"
+      }
+    },
+    "delete_dropbox_file": {
+      "label": "Delete File",
+      "description": "Delete a file; it can be restored from Dropbox",
+      "group": "Files",
+      "inputs": {
+        "path": {
+          "label": "Path",
+          "description": "File to delete. Dropbox keeps it in deleted files for restore.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.dropboxapi.com/2/files/delete_v2",
+        "body": {
+          "path": "{{path}}"
+        }
+      }
+    },
+    "list_dropbox_file_revisions": {
+      "label": "List File Revisions",
+      "description": "List the stored revisions of a file",
+      "group": "Files",
+      "inputs": {
+        "path": {
+          "label": "Path",
+          "description": "The file whose revisions to list. Accepts a path (/folder/file.txt) or an id (id:abc123).",
+          "required": true
+        },
+        "mode": {
+          "label": "Mode",
+          "description": "Path returns revisions of whatever currently sits at the path; ID follows the same file across moves and renames.",
+          "type": "select",
+          "defaultValue": "path",
+          "options": [
+            {
+              "value": "path",
+              "label": "Path"
+            },
+            {
+              "value": "id",
+              "label": "ID"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum revisions to return, between 1 and 100.",
+          "type": "number",
+          "defaultValue": "10"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.dropboxapi.com/2/files/list_revisions",
+        "body": {
+          "path": "{{path}}",
+          "mode": "{{mode}}",
+          "limit": "{{limit}}"
+        }
+      }
+    },
+    "restore_dropbox_file": {
+      "label": "Restore File Revision",
+      "description": "Restore a file to a previous revision",
+      "group": "Files",
+      "inputs": {
+        "path": {
+          "label": "Path",
+          "description": "The file to restore, as a path such as /folder/file.txt, not an id.",
+          "required": true
+        },
+        "rev": {
+          "label": "Revision",
+          "description": "The revision to restore the file to. Obtain it from List File Revisions.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.dropboxapi.com/2/files/restore",
+        "body": {
+          "path": "{{path}}",
+          "rev": "{{rev}}"
+        }
+      }
+    },
+    "lock_dropbox_file": {
+      "label": "Lock File",
+      "description": "Temporarily lock a file against edits",
+      "group": "Files",
+      "inputs": {
+        "path": {
+          "label": "Path",
+          "description": "The file to lock. Accepts a path (/folder/file.txt) or an id (id:abc123), but not a rev: value.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.dropboxapi.com/2/files/lock_file_batch",
+        "body": {
+          "entries": [
+            {
+              "path": "{{path}}"
+            }
+          ]
+        }
+      },
+      "afterResponse": "var entry = (response.entries || [])[0];\nif (!entry) throw new Error('Dropbox gave no result for the file.');\nif (entry['.tag'] === 'failure') throw new Error('Dropbox could not lock the file: ' + JSON.stringify(entry.failure));\nreturn entry;"
+    },
+    "unlock_dropbox_file": {
+      "label": "Unlock File",
+      "description": "Release a lock on a file",
+      "group": "Files",
+      "inputs": {
+        "path": {
+          "label": "Path",
+          "description": "The file to unlock. Accepts a path (/folder/file.txt) or an id (id:abc123), but not a rev: value.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.dropboxapi.com/2/files/unlock_file_batch",
+        "body": {
+          "entries": [
+            {
+              "path": "{{path}}"
+            }
+          ]
+        }
+      },
+      "afterResponse": "var entry = (response.entries || [])[0];\nif (!entry) throw new Error('Dropbox gave no result for the file.');\nif (entry['.tag'] === 'failure') throw new Error('Dropbox could not unlock the file: ' + JSON.stringify(entry.failure));\nreturn entry;"
+    },
+    "get_dropbox_file_lock": {
+      "label": "Get File Lock",
+      "description": "Check whether a file is locked",
+      "group": "Files",
+      "inputs": {
+        "path": {
+          "label": "Path",
+          "description": "The file to check. Accepts a path (/folder/file.txt) or an id (id:abc123), but not a rev: value.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.dropboxapi.com/2/files/get_file_lock_batch",
+        "body": {
+          "entries": [
+            {
+              "path": "{{path}}"
+            }
+          ]
+        }
+      },
+      "afterResponse": "var entry = (response.entries || [])[0];\nif (!entry) throw new Error('Dropbox gave no result for the file.');\nif (entry['.tag'] === 'failure') throw new Error('Dropbox could not read the lock of the file: ' + JSON.stringify(entry.failure));\nreturn entry;"
+    },
+    "create_dropbox_upload_link": {
+      "label": "Create Upload Link",
+      "description": "Create a temporary link for uploading a file",
+      "group": "Files",
+      "inputs": {
+        "path": {
+          "label": "Destination Path",
+          "description": "Where the uploaded file will be written (e.g. /folder/file.txt). Accepts a path or an id (id:abc123).",
+          "required": true
+        },
+        "mode": {
+          "label": "Write Mode",
+          "description": "Add keeps any existing file and renames on conflict; Overwrite replaces it.",
+          "type": "select",
+          "defaultValue": "add",
+          "options": [
+            {
+              "value": "add",
+              "label": "Add"
+            },
+            {
+              "value": "overwrite",
+              "label": "Overwrite"
+            }
+          ]
+        },
+        "autorename": {
+          "label": "Auto Rename",
+          "description": "Let Dropbox rename the upload if the path conflicts.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "duration": {
+          "label": "Duration (seconds)",
+          "description": "How long the link stays valid, between 60 and 14400 seconds.",
+          "type": "number",
+          "defaultValue": "14400"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.dropboxapi.com/2/files/get_temporary_upload_link",
+        "body": {
+          "commit_info": {
+            "path": "{{path}}",
+            "mode": "{{mode}}",
+            "autorename": "{{autorename}}"
+          },
+          "duration": "{{duration}}"
+        }
+      },
+      "outputs": {
+        "link": "$.link"
+      }
+    },
+    "get_dropbox_thumbnails_batch": {
+      "label": "Get Thumbnails (Batch)",
+      "description": "Get thumbnails for several files at once",
+      "group": "Files",
+      "inputs": {
+        "paths": {
+          "label": "Paths",
+          "description": "The image files to thumbnail, at most 25. Each accepts a path (/folder/photo.jpg), an id (id:abc123) or a revision (rev:a1c10ce0dd78). A JSON list.",
+          "type": "json",
+          "required": true
+        },
+        "format": {
+          "label": "Format",
+          "type": "select",
+          "defaultValue": "jpeg",
+          "options": [
+            {
+              "value": "jpeg",
+              "label": "JPEG"
+            },
+            {
+              "value": "png",
+              "label": "PNG"
+            },
+            {
+              "value": "webp",
+              "label": "WebP"
+            }
+          ]
+        },
+        "size": {
+          "label": "Size",
+          "type": "select",
+          "defaultValue": "w64h64",
+          "options": [
+            {
+              "value": "w32h32",
+              "label": "32x32"
+            },
+            {
+              "value": "w64h64",
+              "label": "64x64"
+            },
+            {
+              "value": "w128h128",
+              "label": "128x128"
+            },
+            {
+              "value": "w256h256",
+              "label": "256x256"
+            },
+            {
+              "value": "w480h320",
+              "label": "480x320"
+            },
+            {
+              "value": "w640h480",
+              "label": "640x480"
+            },
+            {
+              "value": "w960h640",
+              "label": "960x640"
+            },
+            {
+              "value": "w1024h768",
+              "label": "1024x768"
+            },
+            {
+              "value": "w2048h1536",
+              "label": "2048x1536"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://content.dropboxapi.com/2/files/get_thumbnail_batch",
+        "body": {
+          "entries": "{{paths}}"
+        }
+      },
+      "beforeRequest": "request.body.entries = request.body.entries.map((path) => ({path: path, format: inputs.format, size: inputs.size}));\nreturn request;"
+    },
+    "save_url_to_dropbox": {
+      "label": "Save URL to Dropbox",
+      "description": "Download a URL into Dropbox",
+      "group": "Files",
+      "inputs": {
+        "path": {
+          "label": "Destination Path",
+          "description": "Where to save the file, as a path such as /folder/file.pdf, not an id.",
+          "required": true
+        },
+        "url": {
+          "label": "URL",
+          "description": "The publicly reachable URL for Dropbox to download.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.dropboxapi.com/2/files/save_url",
+        "body": {
+          "path": "{{path}}",
+          "url": "{{url}}"
+        }
+      },
+      "outputs": {
+        "async_job_id": "$.async_job_id"
+      }
+    },
+    "get_dropbox_save_url_status": {
+      "label": "Get Save URL Status",
+      "description": "Check the status of a Save URL job",
+      "group": "Files",
+      "inputs": {
+        "async_job_id": {
+          "label": "Job ID",
+          "description": "The job ID from Save URL to Dropbox.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.dropboxapi.com/2/files/save_url/check_job_status",
+        "body": {
+          "async_job_id": "{{async_job_id}}"
+        }
+      }
+    },
+    "create_new_dropbox_folder": {
+      "label": "Create New Folder",
+      "description": "Create a new empty folder",
+      "group": "Folders",
+      "inputs": {
+        "path": {
+          "label": "Path",
+          "description": "Path of the folder to create, starting with /.",
+          "required": true
+        },
+        "autorename": {
+          "label": "Auto Rename",
+          "description": "If the name is taken, save under a new name instead of failing.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.dropboxapi.com/2/files/create_folder_v2",
+        "body": {
+          "autorename": "{{autorename}}",
+          "path": "{{path}}"
+        }
+      },
+      "outputs": {
+        "id": "$.metadata.id",
+        "path": "$.metadata.path_display"
+      }
+    },
+    "copy_dropbox_folder": {
+      "label": "Copy Folder",
+      "description": "Copy a folder and everything in it to a new path",
+      "group": "Folders",
+      "inputs": {
+        "from_path": {
+          "label": "From Path",
+          "description": "Path of the folder to copy.",
+          "required": true
+        },
+        "to_path": {
+          "label": "To Path",
+          "description": "New path, including the folder name.",
+          "required": true
+        },
+        "autorename": {
+          "label": "Auto Rename",
+          "description": "If the name is taken, save under a new name instead of failing.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "allow_ownership_transfer": {
+          "label": "Allow Ownership Transfer",
+          "description": "Has no effect on copies; Dropbox applies it to moves only.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.dropboxapi.com/2/files/copy_v2",
+        "body": {
+          "from_path": "{{from_path}}",
+          "to_path": "{{to_path}}",
+          "autorename": "{{autorename}}",
+          "allow_ownership_transfer": "{{allow_ownership_transfer}}"
+        }
+      },
+      "outputs": {
+        "id": "$.metadata.id",
+        "path": "$.metadata.path_display"
+      }
+    },
+    "move_dropbox_folder": {
+      "label": "Move Folder",
+      "description": "Move or rename a folder",
+      "group": "Folders",
+      "inputs": {
+        "from_path": {
+          "label": "From Path",
+          "description": "Path of the folder to move.",
+          "required": true
+        },
+        "to_path": {
+          "label": "To Path",
+          "description": "New path, including the folder name.",
+          "required": true
+        },
+        "autorename": {
+          "label": "Auto Rename",
+          "description": "If the name is taken, save under a new name instead of failing.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "allow_ownership_transfer": {
+          "label": "Allow Ownership Transfer",
+          "description": "Allow the move even if it changes who owns the folder.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.dropboxapi.com/2/files/move_v2",
+        "body": {
+          "from_path": "{{from_path}}",
+          "to_path": "{{to_path}}",
+          "autorename": "{{autorename}}",
+          "allow_ownership_transfer": "{{allow_ownership_transfer}}"
+        }
+      },
+      "outputs": {
+        "id": "$.metadata.id",
+        "path": "$.metadata.path_display"
+      }
+    },
+    "delete_dropbox_folder": {
+      "label": "Delete Folder",
+      "description": "Delete a folder and everything in it",
+      "group": "Folders",
+      "inputs": {
+        "path": {
+          "label": "Path",
+          "description": "Folder to delete. Dropbox keeps it in deleted files for restore.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.dropboxapi.com/2/files/delete_v2",
+        "body": {
+          "path": "{{path}}"
+        }
+      }
+    },
+    "list_dropbox_folder": {
+      "label": "List Folder",
+      "description": "List the files and subfolders in a folder",
+      "group": "Folders",
+      "inputs": {
+        "path": {
+          "label": "Path",
+          "description": "Folder to list, starting with /. Use / for the root.",
+          "required": true
+        },
+        "recursive": {
+          "label": "Include Subfolders",
+          "description": "Also list everything inside subfolders.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "About how many entries to return. Empty: 2,000.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.dropboxapi.com/2/files/list_folder"
+      },
+      "beforeRequest": "var root = inputs.path.trim() === '/' || inputs.path.trim() === '';\nrequest.body = {path: root ? '' : inputs.path, recursive: inputs.recursive === '' ? undefined : inputs.recursive === 'true', limit: Math.min(Number(inputs.limit) || 2000, 2000)};\nreturn request;",
+      "afterResponse": "var limit = Number(inputs.limit) || 2000;\nvar page = response;\nvar entries = page.entries;\nwhile (page.has_more && entries.length < limit) {\n  page = call({method: 'POST', url: '/files/list_folder/continue', headers: {'Content-Type': 'application/json'}, body: {cursor: page.cursor}});\n  entries = entries.concat(page.entries);\n}\nreturn Object.assign({}, page, {entries: entries});"
+    },
+    "search_dropbox": {
+      "label": "Search",
+      "description": "Search for files and folders",
+      "group": "Files and Folders",
+      "inputs": {
+        "query": {
+          "label": "Query",
+          "description": "Words to find in file and folder names or contents.",
+          "required": true
+        },
+        "path": {
+          "label": "Path",
+          "description": "Folder to search in. Empty: the whole Dropbox."
+        },
+        "max_results": {
+          "label": "Max Results",
+          "description": "Maximum matches to return, up to 1,000. Empty: 100.",
+          "type": "number"
+        },
+        "order_by": {
+          "label": "Order By",
+          "description": "How to sort the matches.",
+          "type": "select",
+          "defaultValue": "relevance",
+          "options": [
+            {
+              "value": "relevance",
+              "label": "Relevance"
+            },
+            {
+              "value": "modified_time",
+              "label": "Last Modified"
+            }
+          ]
+        },
+        "file_status": {
+          "label": "File Status",
+          "description": "Current or deleted files.",
+          "type": "select",
+          "defaultValue": "active",
+          "options": [
+            {
+              "value": "active",
+              "label": "Active"
+            },
+            {
+              "value": "deleted",
+              "label": "Deleted"
+            }
+          ]
+        },
+        "filename_only": {
+          "label": "Filename Only",
+          "description": "Match names only, not file contents.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "file_extensions": {
+          "label": "File Extensions",
+          "description": "Comma-separated, without the dot."
+        },
+        "file_categories": {
+          "label": "File Categories",
+          "description": "Comma-separated: image, document, pdf, spreadsheet, presentation, audio, video, folder, paper, others."
+        },
+        "account_id": {
+          "label": "Account ID",
+          "description": "Team accounts: only this member's files. Starts with dbid:."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.dropboxapi.com/2/files/search_v2"
+      },
+      "beforeRequest": "var split = (text) => text.split(',').map((part) => part.trim()).filter((part) => part.length > 0);\nvar orNothing = (items) => items.length > 0 ? items : undefined;\nvar root = inputs.path.trim() === '/' || inputs.path.trim() === '';\nrequest.body = {query: inputs.query, options: {\n  path: root ? '' : inputs.path,\n  max_results: Number(inputs.max_results) || 100,\n  order_by: inputs.order_by === 'modified_time' ? 'last_modified_time' : inputs.order_by || undefined,\n  file_status: inputs.file_status || undefined,\n  filename_only: inputs.filename_only === '' ? undefined : inputs.filename_only === 'true',\n  file_extensions: orNothing(split(inputs.file_extensions).map((part) => part.replace(/^\\./, '')).filter((part) => part.length > 0)),\n  file_categories: orNothing(split(inputs.file_categories).map((part) => part.toLowerCase())),\n  account_id: inputs.account_id || undefined\n}};\nreturn request;"
+    },
+    "get_dropbox_file_metadata": {
+      "label": "Get File Metadata",
+      "description": "Get metadata for a file or folder",
+      "group": "Files and Folders",
+      "inputs": {
+        "path": {
+          "label": "Path",
+          "description": "The file or folder to inspect. Accepts a path (/folder/file.txt), an id (id:abc123) or a revision (rev:a1c10ce0dd78).",
+          "required": true
+        },
+        "include_deleted": {
+          "label": "Include Deleted",
+          "description": "Return metadata for a deleted entry instead of failing when the path no longer exists.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "include_media_info": {
+          "label": "Include Media Info",
+          "description": "Include photo and video metadata when available.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "include_has_explicit_shared_members": {
+          "label": "Include Shared Members Flag",
+          "description": "Include whether the entry has explicit shared members assigned.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.dropboxapi.com/2/files/get_metadata",
+        "body": {
+          "path": "{{path}}",
+          "include_deleted": "{{include_deleted}}",
+          "include_media_info": "{{include_media_info}}",
+          "include_has_explicit_shared_members": "{{include_has_explicit_shared_members}}"
+        }
+      }
+    },
+    "create_dropbox_copy_reference": {
+      "label": "Create Copy Reference",
+      "description": "Create a copy reference for a file or folder",
+      "group": "Files and Folders",
+      "inputs": {
+        "path": {
+          "label": "Path",
+          "description": "The file or folder to reference. Accepts a path (/folder/file.txt), an id (id:abc123) or a revision (rev:a1c10ce0dd78).",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.dropboxapi.com/2/files/copy_reference/get",
+        "body": {
+          "path": "{{path}}"
+        }
+      }
+    },
+    "save_dropbox_copy_reference": {
+      "label": "Save Copy Reference",
+      "description": "Save a copy reference into this account",
+      "group": "Files and Folders",
+      "inputs": {
+        "copy_reference": {
+          "label": "Copy Reference",
+          "description": "The reference string returned by Create Copy Reference.",
+          "required": true
+        },
+        "path": {
+          "label": "Destination Path",
+          "description": "Where to save the entry, as a path such as /folder/file.txt, not an id.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.dropboxapi.com/2/files/copy_reference/save",
+        "body": {
+          "copy_reference": "{{copy_reference}}",
+          "path": "{{path}}"
+        }
+      }
+    },
+    "start_dropbox_copy_batch": {
+      "label": "Start Copy Batch",
+      "description": "Copy many files or folders in one job",
+      "group": "Batch Jobs",
+      "inputs": {
+        "entries": {
+          "label": "Entries",
+          "description": "Each entry needs a From Path and a To Path. Both accept a path (/folder/file.txt) or an id (id:abc123). At most 1000 entries. A JSON list of {\"from_path\", \"to_path\"}.",
+          "type": "json",
+          "required": true
+        },
+        "autorename": {
+          "label": "Auto Rename",
+          "description": "Let Dropbox rename an entry when its destination conflicts.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.dropboxapi.com/2/files/copy_batch_v2",
+        "body": {
+          "entries": "{{entries}}",
+          "autorename": "{{autorename}}"
+        }
+      },
+      "outputs": {
+        "async_job_id": "$.async_job_id"
+      },
+      "beforeRequest": "request.body.entries = request.body.entries.map((entry) => ({from_path: entry.from_path, to_path: entry.to_path}));\nreturn request;"
+    },
+    "get_dropbox_copy_batch_status": {
+      "label": "Get Copy Batch Status",
+      "description": "Check the status of a copy batch job",
+      "group": "Batch Jobs",
+      "inputs": {
+        "async_job_id": {
+          "label": "Job ID",
+          "description": "The job ID from Start Copy Batch.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.dropboxapi.com/2/files/copy_batch/check_v2",
+        "body": {
+          "async_job_id": "{{async_job_id}}"
+        }
+      }
+    },
+    "start_dropbox_move_batch": {
+      "label": "Start Move Batch",
+      "description": "Move many files or folders in one job",
+      "group": "Batch Jobs",
+      "inputs": {
+        "entries": {
+          "label": "Entries",
+          "description": "Each entry needs a From Path and a To Path. Both accept a path (/folder/file.txt) or an id (id:abc123). At most 1000 entries. A JSON list of {\"from_path\", \"to_path\"}.",
+          "type": "json",
+          "required": true
+        },
+        "autorename": {
+          "label": "Auto Rename",
+          "description": "Let Dropbox rename an entry when its destination conflicts.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.dropboxapi.com/2/files/move_batch_v2",
+        "body": {
+          "entries": "{{entries}}",
+          "autorename": "{{autorename}}"
+        }
+      },
+      "outputs": {
+        "async_job_id": "$.async_job_id"
+      },
+      "beforeRequest": "request.body.entries = request.body.entries.map((entry) => ({from_path: entry.from_path, to_path: entry.to_path}));\nreturn request;"
+    },
+    "get_dropbox_move_batch_status": {
+      "label": "Get Move Batch Status",
+      "description": "Check the status of a move batch job",
+      "group": "Batch Jobs",
+      "inputs": {
+        "async_job_id": {
+          "label": "Job ID",
+          "description": "The job ID from Start Move Batch.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.dropboxapi.com/2/files/move_batch/check_v2",
+        "body": {
+          "async_job_id": "{{async_job_id}}"
+        }
+      }
+    },
+    "start_dropbox_delete_batch": {
+      "label": "Start Delete Batch",
+      "description": "Delete many files or folders in one job",
+      "group": "Batch Jobs",
+      "inputs": {
+        "paths": {
+          "label": "Paths",
+          "description": "The entries to delete, at most 1000. Each accepts a path (/folder/file.txt) or an id (id:abc123). A JSON list.",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.dropboxapi.com/2/files/delete_batch",
+        "body": {
+          "entries": "{{paths}}"
+        }
+      },
+      "outputs": {
+        "async_job_id": "$.async_job_id"
+      },
+      "beforeRequest": "request.body.entries = request.body.entries.map((path) => ({path: path}));\nreturn request;"
+    },
+    "get_dropbox_delete_batch_status": {
+      "label": "Get Delete Batch Status",
+      "description": "Check the status of a delete batch job",
+      "group": "Batch Jobs",
+      "inputs": {
+        "async_job_id": {
+          "label": "Job ID",
+          "description": "The job ID from Start Delete Batch.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.dropboxapi.com/2/files/delete_batch/check",
+        "body": {
+          "async_job_id": "{{async_job_id}}"
+        }
+      }
+    },
+    "start_dropbox_create_folder_batch": {
+      "label": "Start Create Folder Batch",
+      "description": "Create many folders in one job",
+      "group": "Batch Jobs",
+      "inputs": {
+        "paths": {
+          "label": "Paths",
+          "description": "The folders to create, at most 10000, each a path such as /reports/2026. A JSON list.",
+          "type": "json",
+          "required": true
+        },
+        "autorename": {
+          "label": "Auto Rename",
+          "description": "Let Dropbox rename a folder when its path conflicts.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.dropboxapi.com/2/files/create_folder_batch",
+        "body": {
+          "paths": "{{paths}}",
+          "autorename": "{{autorename}}"
+        }
+      },
+      "outputs": {
+        "async_job_id": "$.async_job_id"
+      }
+    },
+    "get_dropbox_create_folder_batch_status": {
+      "label": "Get Create Folder Batch Status",
+      "description": "Check the status of a create folder batch job",
+      "group": "Batch Jobs",
+      "inputs": {
+        "async_job_id": {
+          "label": "Job ID",
+          "description": "The job ID from Start Create Folder Batch.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.dropboxapi.com/2/files/create_folder_batch/check",
+        "body": {
+          "async_job_id": "{{async_job_id}}"
+        }
+      }
+    }
+  },
+  "triggers": {
+    "new_folder": {
+      "label": "New Folder",
+      "description": "Triggers when a new folder is created inside a watched Dropbox folder.",
+      "inputs": {
+        "path": {
+          "label": "Path",
+          "description": "Folder to watch, starting with /. Use / for the root.",
+          "required": true
+        },
+        "recursive": {
+          "label": "Include Subfolders",
+          "description": "Also fire for folders created inside subfolders.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.dropboxapi.com/2/files/list_folder/continue"
+      },
+      "newBy": "unseen",
+      "beforeRequest": "if (memory.cursor) {\n  request.body = {cursor: memory.cursor};\n} else {\n  request.url = '/files/list_folder/get_latest_cursor';\n  var root = inputs.path.trim() === '/' || inputs.path.trim() === '';\n  request.body = {path: root ? '' : inputs.path, recursive: inputs.recursive === 'true', include_deleted: false};\n}\nreturn request;",
+      "afterResponse": "if (!memory.cursor) {\n  memory.cursor = response.cursor;\n  return [];\n}\nvar page = response;\nvar folders = page.entries.filter((entry) => entry['.tag'] === 'folder');\nwhile (page.has_more) {\n  page = call({method: 'POST', url: '/files/list_folder/continue', body: {cursor: page.cursor}});\n  folders = folders.concat(page.entries.filter((entry) => entry['.tag'] === 'folder'));\n}\nmemory.cursor = page.cursor;\nreturn folders;"
+    }
+  }
+}

@@ -1,6 +1,7 @@
 /* The task model behind the Flow UI. The step catalogue comes from /task/actions, so a new action
    appears here without UI code; this file only adds labels, icons and the task graph on top. */
 const CATEGORIES = [
+  { id: 'starts', label: 'Starts the task' },
   { id: 'logic', label: 'Logic' },
   { id: 'connection', label: 'Connections' },
   { id: 'system', label: 'This machine' },
@@ -33,16 +34,14 @@ const PRESENTATION = {
   SecureCopyAction: ['secureCopy', 'Copy file over SCP', 'connection', 'send', ['hostname', 'sourceFilename', 'destinationFilename']],
   MySQLAction: ['mysql', 'MySQL query', 'connection', 'mySql', ['hostname', 'command']],
   ExecuteCommandAction: ['command', 'Run command', 'system', 'terminal', ['command']],
-  ReadFileAction: ['readFile', 'Read file', 'system', 'fileText', ['filename', 'parameterName']],
+  ReadFileAction: ['readFile', 'Read file', 'system', 'fileText', ['filename']],
   WriteFileAction: ['writeFile', 'Write file', 'system', 'filePen', ['filename']],
   BrowseWebAction: ['browseWeb', 'Browse the web', 'browser', 'appWindow', ['url']],
   MouseAction: ['mouse', 'Use the mouse', 'browser', 'pointer'],
   OpenAIAction: ['openAI', 'OpenAI', 'ai', 'openAi', ['model', 'userInput']],
   JenkinsAction: ['jenkins', 'Jenkins', 'integration', 'jenkins', ['jenkinsUrl']],
   TelegramAction: ['telegram', 'Telegram', 'messages', 'telegram', ['token', 'chat', 'message']],
-  DiscordAction: ['discord', 'Discord', 'messages', 'discord', ['webhookUrl', 'message']],
   PagerDutyAction: ['pagerduty', 'PagerDuty', 'messages', 'pagerDuty', ['integrationKey', 'summary', 'incidentKey']],
-  GitHubAction: ['github', 'GitHub', 'work', 'gitHub', ['token', 'repository', 'issueNumber', 'title', 'comment']],
   JiraAction: ['jira', 'Jira', 'work', 'jira', ['siteUrl', 'token', 'project', 'summary', 'issueKey', 'comment']],
   RedisAction: ['redis', 'Redis', 'connection', 'redis', ['hostname', 'key']],
   PostgresAction: ['postgres', 'Postgres', 'connection', 'postgres', ['hostname', 'database', 'command']],
@@ -50,34 +49,18 @@ const PRESENTATION = {
   S3Action: ['s3', 'S3', 'documents', 's3', ['accessKeyId', 'secretAccessKey', 'bucket', 'key']],
   TeamsAction: ['teams', 'Microsoft Teams', 'messages', 'teams', ['webhookUrl', 'message']],
   MattermostAction: ['mattermost', 'Mattermost', 'messages', 'mattermost', ['siteUrl', 'token', 'channelId', 'message']],
-  TwilioAction: ['twilio', 'SMS (Twilio)', 'messages', 'twilio', ['accountSid', 'token', 'sender', 'to', 'message']],
-  GitLabAction: ['gitlab', 'GitLab', 'work', 'gitLab', ['token', 'project', 'issueNumber', 'title', 'comment']],
-  LinearAction: ['linear', 'Linear', 'work', 'linear', ['token', 'team', 'title', 'issueKey', 'comment']],
-  ZendeskAction: ['zendesk', 'Zendesk', 'work', 'zendesk', ['siteUrl', 'email', 'token', 'ticketNumber', 'subject', 'ticketDescription', 'comment']],
-  NotionAction: ['notion', 'Notion', 'documents', 'notion', ['token', 'page', 'title', 'addedText']],
+  TwilioAction: ['twilioSms', 'SMS (Twilio)', 'messages', 'twilio', ['accountSid', 'token', 'sender', 'to', 'message']],
   GoogleSheetsAction: ['googleSheets', 'Google Sheets', 'documents', 'googleSheets', ['serviceAccountKey', 'spreadsheet', 'rowValues']],
   ClaudeAction: ['claude', 'Claude', 'ai', 'claude', ['apiKey', 'userInput']],
   ReadEmailAction: ['readEmail', 'Read email', 'messages', 'mail', ['hostname', 'username']],
-  SlackAction: ['slack', 'Slack', 'messages', 'slack', ['token', 'channel', 'message']],
-  HubSpotAction: ['hubspot', 'HubSpot', 'sales', 'hubSpot', ['token', 'email', 'dealName']],
-  SalesforceAction: ['salesforce', 'Salesforce', 'sales', 'salesforce', ['siteUrl', 'clientId', 'clientSecret', 'recordId', 'recordFields', 'query']],
-  PipedriveAction: ['pipedrive', 'Pipedrive', 'sales', 'tags', ['token', 'personName', 'dealTitle', 'dealId', 'note']],
   MailchimpAction: ['mailchimp', 'Mailchimp', 'sales', 'mailchimp', ['apiKey', 'audienceId', 'email', 'tagName']],
-  StripeAction: ['stripe', 'Stripe', 'sales', 'stripe', ['secretKey', 'email', 'priceId', 'paymentId']],
-  ShopifyAction: ['shopify', 'Shopify', 'sales', 'shopify', ['siteUrl', 'token', 'orderNumber', 'email']],
+  StripeAction: ['stripePayments', 'Stripe payments', 'sales', 'stripe', ['secretKey', 'email', 'priceId', 'paymentId']],
   WooCommerceAction: ['wooCommerce', 'WooCommerce', 'sales', 'wooCommerce', ['siteUrl', 'consumerKey', 'consumerSecret', 'orderNumber', 'orderStatus', 'note', 'productId', 'stockQuantity']],
-  IntercomAction: ['intercom', 'Intercom', 'work', 'intercom', ['token', 'email', 'conversationId', 'teammateId', 'comment']],
-  FreshdeskAction: ['freshdesk', 'Freshdesk', 'work', 'tags', ['siteUrl', 'apiKey', 'ticketNumber', 'email', 'subject', 'ticketDescription', 'comment']],
-  AsanaAction: ['asana', 'Asana', 'work', 'asana', ['token', 'projectId', 'taskId', 'title', 'comment']],
-  TrelloAction: ['trello', 'Trello', 'work', 'trello', ['apiKey', 'token', 'listId', 'cardId', 'title', 'comment']],
+  FreshdeskAction: ['freshdeskTickets', 'Freshdesk tickets', 'work', 'tags', ['siteUrl', 'apiKey', 'ticketNumber', 'email', 'subject', 'ticketDescription', 'comment']],
   ClickUpAction: ['clickUp', 'ClickUp', 'work', 'clickUp', ['token', 'listId', 'taskId', 'title', 'comment', 'taskStatus']],
-  MondayAction: ['monday', 'monday.com', 'work', 'monday', ['token', 'boardId', 'itemId', 'itemName', 'comment', 'columnId']],
   WhatsAppAction: ['whatsApp', 'WhatsApp', 'messages', 'whatsApp', ['token', 'phoneNumberId', 'to', 'message', 'templateName']],
-  AirtableAction: ['airtable', 'Airtable', 'documents', 'airtable', ['token', 'base', 'tableName', 'recordId', 'recordFields']],
-  SupabaseAction: ['supabase', 'Supabase', 'documents', 'supabase', ['siteUrl', 'secretKey', 'tableName', 'filter', 'rowValues']],
   GoogleDriveAction: ['googleDrive', 'Google Drive', 'documents', 'googleDrive', ['serviceAccountKey', 'fileName', 'fileId', 'folderId', 'email']],
   GoogleCalendarAction: ['googleCalendar', 'Google Calendar', 'documents', 'googleCalendar', ['serviceAccountKey', 'calendar', 'title', 'startTime', 'endTime', 'eventId']],
-  ConfluenceAction: ['confluence', 'Confluence', 'documents', 'confluence', ['siteUrl', 'email', 'token', 'spaceKey', 'pageId', 'title', 'pageContent']],
   MongoDBAction: ['mongoDB', 'MongoDB', 'connection', 'mongoDb', ['connectionString', 'database', 'collection', 'document', 'changes']],
   KafkaAction: ['kafka', 'Kafka', 'connection', 'kafka', ['servers', 'topic', 'messageBody', 'consumerGroup']],
   RabbitMQAction: ['rabbitMQ', 'RabbitMQ', 'connection', 'rabbitMq', ['hostname', 'routingKey', 'messageBody', 'queueName']],
@@ -108,6 +91,19 @@ const PRESENTATION = {
 /* Triggers are shown as one Start tile with a choice of how it starts. */
 const TRIGGER_ACTIONS = { webhook: 'Webhook', schedule: 'ScheduleTrigger', interval: 'IntervalTrigger', activemq: 'ActiveMQTrigger' };
 const TRIGGER_KINDS = Object.fromEntries(Object.entries(TRIGGER_ACTIONS).map(([kind, backend]) => [backend, kind]));
+/* A connector's trigger is one more way to start, chosen by app, since there is one for every service. */
+const APP_TRIGGER = 'app';
+/* The icon of a connector with no free logo: its name, which the form draws as initials. */
+const INITIALS = 'initials:';
+const TRIGGER_ICONS = { webhook: 'webhook', schedule: 'clock', interval: 'clock', activemq: 'server', manual: 'play' };
+/* A start shows what starts it, such as the logo of its app. */
+const iconOf = (node) => (node.type !== 'start' ? ACTIONS[node.type].icon
+  : node.config.trigger === APP_TRIGGER ? ACTIONS[TYPE_BY_BACKEND[node.config.app]]?.icon ?? 'workflow' : TRIGGER_ICONS[node.config.trigger] ?? 'play');
+const APP_TRIGGER_SUFFIX = '.trigger';
+const isAppTrigger = (backend) => backend?.endsWith(APP_TRIGGER_SUFFIX);
+/* The connector a step reads its lists from: its own, or on a start tile that of its app's trigger. */
+const connectorOf = (node) => (node.type === 'start' ? node.config.app.slice(0, -APP_TRIGGER_SUFFIX.length) : ACTIONS[node.type].backend);
+const triggerBackend = (config) => (config.trigger === APP_TRIGGER ? config.app : TRIGGER_ACTIONS[config.trigger]);
 const TRIGGER_DEFAULTS = { webhook: { method: 'POST', authentication: 'none' }, schedule: { rule: 'DAYS', every: '1', atHour: '9', atMinute: '0' }, interval: { time: '1', timeUnit: 'MINUTES' }, activemq: {} };
 const STEP_ACTION_NAME = 'actionName';
 const FAILURE_FIELD_NAMES = ['continueOnFailure', 'retries', 'retryWait', 'failOn'];
@@ -134,13 +130,17 @@ function toField(information) {
   /* A hint that only repeats the label takes room and says nothing. */
   const label = information.displayName || information.name;
   const hint = information.description && information.description.replace(/\.$/, '').toLowerCase() !== label.toLowerCase() ? information.description : undefined;
-  const common = { key: information.name, label, hint, defaultValue: information.defaultValue || undefined, credential: CREDENTIAL_CATEGORIES.includes(information.category) };
+  const common = { key: information.name, label, hint, defaultValue: information.defaultValue || undefined, credential: CREDENTIAL_CATEGORIES.includes(information.category), required: !!information.required };
   const showWhen = information.displayOptions && Object.keys(information.displayOptions).length ? information.displayOptions : undefined;
   if (showWhen) common.showWhen = showWhen;
   switch (information.type) {
     case 'BOOLEAN': return [{ ...common, type: 'toggle' }];
     case 'NUMBER': return [{ ...common, type: 'number' }];
     case 'MULTILINE': return [{ ...common, type: 'code' }];
+    case 'CHOICES': return [{ ...common, type: 'expression', choices: true, dependsOn: information.dependsOn || [] }];
+    case 'FIELDS': return [{ ...common, type: 'form' }];
+    case 'FILE': return [{ ...common, type: 'expression', files: true }];
+    case 'ADDRESS': return [{ ...common, type: 'address' }];
     case 'MAP': return [{ ...common, type: 'map', columns: information.options.map((option) => ({ key: option.name, label: option.displayName || option.name, options: option.type === 'DROPDOWN' ? option.options.map((choice) => choice.name) : null })) }];
     case 'DROPDOWN': {
       const select = { ...common, type: 'select', options: information.options.map((option) => ({ value: option.name, label: option.displayName || option.name })) };
@@ -179,20 +179,22 @@ function loadCatalogue(actions) {
   const triggers = {};
   actions.forEach((action) => {
     const backend = action.name;
-    const [type, label, category, iconName, required] = PRESENTATION[backend] || [backend, backend.replace(/Action$/, ''), 'integration', 'workflow'];
+    /* A connector names its own label and icon, since it is described in a file and not here. */
+    const [type, label, category, iconName, required] = PRESENTATION[backend] || [backend, action.label || backend.replace(/Action$/, ''), isAppTrigger(backend) ? 'starts' : 'integration', action.icon || `${INITIALS}${isAppTrigger(backend) ? backend.slice(0, -APP_TRIGGER_SUFFIX.length) : backend}`];
     const fields = fieldsOf(action.propertyInformationList.filter((information) => information.name !== STEP_ACTION_NAME));
     if (!FAILURE_FIELDS.length) FAILURE_FIELDS.push(...fields.filter((field) => FAILURE_FIELD_NAMES.includes(field.key)));
-    const own = withCredentialField(fields.filter((field) => !FAILURE_FIELD_NAMES.includes(field.key)).map((field) => ({ ...field, required: !!required?.includes(field.key) })), action.credentialType);
+    const own = withCredentialField(fields.filter((field) => !FAILURE_FIELD_NAMES.includes(field.key)).map((field) => ({ ...field, required: field.required || !!required?.includes(field.key) })), action.credentialType);
     /* The language control stays last, so what the step does comes first. */
     own.sort((first, second) => (first.key === 'scriptLanguage') - (second.key === 'scriptLanguage'));
     if (action.trigger) triggers[backend] = own.filter((field) => !['scriptLanguage', 'triggerSuffix'].includes(field.key));
     TYPE_BY_BACKEND[backend] = type;
-    ACTIONS[type] = { backend, label, category, icon: iconName, description: action.description, outputs: action.outputs || {}, fields: own, hidden: type === 'start' || !!action.trigger, trigger: !!action.trigger };
+    ACTIONS[type] = { backend, label, category, icon: iconName, description: action.description, outputs: action.outputs || {}, fields: own, hidden: type === 'start' || (!!action.trigger && !isAppTrigger(backend)), trigger: !!action.trigger };
   });
 
   ACTIONS.switch.ports = (node) => [...(node.config.switchCases || []).map((switchCase, index) => ({ id: `case:${index}`, label: switchCase.currentCase || `Case ${index + 1}` })), { id: 'default', label: 'Default' }];
   ACTIONS.if.ports = () => [{ id: 'true', label: 'Yes' }, { id: 'false', label: 'No' }];
   ACTIONS.loop.ports = () => [{ id: 'each', label: 'Each item' }, { id: 'done', label: 'Done' }];
+  const appTriggers = actions.filter((action) => action.trigger && isAppTrigger(action.name)).map(({ name, label }) => ({ name, label: label || name }));
   ACTIONS.start.fields = [
     { key: 'trigger', label: 'Starts', type: 'select', options: [
       { value: 'manual', label: 'Only when I run it' },
@@ -201,8 +203,12 @@ function loadCatalogue(actions) {
       { value: 'interval', label: 'After a fixed pause (older)' },
       { value: 'activemq', label: 'When a queue message arrives' },
     // A server can leave out kinds of trigger that it does not offer.
-    ].filter((option) => !TRIGGER_ACTIONS[option.value] || triggers[TRIGGER_ACTIONS[option.value]]) },
+      { value: APP_TRIGGER, label: 'When something new appears in an app' },
+    // A server can leave out kinds of trigger that it does not offer.
+    ].filter((option) => (option.value === APP_TRIGGER ? appTriggers.length : !TRIGGER_ACTIONS[option.value] || triggers[TRIGGER_ACTIONS[option.value]])) },
+    { key: 'app', label: 'App', type: 'select', required: true, options: appTriggers.map(({ name, label }) => ({ value: name, label })), showWhen: { trigger: [APP_TRIGGER] } },
     ...Object.entries(TRIGGER_ACTIONS).flatMap(([kind, backend]) => (triggers[backend] || []).map((field) => ({ ...field, showWhen: { ...field.showWhen, trigger: [kind] } }))),
+    ...appTriggers.flatMap(({ name }) => triggers[name].map((field) => ({ ...field, showWhen: { ...field.showWhen, trigger: [APP_TRIGGER], app: [name] } }))),
   ];
 }
 
@@ -228,6 +234,12 @@ function stepsMatching(query) {
 const portsOf = (node) => (ACTIONS[node.type].ports ? ACTIONS[node.type].ports(node) : [{ id: 'out', label: '' }]);
 const edgeFrom = (task, nodeId, portId) => task.edges.find((edge) => edge.from === nodeId && edge.port === portId);
 const nodeById = (task, nodeId) => task.nodes.find((node) => node.id === nodeId);
+/* A copy of a task gets triggers of its own: an address a service calls belongs to one task only. */
+function newTriggerAddresses(task) {
+  task.nodes.filter((node) => node.type === 'start' && node.config.triggerSuffix).forEach((node) => { node.config.triggerSuffix = crypto.randomUUID(); });
+  return task;
+}
+
 const rootNode = (task) => task.nodes.find((node) => node.type === 'start');
 const isEntry = (node) => node.type === 'start' || ACTIONS[node.type].trigger;
 
@@ -262,7 +274,7 @@ function computeLayout(task) {
     placements[nodeId] = { column: depth, row };
     return row;
   };
-  place(rootNode(task).id, 0);
+  task.nodes.filter(isEntry).forEach((node) => { if (!seen.has(node.id)) place(node.id, 0); });
   task.nodes.filter((node) => !seen.has(node.id)).forEach((node) => { placements[node.id] = { column: 1, row: nextRow++ }; });
   return placements;
 }
@@ -306,6 +318,7 @@ function describeNode(node) {
         schedule: ['Starts ', { value: scheduleText(config) }],
         interval: ['Starts every ', { value: intervalText(config) }],
         activemq: ['Starts on messages from ', value(config.queue, 'no queue')],
+        app: ['Starts on new ', value(ACTIONS[config.app]?.label, 'items in an app')],
       })[config.trigger] || ['Starts'];
     case 'if': return ['If ', value(readableExpression(config.condition), 'a condition')];
     case 'switch': return ['Check ', value(readableExpression(config.value), 'a value')];
@@ -327,9 +340,7 @@ function describeNode(node) {
     case 'browseWeb': return ['Open ', value(inlineVariables(config.url), 'a page')];
     case 'mouse': return [{ value: (config.action || 'CLICK').toLowerCase() }, ' the mouse'];
     case 'telegram': return ['Send ', value(inlineVariables(config.message), 'a message'), ' to ', value(config.chat, 'a chat')];
-    case 'discord': return ['Send ', value(inlineVariables(config.message), 'a message'), ' to Discord'];
     case 'pagerduty': return config.operation === 'resolve' ? ['Resolve ', value(inlineVariables(config.incidentKey), 'an incident')] : config.operation === 'acknowledge' ? ['Acknowledge ', value(inlineVariables(config.incidentKey), 'an incident')] : ['Open an incident: ', value(inlineVariables(config.summary), 'no summary yet')];
-    case 'github': return config.operation === 'addComment' ? ['Comment on ', value(config.repository, 'a repository'), ' #', value(inlineVariables(config.issueNumber), '?')] : config.operation === 'closeIssue' ? ['Close ', value(config.repository, 'a repository'), ' #', value(inlineVariables(config.issueNumber), '?')] : ['Create ', value(inlineVariables(config.title), 'an issue'), ' in ', value(config.repository, 'a repository')];
     case 'jira': return config.operation === 'addComment' ? ['Comment on ', value(inlineVariables(config.issueKey), 'an issue')] : ['Create ', value(inlineVariables(config.summary), 'an issue'), ' in ', value(config.project, 'a project')];
     case 'redis': return config.operation === 'set' ? ['Write ', value(config.key, 'a key')] : config.operation === 'increment' ? ['Increment ', value(config.key, 'a key')] : config.operation === 'delete' ? ['Delete ', value(config.key, 'a key')] : ['Read ', value(config.key, 'a key')];
     case 'postgres': return ['On ', value(config.database && `${config.database}@${config.hostname}`, 'a database'), ' run ', value(inlineVariables(config.command), 'a query')];
@@ -337,18 +348,17 @@ function describeNode(node) {
     case 's3': return [config.operation === 'write' ? 'Write ' : config.operation === 'delete' ? 'Delete ' : 'Read ', value(inlineVariables(config.key), 'a file'), ' in ', value(config.bucket, 'a bucket')];
     case 'teams': return ['Send ', value(inlineVariables(config.message), 'a message'), ' to Teams'];
     case 'mattermost': return ['Send ', value(inlineVariables(config.message), 'a message'), ' to Mattermost'];
-    case 'twilio': return ['Send SMS to ', value(inlineVariables(config.to), 'a number')];
-    case 'gitlab': return config.operation === 'addComment' ? ['Comment on ', value(config.project, 'a project'), ' #', value(inlineVariables(config.issueNumber), '?')] : config.operation === 'closeIssue' ? ['Close ', value(config.project, 'a project'), ' #', value(inlineVariables(config.issueNumber), '?')] : ['Create ', value(inlineVariables(config.title), 'an issue'), ' in ', value(config.project, 'a project')];
-    case 'linear': return config.operation === 'addComment' ? ['Comment on ', value(inlineVariables(config.issueKey), 'an issue')] : ['Create ', value(inlineVariables(config.title), 'an issue'), ' in ', value(config.team, 'a team')];
-    case 'zendesk': return config.operation === 'addComment' ? ['Comment on ticket ', value(inlineVariables(config.ticketNumber), '?')] : config.operation === 'solveTicket' ? ['Solve ticket ', value(inlineVariables(config.ticketNumber), '?')] : ['Create ', value(inlineVariables(config.subject), 'a ticket')];
-    case 'notion': return config.operation === 'addText' ? ['Add text to a page'] : ['Create ', value(inlineVariables(config.title), 'a page')];
+    case 'twilioSms': return ['Send SMS to ', value(inlineVariables(config.to), 'a number')];
     case 'googleSheets': return config.operation === 'addRow' ? ['Add a row to ', value(config.sheet, 'a sheet')] : ['Read the rows of ', value(config.sheet, 'a sheet')];
     case 'claude': return ['Ask Claude: ', value(inlineVariables(config.userInput), 'no prompt yet')];
     case 'readEmail': return ['Read ', value(config.folder, 'INBOX'), config.onlyUnread === false ? '' : ' (unread)'];
-    case 'slack': return ['Send ', value(inlineVariables(config.message), 'a message'), ' to ', value(config.channel, 'a channel')];
     case 'openAI': return ['Ask ', { value: config.model || 'OpenAI' }, ' ', value(readableExpression(config.userInput), 'a prompt')];
     case 'jenkins': return [{ value: config.operation || 'Call' }, ' on Jenkins'];
-    default: return [ACTIONS[node.type].description || ACTIONS[node.type].label];
+    default: {
+      const { fields, description, label } = ACTIONS[node.type];
+      const chosen = fields.find((field) => field.key === 'operation')?.options.find((option) => option.value === config.operation);
+      return [chosen?.label || description || label];
+    }
   }
 }
 
@@ -372,6 +382,7 @@ function findIssues(task) {
       if (empty) issues.push({ nodeId: node.id, field: field.key, message: `${field.label} is required` });
     });
     if (!reachable.has(node.id)) issues.push({ nodeId: node.id, message: 'Not connected to the task, so it will not run' });
+    if (node.type === 'start' && node !== rootNode(task) && !triggerBackend(node.config)) issues.push({ nodeId: node.id, field: 'trigger', message: 'Choose what starts the task here. Running by hand starts at the first start' });
   });
   return issues;
 }
@@ -404,35 +415,36 @@ function createNode(id, type, name, config) {
   return { id, type, name: name || ACTIONS[type].label, config: { ...(type === 'start' ? { trigger: 'manual' } : defaults), ...(type === 'script' ? { scriptLanguage: 'JAVASCRIPT' } : {}), ...(type === 'switch' ? { switchCases: [{ currentCase: 'first' }, { currentCase: 'second' }] } : {}), ...config }, position: { x: 0, y: 0 } };
 }
 
-function triggerConfigKeys(kind) {
-  return (ACTIONS[TYPE_BY_BACKEND[TRIGGER_ACTIONS[kind]]]?.fields || []).map((field) => field.key);
+function triggerConfigKeys(backend) {
+  return (ACTIONS[TYPE_BY_BACKEND[backend]]?.fields || []).map((field) => field.key);
 }
 
-/* Start and its trigger are one tile here, and two actions that lead to the same step in the saved
-   task, so that a task with a trigger can still be run by hand. */
+/* Each start tile is its trigger in the saved task. The first tile is also the Start action, so the task
+   can always be run by hand, and both lead to the same step. */
 function toBackend(task) {
   const actions = [];
   const connections = [];
+  const root = rootNode(task);
   task.nodes.forEach((node) => {
     const position = { guiXPos: Math.round(node.position.x), guiYPos: Math.round(node.position.y) };
     const inputs = isEntry(node) ? [] : [{ externalId: portId(node.id, INPUT_PORT), portType: 'INPUT' }];
     const outputs = portsOf(node).map((port) => ({ externalId: portId(node.id, port.id), portType: 'OUTPUT' }));
     if (node.type === 'start') {
-      actions.push({ '@type': ACTIONS.start.backend, ports: outputs, ...position });
-      const kind = node.config.trigger;
-      if (TRIGGER_ACTIONS[kind]) {
-        const keys = triggerConfigKeys(kind);
-        const settings = Object.fromEntries([...keys, 'triggerSuffix'].filter((key) => key in node.config).map((key) => [key, node.config[key]]));
-        actions.push({ '@type': TRIGGER_ACTIONS[kind], ...withoutEmptyValues(settings), ports: [{ externalId: portId(node.id, TRIGGER_PORT), portType: 'OUTPUT' }], ...position });
+      if (node === root) actions.push({ '@type': ACTIONS.start.backend, ports: outputs, ...position });
+      const backend = triggerBackend(node.config);
+      if (backend) {
+        const settings = Object.fromEntries([...triggerConfigKeys(backend), 'triggerSuffix'].filter((key) => key in node.config).map((key) => [key, node.config[key]]));
+        actions.push({ '@type': backend, ...withoutEmptyValues(settings), ports: [{ externalId: portId(node.id, TRIGGER_PORT), portType: 'OUTPUT' }], ...position });
       }
     } else {
       actions.push({ '@type': ACTIONS[node.type].backend, [STEP_ACTION_NAME]: node.name, ...withoutEmptyValues(node.config), ports: [...inputs, ...outputs], ...position });
     }
   });
   task.edges.forEach((edge) => {
+    const from = nodeById(task, edge.from);
     const target = { externalId: portId(edge.to, INPUT_PORT) };
-    connections.push({ source: { externalId: portId(edge.from, edge.port) }, target });
-    if (edge.from === rootNode(task).id && TRIGGER_ACTIONS[rootNode(task).config.trigger]) connections.push({ source: { externalId: portId(edge.from, TRIGGER_PORT) }, target });
+    if (from.type !== 'start' || from === root) connections.push({ source: { externalId: portId(edge.from, edge.port) }, target });
+    if (from.type === 'start' && triggerBackend(from.config)) connections.push({ source: { externalId: portId(edge.from, TRIGGER_PORT) }, target });
   });
   return { name: task.name, active: !!task.active, description: task.description || '', parameters: task.parameters, actions, connections };
 }
@@ -443,13 +455,17 @@ const outputPortsOf = (action) => (action.ports || []).filter((port) => port.por
 function fromBackend(saved) {
   const portOwners = {};
   if (!Array.isArray(saved.actions)) throw new Error('That file is not a task, since it has no steps.');
+  const savedIdOf = (action) => action?.ports?.[0]?.externalId.match(/^([^:]+):/)?.[1];
+  const startId = savedIdOf(saved.actions.find((action) => action['@type'] === ACTIONS.start.backend));
   const nodes = saved.actions.map((action) => {
     const type = TYPE_BY_BACKEND[action['@type']];
     if (!type) throw new Error(`This task uses a step this version does not know: ${action['@type']}.`);
     const config = Object.fromEntries(Object.entries(action).filter(([key]) => !LAYOUT_FIELDS.includes(key)));
-    /* Keeping the saved id keeps the checksum, so saving an unchanged task adds no version. */
-    const savedId = !ACTIONS[type].trigger && action.ports?.[0]?.externalId.match(/^([^:]+):/)?.[1];
-    const node = createNode(savedId || `n${uniqueId()}`, type, action[STEP_ACTION_NAME] && action[STEP_ACTION_NAME] !== action['@type'] ? action[STEP_ACTION_NAME] : undefined, config);
+    /* Keeping the saved id keeps the checksum, so saving an unchanged task adds no version. The trigger of the
+       Start tile carries the id of that tile. */
+    const savedId = savedIdOf(action);
+    const ownId = savedId && !(ACTIONS[type].trigger && savedId === startId) ? savedId : undefined;
+    const node = createNode(ownId || `n${uniqueId()}`, type, action[STEP_ACTION_NAME] && action[STEP_ACTION_NAME] !== action['@type'] ? action[STEP_ACTION_NAME] : undefined, config);
     node.position = { x: action.guiXPos || 0, y: action.guiYPos || 0 };
     node.savedPort = action.ports?.[0]?.externalId;
     node.backendAction = action;
@@ -469,19 +485,26 @@ function fromBackend(saved) {
     if (from && to) task.edges.push({ from: from.id, port: outputName(from, source.externalId), to });
   });
 
-  /* A single trigger joins the Start tile when both lead to the same step. Anything else stays as its own tile. */
+  /* Every trigger is a start tile. The first that leads where Start leads joins the Start tile, and the others
+     keep a tile of their own. */
   const start = rootNode(task);
-  const triggers = nodes.filter((node) => ACTIONS[node.type].trigger);
-  const startEdge = task.edges.find((edge) => edge.from === start.id);
-  const triggerEdge = triggers.length === 1 && task.edges.find((edge) => edge.from === triggers[0].id);
-  if (triggers.length === 1 && (!startEdge || !triggerEdge || startEdge.to === triggerEdge.to)) {
-    const trigger = triggers[0];
-    Object.assign(start.config, trigger.config, { trigger: TRIGGER_KINDS[trigger.backendAction['@type']] });
-    outputPortsOf(trigger.backendAction).forEach((port) => { portOwners[port.externalId] = start.id; });
-    task.nodes = nodes.filter((node) => node !== trigger);
-    task.edges = task.edges.filter((edge) => edge.from !== trigger.id && edge.from !== start.id);
-    if (startEdge || triggerEdge) task.edges.push({ from: start.id, port: 'out', to: (startEdge || triggerEdge).to });
-  }
+  let startEdge = task.edges.find((edge) => edge.from === start.id);
+  nodes.filter((node) => ACTIONS[node.type].trigger).forEach((trigger) => {
+    const backend = trigger.backendAction['@type'];
+    const settings = { ...trigger.config, ...(isAppTrigger(backend) ? { trigger: APP_TRIGGER, app: backend } : { trigger: TRIGGER_KINDS[backend] }) };
+    const triggerEdge = task.edges.find((edge) => edge.from === trigger.id);
+    task.edges = task.edges.filter((edge) => edge.from !== trigger.id);
+    if (start.config.trigger === 'manual' && (!startEdge || !triggerEdge || startEdge.to === triggerEdge.to)) {
+      Object.assign(start.config, settings);
+      outputPortsOf(trigger.backendAction).forEach((port) => { portOwners[port.externalId] = start.id; });
+      task.nodes = task.nodes.filter((node) => node !== trigger);
+      if (!startEdge && triggerEdge) { startEdge = { from: start.id, port: 'out', to: triggerEdge.to }; task.edges.push(startEdge); }
+    } else {
+      Object.assign(trigger, { type: 'start', config: settings });
+      if (triggerEdge) task.edges.push({ from: trigger.id, port: 'out', to: triggerEdge.to });
+    }
+  });
+  task.nodes = [start, ...task.nodes.filter((node) => node !== start)];
   task.nodes.forEach((node) => { delete node.backendAction; });
 
   /* Tasks without usable positions are laid out, since their steps would otherwise sit on top of each other. */
@@ -518,6 +541,13 @@ function compareVersions(current, proposed) {
 
 const ACCESS_TOKEN_KEY = 'accessToken';
 
+/* What a connector reads from its service for a field, on the server with the step's credential. */
+function lookUp(node, input, what) {
+  const settings = Object.fromEntries(Object.entries(node.config).filter(([, value]) => typeof value === 'string'));
+  return request(`/connectors/${encodeURIComponent(connectorOf(node))}/${what}`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ operation: node.config.operation, input, credential: node.config.credential, settings }) });
+}
+
 async function request(url, options = {}) {
   const accessToken = sessionStorage.getItem(ACCESS_TOKEN_KEY);
   const response = await fetch(url, { ...options, headers: { Accept: 'application/json', ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) } })
@@ -532,7 +562,7 @@ async function request(url, options = {}) {
 
 /* ---------- Runs ---------- */
 
-const RUN_STATUSES = { FINISHED: 'success', FAILED: 'failed', ABORTED: 'stopped' };
+const RUN_STATUSES = { FINISHED: 'success', FAILED: 'failed', WAITING: 'waiting', ABORTED: 'stopped' };
 const SWITCH_PORT = /port nr: (\d+)/;
 
 function choosePort(node, output) {
@@ -716,7 +746,7 @@ function createStore() {
     const owner = task.portOwners?.[externalId] || externalId?.split(':')[0];
     if (owner && nodeById(task, owner)) return nodeById(task, owner);
     const type = TYPE_BY_BACKEND[actionType];
-    if (TRIGGER_KINDS[actionType]) return rootNode(task);
+    if (TRIGGER_KINDS[actionType] || isAppTrigger(actionType)) return rootNode(task);
     return task.nodes.find((node) => node.type === type) || null;
   };
 
@@ -825,6 +855,10 @@ function createStore() {
       await loadCredentials();
     },
     /* The address of the service's sign-in page, where a person connects the credential's account. */
+    /* The choices of a connector's input, read on the server with the step's credential. */
+    async connectorChoices(node, input) { return lookUp(node, input, 'choices'); },
+    /* The fields of a form that follows the service, such as the columns of a table. */
+    async connectorFields(node, input) { return lookUp(node, input, 'fields'); },
     async connectCredential(name) {
       return (await request(`/credentials/${encodeURIComponent(name)}/connect`, { method: 'POST' })).url;
     },
@@ -845,6 +879,14 @@ function createStore() {
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     loadTaskList,
 
+    /* The files the run keeps before this step: what each earlier Read file keeps, by the name later steps choose it by. */
+    filesBefore(nodeId) {
+      const earlier = new Set();
+      const visit = (id) => task.edges.filter((edge) => edge.to === id).forEach((edge) => { if (!earlier.has(edge.from)) { earlier.add(edge.from); visit(edge.from); } });
+      visit(nodeId);
+      return [...earlier].map((id) => nodeById(task, id)).filter((node) => node.type === 'readFile' && node.config.filename)
+        .map((node) => node.config.keepAs || node.config.filename.split(/[\\/]/).pop());
+    },
     /* What the steps just before this one give, by name, for $lastLog.outputVariables. */
     outputsBefore(nodeId) { return Object.assign({}, ...task.edges.filter((edge) => edge.to === nodeId).map((edge) => ACTIONS[nodeById(task, edge.from).type]?.outputs)); },
     select(nodeId) { if (nodeId === selectedId) return; selectedId = nodeId; emit('selection'); },
@@ -852,12 +894,36 @@ function createStore() {
       remember(`${nodeId}.${key}`);
       const node = nodeById(task, nodeId);
       node.config[key] = value;
-      if (node.type === 'start' && key === 'trigger' && TRIGGER_ACTIONS[value]) {
-        Object.entries(TRIGGER_DEFAULTS[value]).forEach(([name, preset]) => { if (node.config[name] === undefined) node.config[name] = preset; });
-        if (value === 'webhook') node.config.triggerSuffix ??= uniqueId();
+      if (node.type === 'start' && key === 'trigger' && (TRIGGER_ACTIONS[value] || value === APP_TRIGGER)) {
+        Object.entries(TRIGGER_DEFAULTS[value] || {}).forEach(([name, preset]) => { if (node.config[name] === undefined) node.config[name] = preset; });
+        /* Triggers of one kind are told apart by their suffix. It is random, since an address that a person copies into a service is made of it. */
+        node.config.triggerSuffix ??= crypto.randomUUID();
         task.active = true;
       }
+      /* A further start is named after its trigger, as it is when the task is opened again. */
+      if (node.type === 'start' && node !== rootNode(task) && (key === 'trigger' || key === 'app')) node.name = ACTIONS[TYPE_BY_BACKEND[triggerBackend(node.config)]]?.label ?? node.name;
       changed(key === 'switchCases' ? 'structure' : 'config');
+    },
+    /* The Start tile takes the first trigger. Each further one gets a start tile of its own under the others,
+       leading where Start leads, since most tasks do the same work however they start. */
+    addTrigger(trigger, app) {
+      const root = rootNode(task);
+      let tile = root;
+      if (root.config.trigger !== 'manual' && trigger !== 'manual') {
+        remember();
+        const starts = task.nodes.filter((node) => node.type === 'start');
+        tile = createNode(`n${uniqueId()}`, 'start', nameWithNumber(task, 'Start'));
+        tile.position = { x: root.position.x, y: Math.max(...starts.map((node) => node.position.y)) + layout.rowGap };
+        task.nodes.push(tile);
+        const next = edgeFrom(task, root.id, 'out');
+        if (next) task.edges.push({ from: tile.id, port: 'out', to: next.to });
+        changed('structure');
+      }
+      this.updateConfig(tile.id, 'trigger', trigger);
+      if (app) this.updateConfig(tile.id, 'app', app);
+      selectedId = null;
+      this.select(tile.id);
+      return tile;
     },
     rename(nodeId, name) { remember(`${nodeId}.name`); nodeById(task, nodeId).name = name; changed('config'); },
     updateTask(fields) { remember(`task.${Object.keys(fields)[0]}`); Object.assign(task, fields); changed('meta'); },
@@ -874,6 +940,7 @@ function createStore() {
     endMove() { markChanged(); },
 
     addStep(type, { fromId, port, position } = {}) {
+      if (isAppTrigger(ACTIONS[type].backend)) return this.addTrigger(APP_TRIGGER, ACTIONS[type].backend);
       remember();
       const node = createNode(`n${uniqueId()}`, type, nameWithNumber(task, ACTIONS[type].label));
       const anchor = fromId || selectedId || lastOnMainPath(task);
@@ -904,7 +971,7 @@ function createStore() {
     },
     removeNode(nodeId) {
       const node = nodeById(task, nodeId);
-      if (!node || node.type === 'start') return false;
+      if (!node || node === rootNode(task)) return false;
       remember();
       const incoming = task.edges.filter((edge) => edge.to === nodeId);
       const outgoing = task.edges.filter((edge) => edge.from === nodeId);
@@ -987,6 +1054,7 @@ function createStore() {
     async saveAs(name, description) {
       task.name = name;
       task.description = description;
+      newTriggerAddresses(task);
       emit('meta');
       return store.save();
     },
@@ -1042,6 +1110,8 @@ function createStore() {
     },
     importTask(serialized) {
       const imported = fromBackend(JSON.parse(serialized));
+      /* A new task gets addresses of its own; restoring a saved one keeps the addresses its services know. */
+      if (!tasks.some((saved) => saved.name === imported.name)) newTriggerAddresses(imported);
       if (!mayLeaveTask()) return false;
       showingOlderVersion = false;
       review = null;
@@ -1092,9 +1162,11 @@ function createStore() {
       }
       runner.load(run);
     },
-    /* The run ends as stopped once the server has stopped it, which following it shows. */
+    /* The run ends as stopped once the server has stopped it, which following it shows. Nothing follows a waiting run
+       while it waits, so a stop starts following it. */
     async stopRun(run) {
       await request(`/execution/${run.id}/stop`, { method: 'POST' });
+      if (!run.live) followRun(run);
     },
     /* Runs one step on its own with the values given, without touching the run history. */
     async testStep(nodeId, { parameters, lastOutput, lastOutputVariables }) {
@@ -1167,7 +1239,7 @@ function formatAgo(timestamp) {
 export default async function bootEngine() {
   loadCatalogue((await request('/task/actions')).actions);
   window.DT = {
-    ACTIONS, CATEGORIES, FAILURE_FIELDS,
+    ACTIONS, CATEGORIES, FAILURE_FIELDS, INITIALS, APP_TRIGGER, iconOf,
     createStore, stepsMatching, portsOf, edgeFrom, nodeById, rootNode,
     describeNode, summaryText, fieldVisible, interpolate,
     formatDuration, formatAgo, intervalText, scheduleText,

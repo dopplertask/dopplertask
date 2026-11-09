@@ -1,0 +1,150 @@
+{
+  "name": "google-forms",
+  "label": "Google Forms",
+  "description": "Receive form responses from Google Forms",
+  "icon": "googleforms",
+  "hosts": [
+    "forms.googleapis.com",
+    "www.googleapis.com"
+  ],
+  "baseUrl": "https://forms.googleapis.com/v1",
+  "upstream": {
+    "package": "@activepieces/piece-google-forms",
+    "version": "0.7.5"
+  },
+  "credential": {
+    "oauth2": {
+      "authUrl": "https://accounts.google.com/o/oauth2/auth",
+      "tokenUrl": "https://oauth2.googleapis.com/token",
+      "scope": "https://www.googleapis.com/auth/forms.responses.readonly https://www.googleapis.com/auth/drive.readonly email",
+      "authParameters": "access_type=offline&prompt=consent"
+    }
+  },
+  "lists": {
+    "forms": {
+      "request": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/drive/v3/files",
+        "query": {
+          "q": "mimeType='application/vnd.google-apps.form'",
+          "includeItemsFromAllDrives": "false",
+          "supportsAllDrives": "true",
+          "corpora": "user"
+        }
+      },
+      "items": "$.files",
+      "label": "$.name",
+      "value": "$.id"
+    }
+  },
+  "actions": {
+    "forms_get_form": {
+      "label": "Get Form",
+      "description": "Fetch a form's full structure: title, settings, items with their indices and itemIds, question IDs, and current revisionId.",
+      "inputs": {
+        "form_id": {
+          "label": "Form",
+          "description": "The form. Choose it from the list, or copy its ID from the form's edit address: docs.google.com/forms/d/<ID>/edit.",
+          "required": true,
+          "list": "forms"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://forms.googleapis.com/v1/forms/{{form_id}}"
+      },
+      "outputs": {
+        "formId": "$.formId",
+        "title": "$.info.title",
+        "revisionId": "$.revisionId"
+      }
+    },
+    "forms_list_responses": {
+      "label": "List Form Responses",
+      "description": "List submitted responses for a form, with each response's responseId, timestamps, and answers keyed by questionId.",
+      "inputs": {
+        "form_id": {
+          "label": "Form",
+          "description": "The form. Choose it from the list, or copy its ID from the form's edit address: docs.google.com/forms/d/<ID>/edit.",
+          "required": true,
+          "list": "forms"
+        },
+        "filter": {
+          "label": "Filter",
+          "description": "Optional filter on submission time, e.g. \"timestamp > 2026-01-01T00:00:00Z\" or \"timestamp < 2026-06-01T00:00:00Z\". Only the timestamp field is supported."
+        },
+        "page_size": {
+          "label": "Page Size",
+          "description": "Maximum number of responses to return per page (default 5000).",
+          "type": "number"
+        },
+        "page_token": {
+          "label": "Page Token",
+          "description": "Token from a previous call's nextPageToken to fetch the next page of responses."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://forms.googleapis.com/v1/forms/{{form_id}}/responses",
+        "query": {
+          "filter": "{{filter}}",
+          "pageSize": "{{page_size}}",
+          "pageToken": "{{page_token}}"
+        }
+      },
+      "beforeRequest": "// Encoded as the original's URLSearchParams query sends it: spaces as +, and ! ' ( ) ~ escaped.\nvar formEncoded = (text) => encodeURIComponent(String(text)).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar pairs = Object.keys(request.query).map((key) => formEncoded(key) + '=' + formEncoded(request.query[key]));\nif (pairs.length > 0) request.url = request.url + '?' + pairs.join('&');\nrequest.query = {};\nreturn request;",
+      "afterResponse": "var responses = response.responses || [];\nreturn { responses: responses, count: responses.length, nextPageToken: response.nextPageToken };",
+      "outputs": {
+        "count": "$.count",
+        "nextPageToken": "$.nextPageToken"
+      }
+    },
+    "forms_get_response": {
+      "label": "Get Form Response",
+      "description": "Fetch one submission by its responseId, including all answers keyed by questionId and submission timestamps.",
+      "inputs": {
+        "form_id": {
+          "label": "Form",
+          "description": "The form. Choose it from the list, or copy its ID from the form's edit address: docs.google.com/forms/d/<ID>/edit.",
+          "required": true,
+          "list": "forms"
+        },
+        "response_id": {
+          "label": "Response ID",
+          "description": "The ID of the response to fetch. Take it from List Form Responses or the New Response trigger.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://forms.googleapis.com/v1/forms/{{form_id}}/responses/{{response_id}}"
+      },
+      "outputs": {
+        "responseId": "$.responseId",
+        "lastSubmittedTime": "$.lastSubmittedTime"
+      }
+    }
+  },
+  "triggers": {
+    "new_response": {
+      "label": "New Response",
+      "description": "Triggers when a respondent submits a new response to the form.",
+      "inputs": {
+        "form_id": {
+          "label": "Form",
+          "description": "The form. Choose it from the list, or copy its ID from the form's edit address: docs.google.com/forms/d/<ID>/edit.",
+          "required": true,
+          "list": "forms"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://forms.googleapis.com/v1/forms/{{form_id}}/responses"
+      },
+      "items": "$.responses",
+      "newBy": "time",
+      "key": "$.lastSubmittedTime",
+      "beforeRequest": "// Since the previous check, encoded as the original's URLSearchParams query sends it: spaces as +.\nif (Number(inputs.lastPollTime)) request.url = request.url + '?filter=' + encodeURIComponent('timestamp > ' + new Date(Number(inputs.lastPollTime)).toISOString()).replace(/%20/g, '+');\nreturn request;"
+    }
+  }
+}

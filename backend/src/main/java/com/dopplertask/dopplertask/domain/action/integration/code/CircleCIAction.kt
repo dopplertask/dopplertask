@@ -61,7 +61,7 @@ class CircleCIAction : Action() {
         if ((operationValue == RERUN_WORKFLOW || operationValue == CANCEL_WORKFLOW) && workflowValue.isBlank()) return ActionResult.failure("CircleCI needs the ID of the workflow.")
 
         val headers = mapOf("Circle-Token" to tokenValue)
-        val api = read(baseUrl).trim().trimEnd('/') + "/api/v2"
+        val api = JsonApi.baseAddress(read(baseUrl)) + "/api/v2"
         val workflow = "$api/workflow/${JsonApi.encoded(workflowValue)}"
         val result = when (operationValue) {
             START_PIPELINE -> JsonApi.call("CircleCI", "POST", "$api/project/${projectValue.split("/").joinToString("/") { JsonApi.encoded(it) }}/pipeline", headers, read(branch).trim().takeIf { it.isNotEmpty() }?.let { mapOf("branch" to it) } ?: mapOf<String, String>())

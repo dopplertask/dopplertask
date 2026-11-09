@@ -1,0 +1,2103 @@
+{
+  "name": "sendinblue",
+  "label": "Brevo",
+  "description": "Email, SMS and contact marketing platform, formerly Sendinblue.",
+  "icon": "brevo",
+  "hosts": [
+    "api.brevo.com"
+  ],
+  "baseUrl": "https://api.brevo.com/v3",
+  "upstream": {
+    "package": "@activepieces/piece-sendinblue",
+    "version": "0.6.1"
+  },
+  "credential": {
+    "fields": {
+      "apiKey": {
+        "label": "API Key",
+        "description": "To get your API key:\n1. Log in to Brevo.\n2. Open the account menu, go to **SMTP & API** and open the **API Keys** tab.\n3. Click **Generate a new API key**, name it and copy the key.",
+        "secret": true,
+        "required": true
+      }
+    },
+    "headers": {
+      "api-key": "{{credential.apiKey}}"
+    }
+  },
+  "lists": {
+    "lists": {
+      "request": {
+        "url": "https://api.brevo.com/v3/contacts/lists?limit=50&offset=0"
+      },
+      "items": "$.lists"
+    },
+    "sender_emails": {
+      "request": {
+        "url": "https://api.brevo.com/v3/senders"
+      },
+      "items": "$.senders",
+      "label": "$.email",
+      "value": "$.email"
+    },
+    "templates": {
+      "request": {
+        "url": "https://api.brevo.com/v3/smtp/templates?limit=50&offset=0"
+      },
+      "items": "$.templates"
+    }
+  },
+  "actions": {
+    "create_or_update_contact": {
+      "label": "Create or Update Contact",
+      "description": "Create a contact, or update it if the email already exists.",
+      "inputs": {
+        "email": {
+          "label": "Email",
+          "description": "The contact is matched by this address.",
+          "required": true
+        },
+        "ext_id": {
+          "label": "External ID",
+          "description": "Your own ID for this contact."
+        },
+        "attributes": {
+          "label": "Attributes",
+          "description": "Use attribute names from your Brevo account, such as FIRSTNAME.",
+          "type": "json"
+        },
+        "list_ids": {
+          "label": "Add to Lists",
+          "description": "The contact stays on lists it is already in.",
+          "type": "json",
+          "list": "lists"
+        },
+        "email_blacklisted": {
+          "label": "Unsubscribe From Email",
+          "description": "Unticked keeps the current setting.",
+          "type": "boolean"
+        },
+        "sms_blacklisted": {
+          "label": "Unsubscribe From SMS",
+          "description": "Unticked keeps the current setting.",
+          "type": "boolean"
+        },
+        "blocked_sender_addresses": {
+          "label": "Blocked Sender Addresses",
+          "description": "Senders whose transactional emails this contact will not get.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.brevo.com/v3/contacts",
+        "body": {}
+      },
+      "beforeRequest": "function ids(name) { return JSON.parse(inputs[name] || '[]').map(Number).filter(Number.isFinite); }\nfunction texts(name) { return JSON.parse(inputs[name] || '[]').map(function (v) { return String(v).trim(); }).filter(function (v) { return v.length > 0; }); }\nfunction some(list) { return list.length > 0 ? list : undefined; }\nfunction obj(name) { var v = inputs[name] ? JSON.parse(inputs[name]) : undefined; return v && Object.keys(v).length > 0 ? v : undefined; }\nrequest.body = {email: inputs.email, ext_id: inputs.ext_id || undefined, attributes: obj('attributes'), emailBlacklisted: inputs.email_blacklisted === 'true' || undefined,\n  smsBlacklisted: inputs.sms_blacklisted === 'true' || undefined, listIds: some(ids('list_ids')), smtpBlacklistSender: some(texts('blocked_sender_addresses')), updateEnabled: true};\nreturn request;",
+      "afterResponse": "return call({method: 'GET', url: '/contacts/' + encodeURIComponent(inputs.email)});"
+    },
+    "find_contact": {
+      "label": "Find Contact",
+      "description": "Check whether a contact exists in Brevo and fetch its details.",
+      "inputs": {
+        "identifier_type": {
+          "label": "Identifier Type",
+          "description": "What kind of value the Identifier is.",
+          "type": "select",
+          "defaultValue": "email_id",
+          "options": [
+            {
+              "value": "email_id",
+              "label": "Email"
+            },
+            {
+              "value": "phone_id",
+              "label": "Mobile Number"
+            },
+            {
+              "value": "contact_id",
+              "label": "Contact ID"
+            },
+            {
+              "value": "ext_id",
+              "label": "External ID"
+            },
+            {
+              "value": "whatsapp_id",
+              "label": "WhatsApp"
+            },
+            {
+              "value": "landline_number_id",
+              "label": "Landline Number"
+            }
+          ]
+        },
+        "identifier": {
+          "label": "Identifier",
+          "description": "The email, number or ID of the contact.",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://api.brevo.com/v3/contacts/{{identifier}}",
+        "query": {
+          "identifierType": "{{identifier_type}}"
+        }
+      },
+      "afterResponse": "return {found: true, data: response};"
+    },
+    "unsubscribe_contact": {
+      "label": "Unsubscribe Contact",
+      "description": "Blacklist a contact so it stops receiving email or SMS.",
+      "inputs": {
+        "email": {
+          "label": "Email",
+          "description": "The contact is matched by this address.",
+          "required": true
+        },
+        "unsubscribe_email": {
+          "label": "Unsubscribe From Email",
+          "description": "Unticked keeps the current setting.",
+          "type": "boolean",
+          "defaultValue": "true"
+        },
+        "unsubscribe_sms": {
+          "label": "Unsubscribe From SMS",
+          "description": "Unticked keeps the current setting.",
+          "type": "boolean"
+        },
+        "unlink_list_ids": {
+          "label": "Remove From Lists",
+          "description": "Lists to take the contact off.",
+          "type": "json",
+          "list": "lists"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.brevo.com/v3/contacts/{{email}}",
+        "body": {}
+      },
+      "beforeRequest": "function ids(name) { return JSON.parse(inputs[name] || '[]').map(Number).filter(Number.isFinite); }\nvar lists = ids('unlink_list_ids'), email = inputs.unsubscribe_email === 'true', sms = inputs.unsubscribe_sms === 'true';\nif (!email && !sms && lists.length === 0) throw new Error('Tick Unsubscribe From Email or Unsubscribe From SMS, or pick a list to remove.');\nrequest.body = {emailBlacklisted: email || undefined, smsBlacklisted: sms || undefined, unlinkListIds: lists.length > 0 ? lists : undefined};\nreturn request;",
+      "afterResponse": "return {success: true};"
+    },
+    "send_transactional_email": {
+      "label": "Send Transactional Email",
+      "description": "Send one email, written here or from a saved Brevo template.",
+      "inputs": {
+        "to": {
+          "label": "To",
+          "type": "json",
+          "required": true
+        },
+        "cc": {
+          "label": "Cc",
+          "type": "json"
+        },
+        "bcc": {
+          "label": "Bcc",
+          "type": "json"
+        },
+        "reply_to_email": {
+          "label": "Reply To",
+          "description": "Where replies go. Empty: back to the sender."
+        },
+        "sender_email": {
+          "label": "Sender",
+          "description": "The verified sender the email is sent from.",
+          "list": "sender_emails"
+        },
+        "sender_name": {
+          "label": "Sender Name",
+          "description": "Replaces the display name of the selected sender."
+        },
+        "template_id": {
+          "label": "Template ID",
+          "description": "Send a saved Brevo template instead of supplying subject and content.",
+          "type": "number",
+          "list": "templates"
+        },
+        "params": {
+          "label": "Template Parameters",
+          "description": "Values for the template placeholders, by name.",
+          "type": "json"
+        },
+        "subject": {
+          "label": "Subject",
+          "description": "Required when no Template ID is picked."
+        },
+        "html_content": {
+          "label": "HTML Content",
+          "description": "Required when no Template ID is picked.",
+          "type": "multiline"
+        },
+        "text_content": {
+          "label": "Text Content",
+          "description": "Plain text version for inboxes that cannot show HTML.",
+          "type": "multiline"
+        },
+        "attachments": {
+          "label": "Attachments",
+          "description": "Files by public URL that Brevo downloads when sending.",
+          "type": "json"
+        },
+        "tags": {
+          "label": "Tags",
+          "description": "Labels used to filter this message in Brevo reporting.",
+          "type": "json"
+        },
+        "scheduled_at": {
+          "label": "Send At",
+          "description": "Leave empty to send right away."
+        },
+        "sandbox": {
+          "label": "Sandbox Mode",
+          "description": "Brevo checks the request but delivers nothing.",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.brevo.com/v3/smtp/email",
+        "body": {}
+      },
+      "beforeRequest": "function some(list) { return list.length > 0 ? list : undefined; }\nfunction obj(name) { var v = inputs[name] ? JSON.parse(inputs[name]) : undefined; return v && Object.keys(v).length > 0 ? v : undefined; }\nfunction rows(name) { var v = inputs[name] ? JSON.parse(inputs[name]) : []; return Array.isArray(v) ? v.filter(function (r) { return r && typeof r === 'object' && !Array.isArray(r); }) : []; }\nfunction people(name) { return rows(name).filter(function (r) { return typeof r.email === 'string' && r.email.length > 0; }).map(function (r) { return typeof r.name === 'string' && r.name.length > 0 ? {email: r.email, name: r.name} : {email: r.email}; }); }\nvar i = inputs, to = people('to');\nif (to.length === 0) throw new Error('At least one valid recipient email is required in \"To\".');\nif (!i.template_id && (!i.subject || !i.html_content)) throw new Error('Provide a Template ID, or supply both Subject and HTML Content.');\nif (!i.template_id && !i.sender_email) throw new Error('A Sender is required when no Template ID is selected.');\nvar tags = i.tags ? JSON.parse(i.tags) : [];\nrequest.body = {to: to, sender: i.sender_email ? {email: i.sender_email, name: i.sender_name || undefined} : undefined, templateId: i.template_id ? Number(i.template_id) : undefined,\n  subject: i.subject || undefined, htmlContent: i.html_content || undefined, textContent: i.text_content || undefined, params: obj('params'), cc: some(people('cc')), bcc: some(people('bcc')),\n  replyTo: i.reply_to_email ? {email: i.reply_to_email} : undefined, attachment: some(rows('attachments').filter(function (a) { return typeof a.url === 'string' && typeof a.name === 'string'; }).map(function (a) { return {url: a.url, name: a.name}; })),\n  tags: some(Array.isArray(tags) ? tags.filter(function (t) { return typeof t === 'string'; }) : []), scheduledAt: i.scheduled_at || undefined, headers: i.sandbox === 'true' ? {'X-Sib-Sandbox': 'drop'} : undefined};\nreturn request;"
+    },
+    "send_transactional_sms": {
+      "label": "Send Transactional SMS",
+      "description": "Send a transactional SMS from your Brevo account.",
+      "inputs": {
+        "sender": {
+          "label": "Sender",
+          "description": "Up to 11 letters and digits, or 15 digits only.",
+          "required": true
+        },
+        "recipient": {
+          "label": "Recipient",
+          "description": "Country code first, no + or leading zeros.",
+          "required": true
+        },
+        "content": {
+          "label": "Content",
+          "description": "Over 160 characters is sent as several messages.",
+          "type": "multiline",
+          "required": true
+        },
+        "type": {
+          "label": "Message Type",
+          "description": "Transactional for order and account notices, Marketing for promotions.",
+          "type": "select",
+          "defaultValue": "transactional",
+          "options": [
+            {
+              "value": "transactional",
+              "label": "Transactional"
+            },
+            {
+              "value": "marketing",
+              "label": "Marketing"
+            }
+          ]
+        },
+        "tag": {
+          "label": "Tag",
+          "description": "Label used to filter this message in Brevo reporting."
+        },
+        "web_url": {
+          "label": "Webhook URL",
+          "description": "Brevo posts delivery reports for this message here."
+        },
+        "unicode_enabled": {
+          "label": "Send as Unicode",
+          "description": "Needed for emoji and non-Latin text; 70 characters per part.",
+          "type": "boolean"
+        },
+        "organisation_prefix": {
+          "label": "Brand Name",
+          "description": "Shown before the message so people know who sent it."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.brevo.com/v3/transactionalSMS/send",
+        "body": {
+          "sender": "{{sender}}",
+          "recipient": "{{recipient}}",
+          "content": "{{content}}",
+          "type": "{{type}}",
+          "tag": "{{tag}}",
+          "webUrl": "{{web_url}}",
+          "unicodeEnabled": "{{unicode_enabled}}",
+          "organisationPrefix": "{{organisation_prefix}}"
+        }
+      }
+    },
+    "create_event": {
+      "label": "Create Event",
+      "description": "Track a custom event for a contact.",
+      "inputs": {
+        "event_name": {
+          "label": "Name",
+          "description": "How the event is named in Brevo.",
+          "required": true
+        },
+        "event_date": {
+          "label": "Date",
+          "description": "Leave empty to use the current time."
+        },
+        "event_properties": {
+          "label": "Details",
+          "description": "Event data, such as an order ID and total.",
+          "type": "json"
+        },
+        "email": {
+          "label": "Email",
+          "description": "The contact the event belongs to.",
+          "required": true
+        },
+        "contact_properties": {
+          "label": "Attributes",
+          "description": "Contact attributes to update, such as FIRSTNAME.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.brevo.com/v3/events",
+        "body": {
+          "event_name": "{{event_name}}",
+          "identifiers": {
+            "email_id": "{{email}}"
+          },
+          "event_date": "{{event_date}}",
+          "event_properties": "{{event_properties}}",
+          "contact_properties": "{{contact_properties}}"
+        }
+      },
+      "beforeRequest": "['event_properties', 'contact_properties'].forEach(function (key) { var v = request.body[key]; if (v && typeof v === 'object' && Object.keys(v).length === 0) delete request.body[key]; });\nreturn request;",
+      "afterResponse": "return {success: true};"
+    },
+    "list_contacts": {
+      "label": "List Contacts",
+      "description": "List contacts in a Brevo account, optionally filtered by list, segment, or modification date.",
+      "inputs": {
+        "list_ids": {
+          "label": "List IDs",
+          "description": "Only return contacts belonging to these list IDs. Mutually exclusive with Segment ID.",
+          "type": "json",
+          "list": "lists"
+        },
+        "segment_id": {
+          "label": "Segment ID",
+          "description": "Only return contacts belonging to this segment. Mutually exclusive with List IDs."
+        },
+        "created_since": {
+          "label": "Created Since",
+          "description": "Only return contacts created on or after this date."
+        },
+        "modified_since": {
+          "label": "Modified Since",
+          "description": "Only return contacts modified on or after this date."
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Number of contacts to return. Maximum 1000.",
+          "type": "number",
+          "defaultValue": "50"
+        },
+        "offset": {
+          "label": "Offset",
+          "description": "Number of contacts to skip, for pagination.",
+          "type": "number",
+          "defaultValue": "0"
+        },
+        "sort": {
+          "label": "Sort",
+          "description": "Sort contacts on their creation date.",
+          "type": "select",
+          "options": [
+            {
+              "value": "asc",
+              "label": "Ascending"
+            },
+            {
+              "value": "desc",
+              "label": "Descending"
+            }
+          ]
+        }
+      },
+      "request": {
+        "url": "https://api.brevo.com/v3/contacts",
+        "query": {
+          "createdSince": "{{created_since}}",
+          "modifiedSince": "{{modified_since}}",
+          "limit": "{{limit}}",
+          "offset": "{{offset}}",
+          "sort": "{{sort}}"
+        }
+      },
+      "beforeRequest": "function ids(name) { return JSON.parse(inputs[name] || '[]').map(Number).filter(Number.isFinite); }\nvar lists = ids('list_ids');\nif (lists.length > 0) request.query.listIds = lists.join(',');\nif (inputs.segment_id) request.query.segmentId = String(Number(inputs.segment_id));\nreturn request;"
+    },
+    "update_contact": {
+      "label": "Update Contact",
+      "description": "Update an existing Brevo contact by email, mobile number, contact ID, external ID, WhatsApp or landline number.",
+      "inputs": {
+        "identifier_type": {
+          "label": "Identifier Type",
+          "description": "What kind of value the Identifier is.",
+          "type": "select",
+          "defaultValue": "email_id",
+          "options": [
+            {
+              "value": "email_id",
+              "label": "Email"
+            },
+            {
+              "value": "phone_id",
+              "label": "Mobile Number"
+            },
+            {
+              "value": "contact_id",
+              "label": "Contact ID"
+            },
+            {
+              "value": "ext_id",
+              "label": "External ID"
+            },
+            {
+              "value": "whatsapp_id",
+              "label": "WhatsApp"
+            },
+            {
+              "value": "landline_number_id",
+              "label": "Landline Number"
+            }
+          ]
+        },
+        "identifier": {
+          "label": "Identifier",
+          "description": "The email, number or ID of the contact.",
+          "required": true
+        },
+        "attributes": {
+          "label": "Attributes",
+          "description": "Attribute names must already exist in your Brevo account and be in capital letters, such as {\"FNAME\":\"Elly\", \"LNAME\":\"Roger\"}. Only the attributes you list are changed.",
+          "type": "json"
+        },
+        "ext_id": {
+          "label": "External ID",
+          "description": "Sets a new external id for the contact."
+        },
+        "email_blacklisted": {
+          "label": "Email Blacklisted?",
+          "description": "Whether the contact is blacklisted for emails. Leave empty or pick Leave unchanged to keep the contact's current setting.",
+          "type": "select",
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes"
+            },
+            {
+              "value": "no",
+              "label": "No"
+            },
+            {
+              "value": "unchanged",
+              "label": "Leave unchanged"
+            }
+          ]
+        },
+        "sms_blacklisted": {
+          "label": "SMS Blacklisted?",
+          "description": "Whether the contact is blacklisted for SMS. Leave empty or pick Leave unchanged to keep the contact's current setting.",
+          "type": "select",
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes"
+            },
+            {
+              "value": "no",
+              "label": "No"
+            },
+            {
+              "value": "unchanged",
+              "label": "Leave unchanged"
+            }
+          ]
+        },
+        "list_ids": {
+          "label": "Add to Lists",
+          "description": "Lists to add the contact to.",
+          "type": "json",
+          "list": "lists"
+        },
+        "unlink_list_ids": {
+          "label": "Remove From Lists",
+          "description": "Lists to remove the contact from.",
+          "type": "json",
+          "list": "lists"
+        },
+        "blocked_sender_addresses": {
+          "label": "Blocked Sender Addresses",
+          "description": "Sender email addresses this contact must not receive transactional email from. Leave empty to change nothing.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.brevo.com/v3/contacts/{{identifier}}",
+        "query": {
+          "identifierType": "{{identifier_type}}"
+        },
+        "body": {}
+      },
+      "beforeRequest": "function ids(name) { return JSON.parse(inputs[name] || '[]').map(Number).filter(Number.isFinite); }\nfunction texts(name) { return JSON.parse(inputs[name] || '[]').map(function (v) { return String(v).trim(); }).filter(function (v) { return v.length > 0; }); }\nfunction some(list) { return list.length > 0 ? list : undefined; }\nfunction obj(name) { var v = inputs[name] ? JSON.parse(inputs[name]) : undefined; return v && Object.keys(v).length > 0 ? v : undefined; }\nfunction flag(v) { v = (v || '').trim().toLowerCase(); return v === 'yes' || v === 'true' ? true : v === 'no' || v === 'false' ? false : undefined; }\nrequest.body = {ext_id: inputs.ext_id || undefined, attributes: obj('attributes'), emailBlacklisted: flag(inputs.email_blacklisted), smsBlacklisted: flag(inputs.sms_blacklisted),\n  listIds: some(ids('list_ids')), unlinkListIds: some(ids('unlink_list_ids')), smtpBlacklistSender: some(texts('blocked_sender_addresses'))};\nreturn request;",
+      "afterResponse": "return {success: true};"
+    },
+    "delete_contact": {
+      "label": "Delete Contact",
+      "description": "Permanently delete a contact from Brevo.",
+      "inputs": {
+        "identifier_type": {
+          "label": "Identifier Type",
+          "description": "What kind of value the Identifier is.",
+          "type": "select",
+          "defaultValue": "email_id",
+          "options": [
+            {
+              "value": "email_id",
+              "label": "Email"
+            },
+            {
+              "value": "phone_id",
+              "label": "Mobile Number"
+            },
+            {
+              "value": "contact_id",
+              "label": "Contact ID"
+            },
+            {
+              "value": "ext_id",
+              "label": "External ID"
+            },
+            {
+              "value": "whatsapp_id",
+              "label": "WhatsApp"
+            },
+            {
+              "value": "landline_number_id",
+              "label": "Landline Number"
+            }
+          ]
+        },
+        "identifier": {
+          "label": "Identifier",
+          "description": "The email, number or ID of the contact.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.brevo.com/v3/contacts/{{identifier}}",
+        "query": {
+          "identifierType": "{{identifier_type}}"
+        }
+      },
+      "afterResponse": "return {success: true};"
+    },
+    "import_contacts": {
+      "label": "Import Contacts",
+      "description": "Bulk import contacts into Brevo from a file URL or an inline list of rows.",
+      "inputs": {
+        "file_url": {
+          "label": "File URL",
+          "description": "Public URL of a .txt, .csv, or .json file containing the contacts to import. Mutually exclusive with Inline Contacts."
+        },
+        "json_body": {
+          "label": "Inline Contacts",
+          "description": "Contact rows to import directly, without a file. Mutually exclusive with File URL.",
+          "type": "json"
+        },
+        "list_ids": {
+          "label": "Lists",
+          "description": "Existing lists to import into.",
+          "type": "json",
+          "list": "lists"
+        },
+        "new_list_name": {
+          "label": "New List Name",
+          "description": "Creates a new list with this name and imports into it. Requires New List Folder ID."
+        },
+        "new_list_folder_id": {
+          "label": "New List Folder ID",
+          "description": "Folder to create the new list in. Requires New List Name.",
+          "type": "number"
+        },
+        "notify_url": {
+          "label": "Notify URL",
+          "description": "A webhook URL Brevo calls once the import finishes."
+        },
+        "email_blacklist": {
+          "label": "Blacklist Imported Emails",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "sms_blacklist": {
+          "label": "Blacklist Imported SMS Numbers",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "update_existing_contacts": {
+          "label": "Update Existing Contacts",
+          "type": "boolean",
+          "defaultValue": "true"
+        },
+        "empty_contacts_attributes": {
+          "label": "Reset Attributes on Existing Contacts",
+          "description": "Blank out attributes not present in the import for contacts that already exist.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.brevo.com/v3/contacts/import",
+        "body": {
+          "fileUrl": "{{file_url}}",
+          "notifyUrl": "{{notify_url}}",
+          "emailBlacklist": "{{email_blacklist}}",
+          "smsBlacklist": "{{sms_blacklist}}",
+          "updateExistingContacts": "{{update_existing_contacts}}",
+          "emptyContactsAttributes": "{{empty_contacts_attributes}}"
+        }
+      },
+      "beforeRequest": "function ids(name) { return JSON.parse(inputs[name] || '[]').map(Number).filter(Number.isFinite); }\nfunction record(v) { return v !== null && typeof v === 'object' && !Array.isArray(v); }\nvar lists = ids('list_ids'), rows = (inputs.json_body ? JSON.parse(inputs.json_body) : []).filter(function (r) { return record(r) && typeof r.email === 'string' && r.email.trim().length > 0; }).map(function (r) { return {email: r.email, attributes: record(r.attributes) ? r.attributes : undefined}; });\nif (!inputs.file_url && rows.length === 0) throw new Error('Provide either a File URL or at least one inline contact row with a valid email.');\nvar newList = inputs.new_list_name && inputs.new_list_folder_id ? {listName: inputs.new_list_name, folderId: Number(inputs.new_list_folder_id)} : undefined;\nif (lists.length === 0 && !newList) throw new Error('Provide at least one existing list in Lists, or both New List Name and New List Folder ID, to import into.');\nif (rows.length > 0) request.body.jsonBody = rows;\nif (lists.length > 0) request.body.listIds = lists;\nif (newList) request.body.newList = newList;\nreturn request;"
+    },
+    "get_import_process": {
+      "label": "Get Import Process",
+      "description": "Check the status of a background process such as an import.",
+      "inputs": {
+        "process_id": {
+          "label": "Process ID",
+          "description": "The process id returned by Import Contacts.",
+          "type": "number",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://api.brevo.com/v3/processes/{{process_id}}"
+      },
+      "afterResponse": "var done = ['completed', 'failed', 'cancelled'];\nreturn {id: response.id ?? Number(inputs.process_id), status: response.status, finished: response.status !== undefined && done.indexOf(response.status) >= 0, name: response.name, export_url: response.export_url, info: response.info};"
+    },
+    "list_contact_attributes": {
+      "label": "List Contact Attributes",
+      "description": "List all contact attributes configured in the Brevo account.",
+      "request": {
+        "url": "https://api.brevo.com/v3/contacts/attributes"
+      }
+    },
+    "get_contact_campaign_stats": {
+      "label": "Get Contact Campaign Stats",
+      "description": "Get a contact's engagement statistics (opens, clicks, deliveries, and more) across campaigns.",
+      "inputs": {
+        "identifier": {
+          "label": "Identifier",
+          "description": "Email address or numeric contact id of the contact.",
+          "required": true
+        },
+        "start_date": {
+          "label": "Start Date",
+          "description": "YYYY-MM-DD. Must be supplied together with End Date."
+        },
+        "end_date": {
+          "label": "End Date",
+          "description": "YYYY-MM-DD. Must be supplied together with Start Date. Brevo caps the range at 90 days."
+        }
+      },
+      "request": {
+        "url": "https://api.brevo.com/v3/contacts/{{identifier}}/campaignStats",
+        "query": {
+          "startDate": "{{start_date}}",
+          "endDate": "{{end_date}}"
+        }
+      },
+      "beforeRequest": "if (!inputs.start_date !== !inputs.end_date) throw new Error('Provide both Start Date and End Date, or neither.');\nreturn request;"
+    },
+    "create_contact_list": {
+      "label": "Create Contact List",
+      "description": "Create a new contact list in Brevo.",
+      "inputs": {
+        "name": {
+          "label": "Name",
+          "required": true
+        },
+        "folder_id": {
+          "label": "Folder ID",
+          "description": "ID of the folder to create this list in. Use List Contact Lists first if you don't know a folder id; Brevo's default folder for a new account is usually id 1, but this varies.",
+          "type": "number",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.brevo.com/v3/contacts/lists",
+        "body": {
+          "name": "{{name}}",
+          "folderId": "{{folder_id}}"
+        }
+      }
+    },
+    "list_contact_lists": {
+      "label": "List Contact Lists",
+      "description": "List the contact lists in the Brevo account.",
+      "inputs": {
+        "limit": {
+          "label": "Limit",
+          "description": "Number of lists to return per page. Maximum 50. Defaults to 10.",
+          "type": "number",
+          "defaultValue": "10"
+        },
+        "offset": {
+          "label": "Offset",
+          "description": "Index of the first list to return. Defaults to 0.",
+          "type": "number",
+          "defaultValue": "0"
+        },
+        "sort": {
+          "label": "Sort",
+          "description": "Sort order for the results, based on the list creation date.",
+          "type": "select",
+          "options": [
+            {
+              "value": "asc",
+              "label": "Ascending"
+            },
+            {
+              "value": "desc",
+              "label": "Descending"
+            }
+          ]
+        }
+      },
+      "request": {
+        "url": "https://api.brevo.com/v3/contacts/lists",
+        "query": {
+          "limit": "{{limit}}",
+          "offset": "{{offset}}",
+          "sort": "{{sort}}"
+        }
+      }
+    },
+    "get_contact_list": {
+      "label": "Get Contact List",
+      "description": "Get the details of a single Brevo contact list by id.",
+      "inputs": {
+        "list_id": {
+          "label": "List ID",
+          "type": "number",
+          "required": true,
+          "list": "lists"
+        },
+        "start_date": {
+          "label": "Start Date",
+          "description": "ISO 8601 date (e.g. 2023-01-01). Must be given together with End Date for campaign statistics to appear in the response."
+        },
+        "end_date": {
+          "label": "End Date",
+          "description": "ISO 8601 date (e.g. 2023-01-31). Must be given together with Start Date for campaign statistics to appear in the response."
+        }
+      },
+      "request": {
+        "url": "https://api.brevo.com/v3/contacts/lists/{{list_id}}",
+        "query": {
+          "startDate": "{{start_date}}",
+          "endDate": "{{end_date}}"
+        }
+      },
+      "afterResponse": "return {found: true, data: response};"
+    },
+    "create_company": {
+      "label": "Create Company",
+      "description": "Create a new company record in Brevo CRM.",
+      "inputs": {
+        "name": {
+          "label": "Name",
+          "description": "Name of the company.",
+          "required": true
+        },
+        "attributes": {
+          "label": "Attributes",
+          "description": "Custom company attributes such as domain, industry, phone_number, address, city, country. Attribute keys depend on your Brevo account's CRM configuration.",
+          "type": "json"
+        },
+        "country_code": {
+          "label": "Phone Country Code",
+          "description": "Country code for any phone number in attributes, e.g. 1 for USA, 44 for UK. Only needed when a phone attribute is set.",
+          "type": "number"
+        },
+        "linked_contacts_ids": {
+          "label": "Linked Contact IDs",
+          "description": "Existing Brevo contact IDs to link to this company.",
+          "type": "json"
+        },
+        "linked_deals_ids": {
+          "label": "Linked Deal IDs",
+          "description": "Existing Brevo deal IDs to link to this company.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.brevo.com/v3/companies",
+        "body": {
+          "name": "{{name}}",
+          "attributes": "{{attributes}}",
+          "countryCode": "{{country_code}}"
+        }
+      },
+      "beforeRequest": "function ids(name) { return JSON.parse(inputs[name] || '[]').map(Number).filter(Number.isFinite); }\nfunction texts(name) { return JSON.parse(inputs[name] || '[]').map(function (v) { return String(v).trim(); }).filter(function (v) { return v.length > 0; }); }\nvar a = request.body.attributes, contacts = ids('linked_contacts_ids'), deals = texts('linked_deals_ids');\nif (a && Object.keys(a).length === 0) delete request.body.attributes;\nif (contacts.length > 0) request.body.linkedContactsIds = contacts;\nif (deals.length > 0) request.body.linkedDealsIds = deals;\nreturn request;"
+    },
+    "get_company": {
+      "label": "Get Company",
+      "description": "Fetch a Brevo CRM company by its id.",
+      "inputs": {
+        "company_id": {
+          "label": "Company ID",
+          "description": "The Brevo company id, e.g. '61a5cd07ca1347c82306ad06'.",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://api.brevo.com/v3/companies/{{company_id}}"
+      },
+      "afterResponse": "return {found: true, data: response};"
+    },
+    "list_companies": {
+      "label": "List Companies",
+      "description": "List and filter Brevo CRM companies.",
+      "inputs": {
+        "page": {
+          "label": "Page",
+          "description": "1-based page index.",
+          "type": "number"
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Number of companies to return per page. Maximum 100.",
+          "type": "number",
+          "defaultValue": "50"
+        },
+        "sort": {
+          "label": "Sort",
+          "description": "Sort order for the results.",
+          "type": "select",
+          "options": [
+            {
+              "value": "asc",
+              "label": "Ascending"
+            },
+            {
+              "value": "desc",
+              "label": "Descending"
+            }
+          ]
+        },
+        "sort_by": {
+          "label": "Sort By",
+          "description": "Field to sort by, e.g. createdAt or name."
+        },
+        "filters": {
+          "label": "Filters",
+          "description": "Raw JSON filter string per Brevo's docs, e.g. {\"attributes.name\":\"Acme\"}."
+        },
+        "linked_contacts_ids": {
+          "label": "Linked Contact IDs",
+          "description": "Only return companies linked to any of these Brevo contact ids.",
+          "type": "json"
+        },
+        "linked_deals_ids": {
+          "label": "Linked Deal IDs",
+          "description": "Only return companies linked to any of these Brevo deal ids.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "url": "https://api.brevo.com/v3/companies",
+        "query": {
+          "page": "{{page}}",
+          "limit": "{{limit}}",
+          "sort": "{{sort}}",
+          "sortBy": "{{sort_by}}",
+          "filters": "{{filters}}"
+        }
+      },
+      "beforeRequest": "function ids(name) { return JSON.parse(inputs[name] || '[]').map(Number).filter(Number.isFinite); }\nfunction texts(name) { return JSON.parse(inputs[name] || '[]').map(function (v) { return String(v).trim(); }).filter(function (v) { return v.length > 0; }); }\nvar contacts = ids('linked_contacts_ids'), deals = texts('linked_deals_ids');\nif (contacts.length > 0) request.query.linkedContactsIds = contacts.join(',');\nif (deals.length > 0) request.query.linkedDealsIds = deals.join(',');\nreturn request;"
+    },
+    "delete_company": {
+      "label": "Delete Company",
+      "description": "Permanently delete a Brevo CRM company.",
+      "inputs": {
+        "company_id": {
+          "label": "Company ID",
+          "description": "The Brevo company id, e.g. '61a5cd07ca1347c82306ad06'.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.brevo.com/v3/companies/{{company_id}}"
+      },
+      "afterResponse": "return {success: true};"
+    },
+    "list_crm_notes": {
+      "label": "List CRM Notes",
+      "description": "List the CRM notes in the Brevo account.",
+      "inputs": {
+        "entity": {
+          "label": "Entity Type",
+          "description": "Restrict to notes attached to this entity type.",
+          "type": "select",
+          "options": [
+            {
+              "value": "companies",
+              "label": "Companies"
+            },
+            {
+              "value": "deals",
+              "label": "Deals"
+            },
+            {
+              "value": "contacts",
+              "label": "Contacts"
+            }
+          ]
+        },
+        "entity_ids": {
+          "label": "Entity IDs",
+          "description": "Comma-separated entity IDs to filter by, e.g. a specific company or contact id."
+        },
+        "date_from": {
+          "label": "Date From",
+          "description": "Unix timestamp in milliseconds.",
+          "type": "number"
+        },
+        "date_to": {
+          "label": "Date To",
+          "description": "Unix timestamp in milliseconds.",
+          "type": "number"
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Number of notes to return per page. Defaults to 50.",
+          "type": "number",
+          "defaultValue": "50"
+        },
+        "offset": {
+          "label": "Offset",
+          "description": "Index of the first note to return. Defaults to 0.",
+          "type": "number",
+          "defaultValue": "0"
+        },
+        "sort": {
+          "label": "Sort",
+          "description": "Sort order for the results, based on the note creation date.",
+          "type": "select",
+          "options": [
+            {
+              "value": "asc",
+              "label": "Ascending"
+            },
+            {
+              "value": "desc",
+              "label": "Descending"
+            }
+          ]
+        }
+      },
+      "request": {
+        "url": "https://api.brevo.com/v3/crm/notes",
+        "query": {
+          "entity": "{{entity}}",
+          "entityIds": "{{entity_ids}}",
+          "dateFrom": "{{date_from}}",
+          "dateTo": "{{date_to}}",
+          "limit": "{{limit}}",
+          "offset": "{{offset}}",
+          "sort": "{{sort}}"
+        }
+      }
+    },
+    "list_senders": {
+      "label": "List Senders",
+      "description": "List the verified senders in the Brevo account.",
+      "inputs": {
+        "ip": {
+          "label": "IP",
+          "description": "Filter by a specific dedicated IP; dedicated-IP accounts only."
+        },
+        "domain": {
+          "label": "Domain",
+          "description": "Filter by sender domain."
+        }
+      },
+      "request": {
+        "url": "https://api.brevo.com/v3/senders",
+        "query": {
+          "ip": "{{ip}}",
+          "domain": "{{domain}}"
+        }
+      }
+    },
+    "list_sender_domains": {
+      "label": "List Sender Domains",
+      "description": "List the sender domains configured in the Brevo account.",
+      "request": {
+        "url": "https://api.brevo.com/v3/senders/domains"
+      }
+    },
+    "create_or_update_email_template": {
+      "label": "Create or Update Email Template",
+      "description": "Create a new Brevo email template, or update an existing one by id.",
+      "inputs": {
+        "template_id": {
+          "label": "Template ID",
+          "description": "Provide to update an existing template; omit to create a new one.",
+          "type": "number",
+          "list": "templates"
+        },
+        "template_name": {
+          "label": "Template Name",
+          "description": "Required when creating a new template."
+        },
+        "subject": {
+          "label": "Subject",
+          "description": "Required when creating a new template."
+        },
+        "sender_email": {
+          "label": "Sender",
+          "description": "The verified sender the email is sent from.",
+          "list": "sender_emails"
+        },
+        "sender_name": {
+          "label": "Sender Name"
+        },
+        "html_content": {
+          "label": "HTML Content",
+          "description": "Required when creating a new template unless HTML URL is given. Must be at least 10 characters.",
+          "type": "multiline"
+        },
+        "html_url": {
+          "label": "HTML URL",
+          "description": "URL Brevo fetches the HTML content from. Mutually exclusive with HTML Content."
+        },
+        "reply_to_email": {
+          "label": "Reply To"
+        },
+        "to_field": {
+          "label": "To Field",
+          "description": "Personalization used for the display name in the To field, for example {{contact.FIRSTNAME}}."
+        },
+        "is_active": {
+          "label": "Active",
+          "description": "Whether the template is active. Leave empty or pick Leave unchanged to keep the template's current active state.",
+          "type": "select",
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes"
+            },
+            {
+              "value": "no",
+              "label": "No"
+            },
+            {
+              "value": "unchanged",
+              "label": "Leave unchanged"
+            }
+          ]
+        },
+        "tag": {
+          "label": "Tag"
+        },
+        "attachment_url": {
+          "label": "Attachment URL"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.brevo.com/v3/smtp/templates",
+        "body": {
+          "templateName": "{{template_name}}",
+          "subject": "{{subject}}",
+          "htmlContent": "{{html_content}}",
+          "htmlUrl": "{{html_url}}",
+          "replyTo": "{{reply_to_email}}",
+          "toField": "{{to_field}}",
+          "tag": "{{tag}}",
+          "attachmentUrl": "{{attachment_url}}"
+        }
+      },
+      "beforeRequest": "function flag(v) { v = (v || '').trim().toLowerCase(); return v === 'yes' || v === 'true' ? true : v === 'no' || v === 'false' ? false : undefined; }\nvar i = inputs, update = !!i.template_id;\nif (i.html_content && i.html_url) throw new Error('Provide HTML Content or HTML URL, not both.');\nif (!update) {\n  if (!i.template_name) throw new Error('Template Name is required when creating a new template.');\n  if (!i.subject) throw new Error('Subject is required when creating a new template.');\n  if (!i.sender_email) throw new Error('Sender is required when creating a new template.');\n  if (!i.html_content && !i.html_url) throw new Error('Provide HTML Content or HTML URL when creating a new template.');\n  if (i.html_content && i.html_content.length < 10) throw new Error('HTML Content must be at least 10 characters.');\n}\nif (i.sender_email) request.body.sender = {email: i.sender_email, name: i.sender_name || undefined};\nvar active = flag(i.is_active);\nif (active !== undefined) request.body.isActive = active;\nif (update) { request.method = 'PUT'; request.url += '/' + encodeURIComponent(i.template_id); }\nreturn request;",
+      "afterResponse": "return inputs.template_id ? {success: true, id: Number(inputs.template_id)} : response;"
+    },
+    "get_email_template": {
+      "label": "Get Email Template",
+      "description": "Fetch a single Brevo email template by id.",
+      "inputs": {
+        "template_id": {
+          "label": "Template ID",
+          "description": "The id of the template to fetch, for example 12.",
+          "type": "number",
+          "required": true,
+          "list": "templates"
+        }
+      },
+      "request": {
+        "url": "https://api.brevo.com/v3/smtp/templates/{{template_id}}"
+      },
+      "afterResponse": "return {found: true, data: response};"
+    },
+    "list_email_templates": {
+      "label": "List Email Templates",
+      "description": "List email templates in your Brevo account.",
+      "inputs": {
+        "template_status": {
+          "label": "Template Status",
+          "description": "Filter to active (checked) or inactive (unchecked) templates; leave unset to return both.",
+          "type": "boolean"
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of templates to return. Defaults to 50, max 1000.",
+          "type": "number",
+          "defaultValue": "50"
+        },
+        "offset": {
+          "label": "Offset",
+          "description": "Number of templates to skip before starting to return results.",
+          "type": "number",
+          "defaultValue": "0"
+        },
+        "sort": {
+          "label": "Sort",
+          "description": "Sort order applied to the results, based on creation date.",
+          "type": "select",
+          "options": [
+            {
+              "value": "asc",
+              "label": "Ascending"
+            },
+            {
+              "value": "desc",
+              "label": "Descending"
+            }
+          ]
+        }
+      },
+      "request": {
+        "url": "https://api.brevo.com/v3/smtp/templates",
+        "query": {
+          "templateStatus": "{{template_status}}",
+          "limit": "{{limit}}",
+          "offset": "{{offset}}",
+          "sort": "{{sort}}"
+        }
+      }
+    },
+    "delete_email_template": {
+      "label": "Delete Email Template",
+      "description": "Delete an email template from your Brevo account.",
+      "inputs": {
+        "template_id": {
+          "label": "Template ID",
+          "description": "The id of the template to delete.",
+          "type": "number",
+          "required": true,
+          "list": "templates"
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.brevo.com/v3/smtp/templates/{{template_id}}"
+      },
+      "afterResponse": "return {success: true};"
+    },
+    "create_email_campaign": {
+      "label": "Create Email Campaign",
+      "description": "Create a new email marketing campaign in Brevo.",
+      "inputs": {
+        "name": {
+          "label": "Name",
+          "description": "Internal campaign name shown only in the Brevo dashboard, not to recipients.",
+          "required": true
+        },
+        "sender_email": {
+          "label": "Sender",
+          "description": "The verified sender the email is sent from.",
+          "list": "sender_emails"
+        },
+        "sender_name": {
+          "label": "Sender Name",
+          "description": "Overrides the display name of the selected sender."
+        },
+        "sender_id": {
+          "label": "Sender ID",
+          "description": "Alternative to Sender and Sender Name: an existing Brevo sender ID. Provide one or the other, not both.",
+          "type": "number"
+        },
+        "subject": {
+          "label": "Subject",
+          "description": "Subject line shown to recipients. Required unless Template ID is selected."
+        },
+        "template_id": {
+          "label": "Template ID",
+          "description": "ID of an existing Brevo transactional template whose content is copied into this campaign. Mutually exclusive with HTML Content and HTML URL.",
+          "type": "number",
+          "list": "templates"
+        },
+        "html_content": {
+          "label": "HTML Content",
+          "description": "Required unless a template is selected. Mutually exclusive with HTML URL.",
+          "type": "multiline"
+        },
+        "html_url": {
+          "label": "HTML URL",
+          "description": "URL Brevo fetches the HTML content from. Mutually exclusive with HTML Content."
+        },
+        "list_ids": {
+          "label": "Recipient Lists",
+          "description": "Contact lists to send this campaign to.",
+          "type": "json",
+          "list": "lists"
+        },
+        "exclusion_list_ids": {
+          "label": "Exclude Lists",
+          "description": "Contact lists to exclude from this campaign, even if a contact also belongs to a recipient list.",
+          "type": "json",
+          "list": "lists"
+        },
+        "scheduled_at": {
+          "label": "Scheduled At",
+          "description": "Schedule the send; omit to create an unsent draft."
+        },
+        "reply_to_email": {
+          "label": "Reply To",
+          "description": "Email address replies are sent to, if different from the sender."
+        },
+        "preview_text": {
+          "label": "Preview Text",
+          "description": "Preheader text shown next to the subject line in most inboxes."
+        },
+        "to_field": {
+          "label": "To Field",
+          "description": "Overrides how the recipient's name/email appears in the To field, e.g. \"{{contact.FIRSTNAME}}\"."
+        },
+        "params": {
+          "label": "Template Parameters",
+          "description": "Personalization variables available when Template ID is selected.",
+          "type": "json"
+        },
+        "footer": {
+          "label": "Footer",
+          "description": "HTML footer appended to the campaign, typically the unsubscribe link and address.",
+          "type": "multiline"
+        },
+        "header": {
+          "label": "Header",
+          "description": "HTML header prepended to the campaign.",
+          "type": "multiline"
+        },
+        "utm_campaign": {
+          "label": "UTM Campaign",
+          "description": "Value used for the utm_campaign tracking parameter on links in this email."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.brevo.com/v3/emailCampaigns",
+        "body": {}
+      },
+      "beforeRequest": "function ids(name) { return JSON.parse(inputs[name] || '[]').map(Number).filter(Number.isFinite); }\nfunction some(list) { return list.length > 0 ? list : undefined; }\nfunction obj(name) { var v = inputs[name] ? JSON.parse(inputs[name]) : undefined; return v && Object.keys(v).length > 0 ? v : undefined; }\nvar i = inputs;\nif (i.sender_id && i.sender_email) throw new Error('Provide Sender ID or Sender, not both.');\nif (!i.sender_id && !i.sender_email) throw new Error('Provide a Sender ID or Sender.');\nvar sources = [i.template_id, i.html_content, i.html_url].filter(Boolean).length;\nif (sources === 0) throw new Error('Provide a Template ID, HTML Content, or HTML URL.');\nif (sources > 1) throw new Error('Provide only one of Template ID, HTML Content, or HTML URL.');\nif (!i.template_id && !i.subject) throw new Error('Subject is required unless Template ID is provided.');\nvar sender = i.sender_id ? {id: Number(i.sender_id)} : i.sender_email ? {email: i.sender_email, name: i.sender_name || undefined} : undefined;\nvar lists = ids('list_ids'), excluded = ids('exclusion_list_ids');\nrequest.body = {name: i.name || undefined, sender: sender, subject: i.subject || undefined, templateId: i.template_id ? Number(i.template_id) : undefined, htmlContent: i.html_content || undefined, htmlUrl: i.html_url || undefined,\n  recipients: lists.length > 0 || excluded.length > 0 ? {listIds: some(lists), exclusionListIds: some(excluded)} : undefined, scheduledAt: i.scheduled_at || undefined, replyTo: i.reply_to_email || undefined,\n  previewText: i.preview_text || undefined, toField: i.to_field || undefined, params: obj('params'), footer: i.footer || undefined, header: i.header || undefined, utmCampaign: i.utm_campaign || undefined};\nreturn request;"
+    },
+    "update_email_campaign": {
+      "label": "Update Email Campaign",
+      "description": "Update an existing Brevo email campaign.",
+      "inputs": {
+        "campaign_id": {
+          "label": "Campaign ID",
+          "type": "number",
+          "required": true
+        },
+        "name": {
+          "label": "Name",
+          "description": "Internal campaign name shown only in the Brevo dashboard, not to recipients."
+        },
+        "sender_email": {
+          "label": "Sender",
+          "description": "The verified sender the email is sent from.",
+          "list": "sender_emails"
+        },
+        "sender_name": {
+          "label": "Sender Name",
+          "description": "Overrides the display name of the selected sender."
+        },
+        "sender_id": {
+          "label": "Sender ID",
+          "description": "Alternative to Sender and Sender Name: an existing Brevo sender ID. Provide one or the other, not both.",
+          "type": "number"
+        },
+        "subject": {
+          "label": "Subject",
+          "description": "Subject line shown to recipients."
+        },
+        "html_content": {
+          "label": "HTML Content",
+          "description": "Mutually exclusive with HTML URL.",
+          "type": "multiline"
+        },
+        "html_url": {
+          "label": "HTML URL",
+          "description": "URL Brevo fetches the HTML content from. Mutually exclusive with HTML Content."
+        },
+        "list_ids": {
+          "label": "Recipient Lists",
+          "description": "Contact lists to send this campaign to.",
+          "type": "json",
+          "list": "lists"
+        },
+        "exclusion_list_ids": {
+          "label": "Exclude Lists",
+          "description": "Contact lists to exclude from this campaign, even if a contact also belongs to a recipient list.",
+          "type": "json",
+          "list": "lists"
+        },
+        "scheduled_at": {
+          "label": "Scheduled At",
+          "description": "Schedule the send; omit to leave the current schedule untouched."
+        },
+        "reply_to_email": {
+          "label": "Reply To",
+          "description": "Email address replies are sent to, if different from the sender."
+        },
+        "preview_text": {
+          "label": "Preview Text",
+          "description": "Preheader text shown next to the subject line in most inboxes."
+        },
+        "to_field": {
+          "label": "To Field",
+          "description": "Overrides how the recipient's name/email appears in the To field, e.g. \"{{contact.FIRSTNAME}}\"."
+        },
+        "params": {
+          "label": "Template Parameters",
+          "description": "Personalization variables available when the campaign uses a template.",
+          "type": "json"
+        },
+        "footer": {
+          "label": "Footer",
+          "description": "HTML footer appended to the campaign, typically the unsubscribe link and address.",
+          "type": "multiline"
+        },
+        "header": {
+          "label": "Header",
+          "description": "HTML header prepended to the campaign.",
+          "type": "multiline"
+        },
+        "utm_campaign": {
+          "label": "UTM Campaign",
+          "description": "Value used for the utm_campaign tracking parameter on links in this email."
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.brevo.com/v3/emailCampaigns/{{campaign_id}}",
+        "body": {}
+      },
+      "beforeRequest": "function ids(name) { return JSON.parse(inputs[name] || '[]').map(Number).filter(Number.isFinite); }\nfunction some(list) { return list.length > 0 ? list : undefined; }\nfunction obj(name) { var v = inputs[name] ? JSON.parse(inputs[name]) : undefined; return v && Object.keys(v).length > 0 ? v : undefined; }\nvar i = inputs;\nif (i.sender_id && i.sender_email) throw new Error('Provide Sender ID or Sender, not both.');\nif (i.html_content && i.html_url) throw new Error('Provide HTML Content or HTML URL, not both.');\nvar sender = i.sender_id ? {id: Number(i.sender_id)} : i.sender_email ? {email: i.sender_email, name: i.sender_name || undefined} : undefined;\nvar lists = ids('list_ids'), excluded = ids('exclusion_list_ids');\nrequest.body = {name: i.name || undefined, sender: sender, subject: i.subject || undefined, htmlContent: i.html_content || undefined, htmlUrl: i.html_url || undefined,\n  recipients: lists.length > 0 || excluded.length > 0 ? {listIds: some(lists), exclusionListIds: some(excluded)} : undefined, scheduledAt: i.scheduled_at || undefined, replyTo: i.reply_to_email || undefined,\n  previewText: i.preview_text || undefined, toField: i.to_field || undefined, params: obj('params'), footer: i.footer || undefined, header: i.header || undefined, utmCampaign: i.utm_campaign || undefined};\nreturn request;",
+      "afterResponse": "return {success: true};"
+    },
+    "get_email_campaign": {
+      "label": "Get Email Campaign",
+      "description": "Fetch a Brevo email campaign by id, including its statistics.",
+      "inputs": {
+        "campaign_id": {
+          "label": "Campaign ID",
+          "type": "number",
+          "required": true
+        },
+        "statistics": {
+          "label": "Statistics",
+          "description": "Limit the returned statistics to one category; omit for the full report.",
+          "type": "select",
+          "options": [
+            {
+              "value": "globalStats",
+              "label": "Global Stats"
+            },
+            {
+              "value": "linksStats",
+              "label": "Links Stats"
+            },
+            {
+              "value": "statsByDomain",
+              "label": "Stats By Domain"
+            },
+            {
+              "value": "statsByDevice",
+              "label": "Stats By Device"
+            },
+            {
+              "value": "statsByBrowser",
+              "label": "Stats By Browser"
+            }
+          ]
+        }
+      },
+      "request": {
+        "url": "https://api.brevo.com/v3/emailCampaigns/{{campaign_id}}",
+        "query": {
+          "statistics": "{{statistics}}"
+        }
+      },
+      "afterResponse": "return {found: true, data: response};"
+    },
+    "list_email_campaigns": {
+      "label": "List Email Campaigns",
+      "description": "List email campaigns in the Brevo account.",
+      "inputs": {
+        "type": {
+          "label": "Type",
+          "type": "select",
+          "options": [
+            {
+              "value": "classic",
+              "label": "Classic"
+            },
+            {
+              "value": "trigger",
+              "label": "Trigger"
+            }
+          ]
+        },
+        "status": {
+          "label": "Status",
+          "type": "select",
+          "options": [
+            {
+              "value": "suspended",
+              "label": "Suspended"
+            },
+            {
+              "value": "archive",
+              "label": "Archive"
+            },
+            {
+              "value": "sent",
+              "label": "Sent"
+            },
+            {
+              "value": "queued",
+              "label": "Queued"
+            },
+            {
+              "value": "draft",
+              "label": "Draft"
+            },
+            {
+              "value": "inProcess",
+              "label": "In Process"
+            },
+            {
+              "value": "inReview",
+              "label": "In Review"
+            }
+          ]
+        },
+        "start_date": {
+          "label": "Start Date",
+          "description": "Only applies when Status is \"Sent\" or left empty."
+        },
+        "end_date": {
+          "label": "End Date",
+          "description": "Only applies when Status is \"Sent\" or left empty."
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Number of campaigns to return per page. Maximum 100. Defaults to 50.",
+          "type": "number",
+          "defaultValue": "50"
+        },
+        "offset": {
+          "label": "Offset",
+          "description": "Index of the first campaign to return. Defaults to 0.",
+          "type": "number",
+          "defaultValue": "0"
+        },
+        "sort": {
+          "label": "Sort",
+          "description": "Sort order for the results, based on the campaign creation date.",
+          "type": "select",
+          "options": [
+            {
+              "value": "asc",
+              "label": "Ascending"
+            },
+            {
+              "value": "desc",
+              "label": "Descending"
+            }
+          ]
+        },
+        "exclude_html_content": {
+          "label": "Exclude HTML Content",
+          "description": "Leave the HTML content out of each campaign in the response.",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "url": "https://api.brevo.com/v3/emailCampaigns",
+        "query": {
+          "type": "{{type}}",
+          "status": "{{status}}",
+          "startDate": "{{start_date}}",
+          "endDate": "{{end_date}}",
+          "limit": "{{limit}}",
+          "offset": "{{offset}}",
+          "sort": "{{sort}}",
+          "excludeHtmlContent": "{{exclude_html_content}}"
+        }
+      }
+    },
+    "send_email_campaign_now": {
+      "label": "Send Email Campaign Now",
+      "description": "Immediately send a draft Brevo email campaign to its recipient lists.",
+      "inputs": {
+        "campaign_id": {
+          "label": "Campaign ID",
+          "description": "Must currently be a draft campaign.",
+          "type": "number",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.brevo.com/v3/emailCampaigns/{{campaign_id}}/sendNow"
+      },
+      "afterResponse": "return {success: true};"
+    },
+    "create_sms_campaign": {
+      "label": "Create SMS Campaign",
+      "description": "Create a new SMS campaign in Brevo.",
+      "inputs": {
+        "name": {
+          "label": "Name",
+          "description": "Internal campaign name.",
+          "required": true
+        },
+        "sender": {
+          "label": "Sender",
+          "description": "Name or number shown as the sender. Limited to 11 alphanumeric characters or 15 numeric characters.",
+          "required": true
+        },
+        "content": {
+          "label": "Content",
+          "description": "Message body. Max 160 characters per SMS segment; longer content is split into multiple billed segments.",
+          "type": "multiline",
+          "required": true
+        },
+        "list_ids": {
+          "label": "Recipient Lists",
+          "description": "Contact lists to send this campaign to.",
+          "type": "json",
+          "list": "lists"
+        },
+        "exclusion_list_ids": {
+          "label": "Exclude Lists",
+          "description": "Contact lists to exclude from this campaign.",
+          "type": "json",
+          "list": "lists"
+        },
+        "segment_ids": {
+          "label": "Segment IDs",
+          "description": "Brevo segment IDs to target.",
+          "type": "json"
+        },
+        "scheduled_at": {
+          "label": "Scheduled At",
+          "description": "Omit to create an unsent draft."
+        },
+        "unicode_enabled": {
+          "label": "Send as Unicode",
+          "description": "Needed for emoji and non-Latin text; 70 characters per part.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "organisation_prefix": {
+          "label": "Brand Name",
+          "description": "Shown before the message so people know who sent it."
+        },
+        "unsubscribe_instruction": {
+          "label": "Unsubscribe Instruction",
+          "description": "Must include the word STOP; recommended by US carriers."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.brevo.com/v3/smsCampaigns",
+        "body": {
+          "name": "{{name}}",
+          "sender": "{{sender}}",
+          "content": "{{content}}",
+          "scheduledAt": "{{scheduled_at}}",
+          "unicodeEnabled": "{{unicode_enabled}}",
+          "organisationPrefix": "{{organisation_prefix}}",
+          "unsubscribeInstruction": "{{unsubscribe_instruction}}"
+        }
+      },
+      "beforeRequest": "function ids(name) { return JSON.parse(inputs[name] || '[]').map(Number).filter(Number.isFinite); }\nfunction some(list) { return list.length > 0 ? list : undefined; }\nvar lists = ids('list_ids'), excluded = ids('exclusion_list_ids'), segments = ids('segment_ids');\nif (lists.length > 0 || excluded.length > 0 || segments.length > 0) request.body.recipients = {listIds: some(lists), exclusionListIds: some(excluded), segmentIds: some(segments)};\nreturn request;"
+    },
+    "get_sms_campaign": {
+      "label": "Get SMS Campaign",
+      "description": "Get the details of a single Brevo SMS campaign by id.",
+      "inputs": {
+        "campaign_id": {
+          "label": "Campaign ID",
+          "type": "number",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://api.brevo.com/v3/smsCampaigns/{{campaign_id}}"
+      },
+      "afterResponse": "return {found: true, data: response};"
+    },
+    "list_sms_campaigns": {
+      "label": "List SMS Campaigns",
+      "description": "List the SMS campaigns in the Brevo account.",
+      "inputs": {
+        "status": {
+          "label": "Status",
+          "type": "select",
+          "options": [
+            {
+              "value": "sent",
+              "label": "Sent"
+            },
+            {
+              "value": "draft",
+              "label": "Draft"
+            },
+            {
+              "value": "queued",
+              "label": "Queued"
+            },
+            {
+              "value": "suspended",
+              "label": "Suspended"
+            },
+            {
+              "value": "inProcess",
+              "label": "In Process"
+            },
+            {
+              "value": "archive",
+              "label": "Archive"
+            }
+          ]
+        },
+        "start_date": {
+          "label": "Start Date",
+          "description": "Only filters sent campaigns; both required together."
+        },
+        "end_date": {
+          "label": "End Date",
+          "description": "Only filters sent campaigns; both required together."
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Number of campaigns to return per page. Maximum 1000.",
+          "type": "number",
+          "defaultValue": "500"
+        },
+        "offset": {
+          "label": "Offset",
+          "description": "Index of the first campaign to return. Defaults to 0.",
+          "type": "number",
+          "defaultValue": "0"
+        },
+        "sort": {
+          "label": "Sort",
+          "description": "Sort order for the results, based on the campaign creation date.",
+          "type": "select",
+          "options": [
+            {
+              "value": "asc",
+              "label": "Ascending"
+            },
+            {
+              "value": "desc",
+              "label": "Descending"
+            }
+          ]
+        }
+      },
+      "request": {
+        "url": "https://api.brevo.com/v3/smsCampaigns",
+        "query": {
+          "status": "{{status}}",
+          "startDate": "{{start_date}}",
+          "endDate": "{{end_date}}",
+          "limit": "{{limit}}",
+          "offset": "{{offset}}",
+          "sort": "{{sort}}"
+        }
+      }
+    },
+    "delete_sms_campaign": {
+      "label": "Delete SMS Campaign",
+      "description": "Permanently delete a Brevo SMS campaign.",
+      "inputs": {
+        "campaign_id": {
+          "label": "Campaign ID",
+          "type": "number",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.brevo.com/v3/smsCampaigns/{{campaign_id}}"
+      },
+      "afterResponse": "return {success: true};"
+    },
+    "list_transactional_email_events": {
+      "label": "List Transactional Email Events",
+      "description": "List transactional email events, such as delivered, opened, clicked or bounced, from Brevo.",
+      "inputs": {
+        "days": {
+          "label": "Days",
+          "description": "Number of past days to include, 1-90. Cannot be combined with Start Date and End Date. Brevo uses 30 days when none of Days, Start Date or End Date is given.",
+          "type": "number"
+        },
+        "start_date": {
+          "label": "Start Date",
+          "description": "Start of the date range, format 'YYYY-MM-DD'. Must be given together with End Date, and cannot be combined with Days. The range is capped at 90 days."
+        },
+        "end_date": {
+          "label": "End Date",
+          "description": "End of the date range, format 'YYYY-MM-DD'. Must be given together with Start Date, and cannot be combined with Days. The range is capped at 90 days."
+        },
+        "email": {
+          "label": "Email",
+          "description": "Filter events down to a single recipient email address."
+        },
+        "event": {
+          "label": "Event",
+          "description": "Filter down to a single event type.",
+          "type": "select",
+          "options": [
+            {
+              "value": "bounces",
+              "label": "Bounces"
+            },
+            {
+              "value": "hardBounces",
+              "label": "Hard Bounces"
+            },
+            {
+              "value": "softBounces",
+              "label": "Soft Bounces"
+            },
+            {
+              "value": "delivered",
+              "label": "Delivered"
+            },
+            {
+              "value": "spam",
+              "label": "Spam"
+            },
+            {
+              "value": "requests",
+              "label": "Requests"
+            },
+            {
+              "value": "opened",
+              "label": "Opened"
+            },
+            {
+              "value": "clicks",
+              "label": "Clicks"
+            },
+            {
+              "value": "invalid",
+              "label": "Invalid"
+            },
+            {
+              "value": "deferred",
+              "label": "Deferred"
+            },
+            {
+              "value": "blocked",
+              "label": "Blocked"
+            },
+            {
+              "value": "unsubscribed",
+              "label": "Unsubscribed"
+            },
+            {
+              "value": "error",
+              "label": "Error"
+            },
+            {
+              "value": "loadedByProxy",
+              "label": "Loaded By Proxy"
+            }
+          ]
+        },
+        "tags": {
+          "label": "Tags",
+          "description": "Comma-separated tags to filter events by."
+        },
+        "message_id": {
+          "label": "Message ID",
+          "description": "Filter events down to a single message id."
+        },
+        "template_id": {
+          "label": "Template ID",
+          "description": "Filter events down to emails sent from this template id.",
+          "type": "number",
+          "list": "templates"
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Number of events to return per page. Defaults to 50, maximum 5000.",
+          "type": "number",
+          "defaultValue": "50"
+        },
+        "offset": {
+          "label": "Offset",
+          "description": "Index of the first event to return. Defaults to 0.",
+          "type": "number",
+          "defaultValue": "0"
+        },
+        "sort": {
+          "label": "Sort",
+          "description": "Sort order for the results, based on the event date.",
+          "type": "select",
+          "options": [
+            {
+              "value": "asc",
+              "label": "Ascending"
+            },
+            {
+              "value": "desc",
+              "label": "Descending"
+            }
+          ]
+        }
+      },
+      "request": {
+        "url": "https://api.brevo.com/v3/smtp/statistics/events",
+        "query": {
+          "limit": "{{limit}}",
+          "offset": "{{offset}}",
+          "startDate": "{{start_date}}",
+          "endDate": "{{end_date}}",
+          "days": "{{days}}",
+          "email": "{{email}}",
+          "event": "{{event}}",
+          "tags": "{{tags}}",
+          "messageId": "{{message_id}}",
+          "templateId": "{{template_id}}",
+          "sort": "{{sort}}"
+        }
+      },
+      "beforeRequest": "if (inputs.days && (inputs.start_date || inputs.end_date)) throw new Error('Provide either Days, or Start Date and End Date together, not both.');\nreturn request;"
+    },
+    "get_account_info": {
+      "label": "Get Account Info",
+      "description": "Fetch the Brevo account holder information, plan and credits.",
+      "request": {
+        "url": "https://api.brevo.com/v3/account"
+      }
+    }
+  },
+  "triggers": {
+    "contact_added_to_list": {
+      "label": "Contact Added to List",
+      "description": "Triggers when a contact is added to one of your lists. Fires for every list. To act on one list only, check list_id in a later step.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.brevo.com/v3/webhooks",
+          "body": {
+            "url": "{{webhookUrl}}",
+            "description": "Activepieces - Contact Added to List",
+            "events": [
+              "listAddition"
+            ],
+            "type": "marketing"
+          }
+        },
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.brevo.com/v3/webhooks/{{webhookId}}"
+        }
+      }
+    },
+    "contact_updated": {
+      "label": "Contact Updated",
+      "description": "Triggers when the attributes of a contact are updated.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.brevo.com/v3/webhooks",
+          "body": {
+            "url": "{{webhookUrl}}",
+            "description": "Activepieces - Contact Updated",
+            "events": [
+              "contactUpdated"
+            ],
+            "type": "marketing"
+          }
+        },
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.brevo.com/v3/webhooks/{{webhookId}}"
+        }
+      }
+    },
+    "contact_deleted": {
+      "label": "Contact Deleted",
+      "description": "Triggers when a contact is deleted.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.brevo.com/v3/webhooks",
+          "body": {
+            "url": "{{webhookUrl}}",
+            "description": "Activepieces - Contact Deleted",
+            "events": [
+              "contactDeleted"
+            ],
+            "type": "marketing"
+          }
+        },
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.brevo.com/v3/webhooks/{{webhookId}}"
+        }
+      }
+    },
+    "contact_unsubscribed": {
+      "label": "Contact Unsubscribed",
+      "description": "Triggers when a contact unsubscribes from a campaign.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.brevo.com/v3/webhooks",
+          "body": {
+            "url": "{{webhookUrl}}",
+            "description": "Activepieces - Contact Unsubscribed",
+            "events": [
+              "unsubscribed"
+            ],
+            "type": "marketing"
+          }
+        },
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.brevo.com/v3/webhooks/{{webhookId}}"
+        }
+      }
+    },
+    "email_delivered": {
+      "label": "Transactional Email Delivered",
+      "description": "Triggers when a transactional email is delivered to the recipient.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.brevo.com/v3/webhooks",
+          "body": {
+            "url": "{{webhookUrl}}",
+            "description": "Activepieces - Transactional Email Delivered",
+            "events": [
+              "delivered"
+            ],
+            "type": "transactional"
+          }
+        },
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.brevo.com/v3/webhooks/{{webhookId}}"
+        }
+      }
+    },
+    "email_opened": {
+      "label": "Transactional Email Opened",
+      "description": "Triggers when a recipient opens a transactional email.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.brevo.com/v3/webhooks",
+          "body": {
+            "url": "{{webhookUrl}}",
+            "description": "Activepieces - Transactional Email Opened",
+            "events": [
+              "opened"
+            ],
+            "type": "transactional"
+          }
+        },
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.brevo.com/v3/webhooks/{{webhookId}}"
+        }
+      }
+    },
+    "email_clicked": {
+      "label": "Transactional Email Link Clicked",
+      "description": "Triggers when a recipient clicks a link in a transactional email.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.brevo.com/v3/webhooks",
+          "body": {
+            "url": "{{webhookUrl}}",
+            "description": "Activepieces - Transactional Email Link Clicked",
+            "events": [
+              "click"
+            ],
+            "type": "transactional"
+          }
+        },
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.brevo.com/v3/webhooks/{{webhookId}}"
+        }
+      }
+    },
+    "email_bounced": {
+      "label": "Transactional Email Bounced",
+      "description": "Triggers when a transactional email hard or soft bounces.",
+      "webhook": {
+        "subscribe": {
+          "method": "POST",
+          "url": "https://api.brevo.com/v3/webhooks",
+          "body": {
+            "url": "{{webhookUrl}}",
+            "description": "Activepieces - Transactional Email Bounced",
+            "events": [
+              "hardBounce",
+              "softBounce"
+            ],
+            "type": "transactional"
+          }
+        },
+        "unsubscribe": {
+          "method": "DELETE",
+          "url": "https://api.brevo.com/v3/webhooks/{{webhookId}}"
+        }
+      }
+    }
+  }
+}

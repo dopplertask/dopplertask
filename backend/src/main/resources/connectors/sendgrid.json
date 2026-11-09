@@ -1,0 +1,314 @@
+{
+  "name": "sendgrid",
+  "label": "SendGrid",
+  "description": "Email delivery service for sending transactional and marketing emails",
+  "icon": "sendgrid",
+  "hosts": [
+    "{{credential.dataResidency}}.sendgrid.com"
+  ],
+  "baseUrl": "https://{{credential.dataResidency}}.sendgrid.com/v3",
+  "upstream": {
+    "package": "@activepieces/piece-sendgrid",
+    "version": "0.6.4"
+  },
+  "credential": {
+    "fields": {
+      "apiKey": {
+        "label": "API Key",
+        "description": "API key acquired from your SendGrid settings",
+        "secret": true,
+        "required": true
+      },
+      "dataResidency": {
+        "label": "Data Residency",
+        "description": "Select the Data Residency for this API key",
+        "type": "select",
+        "required": true,
+        "defaultValue": "api",
+        "options": [
+          {
+            "value": "api",
+            "label": "Global (US)"
+          },
+          {
+            "value": "api.eu",
+            "label": "EU"
+          }
+        ]
+      }
+    },
+    "headers": {
+      "Authorization": "Bearer {{credential.apiKey}}"
+    }
+  },
+  "lists": {
+    "lists": {
+      "request": {
+        "url": "https://{{credential.dataResidency}}.sendgrid.com/v3/marketing/lists",
+        "query": {
+          "page_size": "1000"
+        }
+      },
+      "items": "$.result"
+    }
+  },
+  "actions": {
+    "send_email": {
+      "label": "Send Email",
+      "description": "Send a text or HTML email",
+      "inputs": {
+        "to": {
+          "label": "To",
+          "description": "Emails of the recipients, as a JSON list.",
+          "type": "json",
+          "required": true
+        },
+        "from": {
+          "label": "From (Email)",
+          "description": "Sender email, must be on your SendGrid",
+          "required": true
+        },
+        "from_name": {
+          "label": "From (Name)",
+          "description": "Sender name"
+        },
+        "reply_to": {
+          "label": "Reply To",
+          "description": "Email to receive replies on (defaults to sender)"
+        },
+        "subject": {
+          "label": "Subject",
+          "required": true
+        },
+        "content_type": {
+          "label": "Content Type",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "text",
+              "label": "Plain Text"
+            },
+            {
+              "value": "html",
+              "label": "HTML"
+            }
+          ]
+        },
+        "content": {
+          "label": "Content",
+          "description": "HTML is only allowed if you selected HTML as type",
+          "type": "multiline",
+          "required": true
+        },
+        "attachment": {
+          "label": "Attachment",
+          "description": "A file from an earlier step to attach to the email.",
+          "type": "file"
+        },
+        "attachment_name": {
+          "label": "Attachment Name",
+          "description": "In case you want to change the name of the attachment"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.dataResidency}}.sendgrid.com/v3/mail/send",
+        "body": {
+          "from": {
+            "email": "{{from}}",
+            "name": "{{from_name}}"
+          },
+          "subject": "{{subject}}",
+          "attachment": "{{attachment}}"
+        }
+      },
+      "beforeRequest": "const has = (v) => v != null && v !== '';\nconst body = request.body;\nbody.personalizations = JSON.parse(inputs.to).map((x) => ({to: [{email: String(x).trim()}]}));\nbody.reply_to = {email: has(inputs.reply_to) ? inputs.reply_to : inputs.from};\nbody.content = [{type: inputs.content_type == 'text' ? 'text/plain' : 'text/html', value: inputs.content}];\nif (has(inputs.attachment)) {\n  // The attachment's type by its extension, as the original's mime-types table gives it.\n  const types = {'application/json': 'json map', 'application/xml': 'xml', 'application/javascript': 'js mjs', 'application/pdf': 'pdf', 'application/zip': 'zip', 'application/gzip': 'gz', 'application/octet-stream': 'bin dat', 'application/msword': 'doc', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx', 'application/vnd.ms-excel': 'xls', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx', 'application/vnd.ms-powerpoint': 'ppt', 'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx', 'text/csv': 'csv', 'application/rtf': 'rtf', 'application/x-tar': 'tar', 'application/x-7z-compressed': '7z', 'application/wasm': 'wasm', 'text/plain': 'txt text log', 'text/html': 'html htm', 'text/css': 'css', 'text/markdown': 'md markdown', 'text/yaml': 'yaml yml', 'image/png': 'png', 'image/jpeg': 'jpeg jpg jpe', 'image/gif': 'gif', 'image/webp': 'webp', 'image/svg+xml': 'svg svgz', 'image/bmp': 'bmp', 'image/tiff': 'tiff tif', 'image/x-icon': 'ico', 'image/heic': 'heic', 'image/avif': 'avif', 'audio/mpeg': 'mp3 mpga', 'audio/wav': 'wav', 'audio/ogg': 'ogg oga', 'audio/webm': 'weba', 'audio/mp4': 'm4a', 'video/mp4': 'mp4 m4v', 'video/mpeg': 'mpeg mpg', 'video/webm': 'webm', 'video/quicktime': 'mov qt', 'video/x-msvideo': 'avi', 'font/woff': 'woff', 'font/woff2': 'woff2', 'font/ttf': 'ttf', 'font/otf': 'otf', 'application/ld+json': 'jsonld', 'application/manifest+json': 'webmanifest', 'text/calendar': 'ics ifb', 'application/x-ndjson': 'ndjson'};\n  const parts = inputs.attachment.split('.');\n  const extension = parts.length > 1 ? parts.pop().toLowerCase() : '';\n  const type = Object.keys(types).find((known) => types[known].split(' ').includes(extension));\n  body.attachments = [{filename: has(inputs.attachment_name) ? inputs.attachment_name : inputs.attachment, content: body.attachment, ...(type && {type})}];\n  delete body.attachment;\n}\nreturn request;",
+      "afterResponse": "return {success: true};",
+      "outputs": {
+        "success": "$.success"
+      }
+    },
+    "send_dynamic_template": {
+      "label": "Send Dynamic Template",
+      "description": "Send an email using a dynamic template",
+      "inputs": {
+        "to": {
+          "label": "To",
+          "description": "Emails of the recipients, as a JSON list.",
+          "type": "json",
+          "required": true
+        },
+        "from": {
+          "label": "From (Email)",
+          "description": "Sender email, must be on your SendGrid",
+          "required": true
+        },
+        "from_name": {
+          "label": "From (Name)",
+          "description": "Sender name"
+        },
+        "template_id": {
+          "label": "Template ID",
+          "description": "Dynamic template ID",
+          "required": true
+        },
+        "template_data": {
+          "label": "Template Data",
+          "description": "Dynamic template data",
+          "type": "json",
+          "required": true
+        },
+        "reply_to": {
+          "label": "Reply To",
+          "description": "Email to receive replies on (defaults to sender)"
+        },
+        "attachment": {
+          "label": "Attachment",
+          "description": "A file from an earlier step to attach to the email.",
+          "type": "file"
+        },
+        "attachment_name": {
+          "label": "Attachment Name",
+          "description": "In case you want to change the name of the attachment"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.dataResidency}}.sendgrid.com/v3/mail/send",
+        "body": {
+          "from": {
+            "email": "{{from}}",
+            "name": "{{from_name}}"
+          },
+          "template_id": "{{template_id}}",
+          "attachment": "{{attachment}}"
+        }
+      },
+      "beforeRequest": "const has = (v) => v != null && v !== '';\nconst body = request.body, data = JSON.parse(inputs.template_data);\nbody.personalizations = JSON.parse(inputs.to).map((x) => ({to: [{email: String(x).trim()}], dynamic_template_data: data}));\nbody.reply_to = {email: has(inputs.reply_to) ? inputs.reply_to : inputs.from};\nif (has(inputs.attachment)) {\n  // The attachment's type by its extension, as the original's mime-types table gives it.\n  const types = {'application/json': 'json map', 'application/xml': 'xml', 'application/javascript': 'js mjs', 'application/pdf': 'pdf', 'application/zip': 'zip', 'application/gzip': 'gz', 'application/octet-stream': 'bin dat', 'application/msword': 'doc', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx', 'application/vnd.ms-excel': 'xls', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx', 'application/vnd.ms-powerpoint': 'ppt', 'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx', 'text/csv': 'csv', 'application/rtf': 'rtf', 'application/x-tar': 'tar', 'application/x-7z-compressed': '7z', 'application/wasm': 'wasm', 'text/plain': 'txt text log', 'text/html': 'html htm', 'text/css': 'css', 'text/markdown': 'md markdown', 'text/yaml': 'yaml yml', 'image/png': 'png', 'image/jpeg': 'jpeg jpg jpe', 'image/gif': 'gif', 'image/webp': 'webp', 'image/svg+xml': 'svg svgz', 'image/bmp': 'bmp', 'image/tiff': 'tiff tif', 'image/x-icon': 'ico', 'image/heic': 'heic', 'image/avif': 'avif', 'audio/mpeg': 'mp3 mpga', 'audio/wav': 'wav', 'audio/ogg': 'ogg oga', 'audio/webm': 'weba', 'audio/mp4': 'm4a', 'video/mp4': 'mp4 m4v', 'video/mpeg': 'mpeg mpg', 'video/webm': 'webm', 'video/quicktime': 'mov qt', 'video/x-msvideo': 'avi', 'font/woff': 'woff', 'font/woff2': 'woff2', 'font/ttf': 'ttf', 'font/otf': 'otf', 'application/ld+json': 'jsonld', 'application/manifest+json': 'webmanifest', 'text/calendar': 'ics ifb', 'application/x-ndjson': 'ndjson'};\n  const parts = inputs.attachment.split('.');\n  const extension = parts.length > 1 ? parts.pop().toLowerCase() : '';\n  const type = Object.keys(types).find((known) => types[known].split(' ').includes(extension));\n  body.attachments = [{filename: has(inputs.attachment_name) ? inputs.attachment_name : inputs.attachment, content: body.attachment, ...(type && {type})}];\n  delete body.attachment;\n}\nreturn request;",
+      "afterResponse": "return {success: true};",
+      "outputs": {
+        "success": "$.success"
+      }
+    },
+    "create_or_update_contact": {
+      "label": "Create or Update Contact",
+      "description": "Add or update a contact, optionally adding them to a list",
+      "inputs": {
+        "email": {
+          "label": "Email",
+          "description": "Email address of the contact (used to match existing contacts)",
+          "required": true
+        },
+        "first_name": {
+          "label": "First Name"
+        },
+        "last_name": {
+          "label": "Last Name"
+        },
+        "list_ids": {
+          "label": "Lists",
+          "description": "Lists to add the contact to",
+          "type": "json",
+          "list": "lists"
+        },
+        "custom_fields": {
+          "label": "Additional Fields",
+          "description": "Extra reserved (e.g. city, country) or custom fields as key/value pairs",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://{{credential.dataResidency}}.sendgrid.com/v3/marketing/contacts"
+      },
+      "beforeRequest": "const has = (v) => v != null && v !== '';\nconst ids = has(inputs.list_ids) ? JSON.parse(inputs.list_ids) : [];\nconst contact = {...(has(inputs.custom_fields) ? JSON.parse(inputs.custom_fields) : {}), email: inputs.email};\nif (has(inputs.first_name)) contact.first_name = inputs.first_name;\nif (has(inputs.last_name)) contact.last_name = inputs.last_name;\nrequest.body = {...(ids.length > 0 && {list_ids: ids}), contacts: [contact]};\nreturn request;",
+      "outputs": {
+        "job_id": "$.job_id"
+      }
+    },
+    "find_list_by_name": {
+      "label": "Find List by Name",
+      "description": "Search for a list by its name",
+      "inputs": {
+        "name": {
+          "label": "List Name",
+          "description": "The exact name of the list to search for",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.dataResidency}}.sendgrid.com/v3/marketing/lists",
+        "query": {
+          "page_size": "1000"
+        }
+      },
+      "afterResponse": "const lists = [...((response && response.result) || [])];\nlet next = response && response._metadata && response._metadata.next;\nwhile (next) {\n  const page = call({method: 'GET', url: next});\n  lists.push(...(page.result || []));\n  next = page._metadata && page._metadata.next;\n}\nconst target = inputs.name.trim().toLowerCase();\nconst matches = lists.filter((list) => list.name.trim().toLowerCase() === target);\nreturn {found: matches.length > 0, lists: matches};",
+      "outputs": {
+        "found": "$.found"
+      }
+    },
+    "add_to_global_suppression": {
+      "label": "Add to Global Unsubscribe List",
+      "description": "Add one or more email addresses to the global suppression list, stopping all future emails to them",
+      "inputs": {
+        "emails": {
+          "label": "Emails",
+          "description": "Email addresses to add to the global suppression list, as a JSON list.",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.dataResidency}}.sendgrid.com/v3/asm/suppressions/global"
+      },
+      "beforeRequest": "request.body = {recipient_emails: JSON.parse(inputs.emails).map((email) => String(email).trim()).filter((email) => email.length > 0)};\nreturn request;",
+      "afterResponse": "return {success: true};",
+      "outputs": {
+        "success": "$.success"
+      }
+    },
+    "remove_from_global_suppression": {
+      "label": "Remove from Global Unsubscribe List",
+      "description": "Remove an email address from the global suppression list, allowing it to receive emails again",
+      "inputs": {
+        "email": {
+          "label": "Email",
+          "description": "Email address to remove from the global suppression list",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.dataResidency}}.sendgrid.com/v3/asm/suppressions/global/{{email}}"
+      },
+      "beforeRequest": "request.url = request.url.replace(/[^/]+$/, encodeURIComponent(inputs.email.trim()));\nreturn request;",
+      "afterResponse": "return {success: true};",
+      "outputs": {
+        "success": "$.success"
+      }
+    },
+    "check_global_suppression": {
+      "label": "Check Global Unsubscribe Status",
+      "description": "Check whether an email address is on the global suppression list",
+      "inputs": {
+        "email": {
+          "label": "Email",
+          "description": "Email address to check",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.dataResidency}}.sendgrid.com/v3/asm/suppressions/global/{{email}}"
+      },
+      "beforeRequest": "request.url = request.url.replace(/[^/]+$/, encodeURIComponent(inputs.email.trim()));\nreturn request;",
+      "afterResponse": "return {email: inputs.email.trim(), suppressed: Boolean(response && response.recipient_email)};",
+      "outputs": {
+        "suppressed": "$.suppressed"
+      }
+    }
+  }
+}

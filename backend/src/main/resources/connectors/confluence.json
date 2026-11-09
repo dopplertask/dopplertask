@@ -1,0 +1,4576 @@
+{
+  "name": "confluence",
+  "label": "Confluence",
+  "description": "Team wiki for pages, blog posts, comments and spaces.",
+  "icon": "confluence",
+  "hosts": [
+    "{{credential.confluenceDomain}}"
+  ],
+  "baseUrl": "https://{{credential.confluenceDomain}}/wiki",
+  "upstream": {
+    "package": "@activepieces/piece-confluence",
+    "version": "0.4.2"
+  },
+  "credential": {
+    "fields": {
+      "username": {
+        "label": "Account Email",
+        "description": "Account email for basic auth",
+        "required": true
+      },
+      "password": {
+        "label": "API token",
+        "description": "API token for basic auth. Please refer to this guide to get your api credentials: https://support.atlassian.com/atlassian-account/docs/manage-api-tokens-for-your-atlassian-account",
+        "secret": true,
+        "required": true
+      },
+      "confluenceDomain": {
+        "label": "Confluence Domain",
+        "description": "Example value - https://your-domain.atlassian.net (without trailing slash)",
+        "required": true
+      }
+    },
+    "basic": {
+      "username": "{{credential.username}}",
+      "password": "{{credential.password}}"
+    }
+  },
+  "lists": {
+    "spaces": {
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces",
+        "query": {
+          "limit": "200"
+        }
+      },
+      "items": "$.results"
+    },
+    "pages": {
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces/{{spaceId}}/pages",
+        "query": {
+          "limit": "200"
+        }
+      },
+      "items": "$.results",
+      "label": "$.title"
+    }
+  },
+  "actions": {
+    "getPageContent": {
+      "label": "Get Page with Descendants",
+      "description": "Gets a page's content and, optionally, all its descendants.",
+      "group": "Pages",
+      "inputs": {
+        "pageId": {
+          "label": "Page ID",
+          "description": "Get this from the page URL of your Confluence Cloud",
+          "required": true
+        },
+        "includeDescendants": {
+          "label": "Include Descendants?",
+          "description": "If checked, will fetch all child pages recursively.",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "maxDepth": {
+          "label": "Maximum Depth",
+          "description": "Maximum depth of child pages to fetch.",
+          "type": "number",
+          "defaultValue": "5"
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}",
+        "query": {
+          "body-format": "storage"
+        }
+      },
+      "afterResponse": "if (inputs.includeDescendants !== 'true') return response;\nvar maxDepth = Number(inputs.maxDepth);\nvar page = (id) => call({method: 'GET', url: '/api/v2/pages/' + id, query: {'body-format': 'storage'}});\nvar childrenOf = (id) => call({method: 'GET', url: '/api/v2/pages/' + id + '/children'}).results;\nvar root = Object.assign({}, response, {children: []});\nif (1 >= maxDepth) return root;\nvar parents = [root];\nvar lists = [childrenOf(inputs.pageId)];\nfor (var depth = 2; ; depth++) {\n  var level = [];\n  var ids = [];\n  parents.forEach((parent, index) => { parent.children = lists[index].map((child) => { var node = Object.assign({}, page(child.id), {children: []}); level.push(node); ids.push(child.id); return node; }); });\n  if (depth >= maxDepth || level.length === 0) return root;\n  parents = level;\n  lists = ids.map(childrenOf);\n}"
+    },
+    "get-page-by-url": {
+      "label": "Get Page by URL",
+      "description": "Fetches a page by its Confluence web URL (extracts the page ID automatically).",
+      "group": "Pages",
+      "inputs": {
+        "url": {
+          "label": "Page URL",
+          "description": "Paste any Confluence page URL, e.g. https://your-domain.atlassian.net/wiki/spaces/DOCS/pages/12345/My+Page",
+          "required": true
+        },
+        "bodyFormat": {
+          "label": "Body Format",
+          "type": "select",
+          "defaultValue": "storage",
+          "options": [
+            {
+              "value": "storage",
+              "label": "Storage (XHTML)"
+            },
+            {
+              "value": "view",
+              "label": "View (HTML)"
+            },
+            {
+              "value": "atlas_doc_format",
+              "label": "Atlas Document Format"
+            },
+            {
+              "value": "",
+              "label": "None"
+            }
+          ]
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages",
+        "query": {
+          "body-format": "{{bodyFormat}}"
+        }
+      },
+      "beforeRequest": "var match = /\\/pages\\/(\\d+)/.exec(inputs.url) || /[?&]pageId=(\\d+)/.exec(inputs.url);\nif (!match) throw new Error('Could not extract a page ID from the URL: ' + inputs.url);\nrequest.url += '/' + match[1];\nreturn request;"
+    },
+    "search-pages": {
+      "label": "Search Content with Expanded Fields",
+      "description": "Search Confluence content with CQL (Confluence Query Language). Example: `type = \"page\" AND space = \"DOCS\" AND title ~ \"release\"`.",
+      "group": "Search",
+      "inputs": {
+        "cql": {
+          "label": "CQL",
+          "description": "Confluence Query Language expression. See https://developer.atlassian.com/cloud/confluence/advanced-searching-using-cql/",
+          "type": "multiline",
+          "required": true,
+          "defaultValue": "type = \"page\" ORDER BY lastmodified DESC"
+        },
+        "maxResults": {
+          "label": "Max Results",
+          "type": "number",
+          "required": true,
+          "defaultValue": "25"
+        },
+        "expand": {
+          "label": "Expand",
+          "description": "Comma-separated list of properties to expand (e.g. `body.storage,version,space,history`)."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/content/search"
+      },
+      "beforeRequest": "var enc = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar searchUrl = (start, limit) => '/rest/api/content/search?' + [['cql', inputs.cql], ['start', String(start)], ['limit', String(limit)]].concat(inputs.expand ? [['expand', inputs.expand]] : []).map((pair) => enc(pair[0]) + '=' + enc(pair[1])).join('&');\nvar max = Number(inputs.maxResults);\nif (!(max >= 1 && max <= 1000)) throw new Error('Max Results should be between 1 and 1000.');\nrequest.url = request.url.replace(/\\/rest\\/api\\/content\\/search$/, '') + searchUrl(0, Math.min(50, max));\nreturn request;",
+      "afterResponse": "var enc = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar searchUrl = (start, limit) => '/rest/api/content/search?' + [['cql', inputs.cql], ['start', String(start)], ['limit', String(limit)]].concat(inputs.expand ? [['expand', inputs.expand]] : []).map((pair) => enc(pair[0]) + '=' + enc(pair[1])).join('&');\nvar max = Number(inputs.maxResults);\nvar results = response.results.slice();\nvar last = response;\nvar asked = Math.min(50, max);\nvar start = 0;\nwhile (results.length < max && last.results.length >= asked && last._links?.next) {\n  start += last.results.length;\n  asked = Math.min(50, max - results.length);\n  last = call({method: 'GET', url: searchUrl(start, asked)});\n  results = results.concat(last.results);\n}\nreturn {results: results, count: results.length};"
+    },
+    "create-page-from-template": {
+      "label": "Create Page from Template",
+      "description": "Creates a new page from a template with the given title and variables.",
+      "group": "Pages",
+      "inputs": {
+        "spaceId": {
+          "label": "Space",
+          "required": true,
+          "list": "spaces"
+        },
+        "templateId": {
+          "label": "Template",
+          "required": true
+        },
+        "folderId": {
+          "label": "Parent Folder"
+        },
+        "title": {
+          "label": "Title",
+          "required": true
+        },
+        "status": {
+          "label": "Status",
+          "type": "select",
+          "required": true,
+          "defaultValue": "draft",
+          "options": [
+            {
+              "value": "current",
+              "label": "Published"
+            },
+            {
+              "value": "draft",
+              "label": "Draft"
+            }
+          ]
+        },
+        "templateVariables": {
+          "label": "Template Variables",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages",
+        "body": {
+          "spaceId": "{{spaceId}}",
+          "title": "{{title}}",
+          "parentId": "{{folderId}}",
+          "status": "{{status}}",
+          "body": {
+            "representation": "storage",
+            "value": ""
+          }
+        }
+      },
+      "beforeRequest": "var escape = (text) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;').replace(/'/g, '&apos;');\nvar template = call({method: 'GET', url: '/rest/api/template/' + inputs.templateId});\nvar value = template.body.storage.value.replace(/<at:declarations>[\\s\\S]*?<\\/at:declarations>/, '').trim();\nObject.entries(inputs.templateVariables ? JSON.parse(inputs.templateVariables) : {}).forEach(([name, given]) => {\n  value = value.replace(new RegExp('<at:var at:name=([\\'\"])' + name + '\\\\1\\\\s*\\\\/?>', 'g'), typeof given === 'string' ? escape(given) : '');\n});\nrequest.body.body.value = value;\nreturn request;"
+    },
+    "publish-draft": {
+      "label": "Publish Draft",
+      "description": "Publishes a draft page (changes status from draft to current).",
+      "group": "Pages",
+      "inputs": {
+        "pageId": {
+          "label": "Draft Page ID",
+          "description": "ID of the draft page to publish.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}"
+      },
+      "beforeRequest": "var draft = call({method: 'GET', url: '/api/v2/pages/' + inputs.pageId, query: {'body-format': 'storage', 'get-draft': 'true'}});\nrequest.body = {id: inputs.pageId, status: 'current', title: draft.title, body: {representation: draft.body?.storage?.representation ?? 'storage', value: draft.body?.storage?.value ?? ''}, version: {number: 1}};\nreturn request;"
+    },
+    "reply-to-comment": {
+      "label": "Reply to Comment",
+      "description": "Replies to an existing footer comment on a page.",
+      "group": "Comments",
+      "inputs": {
+        "parentCommentId": {
+          "label": "Parent Comment ID",
+          "description": "The ID of the comment to reply to.",
+          "required": true
+        },
+        "body": {
+          "label": "Reply",
+          "description": "Reply body in storage (XHTML) format.",
+          "type": "multiline",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/footer-comments",
+        "body": {
+          "parentCommentId": "{{parentCommentId}}",
+          "body": {
+            "representation": "storage",
+            "value": "{{body}}"
+          }
+        }
+      }
+    },
+    "find-user": {
+      "label": "Find User",
+      "description": "Looks up Confluence users by name, email, or keyword.",
+      "group": "Users and Groups",
+      "inputs": {
+        "keyword": {
+          "label": "Keyword",
+          "description": "Username, email, or display name to search for.",
+          "required": true
+        },
+        "limit": {
+          "label": "Limit",
+          "type": "number",
+          "defaultValue": "25"
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/search/user",
+        "query": {
+          "cql": "",
+          "limit": "{{limit}}"
+        }
+      },
+      "beforeRequest": "var keyword = inputs.keyword.replace(/\"/g, '\\\\\"');\nrequest.query.cql = 'user.fullname ~ \"' + keyword + '\" OR user = \"' + keyword + '\"';\nvar enc = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar form = Object.keys(request.query).map((key) => enc(key) + '=' + enc(request.query[key])).join('&');\nif (form) request.url += '?' + form;\nrequest.query = {};\nreturn request;",
+      "afterResponse": "var users = (response.results ?? []).map((result) => result.user);\nreturn {found: users.length > 0, count: users.length, results: users};"
+    },
+    "confluence_add_labels": {
+      "label": "Add Labels",
+      "description": "Adds labels to a page, blog post or attachment.",
+      "group": "Labels",
+      "inputs": {
+        "contentId": {
+          "label": "Content ID",
+          "description": "ID of the page, blog post or attachment, from List Pages, List Blog Posts or List Page Attachments.",
+          "required": true
+        },
+        "labels": {
+          "label": "Labels",
+          "description": "Label names to add, lowercase without spaces, e.g. \"release-notes\".",
+          "type": "json",
+          "required": true
+        },
+        "prefix": {
+          "label": "Prefix",
+          "description": "Label prefix. Defaults to global.",
+          "type": "select",
+          "options": [
+            {
+              "value": "global",
+              "label": "Global"
+            },
+            {
+              "value": "my",
+              "label": "My (personal)"
+            },
+            {
+              "value": "team",
+              "label": "Team"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/content/{{contentId}}/label"
+      },
+      "beforeRequest": "var names = JSON.parse(inputs.labels);\nif (!Array.isArray(names) || names.length === 0 || !names.every((name) => typeof name === 'string' && name !== '')) throw new Error('Labels must be a non-empty list of label names.');\nrequest.body = names.map((name) => ({prefix: inputs.prefix || 'global', name: name}));\nreturn request;"
+    },
+    "confluence_add_space_labels": {
+      "label": "Add Space Labels",
+      "description": "Adds labels to a space.",
+      "group": "Labels",
+      "inputs": {
+        "spaceKey": {
+          "label": "Space Key",
+          "description": "Space key such as \"DOCS\" (not the numeric ID), from List Spaces or Get Space.",
+          "required": true
+        },
+        "labels": {
+          "label": "Labels",
+          "description": "Label names to add, lowercase without spaces, e.g. \"release-notes\".",
+          "type": "json",
+          "required": true
+        },
+        "prefix": {
+          "label": "Prefix",
+          "description": "Label prefix. Defaults to global.",
+          "type": "select",
+          "options": [
+            {
+              "value": "global",
+              "label": "Global"
+            },
+            {
+              "value": "my",
+              "label": "My (personal)"
+            },
+            {
+              "value": "team",
+              "label": "Team"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/space/{{spaceKey}}/label"
+      },
+      "beforeRequest": "var names = JSON.parse(inputs.labels);\nif (!Array.isArray(names) || names.length === 0 || !names.every((name) => typeof name === 'string' && name !== '')) throw new Error('Labels must be a non-empty list of label names.');\nrequest.body = names.map((name) => ({prefix: inputs.prefix || 'global', name: name}));\nreturn request;"
+    },
+    "confluence_archive_pages": {
+      "label": "Archive Pages",
+      "description": "Archives one or more pages.",
+      "group": "Pages",
+      "inputs": {
+        "pageIds": {
+          "label": "Page IDs",
+          "description": "Numeric IDs of the pages to archive, from List Pages.",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/content/archive"
+      },
+      "beforeRequest": "var ids = JSON.parse(inputs.pageIds);\nif (!Array.isArray(ids) || ids.length === 0 || !ids.every((id) => typeof id === 'string' && id !== '')) throw new Error('Page IDs must be a non-empty list of page ID strings.');\nrequest.body = {pages: ids.map((id) => ({id: id}))};\nreturn request;"
+    },
+    "confluence_copy_page": {
+      "label": "Copy Page",
+      "description": "Copies a page to a space, under a parent page, or over an existing page.",
+      "group": "Pages",
+      "inputs": {
+        "pageId": {
+          "label": "Page ID",
+          "description": "Numeric page ID, from List Pages, Search Content or the page URL.",
+          "required": true
+        },
+        "destinationType": {
+          "label": "Destination Type",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "parent_page",
+              "label": "Under a parent page"
+            },
+            {
+              "value": "space",
+              "label": "Root of a space"
+            },
+            {
+              "value": "existing_page",
+              "label": "Replace an existing page"
+            }
+          ]
+        },
+        "destinationValue": {
+          "label": "Destination",
+          "description": "Parent or existing page ID for page destinations; space key (e.g. \"DOCS\") for a space.",
+          "required": true
+        },
+        "pageTitle": {
+          "label": "New Title",
+          "description": "Title of the copy. Needed when copying into the same space, where titles must be unique."
+        },
+        "copyAttachments": {
+          "label": "Copy Attachments",
+          "type": "boolean"
+        },
+        "copyLabels": {
+          "label": "Copy Labels",
+          "type": "boolean"
+        },
+        "copyPermissions": {
+          "label": "Copy Permissions",
+          "type": "boolean"
+        },
+        "copyProperties": {
+          "label": "Copy Properties",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/content/{{pageId}}/copy",
+        "body": {
+          "destination": {
+            "type": "{{destinationType}}",
+            "value": "{{destinationValue}}"
+          },
+          "pageTitle": "{{pageTitle}}",
+          "copyAttachments": "{{copyAttachments}}",
+          "copyLabels": "{{copyLabels}}",
+          "copyPermissions": "{{copyPermissions}}",
+          "copyProperties": "{{copyProperties}}"
+        }
+      }
+    },
+    "confluence_create_blog_post_property": {
+      "label": "Create Blog Post Property",
+      "description": "Stores a new content property on a blog post.",
+      "group": "Properties",
+      "inputs": {
+        "blogPostId": {
+          "label": "Blog Post ID",
+          "description": "Numeric blog post ID, from List Blog Posts or Search Content.",
+          "required": true
+        },
+        "key": {
+          "label": "Property Key",
+          "description": "Key of the content property.",
+          "required": true
+        },
+        "value": {
+          "label": "Property Value",
+          "description": "JSON object or array to store under the key.",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/blogposts/{{blogPostId}}/properties",
+        "body": {
+          "key": "{{key}}",
+          "value": "{{value}}"
+        }
+      }
+    },
+    "confluence_delete_blog_post_property": {
+      "label": "Delete Blog Post Property",
+      "description": "Deletes a content property from a blog post.",
+      "group": "Properties",
+      "inputs": {
+        "blogPostId": {
+          "label": "Blog Post ID",
+          "description": "Numeric blog post ID, from List Blog Posts or Search Content.",
+          "required": true
+        },
+        "propertyId": {
+          "label": "Property ID",
+          "description": "Numeric content property ID, from the matching list or create property action.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/blogposts/{{blogPostId}}/properties/{{propertyId}}"
+      },
+      "afterResponse": "return {deleted: true, propertyId: inputs.propertyId};"
+    },
+    "confluence_update_blog_post_property": {
+      "label": "Update Blog Post Property",
+      "description": "Replaces the value of a content property on a blog post.",
+      "group": "Properties",
+      "inputs": {
+        "blogPostId": {
+          "label": "Blog Post ID",
+          "description": "Numeric blog post ID, from List Blog Posts or Search Content.",
+          "required": true
+        },
+        "propertyId": {
+          "label": "Property ID",
+          "description": "Numeric content property ID, from the matching list or create property action.",
+          "required": true
+        },
+        "value": {
+          "label": "Property Value",
+          "description": "New JSON object or array; replaces the current value.",
+          "type": "json",
+          "required": true
+        },
+        "key": {
+          "label": "Property Key",
+          "description": "New key. Leave empty to keep the current key."
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/blogposts/{{blogPostId}}/properties/{{propertyId}}",
+        "body": {
+          "key": "",
+          "value": "{{value}}"
+        }
+      },
+      "beforeRequest": "var current = call({method: 'GET', url: '/api/v2/blogposts/' + inputs.blogPostId + '/properties/' + inputs.propertyId});\nrequest.body = {key: inputs.key || current.key, value: request.body.value, version: {number: current.version.number + 1}};\nreturn request;"
+    },
+    "confluence_create_page_property": {
+      "label": "Create Page Property",
+      "description": "Stores a new content property on a page.",
+      "group": "Properties",
+      "inputs": {
+        "pageId": {
+          "label": "Page ID",
+          "description": "Numeric page ID, from List Pages, Search Content or the page URL.",
+          "required": true
+        },
+        "key": {
+          "label": "Property Key",
+          "description": "Key of the content property.",
+          "required": true
+        },
+        "value": {
+          "label": "Property Value",
+          "description": "JSON object or array to store under the key.",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}/properties",
+        "body": {
+          "key": "{{key}}",
+          "value": "{{value}}"
+        }
+      }
+    },
+    "confluence_delete_page_property": {
+      "label": "Delete Page Property",
+      "description": "Deletes a content property from a page.",
+      "group": "Properties",
+      "inputs": {
+        "pageId": {
+          "label": "Page ID",
+          "description": "Numeric page ID, from List Pages, Search Content or the page URL.",
+          "required": true
+        },
+        "propertyId": {
+          "label": "Property ID",
+          "description": "Numeric content property ID, from the matching list or create property action.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}/properties/{{propertyId}}"
+      },
+      "afterResponse": "return {deleted: true, propertyId: inputs.propertyId};"
+    },
+    "confluence_update_page_property": {
+      "label": "Update Page Property",
+      "description": "Replaces the value of a content property on a page.",
+      "group": "Properties",
+      "inputs": {
+        "pageId": {
+          "label": "Page ID",
+          "description": "Numeric page ID, from List Pages, Search Content or the page URL.",
+          "required": true
+        },
+        "propertyId": {
+          "label": "Property ID",
+          "description": "Numeric content property ID, from the matching list or create property action.",
+          "required": true
+        },
+        "value": {
+          "label": "Property Value",
+          "description": "New JSON object or array; replaces the current value.",
+          "type": "json",
+          "required": true
+        },
+        "key": {
+          "label": "Property Key",
+          "description": "New key. Leave empty to keep the current key."
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}/properties/{{propertyId}}",
+        "body": {
+          "key": "",
+          "value": "{{value}}"
+        }
+      },
+      "beforeRequest": "var current = call({method: 'GET', url: '/api/v2/pages/' + inputs.pageId + '/properties/' + inputs.propertyId});\nrequest.body = {key: inputs.key || current.key, value: request.body.value, version: {number: current.version.number + 1}};\nreturn request;"
+    },
+    "confluence_create_space_property": {
+      "label": "Create Space Property",
+      "description": "Stores a new content property on a space.",
+      "group": "Properties",
+      "inputs": {
+        "spaceId": {
+          "label": "Space ID",
+          "description": "Numeric space ID (not the space key), from List Spaces or Get Space.",
+          "required": true,
+          "list": "spaces"
+        },
+        "key": {
+          "label": "Property Key",
+          "description": "Key of the content property.",
+          "required": true
+        },
+        "value": {
+          "label": "Property Value",
+          "description": "JSON object or array to store under the key.",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces/{{spaceId}}/properties",
+        "body": {
+          "key": "{{key}}",
+          "value": "{{value}}"
+        }
+      }
+    },
+    "confluence_delete_space_property": {
+      "label": "Delete Space Property",
+      "description": "Deletes a content property from a space.",
+      "group": "Properties",
+      "inputs": {
+        "spaceId": {
+          "label": "Space ID",
+          "description": "Numeric space ID (not the space key), from List Spaces or Get Space.",
+          "required": true,
+          "list": "spaces"
+        },
+        "propertyId": {
+          "label": "Property ID",
+          "description": "Numeric content property ID, from the matching list or create property action.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces/{{spaceId}}/properties/{{propertyId}}"
+      },
+      "afterResponse": "return {deleted: true, propertyId: inputs.propertyId};"
+    },
+    "confluence_update_space_property": {
+      "label": "Update Space Property",
+      "description": "Replaces the value of a content property on a space.",
+      "group": "Properties",
+      "inputs": {
+        "spaceId": {
+          "label": "Space ID",
+          "description": "Numeric space ID (not the space key), from List Spaces or Get Space.",
+          "required": true,
+          "list": "spaces"
+        },
+        "propertyId": {
+          "label": "Property ID",
+          "description": "Numeric content property ID, from the matching list or create property action.",
+          "required": true
+        },
+        "value": {
+          "label": "Property Value",
+          "description": "New JSON object or array; replaces the current value.",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces/{{spaceId}}/properties/{{propertyId}}",
+        "body": {
+          "key": "",
+          "value": "{{value}}"
+        }
+      },
+      "beforeRequest": "var current = call({method: 'GET', url: '/api/v2/spaces/' + inputs.spaceId + '/properties/' + inputs.propertyId});\nrequest.body = {key: current.key, value: request.body.value, version: {number: current.version.number + 1}};\nreturn request;"
+    },
+    "confluence_create_whiteboard_property": {
+      "label": "Create Whiteboard Property",
+      "description": "Stores a new content property on a whiteboard.",
+      "group": "Properties",
+      "inputs": {
+        "whiteboardId": {
+          "label": "Whiteboard ID",
+          "description": "Numeric whiteboard ID, from Create Whiteboard or List Child Content.",
+          "required": true
+        },
+        "key": {
+          "label": "Property Key",
+          "description": "Key of the content property.",
+          "required": true
+        },
+        "value": {
+          "label": "Property Value",
+          "description": "JSON object or array to store under the key.",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/whiteboards/{{whiteboardId}}/properties",
+        "body": {
+          "key": "{{key}}",
+          "value": "{{value}}"
+        }
+      }
+    },
+    "confluence_delete_whiteboard_property": {
+      "label": "Delete Whiteboard Property",
+      "description": "Deletes a content property from a whiteboard.",
+      "group": "Properties",
+      "inputs": {
+        "whiteboardId": {
+          "label": "Whiteboard ID",
+          "description": "Numeric whiteboard ID, from Create Whiteboard or List Child Content.",
+          "required": true
+        },
+        "propertyId": {
+          "label": "Property ID",
+          "description": "Numeric content property ID, from the matching list or create property action.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/whiteboards/{{whiteboardId}}/properties/{{propertyId}}"
+      },
+      "afterResponse": "return {deleted: true, propertyId: inputs.propertyId};"
+    },
+    "confluence_update_whiteboard_property": {
+      "label": "Update Whiteboard Property",
+      "description": "Replaces the value of a content property on a whiteboard.",
+      "group": "Properties",
+      "inputs": {
+        "whiteboardId": {
+          "label": "Whiteboard ID",
+          "description": "Numeric whiteboard ID, from Create Whiteboard or List Child Content.",
+          "required": true
+        },
+        "propertyId": {
+          "label": "Property ID",
+          "description": "Numeric content property ID, from the matching list or create property action.",
+          "required": true
+        },
+        "value": {
+          "label": "Property Value",
+          "description": "New JSON object or array; replaces the current value.",
+          "type": "json",
+          "required": true
+        },
+        "key": {
+          "label": "Property Key",
+          "description": "New key. Leave empty to keep the current key."
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/whiteboards/{{whiteboardId}}/properties/{{propertyId}}",
+        "body": {
+          "key": "",
+          "value": "{{value}}"
+        }
+      },
+      "beforeRequest": "var current = call({method: 'GET', url: '/api/v2/whiteboards/' + inputs.whiteboardId + '/properties/' + inputs.propertyId});\nrequest.body = {key: inputs.key || current.key, value: request.body.value, version: {number: current.version.number + 1}};\nreturn request;"
+    },
+    "confluence_create_page": {
+      "label": "Create Page",
+      "description": "Creates a page in a space.",
+      "group": "Pages",
+      "inputs": {
+        "spaceId": {
+          "label": "Space ID",
+          "description": "Numeric space ID (not the space key), from List Spaces or Get Space.",
+          "required": true,
+          "list": "spaces"
+        },
+        "title": {
+          "label": "Title",
+          "description": "Page title. Must be unique within the space for published pages.",
+          "required": true
+        },
+        "body": {
+          "label": "Body",
+          "description": "Content in the selected body format. Storage format is Confluence XHTML, e.g. \"<p>Hello</p>\".",
+          "type": "multiline"
+        },
+        "bodyFormat": {
+          "label": "Body Format",
+          "description": "Format of Body. Defaults to storage (XHTML).",
+          "type": "select",
+          "defaultValue": "storage",
+          "options": [
+            {
+              "value": "storage",
+              "label": "Storage (XHTML)"
+            },
+            {
+              "value": "atlas_doc_format",
+              "label": "Atlas Document Format (JSON string)"
+            },
+            {
+              "value": "wiki",
+              "label": "Wiki Markup"
+            }
+          ]
+        },
+        "parentId": {
+          "label": "Parent Page ID",
+          "description": "Page to nest the new page under. Leave empty to create it under the space homepage.",
+          "list": "pages"
+        },
+        "status": {
+          "label": "Status",
+          "description": "Published (current) or draft. Defaults to published.",
+          "type": "select",
+          "defaultValue": "current",
+          "options": [
+            {
+              "value": "current",
+              "label": "Published"
+            },
+            {
+              "value": "draft",
+              "label": "Draft"
+            }
+          ]
+        },
+        "isPrivate": {
+          "label": "Private",
+          "description": "Restrict the page so only you can view and edit it.",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages",
+        "query": {
+          "private": "{{isPrivate}}"
+        },
+        "body": {
+          "spaceId": "{{spaceId}}",
+          "parentId": "{{parentId}}",
+          "title": "{{title}}",
+          "status": "{{status}}",
+          "body": {
+            "representation": "{{bodyFormat}}",
+            "value": ""
+          }
+        }
+      },
+      "beforeRequest": "for (const key in request.query) if (request.query[key] === 'false') delete request.query[key];\nrequest.body.body.value = inputs.body;\nreturn request;"
+    },
+    "confluence_delete_page": {
+      "label": "Delete Page",
+      "description": "Moves a page to the trash, or purges it.",
+      "group": "Pages",
+      "inputs": {
+        "pageId": {
+          "label": "Page ID",
+          "description": "Numeric page ID, from List Pages, Search Content or the page URL.",
+          "required": true
+        },
+        "purge": {
+          "label": "Purge",
+          "description": "Permanently delete a page that is already in the trash. Cannot be undone.",
+          "type": "boolean"
+        },
+        "draft": {
+          "label": "Draft",
+          "description": "Delete the unpublished draft of the page.",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}",
+        "query": {
+          "purge": "{{purge}}",
+          "draft": "{{draft}}"
+        }
+      },
+      "beforeRequest": "for (const key in request.query) if (request.query[key] === 'false') delete request.query[key];\nreturn request;",
+      "afterResponse": "return {deleted: true, pageId: inputs.pageId};"
+    },
+    "confluence_get_page_like_count": {
+      "label": "Get Page Like Count",
+      "description": "Gets how many likes a page has.",
+      "group": "Pages",
+      "inputs": {
+        "pageId": {
+          "label": "Page ID",
+          "description": "Numeric page ID, from List Pages, Search Content or the page URL.",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}/likes/count"
+      }
+    },
+    "confluence_get_page_version": {
+      "label": "Get Page Version",
+      "description": "Gets the details of one version of a page.",
+      "group": "Pages",
+      "inputs": {
+        "pageId": {
+          "label": "Page ID",
+          "description": "Numeric page ID, from List Pages, Search Content or the page URL.",
+          "required": true
+        },
+        "versionNumber": {
+          "label": "Version Number",
+          "description": "Version number, from the matching list versions action.",
+          "type": "number",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}/versions/{{versionNumber}}"
+      }
+    },
+    "confluence_get_page": {
+      "label": "Get Page",
+      "description": "Gets a page by ID, with its body.",
+      "group": "Pages",
+      "inputs": {
+        "pageId": {
+          "label": "Page ID",
+          "description": "Numeric page ID, from List Pages, Search Content or the page URL.",
+          "required": true
+        },
+        "bodyFormat": {
+          "label": "Body Format",
+          "description": "Body representation to return. Defaults to storage (XHTML).",
+          "type": "select",
+          "defaultValue": "storage",
+          "options": [
+            {
+              "value": "storage",
+              "label": "Storage (XHTML)"
+            },
+            {
+              "value": "atlas_doc_format",
+              "label": "Atlas Document Format"
+            },
+            {
+              "value": "view",
+              "label": "View (rendered HTML)"
+            },
+            {
+              "value": "export_view",
+              "label": "Export view"
+            },
+            {
+              "value": "styled_view",
+              "label": "Styled view"
+            }
+          ]
+        },
+        "getDraft": {
+          "label": "Get Draft",
+          "description": "Return the unpublished draft of the page instead of the published version.",
+          "type": "boolean"
+        },
+        "version": {
+          "label": "Version",
+          "description": "Return this historical version number instead of the latest.",
+          "type": "number"
+        },
+        "includeLabels": {
+          "label": "Include Labels",
+          "type": "boolean"
+        },
+        "includeProperties": {
+          "label": "Include Properties",
+          "type": "boolean"
+        },
+        "includeVersions": {
+          "label": "Include Versions",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}",
+        "query": {
+          "body-format": "{{bodyFormat}}",
+          "get-draft": "{{getDraft}}",
+          "version": "{{version}}",
+          "include-labels": "{{includeLabels}}",
+          "include-properties": "{{includeProperties}}",
+          "include-versions": "{{includeVersions}}"
+        }
+      },
+      "beforeRequest": "for (const key in request.query) if (request.query[key] === 'false') delete request.query[key];\nreturn request;"
+    },
+    "confluence_list_page_operations": {
+      "label": "List Page Permitted Operations",
+      "description": "Lists what the connected user may do on a page.",
+      "group": "Pages",
+      "inputs": {
+        "pageId": {
+          "label": "Page ID",
+          "description": "Numeric page ID, from List Pages, Search Content or the page URL.",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}/operations"
+      }
+    },
+    "confluence_list_page_attachments": {
+      "label": "List Page Attachments",
+      "description": "Lists the attachments of a page.",
+      "group": "Attachments",
+      "inputs": {
+        "pageId": {
+          "label": "Page ID",
+          "description": "Numeric page ID, from List Pages, Search Content or the page URL.",
+          "required": true
+        },
+        "filename": {
+          "label": "Filename",
+          "description": "Only attachments with this filename."
+        },
+        "mediaType": {
+          "label": "Media Type",
+          "description": "Only attachments of this media type, e.g. image/png."
+        },
+        "sort": {
+          "label": "Sort",
+          "type": "select",
+          "options": [
+            {
+              "value": "-created-date",
+              "label": "Newest first"
+            },
+            {
+              "value": "created-date",
+              "label": "Oldest first"
+            },
+            {
+              "value": "-modified-date",
+              "label": "Recently modified first"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-250). Defaults to 25.",
+          "type": "number",
+          "defaultValue": "25"
+        },
+        "cursor": {
+          "label": "Cursor",
+          "description": "nextCursor from the previous call with the same filters, to get the next page."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}/attachments",
+        "query": {
+          "filename": "{{filename}}",
+          "mediaType": "{{mediaType}}",
+          "sort": "{{sort}}",
+          "limit": "{{limit}}",
+          "cursor": "{{cursor}}"
+        }
+      },
+      "afterResponse": "var results = response.results ?? [];\nvar next = response._links?.next;\nvar cursor = next ? /[?&]cursor=([^&#]*)/.exec(next) : null;\nreturn {results: results, count: results.length, nextCursor: cursor ? decodeURIComponent(cursor[1].replace(/\\+/g, ' ')) : null};"
+    },
+    "confluence_list_page_footer_comments": {
+      "label": "List Page Footer Comments",
+      "description": "Lists the footer comments on a page.",
+      "group": "Comments",
+      "inputs": {
+        "pageId": {
+          "label": "Page ID",
+          "description": "Numeric page ID, from List Pages, Search Content or the page URL.",
+          "required": true
+        },
+        "bodyFormat": {
+          "label": "Body Format",
+          "description": "Body representation to include in the response. Leave empty to omit the body.",
+          "type": "select",
+          "defaultValue": "storage",
+          "options": [
+            {
+              "value": "storage",
+              "label": "Storage (XHTML)"
+            },
+            {
+              "value": "atlas_doc_format",
+              "label": "Atlas Document Format"
+            }
+          ]
+        },
+        "sort": {
+          "label": "Sort",
+          "type": "select",
+          "options": [
+            {
+              "value": "-created-date",
+              "label": "Newest first"
+            },
+            {
+              "value": "created-date",
+              "label": "Oldest first"
+            },
+            {
+              "value": "-modified-date",
+              "label": "Recently modified first"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-250). Defaults to 25.",
+          "type": "number",
+          "defaultValue": "25"
+        },
+        "cursor": {
+          "label": "Cursor",
+          "description": "nextCursor from the previous call with the same filters, to get the next page."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}/footer-comments",
+        "query": {
+          "body-format": "{{bodyFormat}}",
+          "sort": "{{sort}}",
+          "cursor": "{{cursor}}",
+          "limit": "{{limit}}"
+        }
+      },
+      "afterResponse": "var results = response.results ?? [];\nvar next = response._links?.next;\nvar cursor = next ? /[?&]cursor=([^&#]*)/.exec(next) : null;\nreturn {results: results, count: results.length, nextCursor: cursor ? decodeURIComponent(cursor[1].replace(/\\+/g, ' ')) : null};"
+    },
+    "confluence_list_page_inline_comments": {
+      "label": "List Page Inline Comments",
+      "description": "Lists the inline comments on a page.",
+      "group": "Comments",
+      "inputs": {
+        "pageId": {
+          "label": "Page ID",
+          "description": "Numeric page ID, from List Pages, Search Content or the page URL.",
+          "required": true
+        },
+        "resolutionStatus": {
+          "label": "Resolution Status",
+          "description": "Only comments with this resolution status.",
+          "type": "select",
+          "options": [
+            {
+              "value": "open",
+              "label": "Open"
+            },
+            {
+              "value": "resolved",
+              "label": "Resolved"
+            },
+            {
+              "value": "reopened",
+              "label": "Reopened"
+            },
+            {
+              "value": "dangling",
+              "label": "Dangling (highlighted text removed)"
+            }
+          ]
+        },
+        "bodyFormat": {
+          "label": "Body Format",
+          "description": "Body representation to include in the response. Leave empty to omit the body.",
+          "type": "select",
+          "defaultValue": "storage",
+          "options": [
+            {
+              "value": "storage",
+              "label": "Storage (XHTML)"
+            },
+            {
+              "value": "atlas_doc_format",
+              "label": "Atlas Document Format"
+            }
+          ]
+        },
+        "sort": {
+          "label": "Sort",
+          "type": "select",
+          "options": [
+            {
+              "value": "-created-date",
+              "label": "Newest first"
+            },
+            {
+              "value": "created-date",
+              "label": "Oldest first"
+            },
+            {
+              "value": "-modified-date",
+              "label": "Recently modified first"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-250). Defaults to 25.",
+          "type": "number",
+          "defaultValue": "25"
+        },
+        "cursor": {
+          "label": "Cursor",
+          "description": "nextCursor from the previous call with the same filters, to get the next page."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}/inline-comments",
+        "query": {
+          "body-format": "{{bodyFormat}}",
+          "sort": "{{sort}}",
+          "resolution-status": "{{resolutionStatus}}",
+          "cursor": "{{cursor}}",
+          "limit": "{{limit}}"
+        }
+      },
+      "afterResponse": "var results = response.results ?? [];\nvar next = response._links?.next;\nvar cursor = next ? /[?&]cursor=([^&#]*)/.exec(next) : null;\nreturn {results: results, count: results.length, nextCursor: cursor ? decodeURIComponent(cursor[1].replace(/\\+/g, ' ')) : null};"
+    },
+    "confluence_list_page_labels": {
+      "label": "List Page Labels",
+      "description": "Lists the labels on a page.",
+      "group": "Labels",
+      "inputs": {
+        "pageId": {
+          "label": "Page ID",
+          "description": "Numeric page ID, from List Pages, Search Content or the page URL.",
+          "required": true
+        },
+        "prefix": {
+          "label": "Prefix",
+          "description": "Only labels with this prefix.",
+          "type": "select",
+          "options": [
+            {
+              "value": "global",
+              "label": "Global"
+            },
+            {
+              "value": "my",
+              "label": "My (personal)"
+            },
+            {
+              "value": "team",
+              "label": "Team"
+            },
+            {
+              "value": "system",
+              "label": "System"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-250). Defaults to 25.",
+          "type": "number",
+          "defaultValue": "25"
+        },
+        "cursor": {
+          "label": "Cursor",
+          "description": "nextCursor from the previous call with the same filters, to get the next page."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}/labels",
+        "query": {
+          "prefix": "{{prefix}}",
+          "cursor": "{{cursor}}",
+          "limit": "{{limit}}"
+        }
+      },
+      "afterResponse": "var results = response.results ?? [];\nvar next = response._links?.next;\nvar cursor = next ? /[?&]cursor=([^&#]*)/.exec(next) : null;\nreturn {results: results, count: results.length, nextCursor: cursor ? decodeURIComponent(cursor[1].replace(/\\+/g, ' ')) : null};"
+    },
+    "confluence_list_page_properties": {
+      "label": "List Page Properties",
+      "description": "Lists the content properties stored on a page.",
+      "group": "Properties",
+      "inputs": {
+        "pageId": {
+          "label": "Page ID",
+          "description": "Numeric page ID, from List Pages, Search Content or the page URL.",
+          "required": true
+        },
+        "key": {
+          "label": "Property Key",
+          "description": "Only the property with this key."
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-250). Defaults to 25.",
+          "type": "number",
+          "defaultValue": "25"
+        },
+        "cursor": {
+          "label": "Cursor",
+          "description": "nextCursor from the previous call with the same filters, to get the next page."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}/properties",
+        "query": {
+          "key": "{{key}}",
+          "cursor": "{{cursor}}",
+          "limit": "{{limit}}"
+        }
+      },
+      "afterResponse": "var results = response.results ?? [];\nvar next = response._links?.next;\nvar cursor = next ? /[?&]cursor=([^&#]*)/.exec(next) : null;\nreturn {results: results, count: results.length, nextCursor: cursor ? decodeURIComponent(cursor[1].replace(/\\+/g, ' ')) : null};"
+    },
+    "confluence_list_page_versions": {
+      "label": "List Page Versions",
+      "description": "Lists the version history of a page.",
+      "group": "Pages",
+      "inputs": {
+        "pageId": {
+          "label": "Page ID",
+          "description": "Numeric page ID, from List Pages, Search Content or the page URL.",
+          "required": true
+        },
+        "sort": {
+          "label": "Sort",
+          "type": "select",
+          "options": [
+            {
+              "value": "-modified-date",
+              "label": "Newest first"
+            },
+            {
+              "value": "modified-date",
+              "label": "Oldest first"
+            }
+          ]
+        },
+        "bodyFormat": {
+          "label": "Body Format",
+          "description": "Body representation to include in the response. Leave empty to omit the body.",
+          "type": "select",
+          "options": [
+            {
+              "value": "storage",
+              "label": "Storage (XHTML)"
+            },
+            {
+              "value": "atlas_doc_format",
+              "label": "Atlas Document Format"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-250). Defaults to 25.",
+          "type": "number",
+          "defaultValue": "25"
+        },
+        "cursor": {
+          "label": "Cursor",
+          "description": "nextCursor from the previous call with the same filters, to get the next page."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}/versions",
+        "query": {
+          "sort": "{{sort}}",
+          "body-format": "{{bodyFormat}}",
+          "cursor": "{{cursor}}",
+          "limit": "{{limit}}"
+        }
+      },
+      "afterResponse": "var results = response.results ?? [];\nvar next = response._links?.next;\nvar cursor = next ? /[?&]cursor=([^&#]*)/.exec(next) : null;\nreturn {results: results, count: results.length, nextCursor: cursor ? decodeURIComponent(cursor[1].replace(/\\+/g, ' ')) : null};"
+    },
+    "confluence_list_pages_for_label": {
+      "label": "List Pages for Label",
+      "description": "Lists the pages that carry a label.",
+      "group": "Labels",
+      "inputs": {
+        "labelId": {
+          "label": "Label ID",
+          "description": "Numeric label ID, from Get Label or List Labels.",
+          "required": true
+        },
+        "spaceId": {
+          "label": "Space ID",
+          "description": "Only content in this space. Numeric space ID from List Spaces.",
+          "list": "spaces"
+        },
+        "bodyFormat": {
+          "label": "Body Format",
+          "description": "Body representation to include in the response. Leave empty to omit the body.",
+          "type": "select",
+          "options": [
+            {
+              "value": "storage",
+              "label": "Storage (XHTML)"
+            },
+            {
+              "value": "atlas_doc_format",
+              "label": "Atlas Document Format"
+            }
+          ]
+        },
+        "sort": {
+          "label": "Sort",
+          "type": "select",
+          "options": [
+            {
+              "value": "-created-date",
+              "label": "Newest first"
+            },
+            {
+              "value": "created-date",
+              "label": "Oldest first"
+            },
+            {
+              "value": "-modified-date",
+              "label": "Recently modified first"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-250). Defaults to 25.",
+          "type": "number",
+          "defaultValue": "25"
+        },
+        "cursor": {
+          "label": "Cursor",
+          "description": "nextCursor from the previous call with the same filters, to get the next page."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/labels/{{labelId}}/pages",
+        "query": {
+          "space-id": "{{spaceId}}",
+          "body-format": "{{bodyFormat}}",
+          "sort": "{{sort}}",
+          "cursor": "{{cursor}}",
+          "limit": "{{limit}}"
+        }
+      },
+      "afterResponse": "var results = response.results ?? [];\nvar next = response._links?.next;\nvar cursor = next ? /[?&]cursor=([^&#]*)/.exec(next) : null;\nreturn {results: results, count: results.length, nextCursor: cursor ? decodeURIComponent(cursor[1].replace(/\\+/g, ' ')) : null};"
+    },
+    "confluence_list_pages": {
+      "label": "List Pages",
+      "description": "Lists pages, optionally filtered by space, title or status.",
+      "group": "Pages",
+      "inputs": {
+        "spaceId": {
+          "label": "Space ID",
+          "description": "Only pages in this space. Numeric space ID from List Spaces; several IDs may be comma-separated.",
+          "list": "spaces"
+        },
+        "title": {
+          "label": "Title",
+          "description": "Only pages with exactly this title."
+        },
+        "status": {
+          "label": "Status",
+          "description": "Only pages with this status. Defaults to current and archived.",
+          "type": "select",
+          "options": [
+            {
+              "value": "current",
+              "label": "Current"
+            },
+            {
+              "value": "archived",
+              "label": "Archived"
+            },
+            {
+              "value": "trashed",
+              "label": "Trashed"
+            },
+            {
+              "value": "deleted",
+              "label": "Deleted"
+            }
+          ]
+        },
+        "sort": {
+          "label": "Sort",
+          "type": "select",
+          "options": [
+            {
+              "value": "-created-date",
+              "label": "Newest first"
+            },
+            {
+              "value": "created-date",
+              "label": "Oldest first"
+            },
+            {
+              "value": "-modified-date",
+              "label": "Recently modified first"
+            },
+            {
+              "value": "title",
+              "label": "Title A-Z"
+            }
+          ]
+        },
+        "bodyFormat": {
+          "label": "Body Format",
+          "description": "Body representation to include in the response. Leave empty to omit the body.",
+          "type": "select",
+          "options": [
+            {
+              "value": "storage",
+              "label": "Storage (XHTML)"
+            },
+            {
+              "value": "atlas_doc_format",
+              "label": "Atlas Document Format"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-250). Defaults to 25.",
+          "type": "number",
+          "defaultValue": "25"
+        },
+        "cursor": {
+          "label": "Cursor",
+          "description": "nextCursor from the previous call with the same filters, to get the next page."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages",
+        "query": {
+          "space-id": "{{spaceId}}",
+          "title": "{{title}}",
+          "status": "{{status}}",
+          "sort": "{{sort}}",
+          "body-format": "{{bodyFormat}}",
+          "cursor": "{{cursor}}",
+          "limit": "{{limit}}"
+        }
+      },
+      "beforeRequest": "var enc = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar form = Object.keys(request.query).map((key) => enc(key) + '=' + enc(request.query[key])).join('&');\nif (form) request.url += '?' + form;\nrequest.query = {};\nreturn request;",
+      "afterResponse": "var results = response.results ?? [];\nvar next = response._links?.next;\nvar cursor = next ? /[?&]cursor=([^&#]*)/.exec(next) : null;\nreturn {results: results, count: results.length, nextCursor: cursor ? decodeURIComponent(cursor[1].replace(/\\+/g, ' ')) : null};"
+    },
+    "confluence_create_blog_post": {
+      "label": "Create Blog Post",
+      "description": "Creates a blog post in a space.",
+      "group": "Blog Posts",
+      "inputs": {
+        "spaceId": {
+          "label": "Space ID",
+          "description": "Numeric space ID (not the space key), from List Spaces or Get Space.",
+          "required": true,
+          "list": "spaces"
+        },
+        "title": {
+          "label": "Title",
+          "required": true
+        },
+        "body": {
+          "label": "Body",
+          "description": "Content in the selected body format. Storage format is Confluence XHTML, e.g. \"<p>Hello</p>\".",
+          "type": "multiline"
+        },
+        "bodyFormat": {
+          "label": "Body Format",
+          "description": "Format of Body. Defaults to storage (XHTML).",
+          "type": "select",
+          "defaultValue": "storage",
+          "options": [
+            {
+              "value": "storage",
+              "label": "Storage (XHTML)"
+            },
+            {
+              "value": "atlas_doc_format",
+              "label": "Atlas Document Format (JSON string)"
+            },
+            {
+              "value": "wiki",
+              "label": "Wiki Markup"
+            }
+          ]
+        },
+        "status": {
+          "label": "Status",
+          "description": "Published (current) or draft. Defaults to published.",
+          "type": "select",
+          "defaultValue": "current",
+          "options": [
+            {
+              "value": "current",
+              "label": "Published"
+            },
+            {
+              "value": "draft",
+              "label": "Draft"
+            }
+          ]
+        },
+        "isPrivate": {
+          "label": "Private",
+          "description": "Restrict the blog post so only you can view and edit it.",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/blogposts",
+        "query": {
+          "private": "{{isPrivate}}"
+        },
+        "body": {
+          "spaceId": "{{spaceId}}",
+          "title": "{{title}}",
+          "status": "{{status}}",
+          "body": {
+            "representation": "{{bodyFormat}}",
+            "value": ""
+          }
+        }
+      },
+      "beforeRequest": "for (const key in request.query) if (request.query[key] === 'false') delete request.query[key];\nrequest.body.body.value = inputs.body;\nreturn request;"
+    },
+    "confluence_delete_blog_post": {
+      "label": "Delete Blog Post",
+      "description": "Moves a blog post to the trash, or purges it.",
+      "group": "Blog Posts",
+      "inputs": {
+        "blogPostId": {
+          "label": "Blog Post ID",
+          "description": "Numeric blog post ID, from List Blog Posts or Search Content.",
+          "required": true
+        },
+        "purge": {
+          "label": "Purge",
+          "description": "Permanently delete a blog post that is already in the trash. Cannot be undone.",
+          "type": "boolean"
+        },
+        "draft": {
+          "label": "Draft",
+          "description": "Delete the unpublished draft of the blog post.",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/blogposts/{{blogPostId}}",
+        "query": {
+          "purge": "{{purge}}",
+          "draft": "{{draft}}"
+        }
+      },
+      "beforeRequest": "for (const key in request.query) if (request.query[key] === 'false') delete request.query[key];\nreturn request;",
+      "afterResponse": "return {deleted: true, blogPostId: inputs.blogPostId};"
+    },
+    "confluence_get_blog_post_like_count": {
+      "label": "Get Blog Post Like Count",
+      "description": "Gets how many likes a blog post has.",
+      "group": "Blog Posts",
+      "inputs": {
+        "blogPostId": {
+          "label": "Blog Post ID",
+          "description": "Numeric blog post ID, from List Blog Posts or Search Content.",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/blogposts/{{blogPostId}}/likes/count"
+      }
+    },
+    "confluence_get_blog_post_version": {
+      "label": "Get Blog Post Version",
+      "description": "Gets the details of one version of a blog post.",
+      "group": "Blog Posts",
+      "inputs": {
+        "blogPostId": {
+          "label": "Blog Post ID",
+          "description": "Numeric blog post ID, from List Blog Posts or Search Content.",
+          "required": true
+        },
+        "versionNumber": {
+          "label": "Version Number",
+          "description": "Version number, from the matching list versions action.",
+          "type": "number",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/blogposts/{{blogPostId}}/versions/{{versionNumber}}"
+      }
+    },
+    "confluence_get_blog_post": {
+      "label": "Get Blog Post",
+      "description": "Gets a blog post by ID, with its body.",
+      "group": "Blog Posts",
+      "inputs": {
+        "blogPostId": {
+          "label": "Blog Post ID",
+          "description": "Numeric blog post ID, from List Blog Posts or Search Content.",
+          "required": true
+        },
+        "bodyFormat": {
+          "label": "Body Format",
+          "description": "Body representation to return. Defaults to storage (XHTML).",
+          "type": "select",
+          "defaultValue": "storage",
+          "options": [
+            {
+              "value": "storage",
+              "label": "Storage (XHTML)"
+            },
+            {
+              "value": "atlas_doc_format",
+              "label": "Atlas Document Format"
+            },
+            {
+              "value": "view",
+              "label": "View (rendered HTML)"
+            },
+            {
+              "value": "export_view",
+              "label": "Export view"
+            },
+            {
+              "value": "styled_view",
+              "label": "Styled view"
+            }
+          ]
+        },
+        "getDraft": {
+          "label": "Get Draft",
+          "description": "Return the unpublished draft instead of the published version.",
+          "type": "boolean"
+        },
+        "version": {
+          "label": "Version",
+          "description": "Return this historical version number instead of the latest.",
+          "type": "number"
+        },
+        "includeLabels": {
+          "label": "Include Labels",
+          "type": "boolean"
+        },
+        "includeProperties": {
+          "label": "Include Properties",
+          "type": "boolean"
+        },
+        "includeVersions": {
+          "label": "Include Versions",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/blogposts/{{blogPostId}}",
+        "query": {
+          "body-format": "{{bodyFormat}}",
+          "get-draft": "{{getDraft}}",
+          "version": "{{version}}",
+          "include-labels": "{{includeLabels}}",
+          "include-properties": "{{includeProperties}}",
+          "include-versions": "{{includeVersions}}"
+        }
+      },
+      "beforeRequest": "for (const key in request.query) if (request.query[key] === 'false') delete request.query[key];\nreturn request;"
+    },
+    "confluence_list_blog_post_operations": {
+      "label": "List Blog Post Permitted Operations",
+      "description": "Lists what the connected user may do on a blog post.",
+      "group": "Blog Posts",
+      "inputs": {
+        "blogPostId": {
+          "label": "Blog Post ID",
+          "description": "Numeric blog post ID, from List Blog Posts or Search Content.",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/blogposts/{{blogPostId}}/operations"
+      }
+    },
+    "confluence_list_blog_post_attachments": {
+      "label": "List Blog Post Attachments",
+      "description": "Lists the attachments of a blog post.",
+      "group": "Attachments",
+      "inputs": {
+        "blogPostId": {
+          "label": "Blog Post ID",
+          "description": "Numeric blog post ID, from List Blog Posts or Search Content.",
+          "required": true
+        },
+        "filename": {
+          "label": "Filename",
+          "description": "Only attachments with this filename."
+        },
+        "mediaType": {
+          "label": "Media Type",
+          "description": "Only attachments of this media type, e.g. image/png."
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-250). Defaults to 25.",
+          "type": "number",
+          "defaultValue": "25"
+        },
+        "cursor": {
+          "label": "Cursor",
+          "description": "nextCursor from the previous call with the same filters, to get the next page."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/blogposts/{{blogPostId}}/attachments",
+        "query": {
+          "filename": "{{filename}}",
+          "mediaType": "{{mediaType}}",
+          "limit": "{{limit}}",
+          "cursor": "{{cursor}}"
+        }
+      },
+      "afterResponse": "var results = response.results ?? [];\nvar next = response._links?.next;\nvar cursor = next ? /[?&]cursor=([^&#]*)/.exec(next) : null;\nreturn {results: results, count: results.length, nextCursor: cursor ? decodeURIComponent(cursor[1].replace(/\\+/g, ' ')) : null};"
+    },
+    "confluence_list_blog_post_footer_comments": {
+      "label": "List Blog Post Footer Comments",
+      "description": "Lists the footer comments on a blog post.",
+      "group": "Comments",
+      "inputs": {
+        "blogPostId": {
+          "label": "Blog Post ID",
+          "description": "Numeric blog post ID, from List Blog Posts or Search Content.",
+          "required": true
+        },
+        "bodyFormat": {
+          "label": "Body Format",
+          "description": "Body representation to include in the response. Leave empty to omit the body.",
+          "type": "select",
+          "defaultValue": "storage",
+          "options": [
+            {
+              "value": "storage",
+              "label": "Storage (XHTML)"
+            },
+            {
+              "value": "atlas_doc_format",
+              "label": "Atlas Document Format"
+            }
+          ]
+        },
+        "sort": {
+          "label": "Sort",
+          "type": "select",
+          "options": [
+            {
+              "value": "-created-date",
+              "label": "Newest first"
+            },
+            {
+              "value": "created-date",
+              "label": "Oldest first"
+            },
+            {
+              "value": "-modified-date",
+              "label": "Recently modified first"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-250). Defaults to 25.",
+          "type": "number",
+          "defaultValue": "25"
+        },
+        "cursor": {
+          "label": "Cursor",
+          "description": "nextCursor from the previous call with the same filters, to get the next page."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/blogposts/{{blogPostId}}/footer-comments",
+        "query": {
+          "body-format": "{{bodyFormat}}",
+          "sort": "{{sort}}",
+          "cursor": "{{cursor}}",
+          "limit": "{{limit}}"
+        }
+      },
+      "afterResponse": "var results = response.results ?? [];\nvar next = response._links?.next;\nvar cursor = next ? /[?&]cursor=([^&#]*)/.exec(next) : null;\nreturn {results: results, count: results.length, nextCursor: cursor ? decodeURIComponent(cursor[1].replace(/\\+/g, ' ')) : null};"
+    },
+    "confluence_list_blog_post_inline_comments": {
+      "label": "List Blog Post Inline Comments",
+      "description": "Lists the inline comments on a blog post.",
+      "group": "Comments",
+      "inputs": {
+        "blogPostId": {
+          "label": "Blog Post ID",
+          "description": "Numeric blog post ID, from List Blog Posts or Search Content.",
+          "required": true
+        },
+        "resolutionStatus": {
+          "label": "Resolution Status",
+          "description": "Only comments with this resolution status.",
+          "type": "select",
+          "options": [
+            {
+              "value": "open",
+              "label": "Open"
+            },
+            {
+              "value": "resolved",
+              "label": "Resolved"
+            },
+            {
+              "value": "reopened",
+              "label": "Reopened"
+            },
+            {
+              "value": "dangling",
+              "label": "Dangling (highlighted text removed)"
+            }
+          ]
+        },
+        "bodyFormat": {
+          "label": "Body Format",
+          "description": "Body representation to include in the response. Leave empty to omit the body.",
+          "type": "select",
+          "defaultValue": "storage",
+          "options": [
+            {
+              "value": "storage",
+              "label": "Storage (XHTML)"
+            },
+            {
+              "value": "atlas_doc_format",
+              "label": "Atlas Document Format"
+            }
+          ]
+        },
+        "sort": {
+          "label": "Sort",
+          "type": "select",
+          "options": [
+            {
+              "value": "-created-date",
+              "label": "Newest first"
+            },
+            {
+              "value": "created-date",
+              "label": "Oldest first"
+            },
+            {
+              "value": "-modified-date",
+              "label": "Recently modified first"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-250). Defaults to 25.",
+          "type": "number",
+          "defaultValue": "25"
+        },
+        "cursor": {
+          "label": "Cursor",
+          "description": "nextCursor from the previous call with the same filters, to get the next page."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/blogposts/{{blogPostId}}/inline-comments",
+        "query": {
+          "body-format": "{{bodyFormat}}",
+          "sort": "{{sort}}",
+          "resolution-status": "{{resolutionStatus}}",
+          "cursor": "{{cursor}}",
+          "limit": "{{limit}}"
+        }
+      },
+      "afterResponse": "var results = response.results ?? [];\nvar next = response._links?.next;\nvar cursor = next ? /[?&]cursor=([^&#]*)/.exec(next) : null;\nreturn {results: results, count: results.length, nextCursor: cursor ? decodeURIComponent(cursor[1].replace(/\\+/g, ' ')) : null};"
+    },
+    "confluence_list_blog_post_labels": {
+      "label": "List Blog Post Labels",
+      "description": "Lists the labels on a blog post.",
+      "group": "Labels",
+      "inputs": {
+        "blogPostId": {
+          "label": "Blog Post ID",
+          "description": "Numeric blog post ID, from List Blog Posts or Search Content.",
+          "required": true
+        },
+        "prefix": {
+          "label": "Prefix",
+          "description": "Only labels with this prefix.",
+          "type": "select",
+          "options": [
+            {
+              "value": "global",
+              "label": "Global"
+            },
+            {
+              "value": "my",
+              "label": "My (personal)"
+            },
+            {
+              "value": "team",
+              "label": "Team"
+            },
+            {
+              "value": "system",
+              "label": "System"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-250). Defaults to 25.",
+          "type": "number",
+          "defaultValue": "25"
+        },
+        "cursor": {
+          "label": "Cursor",
+          "description": "nextCursor from the previous call with the same filters, to get the next page."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/blogposts/{{blogPostId}}/labels",
+        "query": {
+          "prefix": "{{prefix}}",
+          "cursor": "{{cursor}}",
+          "limit": "{{limit}}"
+        }
+      },
+      "afterResponse": "var results = response.results ?? [];\nvar next = response._links?.next;\nvar cursor = next ? /[?&]cursor=([^&#]*)/.exec(next) : null;\nreturn {results: results, count: results.length, nextCursor: cursor ? decodeURIComponent(cursor[1].replace(/\\+/g, ' ')) : null};"
+    },
+    "confluence_list_blog_post_properties": {
+      "label": "List Blog Post Properties",
+      "description": "Lists the content properties stored on a blog post.",
+      "group": "Properties",
+      "inputs": {
+        "blogPostId": {
+          "label": "Blog Post ID",
+          "description": "Numeric blog post ID, from List Blog Posts or Search Content.",
+          "required": true
+        },
+        "key": {
+          "label": "Property Key",
+          "description": "Only the property with this key."
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-250). Defaults to 25.",
+          "type": "number",
+          "defaultValue": "25"
+        },
+        "cursor": {
+          "label": "Cursor",
+          "description": "nextCursor from the previous call with the same filters, to get the next page."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/blogposts/{{blogPostId}}/properties",
+        "query": {
+          "key": "{{key}}",
+          "cursor": "{{cursor}}",
+          "limit": "{{limit}}"
+        }
+      },
+      "afterResponse": "var results = response.results ?? [];\nvar next = response._links?.next;\nvar cursor = next ? /[?&]cursor=([^&#]*)/.exec(next) : null;\nreturn {results: results, count: results.length, nextCursor: cursor ? decodeURIComponent(cursor[1].replace(/\\+/g, ' ')) : null};"
+    },
+    "confluence_list_blog_post_versions": {
+      "label": "List Blog Post Versions",
+      "description": "Lists the version history of a blog post.",
+      "group": "Blog Posts",
+      "inputs": {
+        "blogPostId": {
+          "label": "Blog Post ID",
+          "description": "Numeric blog post ID, from List Blog Posts or Search Content.",
+          "required": true
+        },
+        "sort": {
+          "label": "Sort",
+          "type": "select",
+          "options": [
+            {
+              "value": "-modified-date",
+              "label": "Newest first"
+            },
+            {
+              "value": "modified-date",
+              "label": "Oldest first"
+            }
+          ]
+        },
+        "bodyFormat": {
+          "label": "Body Format",
+          "description": "Body representation to include in the response. Leave empty to omit the body.",
+          "type": "select",
+          "options": [
+            {
+              "value": "storage",
+              "label": "Storage (XHTML)"
+            },
+            {
+              "value": "atlas_doc_format",
+              "label": "Atlas Document Format"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-250). Defaults to 25.",
+          "type": "number",
+          "defaultValue": "25"
+        },
+        "cursor": {
+          "label": "Cursor",
+          "description": "nextCursor from the previous call with the same filters, to get the next page."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/blogposts/{{blogPostId}}/versions",
+        "query": {
+          "sort": "{{sort}}",
+          "body-format": "{{bodyFormat}}",
+          "cursor": "{{cursor}}",
+          "limit": "{{limit}}"
+        }
+      },
+      "afterResponse": "var results = response.results ?? [];\nvar next = response._links?.next;\nvar cursor = next ? /[?&]cursor=([^&#]*)/.exec(next) : null;\nreturn {results: results, count: results.length, nextCursor: cursor ? decodeURIComponent(cursor[1].replace(/\\+/g, ' ')) : null};"
+    },
+    "confluence_list_blog_posts_for_label": {
+      "label": "List Blog Posts for Label",
+      "description": "Lists the blog posts that carry a label.",
+      "group": "Labels",
+      "inputs": {
+        "labelId": {
+          "label": "Label ID",
+          "description": "Numeric label ID, from Get Label or List Labels.",
+          "required": true
+        },
+        "spaceId": {
+          "label": "Space ID",
+          "description": "Only content in this space. Numeric space ID from List Spaces.",
+          "list": "spaces"
+        },
+        "bodyFormat": {
+          "label": "Body Format",
+          "description": "Body representation to include in the response. Leave empty to omit the body.",
+          "type": "select",
+          "options": [
+            {
+              "value": "storage",
+              "label": "Storage (XHTML)"
+            },
+            {
+              "value": "atlas_doc_format",
+              "label": "Atlas Document Format"
+            }
+          ]
+        },
+        "sort": {
+          "label": "Sort",
+          "type": "select",
+          "options": [
+            {
+              "value": "-created-date",
+              "label": "Newest first"
+            },
+            {
+              "value": "created-date",
+              "label": "Oldest first"
+            },
+            {
+              "value": "-modified-date",
+              "label": "Recently modified first"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-250). Defaults to 25.",
+          "type": "number",
+          "defaultValue": "25"
+        },
+        "cursor": {
+          "label": "Cursor",
+          "description": "nextCursor from the previous call with the same filters, to get the next page."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/labels/{{labelId}}/blogposts",
+        "query": {
+          "space-id": "{{spaceId}}",
+          "body-format": "{{bodyFormat}}",
+          "sort": "{{sort}}",
+          "cursor": "{{cursor}}",
+          "limit": "{{limit}}"
+        }
+      },
+      "afterResponse": "var results = response.results ?? [];\nvar next = response._links?.next;\nvar cursor = next ? /[?&]cursor=([^&#]*)/.exec(next) : null;\nreturn {results: results, count: results.length, nextCursor: cursor ? decodeURIComponent(cursor[1].replace(/\\+/g, ' ')) : null};"
+    },
+    "confluence_list_blog_posts": {
+      "label": "List Blog Posts",
+      "description": "Lists blog posts, optionally filtered by space, title or status.",
+      "group": "Blog Posts",
+      "inputs": {
+        "spaceId": {
+          "label": "Space ID",
+          "description": "Only blog posts in this space. Numeric space ID from List Spaces; several IDs may be comma-separated.",
+          "list": "spaces"
+        },
+        "title": {
+          "label": "Title",
+          "description": "Only blog posts with exactly this title."
+        },
+        "status": {
+          "label": "Status",
+          "description": "Only blog posts with this status. Defaults to current.",
+          "type": "select",
+          "options": [
+            {
+              "value": "current",
+              "label": "Current"
+            },
+            {
+              "value": "trashed",
+              "label": "Trashed"
+            },
+            {
+              "value": "deleted",
+              "label": "Deleted"
+            }
+          ]
+        },
+        "sort": {
+          "label": "Sort",
+          "type": "select",
+          "options": [
+            {
+              "value": "-created-date",
+              "label": "Newest first"
+            },
+            {
+              "value": "created-date",
+              "label": "Oldest first"
+            },
+            {
+              "value": "-modified-date",
+              "label": "Recently modified first"
+            }
+          ]
+        },
+        "bodyFormat": {
+          "label": "Body Format",
+          "description": "Body representation to include in the response. Leave empty to omit the body.",
+          "type": "select",
+          "options": [
+            {
+              "value": "storage",
+              "label": "Storage (XHTML)"
+            },
+            {
+              "value": "atlas_doc_format",
+              "label": "Atlas Document Format"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-250). Defaults to 25.",
+          "type": "number",
+          "defaultValue": "25"
+        },
+        "cursor": {
+          "label": "Cursor",
+          "description": "nextCursor from the previous call with the same filters, to get the next page."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/blogposts",
+        "query": {
+          "space-id": "{{spaceId}}",
+          "title": "{{title}}",
+          "status": "{{status}}",
+          "sort": "{{sort}}",
+          "body-format": "{{bodyFormat}}",
+          "cursor": "{{cursor}}",
+          "limit": "{{limit}}"
+        }
+      },
+      "beforeRequest": "var enc = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar form = Object.keys(request.query).map((key) => enc(key) + '=' + enc(request.query[key])).join('&');\nif (form) request.url += '?' + form;\nrequest.query = {};\nreturn request;",
+      "afterResponse": "var results = response.results ?? [];\nvar next = response._links?.next;\nvar cursor = next ? /[?&]cursor=([^&#]*)/.exec(next) : null;\nreturn {results: results, count: results.length, nextCursor: cursor ? decodeURIComponent(cursor[1].replace(/\\+/g, ' ')) : null};"
+    },
+    "confluence_create_folder": {
+      "label": "Create Folder",
+      "description": "Creates a folder in a space.",
+      "group": "Folders",
+      "inputs": {
+        "spaceId": {
+          "label": "Space ID",
+          "description": "Numeric space ID (not the space key), from List Spaces or Get Space.",
+          "required": true,
+          "list": "spaces"
+        },
+        "title": {
+          "label": "Title"
+        },
+        "parentId": {
+          "label": "Parent ID",
+          "description": "ID of the page, folder or whiteboard to create it under. Leave empty for the space root.",
+          "list": "pages"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/folders",
+        "body": {
+          "spaceId": "{{spaceId}}",
+          "title": "{{title}}",
+          "parentId": "{{parentId}}"
+        }
+      }
+    },
+    "confluence_create_footer_comment": {
+      "label": "Create Footer Comment",
+      "description": "Adds a footer comment to a page, blog post or attachment.",
+      "group": "Comments",
+      "inputs": {
+        "pageId": {
+          "label": "Page ID",
+          "description": "Page to comment on, from List Pages."
+        },
+        "blogPostId": {
+          "label": "Blog Post ID",
+          "description": "Blog post to comment on, from List Blog Posts."
+        },
+        "attachmentId": {
+          "label": "Attachment ID",
+          "description": "Attachment to comment on."
+        },
+        "body": {
+          "label": "Body",
+          "description": "Content in the selected body format. Storage format is Confluence XHTML, e.g. \"<p>Hello</p>\".",
+          "type": "multiline",
+          "required": true
+        },
+        "bodyFormat": {
+          "label": "Body Format",
+          "description": "Format of Body. Defaults to storage (XHTML).",
+          "type": "select",
+          "defaultValue": "storage",
+          "options": [
+            {
+              "value": "storage",
+              "label": "Storage (XHTML)"
+            },
+            {
+              "value": "atlas_doc_format",
+              "label": "Atlas Document Format (JSON string)"
+            },
+            {
+              "value": "wiki",
+              "label": "Wiki Markup"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/footer-comments",
+        "body": {
+          "pageId": "{{pageId}}",
+          "blogPostId": "{{blogPostId}}",
+          "attachmentId": "{{attachmentId}}",
+          "body": {
+            "representation": "{{bodyFormat}}",
+            "value": "{{body}}"
+          }
+        }
+      },
+      "beforeRequest": "if ([inputs.pageId, inputs.blogPostId, inputs.attachmentId].filter((id) => id).length !== 1) throw new Error('Set exactly one of Page ID, Blog Post ID or Attachment ID.');\nreturn request;"
+    },
+    "confluence_create_inline_comment": {
+      "label": "Create Inline Comment",
+      "description": "Adds an inline comment on highlighted text, or replies to one.",
+      "group": "Comments",
+      "inputs": {
+        "pageId": {
+          "label": "Page ID",
+          "description": "Page to comment on, from List Pages."
+        },
+        "blogPostId": {
+          "label": "Blog Post ID",
+          "description": "Blog post to comment on, from List Blog Posts."
+        },
+        "parentCommentId": {
+          "label": "Parent Comment ID",
+          "description": "Inline comment to reply to, from List Page Inline Comments. Set only this for a reply."
+        },
+        "body": {
+          "label": "Body",
+          "description": "Content in the selected body format. Storage format is Confluence XHTML, e.g. \"<p>Hello</p>\".",
+          "type": "multiline",
+          "required": true
+        },
+        "bodyFormat": {
+          "label": "Body Format",
+          "description": "Format of Body. Defaults to storage (XHTML).",
+          "type": "select",
+          "defaultValue": "storage",
+          "options": [
+            {
+              "value": "storage",
+              "label": "Storage (XHTML)"
+            },
+            {
+              "value": "atlas_doc_format",
+              "label": "Atlas Document Format (JSON string)"
+            },
+            {
+              "value": "wiki",
+              "label": "Wiki Markup"
+            }
+          ]
+        },
+        "textSelection": {
+          "label": "Text Selection",
+          "description": "Exact text in the page body to highlight. Required for a new (non-reply) comment."
+        },
+        "textSelectionMatchCount": {
+          "label": "Match Count",
+          "description": "How many times Text Selection appears in the body. Defaults to 1.",
+          "type": "number"
+        },
+        "textSelectionMatchIndex": {
+          "label": "Match Index",
+          "description": "Zero-based occurrence of Text Selection to highlight. Defaults to 0 (the first).",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/inline-comments",
+        "body": {
+          "pageId": "{{pageId}}",
+          "blogPostId": "{{blogPostId}}",
+          "parentCommentId": "{{parentCommentId}}",
+          "body": {
+            "representation": "{{bodyFormat}}",
+            "value": "{{body}}"
+          }
+        }
+      },
+      "beforeRequest": "if ([inputs.pageId, inputs.blogPostId, inputs.parentCommentId].filter((id) => id).length !== 1) throw new Error('Set exactly one of Page ID, Blog Post ID or Parent Comment ID.');\nif (inputs.textSelection) request.body.inlineCommentProperties = {textSelection: inputs.textSelection, textSelectionMatchCount: inputs.textSelectionMatchCount ? Number(inputs.textSelectionMatchCount) : 1, textSelectionMatchIndex: inputs.textSelectionMatchIndex ? Number(inputs.textSelectionMatchIndex) : 0};\nreturn request;"
+    },
+    "confluence_create_space": {
+      "label": "Create Space",
+      "description": "Creates a space, public or private.",
+      "group": "Spaces",
+      "inputs": {
+        "name": {
+          "label": "Name",
+          "required": true
+        },
+        "key": {
+          "label": "Key",
+          "description": "Unique space key, uppercase letters and digits, e.g. \"ENG\". Generated from the name if empty."
+        },
+        "description": {
+          "label": "Description",
+          "description": "Plain-text description.",
+          "type": "multiline"
+        },
+        "isPrivate": {
+          "label": "Private",
+          "description": "Create a private space visible only to you.",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces",
+        "body": {
+          "name": "{{name}}",
+          "key": "{{key}}",
+          "description": {
+            "value": "{{description}}",
+            "representation": "plain"
+          },
+          "createPrivateSpace": "{{isPrivate}}"
+        }
+      },
+      "beforeRequest": "if (!inputs.description) delete request.body.description;\nreturn request;"
+    },
+    "confluence_create_whiteboard": {
+      "label": "Create Whiteboard",
+      "description": "Creates a whiteboard in a space.",
+      "group": "Whiteboards",
+      "inputs": {
+        "spaceId": {
+          "label": "Space ID",
+          "description": "Numeric space ID (not the space key), from List Spaces or Get Space.",
+          "required": true,
+          "list": "spaces"
+        },
+        "title": {
+          "label": "Title"
+        },
+        "parentId": {
+          "label": "Parent ID",
+          "description": "ID of the page, folder or whiteboard to create it under. Leave empty for the space root.",
+          "list": "pages"
+        },
+        "templateKey": {
+          "label": "Template Key",
+          "description": "Built-in whiteboard template, e.g. \"4ls-retro\", \"daily-sync\" or \"concept-map\". Leave empty for a blank board."
+        },
+        "isPrivate": {
+          "label": "Private",
+          "description": "Restrict the whiteboard so only you can view and edit it.",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/whiteboards",
+        "query": {
+          "private": "{{isPrivate}}"
+        },
+        "body": {
+          "spaceId": "{{spaceId}}",
+          "title": "{{title}}",
+          "parentId": "{{parentId}}",
+          "templateKey": "{{templateKey}}"
+        }
+      },
+      "beforeRequest": "for (const key in request.query) if (request.query[key] === 'false') delete request.query[key];\nreturn request;"
+    },
+    "confluence_upload_attachment": {
+      "label": "Upload Attachment",
+      "description": "Uploads a file as an attachment to a page or blog post.",
+      "group": "Attachments",
+      "inputs": {
+        "contentId": {
+          "label": "Page or Blog Post ID",
+          "description": "Numeric ID of the page or blog post to attach to, from List Pages or List Blog Posts.",
+          "required": true
+        },
+        "file": {
+          "label": "File",
+          "type": "file",
+          "required": true
+        },
+        "comment": {
+          "label": "Comment",
+          "description": "Optional comment for this attachment version."
+        },
+        "minorEdit": {
+          "label": "Minor Edit",
+          "description": "Do not notify watchers about the upload. Defaults to true.",
+          "type": "boolean",
+          "defaultValue": "true"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/content/{{contentId}}/child/attachment",
+        "headers": {
+          "X-Atlassian-Token": "no-check",
+          "Content-Type": "multipart/form-data"
+        },
+        "body": {
+          "file": "{{file}}",
+          "comment": "{{comment}}",
+          "minorEdit": "{{minorEdit}}"
+        }
+      }
+    },
+    "confluence_delete_attachment": {
+      "label": "Delete Attachment",
+      "description": "Moves an attachment to the trash, or purges it.",
+      "group": "Attachments",
+      "inputs": {
+        "attachmentId": {
+          "label": "Attachment ID",
+          "description": "Attachment ID starting with \"att\", from List Page Attachments or Upload Attachment.",
+          "required": true
+        },
+        "purge": {
+          "label": "Purge",
+          "description": "Permanently delete an attachment that is already in the trash. Cannot be undone.",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/attachments/{{attachmentId}}",
+        "query": {
+          "purge": "{{purge}}"
+        }
+      },
+      "beforeRequest": "for (const key in request.query) if (request.query[key] === 'false') delete request.query[key];\nreturn request;",
+      "afterResponse": "return {deleted: true, attachmentId: inputs.attachmentId};"
+    },
+    "confluence_delete_folder": {
+      "label": "Delete Folder",
+      "description": "Moves a folder to the trash.",
+      "group": "Folders",
+      "inputs": {
+        "folderId": {
+          "label": "Folder ID",
+          "description": "Numeric folder ID, from Create Folder or List Child Content.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/folders/{{folderId}}"
+      },
+      "afterResponse": "return {deleted: true, folderId: inputs.folderId};"
+    },
+    "confluence_delete_whiteboard": {
+      "label": "Delete Whiteboard",
+      "description": "Moves a whiteboard to the trash.",
+      "group": "Whiteboards",
+      "inputs": {
+        "whiteboardId": {
+          "label": "Whiteboard ID",
+          "description": "Numeric whiteboard ID, from Create Whiteboard or List Child Content.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/whiteboards/{{whiteboardId}}"
+      },
+      "afterResponse": "return {deleted: true, whiteboardId: inputs.whiteboardId};"
+    },
+    "confluence_delete_footer_comment": {
+      "label": "Delete Footer Comment",
+      "description": "Permanently deletes a footer comment.",
+      "group": "Comments",
+      "inputs": {
+        "commentId": {
+          "label": "Comment ID",
+          "description": "Numeric comment ID, from a comment list or create action.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/footer-comments/{{commentId}}"
+      },
+      "afterResponse": "return {deleted: true, commentId: inputs.commentId};"
+    },
+    "confluence_delete_inline_comment": {
+      "label": "Delete Inline Comment",
+      "description": "Permanently deletes an inline comment.",
+      "group": "Comments",
+      "inputs": {
+        "commentId": {
+          "label": "Comment ID",
+          "description": "Numeric comment ID, from a comment list or create action.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/inline-comments/{{commentId}}"
+      },
+      "afterResponse": "return {deleted: true, commentId: inputs.commentId};"
+    },
+    "confluence_delete_space": {
+      "label": "Delete Space",
+      "description": "Starts deleting a space and everything in it.",
+      "group": "Spaces",
+      "inputs": {
+        "spaceKey": {
+          "label": "Space Key",
+          "description": "Space key such as \"DOCS\" (not the numeric ID), from List Spaces or Get Space.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/space/{{spaceKey}}"
+      }
+    },
+    "confluence_get_attachment": {
+      "label": "Get Attachment",
+      "description": "Gets the details of an attachment.",
+      "group": "Attachments",
+      "inputs": {
+        "attachmentId": {
+          "label": "Attachment ID",
+          "description": "Attachment ID starting with \"att\", from List Page Attachments or Upload Attachment.",
+          "required": true
+        },
+        "includeLabels": {
+          "label": "Include Labels",
+          "type": "boolean"
+        },
+        "includeVersions": {
+          "label": "Include Versions",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/attachments/{{attachmentId}}",
+        "query": {
+          "include-labels": "{{includeLabels}}",
+          "include-versions": "{{includeVersions}}"
+        }
+      },
+      "beforeRequest": "for (const key in request.query) if (request.query[key] === 'false') delete request.query[key];\nreturn request;"
+    },
+    "confluence_get_content_restrictions": {
+      "label": "Get Content Restrictions",
+      "description": "Gets who may view or edit a page or blog post.",
+      "group": "Pages",
+      "inputs": {
+        "contentId": {
+          "label": "Content ID",
+          "description": "Numeric ID of the page or blog post, from List Pages or List Blog Posts.",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/content/{{contentId}}/restriction",
+        "query": {
+          "expand": "restrictions.user,restrictions.group"
+        }
+      }
+    },
+    "confluence_get_current_user": {
+      "label": "Get Current User",
+      "description": "Gets the connected user.",
+      "group": "Users and Groups",
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/user/current"
+      }
+    },
+    "confluence_get_folder": {
+      "label": "Get Folder",
+      "description": "Gets a folder by ID.",
+      "group": "Folders",
+      "inputs": {
+        "folderId": {
+          "label": "Folder ID",
+          "description": "Numeric folder ID, from Create Folder or List Child Content.",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/folders/{{folderId}}"
+      }
+    },
+    "confluence_get_whiteboard": {
+      "label": "Get Whiteboard",
+      "description": "Gets a whiteboard by ID.",
+      "group": "Whiteboards",
+      "inputs": {
+        "whiteboardId": {
+          "label": "Whiteboard ID",
+          "description": "Numeric whiteboard ID, from Create Whiteboard or List Child Content.",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/whiteboards/{{whiteboardId}}"
+      }
+    },
+    "confluence_get_footer_comment": {
+      "label": "Get Footer Comment",
+      "description": "Gets a footer comment by ID.",
+      "group": "Comments",
+      "inputs": {
+        "commentId": {
+          "label": "Comment ID",
+          "description": "Numeric comment ID, from a comment list or create action.",
+          "required": true
+        },
+        "bodyFormat": {
+          "label": "Body Format",
+          "description": "Body representation to return. Defaults to storage (XHTML).",
+          "type": "select",
+          "defaultValue": "storage",
+          "options": [
+            {
+              "value": "storage",
+              "label": "Storage (XHTML)"
+            },
+            {
+              "value": "atlas_doc_format",
+              "label": "Atlas Document Format"
+            },
+            {
+              "value": "view",
+              "label": "View (rendered HTML)"
+            }
+          ]
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/footer-comments/{{commentId}}",
+        "query": {
+          "body-format": "{{bodyFormat}}"
+        }
+      }
+    },
+    "confluence_list_footer_comment_replies": {
+      "label": "List Footer Comment Replies",
+      "description": "Lists the replies to a footer comment.",
+      "group": "Comments",
+      "inputs": {
+        "commentId": {
+          "label": "Comment ID",
+          "description": "Numeric comment ID, from a comment list or create action.",
+          "required": true
+        },
+        "bodyFormat": {
+          "label": "Body Format",
+          "description": "Body representation to include in the response. Leave empty to omit the body.",
+          "type": "select",
+          "defaultValue": "storage",
+          "options": [
+            {
+              "value": "storage",
+              "label": "Storage (XHTML)"
+            },
+            {
+              "value": "atlas_doc_format",
+              "label": "Atlas Document Format"
+            }
+          ]
+        },
+        "sort": {
+          "label": "Sort",
+          "type": "select",
+          "options": [
+            {
+              "value": "-created-date",
+              "label": "Newest first"
+            },
+            {
+              "value": "created-date",
+              "label": "Oldest first"
+            },
+            {
+              "value": "-modified-date",
+              "label": "Recently modified first"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-250). Defaults to 25.",
+          "type": "number",
+          "defaultValue": "25"
+        },
+        "cursor": {
+          "label": "Cursor",
+          "description": "nextCursor from the previous call with the same filters, to get the next page."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/footer-comments/{{commentId}}/children",
+        "query": {
+          "body-format": "{{bodyFormat}}",
+          "sort": "{{sort}}",
+          "cursor": "{{cursor}}",
+          "limit": "{{limit}}"
+        }
+      },
+      "afterResponse": "var results = response.results ?? [];\nvar next = response._links?.next;\nvar cursor = next ? /[?&]cursor=([^&#]*)/.exec(next) : null;\nreturn {results: results, count: results.length, nextCursor: cursor ? decodeURIComponent(cursor[1].replace(/\\+/g, ' ')) : null};"
+    },
+    "confluence_get_inline_comment": {
+      "label": "Get Inline Comment",
+      "description": "Gets an inline comment by ID.",
+      "group": "Comments",
+      "inputs": {
+        "commentId": {
+          "label": "Comment ID",
+          "description": "Numeric comment ID, from a comment list or create action.",
+          "required": true
+        },
+        "bodyFormat": {
+          "label": "Body Format",
+          "description": "Body representation to return. Defaults to storage (XHTML).",
+          "type": "select",
+          "defaultValue": "storage",
+          "options": [
+            {
+              "value": "storage",
+              "label": "Storage (XHTML)"
+            },
+            {
+              "value": "atlas_doc_format",
+              "label": "Atlas Document Format"
+            },
+            {
+              "value": "view",
+              "label": "View (rendered HTML)"
+            }
+          ]
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/inline-comments/{{commentId}}",
+        "query": {
+          "body-format": "{{bodyFormat}}"
+        }
+      }
+    },
+    "confluence_list_inline_comment_replies": {
+      "label": "List Inline Comment Replies",
+      "description": "Lists the replies to an inline comment.",
+      "group": "Comments",
+      "inputs": {
+        "commentId": {
+          "label": "Comment ID",
+          "description": "Numeric comment ID, from a comment list or create action.",
+          "required": true
+        },
+        "bodyFormat": {
+          "label": "Body Format",
+          "description": "Body representation to include in the response. Leave empty to omit the body.",
+          "type": "select",
+          "defaultValue": "storage",
+          "options": [
+            {
+              "value": "storage",
+              "label": "Storage (XHTML)"
+            },
+            {
+              "value": "atlas_doc_format",
+              "label": "Atlas Document Format"
+            }
+          ]
+        },
+        "sort": {
+          "label": "Sort",
+          "type": "select",
+          "options": [
+            {
+              "value": "-created-date",
+              "label": "Newest first"
+            },
+            {
+              "value": "created-date",
+              "label": "Oldest first"
+            },
+            {
+              "value": "-modified-date",
+              "label": "Recently modified first"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-250). Defaults to 25.",
+          "type": "number",
+          "defaultValue": "25"
+        },
+        "cursor": {
+          "label": "Cursor",
+          "description": "nextCursor from the previous call with the same filters, to get the next page."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/inline-comments/{{commentId}}/children",
+        "query": {
+          "body-format": "{{bodyFormat}}",
+          "sort": "{{sort}}",
+          "cursor": "{{cursor}}",
+          "limit": "{{limit}}"
+        }
+      },
+      "afterResponse": "var results = response.results ?? [];\nvar next = response._links?.next;\nvar cursor = next ? /[?&]cursor=([^&#]*)/.exec(next) : null;\nreturn {results: results, count: results.length, nextCursor: cursor ? decodeURIComponent(cursor[1].replace(/\\+/g, ' ')) : null};"
+    },
+    "confluence_get_label": {
+      "label": "Get Label",
+      "description": "Looks up a label by name, with the content that uses it.",
+      "group": "Labels",
+      "inputs": {
+        "name": {
+          "label": "Name",
+          "description": "Label name, e.g. \"release-notes\".",
+          "required": true
+        },
+        "type": {
+          "label": "Content Type",
+          "description": "Only return content of this type.",
+          "type": "select",
+          "options": [
+            {
+              "value": "page",
+              "label": "Page"
+            },
+            {
+              "value": "blogpost",
+              "label": "Blog post"
+            },
+            {
+              "value": "attachment",
+              "label": "Attachment"
+            },
+            {
+              "value": "page_template",
+              "label": "Page template"
+            }
+          ]
+        },
+        "start": {
+          "label": "Start",
+          "description": "Offset into the associated content. Defaults to 0.",
+          "type": "number"
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum associated content items to return (1-200). Defaults to 25.",
+          "type": "number",
+          "defaultValue": "25"
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/label",
+        "query": {
+          "name": "{{name}}",
+          "type": "{{type}}",
+          "start": "{{start}}",
+          "limit": "{{limit}}"
+        }
+      }
+    },
+    "confluence_get_long_task": {
+      "label": "Get Long Task Status",
+      "description": "Gets the status of a long-running task.",
+      "group": "Pages",
+      "inputs": {
+        "taskId": {
+          "label": "Task ID",
+          "description": "Long task ID returned by Archive Pages or Delete Space.",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/longtask/{{taskId}}"
+      }
+    },
+    "confluence_get_page_viewers": {
+      "label": "Get Page Viewers",
+      "description": "Gets the number of distinct viewers of a page or blog post.",
+      "group": "Pages",
+      "inputs": {
+        "contentId": {
+          "label": "Content ID",
+          "description": "Numeric ID of the page or blog post, from List Pages or List Blog Posts.",
+          "required": true
+        },
+        "fromDate": {
+          "label": "From Date",
+          "description": "Count from this date, in ISO 8601 format (e.g. 2026-01-01). Leave empty for all time."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/analytics/content/{{contentId}}/viewers",
+        "query": {
+          "fromDate": "{{fromDate}}"
+        }
+      }
+    },
+    "confluence_get_page_views": {
+      "label": "Get Page Views",
+      "description": "Gets the number of total views of a page or blog post.",
+      "group": "Pages",
+      "inputs": {
+        "contentId": {
+          "label": "Content ID",
+          "description": "Numeric ID of the page or blog post, from List Pages or List Blog Posts.",
+          "required": true
+        },
+        "fromDate": {
+          "label": "From Date",
+          "description": "Count from this date, in ISO 8601 format (e.g. 2026-01-01). Leave empty for all time."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/analytics/content/{{contentId}}/views",
+        "query": {
+          "fromDate": "{{fromDate}}"
+        }
+      }
+    },
+    "confluence_get_space": {
+      "label": "Get Space",
+      "description": "Gets a space by its numeric ID.",
+      "group": "Spaces",
+      "inputs": {
+        "spaceId": {
+          "label": "Space ID",
+          "description": "Numeric space ID (not the space key), from List Spaces or Get Space.",
+          "required": true,
+          "list": "spaces"
+        },
+        "includeLabels": {
+          "label": "Include Labels",
+          "type": "boolean"
+        },
+        "includeProperties": {
+          "label": "Include Properties",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces/{{spaceId}}",
+        "query": {
+          "description-format": "plain",
+          "include-labels": "{{includeLabels}}",
+          "include-properties": "{{includeProperties}}"
+        }
+      },
+      "beforeRequest": "for (const key in request.query) if (request.query[key] === 'false') delete request.query[key];\nreturn request;"
+    },
+    "confluence_get_task": {
+      "label": "Get Task",
+      "description": "Gets an inline task by ID.",
+      "group": "Tasks",
+      "inputs": {
+        "taskId": {
+          "label": "Task ID",
+          "description": "Numeric task ID, from List Tasks.",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/tasks/{{taskId}}",
+        "query": {
+          "body-format": "storage"
+        }
+      }
+    },
+    "confluence_get_template": {
+      "label": "Get Template",
+      "description": "Gets a page template, with its body.",
+      "group": "Templates",
+      "inputs": {
+        "templateId": {
+          "label": "Template ID",
+          "description": "Template ID, from List Templates.",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/template/{{templateId}}",
+        "query": {
+          "expand": "body.storage"
+        }
+      }
+    },
+    "confluence_get_user": {
+      "label": "Get User",
+      "description": "Gets a user by account ID.",
+      "group": "Users and Groups",
+      "inputs": {
+        "accountId": {
+          "label": "Account ID",
+          "description": "Atlassian account ID, e.g. from a page authorId or Find User.",
+          "required": true
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/user",
+        "query": {
+          "accountId": "{{accountId}}"
+        }
+      }
+    },
+    "confluence_list_attachment_comments": {
+      "label": "List Attachment Comments",
+      "description": "Lists the comments on an attachment.",
+      "group": "Comments",
+      "inputs": {
+        "attachmentId": {
+          "label": "Attachment ID",
+          "description": "Attachment ID starting with \"att\", from List Page Attachments or Upload Attachment.",
+          "required": true
+        },
+        "bodyFormat": {
+          "label": "Body Format",
+          "description": "Body representation to include in the response. Leave empty to omit the body.",
+          "type": "select",
+          "defaultValue": "storage",
+          "options": [
+            {
+              "value": "storage",
+              "label": "Storage (XHTML)"
+            },
+            {
+              "value": "atlas_doc_format",
+              "label": "Atlas Document Format"
+            }
+          ]
+        },
+        "sort": {
+          "label": "Sort",
+          "type": "select",
+          "options": [
+            {
+              "value": "-created-date",
+              "label": "Newest first"
+            },
+            {
+              "value": "created-date",
+              "label": "Oldest first"
+            },
+            {
+              "value": "-modified-date",
+              "label": "Recently modified first"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-250). Defaults to 25.",
+          "type": "number",
+          "defaultValue": "25"
+        },
+        "cursor": {
+          "label": "Cursor",
+          "description": "nextCursor from the previous call with the same filters, to get the next page."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/attachments/{{attachmentId}}/footer-comments",
+        "query": {
+          "body-format": "{{bodyFormat}}",
+          "sort": "{{sort}}",
+          "cursor": "{{cursor}}",
+          "limit": "{{limit}}"
+        }
+      },
+      "afterResponse": "var results = response.results ?? [];\nvar next = response._links?.next;\nvar cursor = next ? /[?&]cursor=([^&#]*)/.exec(next) : null;\nreturn {results: results, count: results.length, nextCursor: cursor ? decodeURIComponent(cursor[1].replace(/\\+/g, ' ')) : null};"
+    },
+    "confluence_list_attachment_labels": {
+      "label": "List Attachment Labels",
+      "description": "Lists the labels on an attachment.",
+      "group": "Labels",
+      "inputs": {
+        "attachmentId": {
+          "label": "Attachment ID",
+          "description": "Attachment ID starting with \"att\", from List Page Attachments or Upload Attachment.",
+          "required": true
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-250). Defaults to 25.",
+          "type": "number",
+          "defaultValue": "25"
+        },
+        "cursor": {
+          "label": "Cursor",
+          "description": "nextCursor from the previous call with the same filters, to get the next page."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/attachments/{{attachmentId}}/labels",
+        "query": {
+          "cursor": "{{cursor}}",
+          "limit": "{{limit}}"
+        }
+      },
+      "afterResponse": "var results = response.results ?? [];\nvar next = response._links?.next;\nvar cursor = next ? /[?&]cursor=([^&#]*)/.exec(next) : null;\nreturn {results: results, count: results.length, nextCursor: cursor ? decodeURIComponent(cursor[1].replace(/\\+/g, ' ')) : null};"
+    },
+    "confluence_list_audit_records": {
+      "label": "List Audit Records",
+      "description": "Lists site audit records, optionally by date range or text.",
+      "group": "Audit Records",
+      "inputs": {
+        "startDate": {
+          "label": "Start Date",
+          "description": "Earliest record, as epoch milliseconds or ISO 8601 (e.g. 2026-01-01T00:00:00Z)."
+        },
+        "endDate": {
+          "label": "End Date",
+          "description": "Latest record, as epoch milliseconds or ISO 8601."
+        },
+        "searchString": {
+          "label": "Search",
+          "description": "Only records whose summary, author or affected object contains this text."
+        },
+        "start": {
+          "label": "Start",
+          "description": "Offset of the first item (0-based). Defaults to 0.",
+          "type": "number"
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return. Defaults to 25.",
+          "type": "number",
+          "defaultValue": "25"
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/audit",
+        "query": {
+          "startDate": "{{startDate}}",
+          "endDate": "{{endDate}}",
+          "searchString": "{{searchString}}",
+          "start": "{{start}}",
+          "limit": "{{limit}}"
+        }
+      },
+      "beforeRequest": "var enc = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar form = Object.keys(request.query).map((key) => enc(key) + '=' + enc(request.query[key])).join('&');\nif (form) request.url += '?' + form;\nrequest.query = {};\nreturn request;"
+    },
+    "confluence_list_child_pages": {
+      "label": "List Child Content",
+      "description": "Lists the direct children of a page.",
+      "group": "Pages",
+      "inputs": {
+        "pageId": {
+          "label": "Page ID",
+          "description": "Numeric page ID, from List Pages, Search Content or the page URL.",
+          "required": true
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-250). Defaults to 25.",
+          "type": "number",
+          "defaultValue": "25"
+        },
+        "cursor": {
+          "label": "Cursor",
+          "description": "nextCursor from the previous call with the same filters, to get the next page."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}/direct-children",
+        "query": {
+          "cursor": "{{cursor}}",
+          "limit": "{{limit}}"
+        }
+      },
+      "afterResponse": "var results = response.results ?? [];\nvar next = response._links?.next;\nvar cursor = next ? /[?&]cursor=([^&#]*)/.exec(next) : null;\nreturn {results: results, count: results.length, nextCursor: cursor ? decodeURIComponent(cursor[1].replace(/\\+/g, ' ')) : null};"
+    },
+    "confluence_list_folder_children": {
+      "label": "List Folder Children",
+      "description": "Lists the direct children of a folder.",
+      "group": "Folders",
+      "inputs": {
+        "folderId": {
+          "label": "Folder ID",
+          "description": "Numeric folder ID, from Create Folder or List Child Content.",
+          "required": true
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-250). Defaults to 25.",
+          "type": "number",
+          "defaultValue": "25"
+        },
+        "cursor": {
+          "label": "Cursor",
+          "description": "nextCursor from the previous call with the same filters, to get the next page."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/folders/{{folderId}}/direct-children",
+        "query": {
+          "cursor": "{{cursor}}",
+          "limit": "{{limit}}"
+        }
+      },
+      "afterResponse": "var results = response.results ?? [];\nvar next = response._links?.next;\nvar cursor = next ? /[?&]cursor=([^&#]*)/.exec(next) : null;\nreturn {results: results, count: results.length, nextCursor: cursor ? decodeURIComponent(cursor[1].replace(/\\+/g, ' ')) : null};"
+    },
+    "confluence_list_group_members": {
+      "label": "List Group Members",
+      "description": "Lists the members of a group.",
+      "group": "Users and Groups",
+      "inputs": {
+        "groupId": {
+          "label": "Group ID",
+          "description": "Group ID, from List Groups.",
+          "required": true
+        },
+        "start": {
+          "label": "Start",
+          "description": "Offset of the first item (0-based). Defaults to 0.",
+          "type": "number"
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return. Defaults to 25.",
+          "type": "number",
+          "defaultValue": "25"
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/group/{{groupId}}/membersByGroupId",
+        "query": {
+          "start": "{{start}}",
+          "limit": "{{limit}}"
+        }
+      }
+    },
+    "confluence_list_groups": {
+      "label": "List Groups",
+      "description": "Lists the user groups on the site.",
+      "group": "Users and Groups",
+      "inputs": {
+        "start": {
+          "label": "Start",
+          "description": "Offset of the first item (0-based). Defaults to 0.",
+          "type": "number"
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return. Defaults to 25.",
+          "type": "number",
+          "defaultValue": "25"
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/group",
+        "query": {
+          "start": "{{start}}",
+          "limit": "{{limit}}"
+        }
+      }
+    },
+    "confluence_list_labels": {
+      "label": "List Labels",
+      "description": "Lists the labels used on the site.",
+      "group": "Labels",
+      "inputs": {
+        "prefix": {
+          "label": "Prefix",
+          "description": "Only labels with this prefix.",
+          "type": "select",
+          "options": [
+            {
+              "value": "global",
+              "label": "Global"
+            },
+            {
+              "value": "my",
+              "label": "My (personal)"
+            },
+            {
+              "value": "team",
+              "label": "Team"
+            },
+            {
+              "value": "system",
+              "label": "System"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-250). Defaults to 25.",
+          "type": "number",
+          "defaultValue": "25"
+        },
+        "cursor": {
+          "label": "Cursor",
+          "description": "nextCursor from the previous call with the same filters, to get the next page."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/labels",
+        "query": {
+          "prefix": "{{prefix}}",
+          "cursor": "{{cursor}}",
+          "limit": "{{limit}}"
+        }
+      },
+      "afterResponse": "var results = response.results ?? [];\nvar next = response._links?.next;\nvar cursor = next ? /[?&]cursor=([^&#]*)/.exec(next) : null;\nreturn {results: results, count: results.length, nextCursor: cursor ? decodeURIComponent(cursor[1].replace(/\\+/g, ' ')) : null};"
+    },
+    "confluence_list_page_ancestors": {
+      "label": "List Page Ancestors",
+      "description": "Lists the ancestors of a page, from the top of the tree down.",
+      "group": "Pages",
+      "inputs": {
+        "pageId": {
+          "label": "Page ID",
+          "description": "Numeric page ID, from List Pages, Search Content or the page URL.",
+          "required": true
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-250). Defaults to 25.",
+          "type": "number",
+          "defaultValue": "25"
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}/ancestors",
+        "query": {
+          "limit": "{{limit}}"
+        }
+      },
+      "afterResponse": "var results = response.results ?? [];\nvar next = response._links?.next;\nvar cursor = next ? /[?&]cursor=([^&#]*)/.exec(next) : null;\nreturn {results: results, count: results.length, nextCursor: cursor ? decodeURIComponent(cursor[1].replace(/\\+/g, ' ')) : null};"
+    },
+    "confluence_list_page_descendants": {
+      "label": "List Page Descendants",
+      "description": "Lists all content below a page, up to a depth.",
+      "group": "Pages",
+      "inputs": {
+        "pageId": {
+          "label": "Page ID",
+          "description": "Numeric page ID, from List Pages, Search Content or the page URL.",
+          "required": true
+        },
+        "depth": {
+          "label": "Depth",
+          "description": "How many levels below the page to include (1-5). Defaults to 5.",
+          "type": "number"
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-250). Defaults to 25.",
+          "type": "number",
+          "defaultValue": "25"
+        },
+        "cursor": {
+          "label": "Cursor",
+          "description": "nextCursor from the previous call with the same filters, to get the next page."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}/descendants",
+        "query": {
+          "depth": "{{depth}}",
+          "cursor": "{{cursor}}",
+          "limit": "{{limit}}"
+        }
+      },
+      "afterResponse": "var results = response.results ?? [];\nvar next = response._links?.next;\nvar cursor = next ? /[?&]cursor=([^&#]*)/.exec(next) : null;\nreturn {results: results, count: results.length, nextCursor: cursor ? decodeURIComponent(cursor[1].replace(/\\+/g, ' ')) : null};"
+    },
+    "confluence_list_space_content_labels": {
+      "label": "List Space Content Labels",
+      "description": "Lists the labels used on content in a space.",
+      "group": "Labels",
+      "inputs": {
+        "spaceId": {
+          "label": "Space ID",
+          "description": "Numeric space ID (not the space key), from List Spaces or Get Space.",
+          "required": true,
+          "list": "spaces"
+        },
+        "prefix": {
+          "label": "Prefix",
+          "description": "Only labels with this prefix.",
+          "type": "select",
+          "options": [
+            {
+              "value": "my",
+              "label": "My (personal)"
+            },
+            {
+              "value": "team",
+              "label": "Team"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-250). Defaults to 25.",
+          "type": "number",
+          "defaultValue": "25"
+        },
+        "cursor": {
+          "label": "Cursor",
+          "description": "nextCursor from the previous call with the same filters, to get the next page."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces/{{spaceId}}/content/labels",
+        "query": {
+          "prefix": "{{prefix}}",
+          "cursor": "{{cursor}}",
+          "limit": "{{limit}}"
+        }
+      },
+      "afterResponse": "var results = response.results ?? [];\nvar next = response._links?.next;\nvar cursor = next ? /[?&]cursor=([^&#]*)/.exec(next) : null;\nreturn {results: results, count: results.length, nextCursor: cursor ? decodeURIComponent(cursor[1].replace(/\\+/g, ' ')) : null};"
+    },
+    "confluence_list_space_labels": {
+      "label": "List Space Labels",
+      "description": "Lists the labels on a space.",
+      "group": "Labels",
+      "inputs": {
+        "spaceId": {
+          "label": "Space ID",
+          "description": "Numeric space ID (not the space key), from List Spaces or Get Space.",
+          "required": true,
+          "list": "spaces"
+        },
+        "prefix": {
+          "label": "Prefix",
+          "description": "Only labels with this prefix.",
+          "type": "select",
+          "options": [
+            {
+              "value": "my",
+              "label": "My (personal)"
+            },
+            {
+              "value": "team",
+              "label": "Team"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-250). Defaults to 25.",
+          "type": "number",
+          "defaultValue": "25"
+        },
+        "cursor": {
+          "label": "Cursor",
+          "description": "nextCursor from the previous call with the same filters, to get the next page."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces/{{spaceId}}/labels",
+        "query": {
+          "prefix": "{{prefix}}",
+          "cursor": "{{cursor}}",
+          "limit": "{{limit}}"
+        }
+      },
+      "afterResponse": "var results = response.results ?? [];\nvar next = response._links?.next;\nvar cursor = next ? /[?&]cursor=([^&#]*)/.exec(next) : null;\nreturn {results: results, count: results.length, nextCursor: cursor ? decodeURIComponent(cursor[1].replace(/\\+/g, ' ')) : null};"
+    },
+    "confluence_list_space_properties": {
+      "label": "List Space Properties",
+      "description": "Lists the content properties stored on a space.",
+      "group": "Properties",
+      "inputs": {
+        "spaceId": {
+          "label": "Space ID",
+          "description": "Numeric space ID (not the space key), from List Spaces or Get Space.",
+          "required": true,
+          "list": "spaces"
+        },
+        "key": {
+          "label": "Property Key",
+          "description": "Only the property with this key."
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-250). Defaults to 25.",
+          "type": "number",
+          "defaultValue": "25"
+        },
+        "cursor": {
+          "label": "Cursor",
+          "description": "nextCursor from the previous call with the same filters, to get the next page."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces/{{spaceId}}/properties",
+        "query": {
+          "key": "{{key}}",
+          "cursor": "{{cursor}}",
+          "limit": "{{limit}}"
+        }
+      },
+      "afterResponse": "var results = response.results ?? [];\nvar next = response._links?.next;\nvar cursor = next ? /[?&]cursor=([^&#]*)/.exec(next) : null;\nreturn {results: results, count: results.length, nextCursor: cursor ? decodeURIComponent(cursor[1].replace(/\\+/g, ' ')) : null};"
+    },
+    "confluence_list_whiteboard_properties": {
+      "label": "List Whiteboard Properties",
+      "description": "Lists the content properties stored on a whiteboard.",
+      "group": "Properties",
+      "inputs": {
+        "whiteboardId": {
+          "label": "Whiteboard ID",
+          "description": "Numeric whiteboard ID, from Create Whiteboard or List Child Content.",
+          "required": true
+        },
+        "key": {
+          "label": "Property Key",
+          "description": "Only the property with this key."
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-250). Defaults to 25.",
+          "type": "number",
+          "defaultValue": "25"
+        },
+        "cursor": {
+          "label": "Cursor",
+          "description": "nextCursor from the previous call with the same filters, to get the next page."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/whiteboards/{{whiteboardId}}/properties",
+        "query": {
+          "key": "{{key}}",
+          "cursor": "{{cursor}}",
+          "limit": "{{limit}}"
+        }
+      },
+      "afterResponse": "var results = response.results ?? [];\nvar next = response._links?.next;\nvar cursor = next ? /[?&]cursor=([^&#]*)/.exec(next) : null;\nreturn {results: results, count: results.length, nextCursor: cursor ? decodeURIComponent(cursor[1].replace(/\\+/g, ' ')) : null};"
+    },
+    "confluence_list_spaces": {
+      "label": "List Spaces",
+      "description": "Lists spaces, optionally filtered by key, type, status or label.",
+      "group": "Spaces",
+      "inputs": {
+        "keys": {
+          "label": "Space Keys",
+          "description": "Only these space keys, comma-separated, e.g. \"DOCS,ENG\"."
+        },
+        "type": {
+          "label": "Type",
+          "type": "select",
+          "options": [
+            {
+              "value": "global",
+              "label": "Global"
+            },
+            {
+              "value": "collaboration",
+              "label": "Collaboration"
+            },
+            {
+              "value": "knowledge_base",
+              "label": "Knowledge base"
+            },
+            {
+              "value": "personal",
+              "label": "Personal"
+            }
+          ]
+        },
+        "status": {
+          "label": "Status",
+          "type": "select",
+          "options": [
+            {
+              "value": "current",
+              "label": "Current"
+            },
+            {
+              "value": "archived",
+              "label": "Archived"
+            }
+          ]
+        },
+        "labels": {
+          "label": "Labels",
+          "description": "Only spaces with these labels, comma-separated."
+        },
+        "sort": {
+          "label": "Sort",
+          "type": "select",
+          "options": [
+            {
+              "value": "name",
+              "label": "Name A-Z"
+            },
+            {
+              "value": "-name",
+              "label": "Name Z-A"
+            },
+            {
+              "value": "key",
+              "label": "Key A-Z"
+            }
+          ]
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-250). Defaults to 25.",
+          "type": "number",
+          "defaultValue": "25"
+        },
+        "cursor": {
+          "label": "Cursor",
+          "description": "nextCursor from the previous call with the same filters, to get the next page."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces",
+        "query": {
+          "keys": "{{keys}}",
+          "type": "{{type}}",
+          "status": "{{status}}",
+          "labels": "{{labels}}",
+          "sort": "{{sort}}",
+          "description-format": "plain",
+          "cursor": "{{cursor}}",
+          "limit": "{{limit}}"
+        }
+      },
+      "afterResponse": "var results = response.results ?? [];\nvar next = response._links?.next;\nvar cursor = next ? /[?&]cursor=([^&#]*)/.exec(next) : null;\nreturn {results: results, count: results.length, nextCursor: cursor ? decodeURIComponent(cursor[1].replace(/\\+/g, ' ')) : null};"
+    },
+    "confluence_list_tasks": {
+      "label": "List Tasks",
+      "description": "Lists inline tasks, filtered by status, space, page or assignee.",
+      "group": "Tasks",
+      "inputs": {
+        "status": {
+          "label": "Status",
+          "type": "select",
+          "options": [
+            {
+              "value": "incomplete",
+              "label": "Incomplete"
+            },
+            {
+              "value": "complete",
+              "label": "Complete"
+            }
+          ]
+        },
+        "spaceId": {
+          "label": "Space ID",
+          "description": "Only tasks in this space. Numeric space ID from List Spaces.",
+          "list": "spaces"
+        },
+        "pageId": {
+          "label": "Page ID",
+          "description": "Only tasks on this page.",
+          "list": "pages"
+        },
+        "assignedTo": {
+          "label": "Assigned To",
+          "description": "Only tasks assigned to this account ID, from Get Current User or Find User."
+        },
+        "createdBy": {
+          "label": "Created By",
+          "description": "Only tasks created by this account ID."
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-250). Defaults to 25.",
+          "type": "number",
+          "defaultValue": "25"
+        },
+        "cursor": {
+          "label": "Cursor",
+          "description": "nextCursor from the previous call with the same filters, to get the next page."
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/tasks",
+        "query": {
+          "status": "{{status}}",
+          "space-id": "{{spaceId}}",
+          "page-id": "{{pageId}}",
+          "assigned-to": "{{assignedTo}}",
+          "created-by": "{{createdBy}}",
+          "body-format": "storage",
+          "cursor": "{{cursor}}",
+          "limit": "{{limit}}"
+        }
+      },
+      "afterResponse": "var results = response.results ?? [];\nvar next = response._links?.next;\nvar cursor = next ? /[?&]cursor=([^&#]*)/.exec(next) : null;\nreturn {results: results, count: results.length, nextCursor: cursor ? decodeURIComponent(cursor[1].replace(/\\+/g, ' ')) : null};"
+    },
+    "confluence_list_templates": {
+      "label": "List Templates",
+      "description": "Lists page templates, globally or in a space.",
+      "group": "Templates",
+      "inputs": {
+        "spaceKey": {
+          "label": "Space Key",
+          "description": "Space key (not ID) whose templates to list, from Get Space. Leave empty for global templates."
+        },
+        "start": {
+          "label": "Start",
+          "description": "Offset of the first item (0-based). Defaults to 0.",
+          "type": "number"
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return. Defaults to 25.",
+          "type": "number",
+          "defaultValue": "25"
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/template/page",
+        "query": {
+          "spaceKey": "{{spaceKey}}",
+          "start": "{{start}}",
+          "limit": "{{limit}}"
+        }
+      }
+    },
+    "confluence_move_page": {
+      "label": "Move Page",
+      "description": "Moves a page relative to a target page.",
+      "group": "Pages",
+      "inputs": {
+        "pageId": {
+          "label": "Page ID",
+          "description": "Numeric page ID, from List Pages, Search Content or the page URL.",
+          "required": true
+        },
+        "position": {
+          "label": "Position",
+          "description": "Where to put the page relative to the target page.",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "append",
+              "label": "Append as last child of target"
+            },
+            {
+              "value": "before",
+              "label": "Before target (sibling)"
+            },
+            {
+              "value": "after",
+              "label": "After target (sibling)"
+            }
+          ]
+        },
+        "targetId": {
+          "label": "Target Page ID",
+          "description": "Page to move relative to, from List Pages.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/content/{{pageId}}/move/{{position}}/{{targetId}}"
+      },
+      "afterResponse": "return {pageId: inputs.pageId, position: inputs.position, targetId: inputs.targetId};"
+    },
+    "confluence_remove_label": {
+      "label": "Remove Label",
+      "description": "Removes a label from a page, blog post or attachment.",
+      "group": "Labels",
+      "inputs": {
+        "contentId": {
+          "label": "Content ID",
+          "description": "ID of the page, blog post or attachment, from List Pages, List Blog Posts or List Page Attachments.",
+          "required": true
+        },
+        "label": {
+          "label": "Label",
+          "description": "Name of the label to remove.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/content/{{contentId}}/label",
+        "query": {
+          "name": "{{label}}"
+        }
+      },
+      "afterResponse": "return {removed: true, contentId: inputs.contentId, label: inputs.label};"
+    },
+    "confluence_remove_space_label": {
+      "label": "Remove Space Label",
+      "description": "Removes a label from a space.",
+      "group": "Labels",
+      "inputs": {
+        "spaceKey": {
+          "label": "Space Key",
+          "description": "Space key such as \"DOCS\" (not the numeric ID), from List Spaces or Get Space.",
+          "required": true
+        },
+        "label": {
+          "label": "Label",
+          "description": "Name of the label to remove.",
+          "required": true
+        },
+        "prefix": {
+          "label": "Prefix",
+          "description": "Prefix of the label to remove.",
+          "type": "select",
+          "options": [
+            {
+              "value": "global",
+              "label": "Global"
+            },
+            {
+              "value": "my",
+              "label": "My (personal)"
+            },
+            {
+              "value": "team",
+              "label": "Team"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/space/{{spaceKey}}/label",
+        "query": {
+          "name": "{{label}}",
+          "prefix": "{{prefix}}"
+        }
+      },
+      "afterResponse": "return {removed: true, spaceKey: inputs.spaceKey, label: inputs.label};"
+    },
+    "confluence_restore_page_version": {
+      "label": "Restore Page Version",
+      "description": "Restores an earlier version of a page as a new version.",
+      "group": "Pages",
+      "inputs": {
+        "pageId": {
+          "label": "Page ID",
+          "description": "Numeric ID of the page or blog post, from List Pages or List Blog Posts.",
+          "required": true
+        },
+        "versionNumber": {
+          "label": "Version Number",
+          "description": "Version number, from the matching list versions action.",
+          "type": "number",
+          "required": true
+        },
+        "message": {
+          "label": "Message",
+          "description": "Note saved with the new version, e.g. \"Reverted to version 3\".",
+          "required": true
+        },
+        "restoreTitle": {
+          "label": "Restore Title",
+          "description": "Also restore the title from that version.",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/content/{{pageId}}/version",
+        "body": {
+          "operationKey": "restore",
+          "params": {
+            "versionNumber": "{{versionNumber}}",
+            "message": "{{message}}",
+            "restoreTitle": "{{restoreTitle}}"
+          }
+        }
+      }
+    },
+    "confluence_search_content": {
+      "label": "Search Content with Excerpts",
+      "description": "Searches content with CQL and returns matches with excerpts.",
+      "group": "Search",
+      "inputs": {
+        "cql": {
+          "label": "CQL",
+          "description": "Confluence Query Language query, e.g. type = page AND space = \"DOCS\" AND text ~ \"release\".",
+          "type": "multiline",
+          "required": true
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of items to return (1-250). Defaults to 25.",
+          "type": "number",
+          "defaultValue": "25"
+        },
+        "cursor": {
+          "label": "Cursor",
+          "description": "nextCursor from the previous call with the same filters, to get the next page."
+        },
+        "includeArchivedSpaces": {
+          "label": "Include Archived Spaces",
+          "type": "boolean"
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/search",
+        "query": {
+          "cql": "{{cql}}",
+          "limit": "{{limit}}",
+          "cursor": "{{cursor}}",
+          "includeArchivedSpaces": "{{includeArchivedSpaces}}",
+          "excerpt": "highlight"
+        }
+      },
+      "beforeRequest": "for (const key in request.query) if (request.query[key] === 'false') delete request.query[key];\nvar enc = (value) => encodeURIComponent(value).replace(/[!'()~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()).replace(/%20/g, '+');\nvar form = Object.keys(request.query).map((key) => enc(key) + '=' + enc(request.query[key])).join('&');\nif (form) request.url += '?' + form;\nrequest.query = {};\nreturn request;",
+      "afterResponse": "var results = response.results ?? [];\nvar next = response._links?.next;\nvar cursor = next ? /[?&]cursor=([^&#]*)/.exec(next) : null;\nreturn {results: results, count: results.length, nextCursor: cursor ? decodeURIComponent(cursor[1].replace(/\\+/g, ' ')) : null};"
+    },
+    "confluence_update_blog_post": {
+      "label": "Update Blog Post",
+      "description": "Updates the title, body or status of a blog post.",
+      "group": "Blog Posts",
+      "inputs": {
+        "blogPostId": {
+          "label": "Blog Post ID",
+          "description": "Numeric blog post ID, from List Blog Posts or Search Content.",
+          "required": true
+        },
+        "title": {
+          "label": "Title",
+          "description": "New title. Leave empty to keep the current one."
+        },
+        "body": {
+          "label": "Body",
+          "description": "New body in the selected format; replaces the whole body. Leave empty to keep the current one.",
+          "type": "multiline"
+        },
+        "bodyFormat": {
+          "label": "Body Format",
+          "description": "Format of Body. Defaults to storage (XHTML).",
+          "type": "select",
+          "defaultValue": "storage",
+          "options": [
+            {
+              "value": "storage",
+              "label": "Storage (XHTML)"
+            },
+            {
+              "value": "atlas_doc_format",
+              "label": "Atlas Document Format (JSON string)"
+            },
+            {
+              "value": "wiki",
+              "label": "Wiki Markup"
+            }
+          ]
+        },
+        "status": {
+          "label": "Status",
+          "description": "Published (current) or draft. Leave empty to keep the current status.",
+          "type": "select",
+          "options": [
+            {
+              "value": "current",
+              "label": "Published"
+            },
+            {
+              "value": "draft",
+              "label": "Draft"
+            }
+          ]
+        },
+        "versionMessage": {
+          "label": "Version Message",
+          "description": "Optional note describing this change."
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/blogposts/{{blogPostId}}"
+      },
+      "beforeRequest": "if (!inputs.title && !inputs.body && !inputs.status) throw new Error('Set at least one of Title, Body or Status.');\nvar current = call({method: 'GET', url: '/api/v2/blogposts/' + inputs.blogPostId, query: {'body-format': 'storage'}});\nrequest.body = {id: inputs.blogPostId, status: inputs.status || current.status, title: inputs.title || current.title, body: {representation: inputs.body ? (inputs.bodyFormat || 'storage') : 'storage', value: inputs.body || (current.body?.storage?.value ?? '')}, version: {number: current.version.number + 1, message: inputs.versionMessage || undefined}};\nreturn request;"
+    },
+    "confluence_update_page": {
+      "label": "Update Page",
+      "description": "Updates the title, body, status or parent of a page.",
+      "group": "Pages",
+      "inputs": {
+        "pageId": {
+          "label": "Page ID",
+          "description": "Numeric page ID, from List Pages, Search Content or the page URL.",
+          "required": true
+        },
+        "title": {
+          "label": "Title",
+          "description": "New title. Leave empty to keep the current one."
+        },
+        "body": {
+          "label": "Body",
+          "description": "New body in the selected format; replaces the whole body. Leave empty to keep the current one.",
+          "type": "multiline"
+        },
+        "bodyFormat": {
+          "label": "Body Format",
+          "description": "Format of Body. Defaults to storage (XHTML).",
+          "type": "select",
+          "defaultValue": "storage",
+          "options": [
+            {
+              "value": "storage",
+              "label": "Storage (XHTML)"
+            },
+            {
+              "value": "atlas_doc_format",
+              "label": "Atlas Document Format (JSON string)"
+            },
+            {
+              "value": "wiki",
+              "label": "Wiki Markup"
+            }
+          ]
+        },
+        "status": {
+          "label": "Status",
+          "description": "Published (current) or draft. Leave empty to keep the current status.",
+          "type": "select",
+          "options": [
+            {
+              "value": "current",
+              "label": "Published"
+            },
+            {
+              "value": "draft",
+              "label": "Draft"
+            }
+          ]
+        },
+        "parentId": {
+          "label": "Parent Page ID",
+          "description": "Move the page under this parent page. Leave empty to keep the current parent."
+        },
+        "versionMessage": {
+          "label": "Version Message",
+          "description": "Optional note describing this change."
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}"
+      },
+      "beforeRequest": "if (!inputs.title && !inputs.body && !inputs.status && !inputs.parentId) throw new Error('Set at least one of Title, Body, Status or Parent Page ID.');\nvar current = call({method: 'GET', url: '/api/v2/pages/' + inputs.pageId, query: {'body-format': 'storage'}});\nrequest.body = {id: inputs.pageId, status: inputs.status || current.status, title: inputs.title || current.title, parentId: inputs.parentId || undefined, body: {representation: inputs.body ? (inputs.bodyFormat || 'storage') : 'storage', value: inputs.body || (current.body?.storage?.value ?? '')}, version: {number: current.version.number + 1, message: inputs.versionMessage || undefined}};\nreturn request;"
+    },
+    "confluence_update_footer_comment": {
+      "label": "Update Footer Comment",
+      "description": "Replaces the body of a footer comment.",
+      "group": "Comments",
+      "inputs": {
+        "commentId": {
+          "label": "Comment ID",
+          "description": "Numeric comment ID, from a comment list or create action.",
+          "required": true
+        },
+        "body": {
+          "label": "Body",
+          "description": "New comment body; replaces the whole body.",
+          "type": "multiline",
+          "required": true
+        },
+        "bodyFormat": {
+          "label": "Body Format",
+          "description": "Format of Body. Defaults to storage (XHTML).",
+          "type": "select",
+          "defaultValue": "storage",
+          "options": [
+            {
+              "value": "storage",
+              "label": "Storage (XHTML)"
+            },
+            {
+              "value": "atlas_doc_format",
+              "label": "Atlas Document Format (JSON string)"
+            },
+            {
+              "value": "wiki",
+              "label": "Wiki Markup"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/footer-comments/{{commentId}}"
+      },
+      "beforeRequest": "var current = call({method: 'GET', url: '/api/v2/footer-comments/' + inputs.commentId, query: {'body-format': 'storage'}});\nrequest.body = {version: {number: current.version.number + 1}, body: {representation: inputs.body ? (inputs.bodyFormat || 'storage') : 'storage', value: inputs.body || (current.body?.storage?.value ?? '')}};\nreturn request;"
+    },
+    "confluence_update_inline_comment": {
+      "label": "Update Inline Comment",
+      "description": "Changes the body of an inline comment, or resolves or reopens it.",
+      "group": "Comments",
+      "inputs": {
+        "commentId": {
+          "label": "Comment ID",
+          "description": "Numeric comment ID, from a comment list or create action.",
+          "required": true
+        },
+        "body": {
+          "label": "Body",
+          "description": "New comment body; replaces the whole body. Leave empty to keep the current one.",
+          "type": "multiline"
+        },
+        "bodyFormat": {
+          "label": "Body Format",
+          "description": "Format of Body. Defaults to storage (XHTML).",
+          "type": "select",
+          "defaultValue": "storage",
+          "options": [
+            {
+              "value": "storage",
+              "label": "Storage (XHTML)"
+            },
+            {
+              "value": "atlas_doc_format",
+              "label": "Atlas Document Format (JSON string)"
+            },
+            {
+              "value": "wiki",
+              "label": "Wiki Markup"
+            }
+          ]
+        },
+        "resolved": {
+          "label": "Resolved",
+          "description": "Resolve or reopen the comment. Leave empty to keep its state.",
+          "type": "select",
+          "options": [
+            {
+              "value": "true",
+              "label": "Resolve"
+            },
+            {
+              "value": "false",
+              "label": "Reopen"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/inline-comments/{{commentId}}"
+      },
+      "beforeRequest": "if (!inputs.body && !inputs.resolved) throw new Error('Set Body, Resolved, or both.');\nvar current = call({method: 'GET', url: '/api/v2/inline-comments/' + inputs.commentId, query: {'body-format': 'storage'}});\nrequest.body = {version: {number: current.version.number + 1}, body: {representation: inputs.body ? (inputs.bodyFormat || 'storage') : 'storage', value: inputs.body || (current.body?.storage?.value ?? '')}, resolved: inputs.resolved ? inputs.resolved === 'true' : undefined};\nreturn request;"
+    },
+    "confluence_update_space": {
+      "label": "Update Space",
+      "description": "Updates the name, description, homepage or status of a space.",
+      "group": "Spaces",
+      "inputs": {
+        "spaceKey": {
+          "label": "Space Key",
+          "description": "Space key such as \"DOCS\" (not the numeric ID), from List Spaces or Get Space.",
+          "required": true
+        },
+        "name": {
+          "label": "Name",
+          "description": "New name. Leave empty to keep it."
+        },
+        "description": {
+          "label": "Description",
+          "description": "New plain-text description. Leave empty to keep it.",
+          "type": "multiline"
+        },
+        "homepageId": {
+          "label": "Homepage ID",
+          "description": "Page to make the space homepage. Leave empty to keep it."
+        },
+        "status": {
+          "label": "Status",
+          "description": "Archive or restore the space. Leave empty to keep it.",
+          "type": "select",
+          "options": [
+            {
+              "value": "current",
+              "label": "Current"
+            },
+            {
+              "value": "archived",
+              "label": "Archived"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://{{credential.confluenceDomain}}/wiki/rest/api/space/{{spaceKey}}",
+        "body": {
+          "name": "{{name}}",
+          "description": {
+            "plain": {
+              "value": "{{description}}",
+              "representation": "plain"
+            }
+          },
+          "homepage": {
+            "id": "{{homepageId}}"
+          },
+          "status": "{{status}}"
+        }
+      },
+      "beforeRequest": "if (!inputs.name && !inputs.description && !inputs.homepageId && !inputs.status) throw new Error('Set at least one of Name, Description, Homepage ID or Status.');\nif (!inputs.description) delete request.body.description;\nif (!inputs.homepageId) delete request.body.homepage;\nreturn request;"
+    },
+    "confluence_update_task": {
+      "label": "Update Task",
+      "description": "Marks an inline task complete or incomplete.",
+      "group": "Tasks",
+      "inputs": {
+        "taskId": {
+          "label": "Task ID",
+          "description": "Numeric task ID, from List Tasks.",
+          "required": true
+        },
+        "status": {
+          "label": "Status",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "complete",
+              "label": "Complete"
+            },
+            {
+              "value": "incomplete",
+              "label": "Incomplete"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/tasks/{{taskId}}",
+        "query": {
+          "body-format": "storage"
+        }
+      },
+      "beforeRequest": "var task = call({method: 'GET', url: '/api/v2/tasks/' + inputs.taskId});\nrequest.body = {id: task.id, localId: task.localId, spaceId: task.spaceId, pageId: task.pageId, blogPostId: task.blogPostId, status: inputs.status, createdBy: task.createdBy, assignedTo: task.assignedTo, completedBy: task.completedBy, createdAt: task.createdAt, updatedAt: task.updatedAt, dueAt: task.dueAt, completedAt: task.completedAt};\nreturn request;"
+    }
+  },
+  "triggers": {
+    "new-page": {
+      "label": "New Page",
+      "description": "Triggers when a new page is created.",
+      "inputs": {
+        "spaceId": {
+          "label": "Space",
+          "required": true,
+          "list": "spaces"
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces/{{spaceId}}/pages",
+        "query": {
+          "limit": "100",
+          "sort": "-created-date"
+        }
+      },
+      "key": "$.createdAt",
+      "afterResponse": "return response.results ?? [];"
+    },
+    "updated-page": {
+      "label": "Updated Page",
+      "description": "Triggers when an existing page is updated (version > 1).",
+      "inputs": {
+        "spaceId": {
+          "label": "Space",
+          "required": true,
+          "list": "spaces"
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces/{{spaceId}}/pages",
+        "query": {
+          "limit": "100",
+          "sort": "-modified-date"
+        }
+      },
+      "key": "$.version.createdAt",
+      "afterResponse": "return (response.results ?? []).filter((item) => item.version.number > 1);"
+    },
+    "new-comment": {
+      "label": "New Comment on Page",
+      "description": "Triggers when a new footer comment is added to the selected page.",
+      "inputs": {
+        "spaceId": {
+          "label": "Space",
+          "required": true,
+          "list": "spaces"
+        },
+        "pageId": {
+          "label": "Page",
+          "required": true,
+          "list": "pages"
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}/footer-comments",
+        "query": {
+          "limit": "100",
+          "sort": "-created-date",
+          "body-format": "storage"
+        }
+      },
+      "key": "$.version.createdAt",
+      "afterResponse": "return (response.results ?? []).filter((item) => item.version.number === 1);"
+    },
+    "new-attachment": {
+      "label": "New Attachment",
+      "description": "Triggers when a new attachment is uploaded to the selected page.",
+      "inputs": {
+        "spaceId": {
+          "label": "Space",
+          "required": true,
+          "list": "spaces"
+        },
+        "pageId": {
+          "label": "Page",
+          "required": true,
+          "list": "pages"
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/pages/{{pageId}}/attachments",
+        "query": {
+          "limit": "100",
+          "sort": "-created-date"
+        }
+      },
+      "key": "$.version.createdAt",
+      "afterResponse": "return (response.results ?? []).filter((item) => item.version.number === 1);"
+    },
+    "new-blog-post": {
+      "label": "New Blog Post",
+      "description": "Triggers when a new blog post is published in the selected space.",
+      "inputs": {
+        "spaceId": {
+          "label": "Space",
+          "required": true,
+          "list": "spaces"
+        }
+      },
+      "request": {
+        "url": "https://{{credential.confluenceDomain}}/wiki/api/v2/spaces/{{spaceId}}/blogposts",
+        "query": {
+          "limit": "100",
+          "sort": "-created-date"
+        }
+      },
+      "key": "$.createdAt",
+      "afterResponse": "return response.results ?? [];"
+    }
+  }
+}

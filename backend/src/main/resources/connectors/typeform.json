@@ -1,0 +1,1193 @@
+{
+  "name": "typeform",
+  "label": "Typeform",
+  "description": "Create beautiful online forms and surveys",
+  "icon": "typeform",
+  "hosts": [
+    "api.typeform.com"
+  ],
+  "baseUrl": "https://api.typeform.com",
+  "upstream": {
+    "package": "@activepieces/piece-typeform",
+    "version": "0.7.1"
+  },
+  "credential": {
+    "oauth2": {
+      "authUrl": "https://admin.typeform.com/oauth/authorize",
+      "tokenUrl": "https://api.typeform.com/oauth/token",
+      "scope": "webhooks:write forms:read forms:write accounts:read responses:read responses:write workspaces:read workspaces:write themes:read themes:write images:read images:write offline"
+    }
+  },
+  "lists": {
+    "workspaces": {
+      "request": {
+        "method": "GET",
+        "url": "https://api.typeform.com/workspaces",
+        "query": {
+          "page": "1",
+          "page_size": "200"
+        }
+      },
+      "items": "$.items",
+      "label": "$.name",
+      "value": "$.id"
+    },
+    "themes": {
+      "request": {
+        "method": "GET",
+        "url": "https://api.typeform.com/themes",
+        "query": {
+          "page": "1",
+          "page_size": "200"
+        }
+      },
+      "items": "$.items",
+      "label": "$.name",
+      "value": "$.id"
+    },
+    "forms": {
+      "request": {
+        "method": "GET",
+        "url": "https://api.typeform.com/forms",
+        "query": {
+          "page": "1",
+          "page_size": "200"
+        }
+      },
+      "items": "$.items",
+      "label": "$.title",
+      "value": "$.id"
+    },
+    "fields": {
+      "request": {
+        "method": "GET",
+        "url": "https://api.typeform.com/forms/{{form_id}}"
+      },
+      "items": "$.fields",
+      "label": "$.title",
+      "value": "$.id"
+    }
+  },
+  "actions": {
+    "get_me": {
+      "label": "Get Account",
+      "description": "Gets the connected Typeform account.",
+      "inputs": {},
+      "request": {
+        "method": "GET",
+        "url": "https://api.typeform.com/me"
+      }
+    },
+    "list_forms": {
+      "label": "List Forms",
+      "description": "Lists forms in the Typeform account.",
+      "inputs": {
+        "search": {
+          "label": "Search",
+          "description": "Only forms whose title contains this text."
+        },
+        "workspace": {
+          "label": "Workspace ID",
+          "description": "Workspace ID, from List Workspaces.",
+          "list": "workspaces"
+        },
+        "sortBy": {
+          "label": "Sort By",
+          "type": "select",
+          "options": [
+            {
+              "value": "created_at",
+              "label": "Created at"
+            },
+            {
+              "value": "last_updated_at",
+              "label": "Last updated at"
+            }
+          ]
+        },
+        "orderBy": {
+          "label": "Order",
+          "type": "select",
+          "options": [
+            {
+              "value": "asc",
+              "label": "Ascending"
+            },
+            {
+              "value": "desc",
+              "label": "Descending"
+            }
+          ]
+        },
+        "page": {
+          "label": "Page",
+          "description": "Page number, starting at 1.",
+          "type": "number"
+        },
+        "pageSize": {
+          "label": "Page Size",
+          "description": "How many items to return per page, from 1 to 200.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.typeform.com/forms",
+        "query": {
+          "workspace_id": "{{workspace}}",
+          "sort_by": "{{sortBy}}",
+          "order_by": "{{orderBy}}"
+        }
+      },
+      "beforeRequest": "const num=v=>v===''||v==null?undefined:Number(v),size=(p,s,max)=>({page:p===undefined?undefined:String(Math.max(1,Math.floor(p))),page_size:s===undefined?undefined:String(Math.min(max,Math.max(1,Math.floor(s))))}),compact=o=>{for(const k of Object.keys(o))if(o[k]===undefined||o[k]==='')delete o[k];return o};\nrequest.query=compact({search:inputs.search.trim(),...request.query,...size(num(inputs.page),num(inputs.pageSize),200)});return request;"
+    },
+    "get_form": {
+      "label": "Get Form",
+      "description": "Gets a form with its questions, logic and settings.",
+      "inputs": {
+        "form_id": {
+          "label": "Form ID",
+          "description": "Form ID, from List Forms.",
+          "required": true,
+          "list": "forms"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.typeform.com/forms/{{form_id}}"
+      }
+    },
+    "create_form": {
+      "label": "Create Form",
+      "description": "Creates a new form, empty or with questions.",
+      "inputs": {
+        "title": {
+          "label": "Title",
+          "required": true
+        },
+        "workspace": {
+          "label": "Workspace ID",
+          "description": "Leave empty for your default workspace.",
+          "list": "workspaces"
+        },
+        "theme": {
+          "label": "Theme ID",
+          "description": "Leave empty for Typeform's default theme.",
+          "list": "themes"
+        },
+        "fields": {
+          "label": "Questions",
+          "description": "A JSON array of Typeform question objects.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.typeform.com/forms"
+      },
+      "beforeRequest": "const B='https://api.typeform.com',enc=encodeURIComponent,has=v=>v!=null&&String(v).trim().length>0,rec=v=>typeof v==='object'&&v!==null&&!Array.isArray(v),href=(r,id)=>({href:B+'/'+r+'/'+enc(id.trim())});\nconst f=has(inputs.fields)?JSON.parse(inputs.fields):null;if(!(f==null||rec(f)&&Object.keys(f).length===0)&&!Array.isArray(f))throw new Error('Questions must be a JSON array of field objects.');\nrequest.body={title:inputs.title,...(has(inputs.workspace)?{workspace:href('workspaces',inputs.workspace)}:{}),...(has(inputs.theme)?{theme:href('themes',inputs.theme)}:{}),...(Array.isArray(f)&&f.length>0?{fields:f}:{})};return request;"
+    },
+    "update_form": {
+      "label": "Update Form",
+      "description": "Changes a form's title, public status, theme or workspace.",
+      "inputs": {
+        "form_id": {
+          "label": "Form ID",
+          "description": "Form ID, from List Forms.",
+          "required": true,
+          "list": "forms"
+        },
+        "title": {
+          "label": "Title"
+        },
+        "isPublic": {
+          "label": "Public",
+          "description": "Whether the form is open and accepts responses.",
+          "type": "select",
+          "options": [
+            {
+              "value": "true",
+              "label": "Public"
+            },
+            {
+              "value": "false",
+              "label": "Closed"
+            }
+          ]
+        },
+        "theme": {
+          "label": "Theme ID",
+          "description": "Theme ID, from List Themes.",
+          "list": "themes"
+        },
+        "workspace": {
+          "label": "Workspace ID",
+          "description": "Workspace ID, from List Workspaces.",
+          "list": "workspaces"
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://api.typeform.com/forms/{{form_id}}"
+      },
+      "beforeRequest": "const B='https://api.typeform.com',enc=encodeURIComponent,has=v=>v!=null&&String(v).trim().length>0,href=(r,id)=>({href:B+'/'+r+'/'+enc(id.trim())});\nconst r=(path,value)=>({op:'replace',path,value}),ops=[...(has(inputs.title)?[r('/title',inputs.title)]:[]),...(has(inputs.isPublic)?[r('/settings/is_public',inputs.isPublic==='true')]:[]),...(has(inputs.theme)?[r('/theme',href('themes',inputs.theme))]:[]),...(has(inputs.workspace)?[r('/workspace',href('workspaces',inputs.workspace))]:[])];\nif(ops.length===0)throw new Error('Set at least one of Title, Public, Theme or Workspace.');request.body=ops;return request;",
+      "afterResponse": "return call({method:'GET',url:'/forms/'+encodeURIComponent(inputs.form_id)});"
+    },
+    "replace_form": {
+      "label": "Replace Form",
+      "description": "Replaces a form's whole definition, including its questions.",
+      "inputs": {
+        "form_id": {
+          "label": "Form ID",
+          "description": "Form ID, from List Forms.",
+          "required": true,
+          "list": "forms"
+        },
+        "definition": {
+          "label": "Form Definition",
+          "description": "The full form JSON from Get Form, with your changes. Must include title.",
+          "type": "json",
+          "required": true
+        },
+        "allowFieldDeletion": {
+          "label": "Allow Field Deletion",
+          "description": "Allow removing existing questions. Their responses are deleted too.",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.typeform.com/forms/{{form_id}}"
+      },
+      "beforeRequest": "const enc=encodeURIComponent,rec=v=>typeof v==='object'&&v!==null&&!Array.isArray(v);\nconst omit=(o,ks)=>Object.fromEntries(Object.entries(o).filter(([k])=>!ks.includes(k))),payload=f=>{const r=omit(f,['id','_links','self','created_at','last_updated_at','published_at']);return {...r,...(rec(r.settings)?{settings:rec(r.settings.enrichment_in_renderer)?{...r.settings,enrichment_in_renderer:omit(r.settings.enrichment_in_renderer,['active'])}:r.settings}:{})}},flat=fs=>Array.isArray(fs)?fs.filter(rec).flatMap(f=>[f,...(rec(f.properties)?flat(f.properties.fields):[])]):[];\nconst d=JSON.parse(inputs.definition);if(!rec(d))throw new Error('Form Definition must be a JSON object.');if(typeof d.title!=='string'||d.title.trim().length===0)throw new Error('Form Definition must include a title.');\nconst cur=call({method:'GET',url:'/forms/'+enc(inputs.form_id)}),keep=flat(d.fields).map(f=>f.id).filter(id=>typeof id==='string'),gone=flat(cur.fields).filter(f=>typeof f.id==='string'&&!keep.includes(f.id));\nif(gone.length>0&&inputs.allowFieldDeletion!=='true')throw new Error('This would delete '+gone.length+' question(s) and their responses: '+gone.map(f=>'\"'+String(f.title??f.id)+'\" ('+String(f.id)+')').join(', ')+'. Keep their ids in the definition, or turn on Allow Field Deletion.');\nrequest.body={...payload(d),...(d.theme===undefined&&cur.theme!==undefined?{theme:cur.theme}:{})};return request;"
+    },
+    "duplicate_form": {
+      "label": "Duplicate Form",
+      "description": "Creates a copy of an existing form.",
+      "inputs": {
+        "form_id": {
+          "label": "Form ID",
+          "required": true,
+          "list": "forms",
+          "description": "Form ID, from List Forms."
+        },
+        "title": {
+          "label": "Title",
+          "description": "Leave empty for \"Copy of\" and the original title."
+        },
+        "workspace": {
+          "label": "Workspace ID",
+          "description": "Leave empty to keep the original form's workspace.",
+          "list": "workspaces"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.typeform.com/forms"
+      },
+      "beforeRequest": "const B='https://api.typeform.com',enc=encodeURIComponent,has=v=>v!=null&&String(v).trim().length>0,rec=v=>typeof v==='object'&&v!==null&&!Array.isArray(v),href=(r,id)=>({href:B+'/'+r+'/'+enc(id.trim())});\nconst omit=(o,ks)=>Object.fromEntries(Object.entries(o).filter(([k])=>!ks.includes(k))),payload=f=>{const r=omit(f,['id','_links','self','created_at','last_updated_at','published_at']);return {...r,...(rec(r.settings)?{settings:rec(r.settings.enrichment_in_renderer)?{...r.settings,enrichment_in_renderer:omit(r.settings.enrichment_in_renderer,['active'])}:r.settings}:{})}};\nconst strip=v=>Array.isArray(v)?v.map(strip):rec(v)?Object.fromEntries(Object.entries(v).filter(([k])=>k!=='id').map(([k,x])=>[k,strip(x)])):v,ID_KEYS=['fields','welcome_screens','thankyou_screens','logic','variables','hidden'];\nconst f=call({method:'GET',url:'/forms/'+enc(inputs.form_id)}),copy=Object.fromEntries(Object.entries(payload(f)).map(([k,v])=>[k,ID_KEYS.includes(k)?strip(v):v]));\nrequest.body={...copy,title:has(inputs.title)?inputs.title:('Copy of '+String(f.title??'')).trim(),...(has(inputs.workspace)?{workspace:href('workspaces',inputs.workspace)}:{})};return request;"
+    },
+    "update_choice_options": {
+      "label": "Update Choice Options",
+      "description": "Replaces the options of a choice question in a form.",
+      "inputs": {
+        "form_id": {
+          "label": "Form ID",
+          "required": true,
+          "list": "forms",
+          "description": "Form ID, from List Forms."
+        },
+        "field": {
+          "label": "Question",
+          "description": "A dropdown, multiple choice, ranking or picture choice question: its field ID or ref, from Get Form.",
+          "required": true,
+          "list": "fields"
+        },
+        "choices": {
+          "label": "Options",
+          "description": "One label per option, in the order they should appear. A JSON array of labels.",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "https://api.typeform.com/forms/{{form_id}}"
+      },
+      "beforeRequest": "const enc=encodeURIComponent,rec=v=>typeof v==='object'&&v!==null&&!Array.isArray(v),list=v=>{const a=v?JSON.parse(v):[];return(Array.isArray(a)?a:[]).filter(x=>typeof x==='string'||typeof x==='number').map(x=>String(x).trim()).filter(x=>x.length>0)};\nconst omit=(o,ks)=>Object.fromEntries(Object.entries(o).filter(([k])=>!ks.includes(k))),payload=f=>{const r=omit(f,['id','_links','self','created_at','last_updated_at','published_at']);return {...r,...(rec(r.settings)?{settings:rec(r.settings.enrichment_in_renderer)?{...r.settings,enrichment_in_renderer:omit(r.settings.enrichment_in_renderer,['active'])}:r.settings}:{})}},flat=fs=>Array.isArray(fs)?fs.filter(rec).flatMap(f=>[f,...(rec(f.properties)?flat(f.properties.fields):[])]):[];\nconst TYPES=['dropdown','multiple_choice','ranking','picture_choice'],labels=[...new Set(list(inputs.choices))];if(labels.length===0)throw new Error('Options must contain at least one label.');\nconst form=call({method:'GET',url:'/forms/'+enc(inputs.form_id)}),key=inputs.field.trim(),q=flat(form.fields).find(f=>f.id===key||f.ref===key);\nif(q===undefined)throw new Error('No question with field ID or ref \"'+inputs.field+'\" in this form.');if(!TYPES.includes(String(q.type)))throw new Error('Question \"'+String(q.title)+'\" is a '+String(q.type)+' question, not a choice question.');\nconst swap=fs=>Array.isArray(fs)?fs.map(f=>{if(!rec(f)||!rec(f.properties))return f;const p=f.properties;if(f.id===q.id){const old=Array.isArray(p.choices)?p.choices.filter(rec):[];return {...f,properties:{...p,choices:labels.map(l=>old.find(c=>c.label===l)??{label:l})}}}return Array.isArray(p.fields)?{...f,properties:{...p,fields:swap(p.fields)}}:f}):fs;\nrequest.body=payload({...form,fields:swap(form.fields)});return request;"
+    },
+    "delete_form": {
+      "label": "Delete Form",
+      "description": "Permanently deletes a form and all of its responses.",
+      "inputs": {
+        "form_id": {
+          "label": "Form ID",
+          "description": "Form ID, from List Forms.",
+          "required": true,
+          "list": "forms"
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.typeform.com/forms/{{form_id}}"
+      },
+      "afterResponse": "return {deleted:true,form_id:inputs.form_id};"
+    },
+    "get_form_messages": {
+      "label": "Get Form Messages",
+      "description": "Gets the button labels, error messages and other texts of a form.",
+      "inputs": {
+        "form_id": {
+          "label": "Form ID",
+          "description": "Form ID, from List Forms.",
+          "required": true,
+          "list": "forms"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.typeform.com/forms/{{form_id}}/messages"
+      }
+    },
+    "update_form_messages": {
+      "label": "Update Form Messages",
+      "description": "Changes button labels, error messages and other texts of a form.",
+      "inputs": {
+        "form_id": {
+          "label": "Form ID",
+          "description": "Form ID, from List Forms.",
+          "required": true,
+          "list": "forms"
+        },
+        "messages": {
+          "label": "Messages",
+          "description": "JSON object of message keys and their new text.",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.typeform.com/forms/{{form_id}}/messages"
+      },
+      "beforeRequest": "const m=JSON.parse(inputs.messages);if(typeof m!=='object'||m===null||Array.isArray(m)||Object.keys(m).length===0)throw new Error('Messages must be a JSON object with at least one key.');return request;",
+      "afterResponse": "const merged={...response,...JSON.parse(inputs.messages)};call({method:'PUT',url:'/forms/'+encodeURIComponent(inputs.form_id)+'/messages',body:merged});return merged;"
+    },
+    "list_responses": {
+      "label": "Find Responses",
+      "description": "Looks up responses to a form.",
+      "inputs": {
+        "form_id": {
+          "label": "Form ID",
+          "required": true,
+          "list": "forms",
+          "description": "Form ID, from List Forms."
+        },
+        "query": {
+          "label": "Search",
+          "description": "Only responses containing this text in any answer or hidden field."
+        },
+        "since": {
+          "label": "Submitted After",
+          "description": "An ISO date and time, such as 2026-01-01T00:00:00.000Z."
+        },
+        "until": {
+          "label": "Submitted Before",
+          "description": "An ISO date and time, such as 2026-02-01T00:00:00.000Z."
+        },
+        "responseType": {
+          "label": "Response Type",
+          "description": "Leave empty for completed responses only.",
+          "type": "select",
+          "options": [
+            {
+              "value": "completed",
+              "label": "Completed"
+            },
+            {
+              "value": "partial",
+              "label": "Partial"
+            },
+            {
+              "value": "started",
+              "label": "Started"
+            }
+          ]
+        },
+        "includedResponseIds": {
+          "label": "Response IDs",
+          "description": "Only return the responses with these IDs. A JSON array of IDs.",
+          "type": "json"
+        },
+        "sort": {
+          "label": "Sort",
+          "description": "Leave empty for newest first.",
+          "type": "select",
+          "options": [
+            {
+              "value": "submitted_at,desc",
+              "label": "Newest first"
+            },
+            {
+              "value": "submitted_at,asc",
+              "label": "Oldest first"
+            }
+          ]
+        },
+        "pageSize": {
+          "label": "Max Responses",
+          "description": "1 to 1000. Leave empty for 25.",
+          "type": "number"
+        },
+        "before": {
+          "label": "Before Response",
+          "description": "Response token. Returns responses submitted before it, for paging."
+        },
+        "after": {
+          "label": "After Response",
+          "description": "Response token. Returns responses submitted after it."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.typeform.com/forms/{{form_id}}/responses",
+        "query": {
+          "since": "{{since}}",
+          "until": "{{until}}",
+          "response_type": "{{responseType}}"
+        }
+      },
+      "beforeRequest": "const num=v=>v===''||v==null?undefined:Number(v),size=(p,s,max)=>({page:p===undefined?undefined:String(Math.max(1,Math.floor(p))),page_size:s===undefined?undefined:String(Math.min(max,Math.max(1,Math.floor(s))))}),compact=o=>{for(const k of Object.keys(o))if(o[k]===undefined||o[k]==='')delete o[k];return o},list=v=>{const a=v?JSON.parse(v):[];return(Array.isArray(a)?a:[]).filter(x=>typeof x==='string'||typeof x==='number').map(x=>String(x).trim()).filter(x=>x.length>0)};\nconst ids=list(inputs.includedResponseIds);request.query=compact({query:inputs.query.trim(),...request.query,included_response_ids:ids.length>0?ids.join(','):undefined,sort:inputs.sort,before:inputs.before.trim(),after:inputs.after.trim(),page_size:size(undefined,num(inputs.pageSize),1000).page_size});return request;"
+    },
+    "delete_responses": {
+      "label": "Delete Responses",
+      "description": "Permanently deletes responses from a form.",
+      "inputs": {
+        "form_id": {
+          "label": "Form ID",
+          "description": "Form ID, from List Forms.",
+          "required": true,
+          "list": "forms"
+        },
+        "responseIds": {
+          "label": "Response IDs",
+          "description": "A JSON array of response IDs.",
+          "type": "json",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.typeform.com/forms/{{form_id}}/responses"
+      },
+      "beforeRequest": "const list=v=>{const a=v?JSON.parse(v):[];return(Array.isArray(a)?a:[]).filter(x=>typeof x==='string'||typeof x==='number').map(x=>String(x).trim()).filter(x=>x.length>0)};\nconst ids=list(inputs.responseIds);if(ids.length===0||ids.length>1000)throw new Error('Response IDs must contain between 1 and 1000 IDs.');request.query={included_response_ids:ids.join(',')};return request;",
+      "afterResponse": "const list=v=>{const a=v?JSON.parse(v):[];return(Array.isArray(a)?a:[]).filter(x=>typeof x==='string'||typeof x==='number').map(x=>String(x).trim()).filter(x=>x.length>0)};\nconst ids=list(inputs.responseIds);return {registered:true,form_id:inputs.form_id,response_ids:ids,count:ids.length};"
+    },
+    "list_workspaces": {
+      "label": "List Workspaces",
+      "description": "Lists workspaces in the Typeform account.",
+      "inputs": {
+        "search": {
+          "label": "Search",
+          "description": "Only workspaces whose name contains this text."
+        },
+        "accountId": {
+          "label": "Account ID",
+          "description": "Only workspaces of this account (account_id from a workspace)."
+        },
+        "page": {
+          "label": "Page",
+          "description": "Page number, starting at 1.",
+          "type": "number"
+        },
+        "pageSize": {
+          "label": "Page Size",
+          "description": "How many items to return per page, from 1 to 200.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.typeform.com/workspaces"
+      },
+      "beforeRequest": "const enc=encodeURIComponent,has=v=>v!=null&&String(v).trim().length>0,num=v=>v===''||v==null?undefined:Number(v),size=(p,s,max)=>({page:p===undefined?undefined:String(Math.max(1,Math.floor(p))),page_size:s===undefined?undefined:String(Math.min(max,Math.max(1,Math.floor(s))))}),compact=o=>{for(const k of Object.keys(o))if(o[k]===undefined||o[k]==='')delete o[k];return o};\nif(has(inputs.accountId))request.url='/accounts/'+enc(inputs.accountId.trim())+'/workspaces';request.query=compact({search:inputs.search.trim(),...size(num(inputs.page),num(inputs.pageSize),200)});return request;"
+    },
+    "get_workspace": {
+      "label": "Get Workspace",
+      "description": "Gets a workspace with its members.",
+      "inputs": {
+        "workspace": {
+          "label": "Workspace ID",
+          "description": "Workspace ID, from List Workspaces.",
+          "required": true,
+          "list": "workspaces"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.typeform.com/workspaces/{{workspace}}"
+      }
+    },
+    "create_workspace": {
+      "label": "Create Workspace",
+      "description": "Creates a new workspace.",
+      "inputs": {
+        "name": {
+          "label": "Name",
+          "required": true
+        },
+        "accountId": {
+          "label": "Account ID",
+          "description": "account_id from List Workspaces. Leave empty for your own account."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.typeform.com/workspaces"
+      },
+      "beforeRequest": "const enc=encodeURIComponent,has=v=>v!=null&&String(v).trim().length>0;\nif(has(inputs.accountId))request.url='/accounts/'+enc(inputs.accountId.trim())+'/workspaces';request.body={name:inputs.name};return request;"
+    },
+    "update_workspace": {
+      "label": "Rename Workspace",
+      "description": "Renames a workspace.",
+      "inputs": {
+        "workspace": {
+          "label": "Workspace ID",
+          "description": "Workspace ID, from List Workspaces.",
+          "required": true,
+          "list": "workspaces"
+        },
+        "name": {
+          "label": "Name",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://api.typeform.com/workspaces/{{workspace}}"
+      },
+      "beforeRequest": "request.body=[{op:'replace',path:'/name',value:inputs.name}];return request;",
+      "afterResponse": "return call({method:'GET',url:'/workspaces/'+encodeURIComponent(inputs.workspace)});"
+    },
+    "delete_workspace": {
+      "label": "Delete Workspace",
+      "description": "Deletes an empty workspace.",
+      "inputs": {
+        "workspace": {
+          "label": "Workspace ID",
+          "description": "Workspace ID, from List Workspaces.",
+          "required": true,
+          "list": "workspaces"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.typeform.com/workspaces/{{workspace}}"
+      },
+      "afterResponse": "if(response.default===true)throw new Error('The default workspace cannot be deleted.');\nconst f=response.forms,n=typeof f==='object'&&f!==null&&!Array.isArray(f)&&typeof f.count==='number'?f.count:0;\nif(n>0)throw new Error('This workspace still contains '+n+' form(s), and deleting it would delete them and all their responses. Move them to another workspace with Update Form, or delete them first.');\ncall({method:'DELETE',url:'/workspaces/'+encodeURIComponent(inputs.workspace)});return {deleted:true,workspace_id:inputs.workspace};"
+    },
+    "list_themes": {
+      "label": "List Themes",
+      "description": "Lists themes available to the Typeform account.",
+      "inputs": {
+        "page": {
+          "label": "Page",
+          "description": "Page number, starting at 1.",
+          "type": "number"
+        },
+        "pageSize": {
+          "label": "Page Size",
+          "description": "How many items to return per page, from 1 to 200.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.typeform.com/themes"
+      },
+      "beforeRequest": "const num=v=>v===''||v==null?undefined:Number(v),size=(p,s,max)=>({page:p===undefined?undefined:String(Math.max(1,Math.floor(p))),page_size:s===undefined?undefined:String(Math.min(max,Math.max(1,Math.floor(s))))}),compact=o=>{for(const k of Object.keys(o))if(o[k]===undefined||o[k]==='')delete o[k];return o};\nrequest.query=compact(size(num(inputs.page),num(inputs.pageSize),200));return request;"
+    },
+    "get_theme": {
+      "label": "Get Theme",
+      "description": "Gets a theme with its colors, font and layout.",
+      "inputs": {
+        "themeId": {
+          "label": "Theme ID",
+          "description": "Theme ID, from List Themes.",
+          "required": true,
+          "list": "themes"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.typeform.com/themes"
+      },
+      "beforeRequest": "request.url='/themes/'+encodeURIComponent(inputs.themeId.trim());return request;"
+    },
+    "create_theme": {
+      "label": "Create Theme",
+      "description": "Creates a custom theme.",
+      "inputs": {
+        "name": {
+          "label": "Name",
+          "required": true
+        },
+        "font": {
+          "label": "Font",
+          "type": "select",
+          "options": [
+            {
+              "value": "Acme",
+              "label": "Acme"
+            },
+            {
+              "value": "Arial",
+              "label": "Arial"
+            },
+            {
+              "value": "Arvo",
+              "label": "Arvo"
+            },
+            {
+              "value": "Avenir Next",
+              "label": "Avenir Next"
+            },
+            {
+              "value": "Bangers",
+              "label": "Bangers"
+            },
+            {
+              "value": "Cabin",
+              "label": "Cabin"
+            },
+            {
+              "value": "Cabin Condensed",
+              "label": "Cabin Condensed"
+            },
+            {
+              "value": "Courier",
+              "label": "Courier"
+            },
+            {
+              "value": "Crete Round",
+              "label": "Crete Round"
+            },
+            {
+              "value": "Dancing Script",
+              "label": "Dancing Script"
+            },
+            {
+              "value": "Exo",
+              "label": "Exo"
+            },
+            {
+              "value": "Georgia",
+              "label": "Georgia"
+            },
+            {
+              "value": "Handlee",
+              "label": "Handlee"
+            },
+            {
+              "value": "Helvetica Neue",
+              "label": "Helvetica Neue"
+            },
+            {
+              "value": "Karla",
+              "label": "Karla"
+            },
+            {
+              "value": "Lato",
+              "label": "Lato"
+            },
+            {
+              "value": "Lekton",
+              "label": "Lekton"
+            },
+            {
+              "value": "Lobster",
+              "label": "Lobster"
+            },
+            {
+              "value": "Lora",
+              "label": "Lora"
+            },
+            {
+              "value": "McLaren",
+              "label": "McLaren"
+            },
+            {
+              "value": "Montserrat",
+              "label": "Montserrat"
+            },
+            {
+              "value": "Nixie One",
+              "label": "Nixie One"
+            },
+            {
+              "value": "Old Standard TT",
+              "label": "Old Standard TT"
+            },
+            {
+              "value": "Open Sans",
+              "label": "Open Sans"
+            },
+            {
+              "value": "Oswald",
+              "label": "Oswald"
+            },
+            {
+              "value": "Playfair Display",
+              "label": "Playfair Display"
+            },
+            {
+              "value": "Quicksand",
+              "label": "Quicksand"
+            },
+            {
+              "value": "Raleway",
+              "label": "Raleway"
+            },
+            {
+              "value": "Signika",
+              "label": "Signika"
+            },
+            {
+              "value": "Sniglet",
+              "label": "Sniglet"
+            },
+            {
+              "value": "Source Sans Pro",
+              "label": "Source Sans Pro"
+            },
+            {
+              "value": "Vollkorn",
+              "label": "Vollkorn"
+            }
+          ]
+        },
+        "questionColor": {
+          "label": "Question Color",
+          "description": "Hex color, for example #3D3D3D.",
+          "required": true
+        },
+        "answerColor": {
+          "label": "Answer Color",
+          "description": "Hex color.",
+          "required": true
+        },
+        "buttonColor": {
+          "label": "Button Color",
+          "description": "Hex color.",
+          "required": true
+        },
+        "backgroundColor": {
+          "label": "Background Color",
+          "description": "Hex color.",
+          "required": true
+        },
+        "fieldAlignment": {
+          "label": "Question Alignment",
+          "type": "select",
+          "options": [
+            {
+              "value": "left",
+              "label": "Left"
+            },
+            {
+              "value": "center",
+              "label": "Center"
+            }
+          ]
+        },
+        "fieldFontSize": {
+          "label": "Question Font Size",
+          "type": "select",
+          "options": [
+            {
+              "value": "small",
+              "label": "Small"
+            },
+            {
+              "value": "medium",
+              "label": "Medium"
+            },
+            {
+              "value": "large",
+              "label": "Large"
+            }
+          ]
+        },
+        "screenAlignment": {
+          "label": "Screen Alignment",
+          "description": "Alignment of welcome and thank-you screens.",
+          "type": "select",
+          "options": [
+            {
+              "value": "left",
+              "label": "Left"
+            },
+            {
+              "value": "center",
+              "label": "Center"
+            }
+          ]
+        },
+        "screenFontSize": {
+          "label": "Screen Font Size",
+          "type": "select",
+          "options": [
+            {
+              "value": "small",
+              "label": "Small"
+            },
+            {
+              "value": "medium",
+              "label": "Medium"
+            },
+            {
+              "value": "large",
+              "label": "Large"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.typeform.com/themes"
+      },
+      "beforeRequest": "const has=v=>v!=null&&String(v).trim().length>0,rec=v=>typeof v==='object'&&v!==null&&!Array.isArray(v);\nconst compactRec=o=>Object.fromEntries(Object.entries(o).filter(e=>has(e[1])).map(([k,v])=>[k,v.trim()])),orEmpty=v=>rec(v)?v:{},theme=(v,cur)=>{const c=compactRec({question:v.questionColor,answer:v.answerColor,button:v.buttonColor,background:v.backgroundColor}),f=compactRec({alignment:v.fieldAlignment,font_size:v.fieldFontSize}),s=compactRec({alignment:v.screenAlignment,font_size:v.screenFontSize});return {...(has(v.name)?{name:v.name.trim()}:{}),...(has(v.font)?{font:v.font}:{}),...(Object.keys(c).length?{colors:{...orEmpty(cur.colors),...c}}:{}),...(Object.keys(f).length?{fields:{...orEmpty(cur.fields),...f}}:{}),...(Object.keys(s).length?{screens:{...orEmpty(cur.screens),...s}}:{})}};\nconst d=(v,x)=>v===''?x:v;request.body=theme({...inputs,fieldAlignment:d(inputs.fieldAlignment,'left'),fieldFontSize:d(inputs.fieldFontSize,'medium'),screenAlignment:d(inputs.screenAlignment,'left'),screenFontSize:d(inputs.screenFontSize,'medium')},{});return request;"
+    },
+    "update_theme": {
+      "label": "Update Theme",
+      "description": "Changes some settings of a custom theme.",
+      "inputs": {
+        "themeId": {
+          "label": "Theme ID",
+          "description": "Theme ID, from List Themes.",
+          "required": true,
+          "list": "themes"
+        },
+        "name": {
+          "label": "Name"
+        },
+        "font": {
+          "label": "Font",
+          "type": "select",
+          "options": [
+            {
+              "value": "Acme",
+              "label": "Acme"
+            },
+            {
+              "value": "Arial",
+              "label": "Arial"
+            },
+            {
+              "value": "Arvo",
+              "label": "Arvo"
+            },
+            {
+              "value": "Avenir Next",
+              "label": "Avenir Next"
+            },
+            {
+              "value": "Bangers",
+              "label": "Bangers"
+            },
+            {
+              "value": "Cabin",
+              "label": "Cabin"
+            },
+            {
+              "value": "Cabin Condensed",
+              "label": "Cabin Condensed"
+            },
+            {
+              "value": "Courier",
+              "label": "Courier"
+            },
+            {
+              "value": "Crete Round",
+              "label": "Crete Round"
+            },
+            {
+              "value": "Dancing Script",
+              "label": "Dancing Script"
+            },
+            {
+              "value": "Exo",
+              "label": "Exo"
+            },
+            {
+              "value": "Georgia",
+              "label": "Georgia"
+            },
+            {
+              "value": "Handlee",
+              "label": "Handlee"
+            },
+            {
+              "value": "Helvetica Neue",
+              "label": "Helvetica Neue"
+            },
+            {
+              "value": "Karla",
+              "label": "Karla"
+            },
+            {
+              "value": "Lato",
+              "label": "Lato"
+            },
+            {
+              "value": "Lekton",
+              "label": "Lekton"
+            },
+            {
+              "value": "Lobster",
+              "label": "Lobster"
+            },
+            {
+              "value": "Lora",
+              "label": "Lora"
+            },
+            {
+              "value": "McLaren",
+              "label": "McLaren"
+            },
+            {
+              "value": "Montserrat",
+              "label": "Montserrat"
+            },
+            {
+              "value": "Nixie One",
+              "label": "Nixie One"
+            },
+            {
+              "value": "Old Standard TT",
+              "label": "Old Standard TT"
+            },
+            {
+              "value": "Open Sans",
+              "label": "Open Sans"
+            },
+            {
+              "value": "Oswald",
+              "label": "Oswald"
+            },
+            {
+              "value": "Playfair Display",
+              "label": "Playfair Display"
+            },
+            {
+              "value": "Quicksand",
+              "label": "Quicksand"
+            },
+            {
+              "value": "Raleway",
+              "label": "Raleway"
+            },
+            {
+              "value": "Signika",
+              "label": "Signika"
+            },
+            {
+              "value": "Sniglet",
+              "label": "Sniglet"
+            },
+            {
+              "value": "Source Sans Pro",
+              "label": "Source Sans Pro"
+            },
+            {
+              "value": "Vollkorn",
+              "label": "Vollkorn"
+            }
+          ]
+        },
+        "questionColor": {
+          "label": "Question Color",
+          "description": "Hex color, for example #3D3D3D."
+        },
+        "answerColor": {
+          "label": "Answer Color",
+          "description": "Hex color."
+        },
+        "buttonColor": {
+          "label": "Button Color",
+          "description": "Hex color."
+        },
+        "backgroundColor": {
+          "label": "Background Color",
+          "description": "Hex color."
+        },
+        "fieldAlignment": {
+          "label": "Question Alignment",
+          "type": "select",
+          "options": [
+            {
+              "value": "left",
+              "label": "Left"
+            },
+            {
+              "value": "center",
+              "label": "Center"
+            }
+          ]
+        },
+        "fieldFontSize": {
+          "label": "Question Font Size",
+          "type": "select",
+          "options": [
+            {
+              "value": "small",
+              "label": "Small"
+            },
+            {
+              "value": "medium",
+              "label": "Medium"
+            },
+            {
+              "value": "large",
+              "label": "Large"
+            }
+          ]
+        },
+        "screenAlignment": {
+          "label": "Screen Alignment",
+          "description": "Alignment of welcome and thank-you screens.",
+          "type": "select",
+          "options": [
+            {
+              "value": "left",
+              "label": "Left"
+            },
+            {
+              "value": "center",
+              "label": "Center"
+            }
+          ]
+        },
+        "screenFontSize": {
+          "label": "Screen Font Size",
+          "type": "select",
+          "options": [
+            {
+              "value": "small",
+              "label": "Small"
+            },
+            {
+              "value": "medium",
+              "label": "Medium"
+            },
+            {
+              "value": "large",
+              "label": "Large"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.typeform.com/themes"
+      },
+      "beforeRequest": "request.url='/themes/'+encodeURIComponent(inputs.themeId.trim());return request;",
+      "afterResponse": "const enc=encodeURIComponent,has=v=>v!=null&&String(v).trim().length>0,rec=v=>typeof v==='object'&&v!==null&&!Array.isArray(v);\nconst compactRec=o=>Object.fromEntries(Object.entries(o).filter(e=>has(e[1])).map(([k,v])=>[k,v.trim()])),orEmpty=v=>rec(v)?v:{},theme=(v,cur)=>{const c=compactRec({question:v.questionColor,answer:v.answerColor,button:v.buttonColor,background:v.backgroundColor}),f=compactRec({alignment:v.fieldAlignment,font_size:v.fieldFontSize}),s=compactRec({alignment:v.screenAlignment,font_size:v.screenFontSize});return {...(has(v.name)?{name:v.name.trim()}:{}),...(has(v.font)?{font:v.font}:{}),...(Object.keys(c).length?{colors:{...orEmpty(cur.colors),...c}}:{}),...(Object.keys(f).length?{fields:{...orEmpty(cur.fields),...f}}:{}),...(Object.keys(s).length?{screens:{...orEmpty(cur.screens),...s}}:{})}};\nif(response.visibility==='public')throw new Error(\"This is one of Typeform's public themes and cannot be edited. Create your own with Create Theme.\");\nconst t=theme(inputs,response);if(Object.keys(t).length===0)throw new Error('Set at least one setting to change.');\nconst KEEP=['name','font','colors','fields','screens','background','has_transparent_button','rounded_corners'];\nreturn call({method:'PATCH',url:'/themes/'+enc(inputs.themeId.trim()),body:{...Object.fromEntries(Object.entries(response).filter(([k])=>KEEP.includes(k))),...t}});"
+    },
+    "delete_theme": {
+      "label": "Delete Theme",
+      "description": "Deletes a custom theme.",
+      "inputs": {
+        "themeId": {
+          "label": "Theme ID",
+          "description": "Theme ID, from List Themes.",
+          "required": true,
+          "list": "themes"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.typeform.com/themes"
+      },
+      "beforeRequest": "request.url='/themes/'+encodeURIComponent(inputs.themeId.trim());return request;",
+      "afterResponse": "if(response.visibility==='public')throw new Error(\"This is one of Typeform's public themes and cannot be deleted.\");\ncall({method:'DELETE',url:'/themes/'+encodeURIComponent(inputs.themeId.trim())});return {deleted:true,theme_id:inputs.themeId.trim()};"
+    },
+    "list_images": {
+      "label": "List Images",
+      "description": "Lists images uploaded to the Typeform account.",
+      "inputs": {
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of images to return. Default 50.",
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.typeform.com/images"
+      },
+      "afterResponse": "const n=Math.max(1,Math.floor(inputs.limit===''?50:Number(inputs.limit))),items=response.slice(0,n);return {items,count:items.length,total_items:response.length};"
+    },
+    "get_image": {
+      "label": "Get Image",
+      "description": "Gets an image with its link and details.",
+      "inputs": {
+        "imageId": {
+          "label": "Image ID",
+          "description": "Image ID, from List Images.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://api.typeform.com/images",
+        "headers": {
+          "Accept": "application/json"
+        }
+      },
+      "beforeRequest": "request.url='/images/'+encodeURIComponent(inputs.imageId.trim());return request;"
+    },
+    "upload_image": {
+      "label": "Upload Image",
+      "description": "Uploads an image to the Typeform account.",
+      "inputs": {
+        "image": {
+          "label": "Image",
+          "description": "A file from an earlier step.",
+          "type": "file",
+          "required": true
+        },
+        "fileName": {
+          "label": "File Name",
+          "description": "Defaults to the file's own name."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.typeform.com/images",
+        "body": {
+          "image": "{{image}}"
+        }
+      },
+      "beforeRequest": "request.body={file_name:(inputs.fileName||'').trim()||inputs.image,image:request.body.image};return request;"
+    },
+    "delete_image": {
+      "label": "Delete Image",
+      "description": "Deletes an image from the Typeform account.",
+      "inputs": {
+        "imageId": {
+          "label": "Image ID",
+          "description": "Image ID, from List Images.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://api.typeform.com/images"
+      },
+      "beforeRequest": "request.url='/images/'+encodeURIComponent(inputs.imageId.trim());return request;",
+      "afterResponse": "return {deleted:true,image_id:inputs.imageId.trim()};"
+    }
+  }
+}

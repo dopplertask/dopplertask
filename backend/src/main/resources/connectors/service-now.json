@@ -1,0 +1,1011 @@
+{
+  "name": "service-now",
+  "label": "ServiceNow",
+  "description": "Enterprise IT service management platform for incident, change, and service request management",
+  "icon": "",
+  "hosts": [
+    "{{credential.instanceUrl}}"
+  ],
+  "baseUrl": "https://{{credential.instanceUrl}}",
+  "upstream": {
+    "package": "@activepieces/piece-service-now",
+    "version": "0.3.3"
+  },
+  "credential": {
+    "fields": {
+      "instanceUrl": {
+        "label": "Instance URL",
+        "description": "The address of your ServiceNow instance, such as https://dev12345.service-now.com",
+        "required": true
+      },
+      "username": {
+        "label": "Username",
+        "description": "Your ServiceNow username (not email)",
+        "required": true
+      },
+      "password": {
+        "label": "Password",
+        "description": "Your ServiceNow password (not API token)",
+        "required": true,
+        "secret": true
+      }
+    },
+    "basic": {
+      "username": "{{credential.username}}",
+      "password": "{{credential.password}}"
+    }
+  },
+  "lists": {
+    "tables": {
+      "request": {
+        "url": "https://{{credential.instanceUrl}}/api/now/table/sys_db_object",
+        "query": {
+          "sysparm_query": "nameNOT LIKEts_^nameNOT LIKEv_^nameNOT LIKEpa_^super_class.nameISEMPTY",
+          "sysparm_fields": "name,label",
+          "sysparm_limit": "1000"
+        }
+      },
+      "items": "$.result",
+      "label": "$.label",
+      "value": "$.name"
+    },
+    "records": {
+      "request": {
+        "url": "https://{{credential.instanceUrl}}/api/now/table/{{table}}",
+        "query": {
+          "sysparm_limit": "50",
+          "sysparm_fields": "sys_id,number,name,short_description,title"
+        }
+      },
+      "items": "$.result",
+      "label": "$.number",
+      "value": "$.sys_id"
+    },
+    "incidents": {
+      "request": {
+        "url": "https://{{credential.instanceUrl}}/api/now/table/incident",
+        "query": {
+          "sysparm_limit": "50",
+          "sysparm_fields": "sys_id,number,short_description"
+        }
+      },
+      "items": "$.result",
+      "label": "$.number",
+      "value": "$.sys_id"
+    },
+    "catalog_items": {
+      "request": {
+        "url": "https://{{credential.instanceUrl}}/api/sn_sc/servicecatalog/items",
+        "query": {
+          "sysparm_limit": "100"
+        }
+      },
+      "items": "$.result",
+      "label": "$.name",
+      "value": "$.sys_id"
+    }
+  },
+  "actions": {
+    "create_record": {
+      "label": "Create Record",
+      "description": "Create a new record in a specified table",
+      "inputs": {
+        "table": {
+          "label": "Table",
+          "description": "ServiceNow table to work with",
+          "required": true,
+          "list": "tables"
+        },
+        "fields": {
+          "label": "Record Fields",
+          "description": "Field names and values for the new record",
+          "type": "json",
+          "required": true
+        },
+        "display_value": {
+          "label": "Return Display Values",
+          "description": "How to format the response data",
+          "type": "select",
+          "defaultValue": "false",
+          "options": [
+            {
+              "value": "false",
+              "label": "Actual values"
+            },
+            {
+              "value": "true",
+              "label": "Display values"
+            },
+            {
+              "value": "all",
+              "label": "Both"
+            }
+          ]
+        },
+        "return_fields": {
+          "label": "Fields to Return",
+          "description": "Specific fields to include in the response",
+          "type": "json"
+        },
+        "input_display_value": {
+          "label": "Use Display Values for Input",
+          "description": "Treat input values as display names instead of IDs",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "view": {
+          "label": "UI View",
+          "description": "View context for returned fields",
+          "type": "select",
+          "options": [
+            {
+              "value": "desktop",
+              "label": "Desktop"
+            },
+            {
+              "value": "mobile",
+              "label": "Mobile"
+            },
+            {
+              "value": "both",
+              "label": "Both"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.instanceUrl}}/api/now/table/{{table}}",
+        "query": {
+          "sysparm_display_value": "{{display_value}}",
+          "sysparm_input_display_value": "{{input_display_value}}",
+          "sysparm_view": "{{view}}"
+        },
+        "body": "{{fields}}"
+      },
+      "beforeRequest": "if (inputs.return_fields) request.query.sysparm_fields = JSON.parse(inputs.return_fields).join(',');\nreturn request;",
+      "result": "$.result"
+    },
+    "update_record": {
+      "label": "Update Record",
+      "description": "Update an existing record in a specified table",
+      "inputs": {
+        "table": {
+          "label": "Table",
+          "description": "ServiceNow table to work with",
+          "required": true,
+          "list": "tables"
+        },
+        "record": {
+          "label": "Record",
+          "description": "Select a record from the table",
+          "required": true,
+          "list": "records"
+        },
+        "fields": {
+          "label": "Fields to Update",
+          "description": "Field names and new values to update",
+          "type": "json",
+          "required": true
+        },
+        "display_value": {
+          "label": "Return Display Values",
+          "description": "How to format the response data",
+          "type": "select",
+          "defaultValue": "false",
+          "options": [
+            {
+              "value": "false",
+              "label": "Actual values"
+            },
+            {
+              "value": "true",
+              "label": "Display values"
+            },
+            {
+              "value": "all",
+              "label": "Both"
+            }
+          ]
+        },
+        "return_fields": {
+          "label": "Fields to Return",
+          "description": "Specific fields to include in the response",
+          "type": "json"
+        },
+        "input_display_value": {
+          "label": "Use Display Values for Input",
+          "description": "Treat input values as display names instead of IDs",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "view": {
+          "label": "UI View",
+          "description": "View context for returned fields",
+          "type": "select",
+          "options": [
+            {
+              "value": "desktop",
+              "label": "Desktop"
+            },
+            {
+              "value": "mobile",
+              "label": "Mobile"
+            },
+            {
+              "value": "both",
+              "label": "Both"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://{{credential.instanceUrl}}/api/now/table/{{table}}/{{record}}",
+        "query": {
+          "sysparm_display_value": "{{display_value}}",
+          "sysparm_input_display_value": "{{input_display_value}}",
+          "sysparm_view": "{{view}}"
+        },
+        "body": "{{fields}}"
+      },
+      "beforeRequest": "if (inputs.return_fields) request.query.sysparm_fields = JSON.parse(inputs.return_fields).join(',');\nreturn request;",
+      "result": "$.result"
+    },
+    "get_record": {
+      "label": "Get Record",
+      "description": "Retrieve a specific record by its ID",
+      "inputs": {
+        "table": {
+          "label": "Table",
+          "description": "ServiceNow table to work with",
+          "required": true,
+          "list": "tables"
+        },
+        "record": {
+          "label": "Record",
+          "description": "Select a record from the table",
+          "required": true,
+          "list": "records"
+        },
+        "display_value": {
+          "label": "Return Display Values",
+          "description": "How to format the response data",
+          "type": "select",
+          "defaultValue": "false",
+          "options": [
+            {
+              "value": "false",
+              "label": "Actual values"
+            },
+            {
+              "value": "true",
+              "label": "Display values"
+            },
+            {
+              "value": "all",
+              "label": "Both"
+            }
+          ]
+        },
+        "exclude_reference_link": {
+          "label": "Exclude Reference Links",
+          "description": "Exclude API links for reference fields",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "return_fields": {
+          "label": "Fields to Return",
+          "description": "Specific fields to include in the response",
+          "type": "json"
+        },
+        "all_domains": {
+          "label": "Include All Domains",
+          "description": "Include records from all domains",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "view": {
+          "label": "UI View",
+          "description": "View context for returned fields",
+          "type": "select",
+          "options": [
+            {
+              "value": "desktop",
+              "label": "Desktop"
+            },
+            {
+              "value": "mobile",
+              "label": "Mobile"
+            },
+            {
+              "value": "both",
+              "label": "Both"
+            }
+          ]
+        }
+      },
+      "request": {
+        "url": "https://{{credential.instanceUrl}}/api/now/table/{{table}}/{{record}}",
+        "query": {
+          "sysparm_display_value": "{{display_value}}",
+          "sysparm_exclude_reference_link": "{{exclude_reference_link}}",
+          "sysparm_query_no_domain": "{{all_domains}}",
+          "sysparm_view": "{{view}}"
+        }
+      },
+      "beforeRequest": "if (inputs.return_fields) request.query.sysparm_fields = JSON.parse(inputs.return_fields).join(',');\nreturn request;",
+      "result": "$.result"
+    },
+    "find_record": {
+      "label": "Find Records",
+      "description": "Search for records in a table using a query",
+      "inputs": {
+        "table": {
+          "label": "Table",
+          "description": "ServiceNow table to work with",
+          "required": true,
+          "list": "tables"
+        },
+        "query": {
+          "label": "Query",
+          "description": "Encoded query string (e.g., state=1^priority=1)",
+          "type": "multiline",
+          "required": true
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum records to return",
+          "type": "number",
+          "defaultValue": "100"
+        },
+        "return_fields": {
+          "label": "Fields to Return",
+          "description": "Specific fields to include in the response",
+          "type": "json"
+        },
+        "display_value": {
+          "label": "Return Display Values",
+          "description": "How to format the response data",
+          "type": "select",
+          "defaultValue": "false",
+          "options": [
+            {
+              "value": "false",
+              "label": "Actual values"
+            },
+            {
+              "value": "true",
+              "label": "Display values"
+            },
+            {
+              "value": "all",
+              "label": "Both"
+            }
+          ]
+        },
+        "exclude_reference_link": {
+          "label": "Exclude Reference Links",
+          "description": "Exclude API links for reference fields",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "all_domains": {
+          "label": "Include All Domains",
+          "description": "Include records from all domains",
+          "type": "boolean",
+          "defaultValue": "false"
+        },
+        "view": {
+          "label": "UI View",
+          "description": "View context for returned fields",
+          "type": "select",
+          "options": [
+            {
+              "value": "desktop",
+              "label": "Desktop"
+            },
+            {
+              "value": "mobile",
+              "label": "Mobile"
+            },
+            {
+              "value": "both",
+              "label": "Both"
+            }
+          ]
+        }
+      },
+      "request": {
+        "url": "https://{{credential.instanceUrl}}/api/now/table/{{table}}",
+        "query": {
+          "sysparm_query": "{{query}}",
+          "sysparm_limit": "{{limit}}",
+          "sysparm_display_value": "{{display_value}}",
+          "sysparm_exclude_reference_link": "{{exclude_reference_link}}",
+          "sysparm_query_no_domain": "{{all_domains}}",
+          "sysparm_view": "{{view}}"
+        }
+      },
+      "beforeRequest": "if (Number(request.query.sysparm_limit) === 0) delete request.query.sysparm_limit;\nif (inputs.return_fields) request.query.sysparm_fields = JSON.parse(inputs.return_fields).join(',');\nreturn request;",
+      "result": "$.result"
+    },
+    "delete_record": {
+      "label": "Delete Record",
+      "description": "Delete a record from a specified table",
+      "inputs": {
+        "table": {
+          "label": "Table",
+          "description": "ServiceNow table to work with",
+          "required": true,
+          "list": "tables"
+        },
+        "record": {
+          "label": "Record",
+          "description": "Select a record from the table",
+          "required": true,
+          "list": "records"
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.instanceUrl}}/api/now/table/{{table}}/{{record}}"
+      },
+      "afterResponse": "return { success: true, table: inputs.table, sys_id: inputs.record };"
+    },
+    "add_comment": {
+      "label": "Add Comment or Work Note",
+      "description": "Append a customer-visible comment or an internal work note to a record (incident, request, problem, change, etc.)",
+      "inputs": {
+        "table": {
+          "label": "Table",
+          "description": "ServiceNow table to work with",
+          "required": true,
+          "list": "tables"
+        },
+        "record": {
+          "label": "Record",
+          "description": "Select a record from the table",
+          "required": true,
+          "list": "records"
+        },
+        "comment_type": {
+          "label": "Type",
+          "description": "Customer-visible comment or internal work note",
+          "type": "select",
+          "required": true,
+          "defaultValue": "comments",
+          "options": [
+            {
+              "value": "comments",
+              "label": "Customer-visible Comment"
+            },
+            {
+              "value": "work_notes",
+              "label": "Internal Work Note"
+            }
+          ]
+        },
+        "comment": {
+          "label": "Comment",
+          "description": "The text to append to the record",
+          "type": "multiline",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://{{credential.instanceUrl}}/api/now/table/{{table}}/{{record}}",
+        "body": {}
+      },
+      "beforeRequest": "request.body[inputs.comment_type] = inputs.comment;\nreturn request;",
+      "result": "$.result"
+    },
+    "resolve_incident": {
+      "label": "Resolve or Close Incident",
+      "description": "Move an incident to Resolved or Closed with a close code and resolution notes",
+      "inputs": {
+        "incident_sys_id": {
+          "label": "Incident",
+          "description": "The incident to resolve or close",
+          "required": true,
+          "list": "incidents"
+        },
+        "resolution": {
+          "label": "Resolution",
+          "description": "Resolved keeps the record open for closure later; Closed finalizes it.",
+          "type": "select",
+          "required": true,
+          "defaultValue": "resolved",
+          "options": [
+            {
+              "value": "resolved",
+              "label": "Resolved"
+            },
+            {
+              "value": "closed",
+              "label": "Closed"
+            }
+          ]
+        },
+        "close_code": {
+          "label": "Close Code",
+          "description": "Close code (e.g., \"Solved (Permanently)\", \"Solved Remotely\", \"Not Solved (Not Reproducible)\")",
+          "required": true
+        },
+        "close_notes": {
+          "label": "Resolution Notes",
+          "description": "Resolution notes shown to the caller",
+          "type": "multiline",
+          "required": true
+        },
+        "resolved_by": {
+          "label": "Resolved By (User sys_id)",
+          "description": "sys_id of the user who resolved the incident. Defaults to the authenticated user."
+        }
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "https://{{credential.instanceUrl}}/api/now/table/incident/{{incident_sys_id}}",
+        "body": {
+          "close_code": "{{close_code}}",
+          "close_notes": "{{close_notes}}",
+          "resolved_by": "{{resolved_by}}"
+        }
+      },
+      "beforeRequest": "request.body.state = inputs.resolution === 'closed' ? '7' : '6';\nreturn request;",
+      "result": "$.result"
+    },
+    "attach_file_to_record": {
+      "label": "Attach File to Record",
+      "description": "Upload and attach a file to a record",
+      "inputs": {
+        "table": {
+          "label": "Table",
+          "description": "ServiceNow table to work with",
+          "required": true,
+          "list": "tables"
+        },
+        "record": {
+          "label": "Record",
+          "description": "Select a record from the table",
+          "required": true,
+          "list": "records"
+        },
+        "file_name": {
+          "label": "File Name",
+          "description": "Name for the attachment",
+          "required": true
+        },
+        "content_type": {
+          "label": "Content Type",
+          "description": "File content type",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "application/pdf",
+              "label": "PDF Document"
+            },
+            {
+              "value": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+              "label": "Word Document (.docx)"
+            },
+            {
+              "value": "application/msword",
+              "label": "Word Document (.doc)"
+            },
+            {
+              "value": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+              "label": "Excel Spreadsheet (.xlsx)"
+            },
+            {
+              "value": "application/vnd.ms-excel",
+              "label": "Excel Spreadsheet (.xls)"
+            },
+            {
+              "value": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+              "label": "PowerPoint (.pptx)"
+            },
+            {
+              "value": "application/vnd.ms-powerpoint",
+              "label": "PowerPoint (.ppt)"
+            },
+            {
+              "value": "text/plain",
+              "label": "Text File"
+            },
+            {
+              "value": "text/csv",
+              "label": "CSV File"
+            },
+            {
+              "value": "application/json",
+              "label": "JSON File"
+            },
+            {
+              "value": "application/xml",
+              "label": "XML File"
+            },
+            {
+              "value": "application/zip",
+              "label": "ZIP Archive"
+            },
+            {
+              "value": "image/png",
+              "label": "PNG Image"
+            },
+            {
+              "value": "image/jpeg",
+              "label": "JPEG Image"
+            },
+            {
+              "value": "image/gif",
+              "label": "GIF Image"
+            },
+            {
+              "value": "image/svg+xml",
+              "label": "SVG Image"
+            },
+            {
+              "value": "image/bmp",
+              "label": "BMP Image"
+            },
+            {
+              "value": "image/tiff",
+              "label": "TIFF Image"
+            },
+            {
+              "value": "*/*",
+              "label": "Any File Type"
+            },
+            {
+              "value": "application/octet-stream",
+              "label": "Binary/Other"
+            }
+          ]
+        },
+        "file": {
+          "label": "File",
+          "description": "The file to attach",
+          "type": "file",
+          "required": true
+        },
+        "encryption_context": {
+          "label": "Encryption Context",
+          "description": "Encryption context sys_id to restrict file access"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.instanceUrl}}/api/now/attachment/file",
+        "headers": {
+          "Content-Type": "{{content_type}}"
+        },
+        "query": {
+          "table_name": "{{table}}",
+          "table_sys_id": "{{record}}",
+          "file_name": "{{file_name}}",
+          "encryption_context": "{{encryption_context}}"
+        },
+        "body": "{{file}}"
+      },
+      "afterResponse": "if (!response || typeof response.result !== 'object' || response.result === null) throw new Error('The answer has no attachment');\nvar required = ['sys_id', 'file_name', 'content_type', 'size_bytes', 'table_name', 'table_sys_id', 'download_link'];\nvar optional = ['average_image_color', 'compressed', 'created_by_name', 'image_height', 'image_width', 'size_compressed', 'sys_created_by', 'sys_created_on', 'sys_mod_count', 'sys_tags', 'sys_updated_by', 'sys_updated_on', 'updated_by_name'];\nvar attachment = {};\nrequired.concat(optional).forEach(function (key, index) {\n  var value = response.result[key];\n  if (value === undefined && index >= required.length) return;\n  if (typeof value !== 'string') throw new Error('The attachment should have ' + key + ' as text');\n  attachment[key] = value;\n});\nreturn attachment;"
+    },
+    "delete_attachment": {
+      "label": "Delete Attachment",
+      "description": "Delete an attachment by its sys_id",
+      "inputs": {
+        "attachment_sys_id": {
+          "label": "Attachment Sys ID",
+          "description": "The sys_id of the attachment to delete",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://{{credential.instanceUrl}}/api/now/attachment/{{attachment_sys_id}}"
+      },
+      "afterResponse": "return { success: true, attachment_sys_id: inputs.attachment_sys_id };"
+    },
+    "get_catalog_item": {
+      "label": "Get Catalog Item",
+      "description": "Retrieve full details of a catalog item including its variable definitions. Use this before \"Submit Catalog Request\" to discover the variables expected by the item.",
+      "inputs": {
+        "item_sys_id": {
+          "label": "Catalog Item",
+          "description": "Select a catalog item",
+          "required": true,
+          "list": "catalog_items"
+        }
+      },
+      "request": {
+        "url": "https://{{credential.instanceUrl}}/api/sn_sc/servicecatalog/items/{{item_sys_id}}"
+      },
+      "result": "$.result"
+    },
+    "submit_catalog_item": {
+      "label": "Submit Catalog Request",
+      "description": "Order a catalog item. Submits a service catalog request and returns the resulting request number.",
+      "inputs": {
+        "item_sys_id": {
+          "label": "Catalog Item",
+          "description": "Select a catalog item to order",
+          "required": true,
+          "list": "catalog_items"
+        },
+        "quantity": {
+          "label": "Quantity",
+          "description": "How many of this item to order",
+          "type": "number",
+          "defaultValue": "1"
+        },
+        "requested_for": {
+          "label": "Requested For (User Sys ID)",
+          "description": "sys_id of the user the request is for. Defaults to the authenticated user."
+        },
+        "variables": {
+          "label": "Variables",
+          "description": "Catalog item variables as a JSON object (variable_name → value)",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.instanceUrl}}/api/sn_sc/servicecatalog/items/{{item_sys_id}}/order_now",
+        "body": {
+          "sysparm_quantity": "{{quantity}}",
+          "sysparm_requested_for": "{{requested_for}}"
+        }
+      },
+      "beforeRequest": "var quantity = inputs.quantity === undefined || inputs.quantity === '' ? 1 : Number(inputs.quantity);\nif (!Number.isInteger(quantity) || quantity < 1 || quantity > 100) throw new Error('Quantity should be a whole number from 1 to 100');\nrequest.body.sysparm_quantity = String(quantity);\nvar variables = inputs.variables ? JSON.parse(inputs.variables) : null;\nif (variables !== null && (typeof variables !== 'object' || Array.isArray(variables))) throw new Error('Variables should be a JSON object');\nif (variables && Object.keys(variables).length > 0) request.body.variables = variables;\nreturn request;",
+      "result": "$.result"
+    },
+    "search_knowledge_articles": {
+      "label": "Search Knowledge Articles",
+      "description": "Search published knowledge base articles using free text. Requires the Knowledge API plugin to be active.",
+      "inputs": {
+        "query": {
+          "label": "Search Text",
+          "description": "Free-text search query"
+        },
+        "kb": {
+          "label": "Knowledge Base sys_id",
+          "description": "Limit the search to a specific knowledge base."
+        },
+        "language": {
+          "label": "Language",
+          "description": "ISO language code (e.g., en, de, fr)"
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of articles to return (1-100)",
+          "type": "number",
+          "defaultValue": "20"
+        },
+        "offset": {
+          "label": "Offset",
+          "description": "Number of articles to skip for pagination",
+          "type": "number",
+          "defaultValue": "0"
+        },
+        "return_fields": {
+          "label": "Fields to Return",
+          "description": "Article field names to include in the response",
+          "type": "json"
+        }
+      },
+      "request": {
+        "url": "https://{{credential.instanceUrl}}/api/sn_km_api/knowledge/articles",
+        "query": {
+          "sysparm_limit": "{{limit}}",
+          "sysparm_offset": "{{offset}}",
+          "query": "{{query}}",
+          "kb": "{{kb}}",
+          "language": "{{language}}"
+        }
+      },
+      "beforeRequest": "var limit = inputs.limit === undefined || inputs.limit === '' ? 20 : Number(inputs.limit);\nvar offset = inputs.offset === undefined || inputs.offset === '' ? 0 : Number(inputs.offset);\nif (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error('Limit should be a whole number from 1 to 100');\nif (!Number.isInteger(offset) || offset < 0) throw new Error('Offset should be a whole number of 0 or more');\nrequest.query.sysparm_limit = String(limit);\nrequest.query.sysparm_offset = String(offset);\nvar fields = inputs.return_fields ? JSON.parse(inputs.return_fields) : [];\nif (fields.length > 0) request.query.fields = fields.join(',');\nreturn request;",
+      "afterResponse": "if (!response || typeof response.result !== 'object' || response.result === null) throw new Error('The answer has no result');\nif (response.result.articles === undefined) response.result.articles = [];\nreturn response;"
+    },
+    "get_knowledge_article": {
+      "label": "Get Knowledge Article",
+      "description": "Retrieve the full content of a knowledge article by sys_id",
+      "inputs": {
+        "article_sys_id": {
+          "label": "Article Sys ID",
+          "description": "sys_id of the article. Use \"Search Knowledge Articles\" first if you only have a KB number.",
+          "required": true
+        },
+        "update_view": {
+          "label": "Increment View Count",
+          "description": "Whether to increment the article view counter when fetching",
+          "type": "boolean",
+          "defaultValue": "false"
+        }
+      },
+      "request": {
+        "url": "https://{{credential.instanceUrl}}/api/sn_km_api/knowledge/articles/{{article_sys_id}}",
+        "query": {
+          "update_view": "{{update_view}}"
+        }
+      },
+      "result": "$.result"
+    },
+    "send_email": {
+      "label": "Send Email",
+      "description": "Send an email through your ServiceNow instance using the Email API. Requires the email outbound capability to be configured.",
+      "inputs": {
+        "to": {
+          "label": "To",
+          "description": "One or more recipient email addresses",
+          "type": "json",
+          "required": true
+        },
+        "subject": {
+          "label": "Subject",
+          "description": "Email subject line",
+          "required": true
+        },
+        "body": {
+          "label": "Body",
+          "description": "Email body. HTML is supported by ServiceNow.",
+          "type": "multiline",
+          "required": true
+        },
+        "from": {
+          "label": "From",
+          "description": "Sender address. Defaults to the instance email-from setting."
+        },
+        "cc": {
+          "label": "CC",
+          "description": "CC recipients",
+          "type": "json"
+        },
+        "bcc": {
+          "label": "BCC",
+          "description": "BCC recipients",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.instanceUrl}}/api/now/v1/email",
+        "body": {
+          "subject": "{{subject}}",
+          "body": "{{body}}",
+          "from": "{{from}}"
+        }
+      },
+      "beforeRequest": "var email = /^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$/;\nfunction check(address) { if (typeof address !== 'string' || !email.test(address)) throw new Error('Invalid email address: ' + address); }\nif (inputs.from) check(inputs.from);\n['to', 'cc', 'bcc'].forEach(function (name) {\n  var list = inputs[name] ? JSON.parse(inputs[name]) : [];\n  list.forEach(check);\n  if (name === 'to' && list.length === 0) throw new Error('At least one recipient is required');\n  if (list.length > 0) request.body[name] = list.join(',');\n});\nreturn request;",
+      "afterResponse": "return response && response.result !== undefined && response.result !== null ? response.result : response;"
+    },
+    "count_records": {
+      "label": "Count Records",
+      "description": "Return the number of records in a table that match an optional encoded query (uses the Aggregate API)",
+      "inputs": {
+        "table": {
+          "label": "Table",
+          "description": "ServiceNow table to work with",
+          "required": true,
+          "list": "tables"
+        },
+        "query": {
+          "label": "Query",
+          "description": "Encoded query to filter records (e.g., active=true^state=1)",
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "url": "https://{{credential.instanceUrl}}/api/now/stats/{{table}}",
+        "query": {
+          "sysparm_count": "true",
+          "sysparm_query": "{{query}}"
+        }
+      },
+      "afterResponse": "var raw = response && response.result && response.result.stats && response.result.stats.count != null ? response.result.stats.count : 0;\nreturn { table: inputs.table, query: inputs.query || null, count: typeof raw === 'number' ? raw : (parseInt(String(raw), 10) || 0) };"
+    }
+  },
+  "triggers": {
+    "new_comment": {
+      "label": "New Comment or Work Note",
+      "description": "Triggers when a new comment or work note is added to a record in the selected table",
+      "inputs": {
+        "table": {
+          "label": "Table",
+          "description": "ServiceNow table to work with",
+          "required": true,
+          "list": "tables"
+        },
+        "entry_type": {
+          "label": "Entry Type",
+          "description": "Which journal entries to watch",
+          "type": "select",
+          "required": true,
+          "defaultValue": "both",
+          "options": [
+            {
+              "value": "both",
+              "label": "Comments and Work Notes"
+            },
+            {
+              "value": "comments",
+              "label": "Customer-visible Comments only"
+            },
+            {
+              "value": "work_notes",
+              "label": "Internal Work Notes only"
+            }
+          ]
+        },
+        "record_sys_id": {
+          "label": "Record",
+          "description": "If set, only fire for comments on this record",
+          "list": "records"
+        }
+      },
+      "request": {
+        "url": "https://{{credential.instanceUrl}}/api/now/table/sys_journal_field",
+        "query": {
+          "sysparm_limit": "100"
+        }
+      },
+      "beforeRequest": "var elements = !inputs.entry_type || inputs.entry_type === 'both' ? ['comments', 'work_notes'] : [inputs.entry_type];\nvar filters = ['name=' + inputs.table, elements.map(function (element) { return 'element=' + element; }).join('^OR')];\nif (inputs.record_sys_id) filters.push('element_id=' + inputs.record_sys_id);\nrequest.query.sysparm_query = filters.join('^') + '^ORDERBYDESCsys_created_on';\nreturn request;",
+      "items": "$.result",
+      "newBy": "lastItem",
+      "key": "$.sys_id"
+    },
+    "new_record": {
+      "label": "New Record",
+      "description": "Triggers when a new record is created in a table",
+      "inputs": {
+        "table": {
+          "label": "Table",
+          "description": "ServiceNow table to work with",
+          "required": true,
+          "list": "tables"
+        },
+        "filter": {
+          "label": "Filter Query",
+          "description": "Encoded query to filter records (e.g., priority=1^state=1)",
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "url": "https://{{credential.instanceUrl}}/api/now/table/{{table}}",
+        "query": {
+          "sysparm_limit": "100"
+        }
+      },
+      "beforeRequest": "var since = new Date(Number(inputs.lastPollTime) || Date.now()).toISOString().slice(0, 19).replace('T', ' ');\nvar query = 'sys_created_on>' + since + (inputs.filter ? '^' + inputs.filter : '');\n// A form value, as the original sends it: a space as + and !'()~ encoded.\nvar encoded = encodeURIComponent(query).replace(/[!'()~]/g, function (c) { return '%' + c.charCodeAt(0).toString(16).toUpperCase(); }).replace(/%20/g, '+');\nrequest.url += '?sysparm_query=' + encoded;\nreturn request;",
+      "items": "$.result",
+      "key": "$.sys_created_on"
+    },
+    "updated_record": {
+      "label": "Updated Record",
+      "description": "Triggers when a record is updated in a table",
+      "inputs": {
+        "table": {
+          "label": "Table",
+          "description": "ServiceNow table to work with",
+          "required": true,
+          "list": "tables"
+        },
+        "filter": {
+          "label": "Filter Query",
+          "description": "Encoded query to filter records (e.g., priority=1^state=1)",
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "url": "https://{{credential.instanceUrl}}/api/now/table/{{table}}",
+        "query": {
+          "sysparm_limit": "100"
+        }
+      },
+      "beforeRequest": "var since = new Date(Number(inputs.lastPollTime) || Date.now()).toISOString().slice(0, 19).replace('T', ' ');\nvar query = 'sys_updated_on>' + since + '^sys_created_on<' + since + (inputs.filter ? '^' + inputs.filter : '');\n// A form value, as the original sends it: a space as + and !'()~ encoded.\nvar encoded = encodeURIComponent(query).replace(/[!'()~]/g, function (c) { return '%' + c.charCodeAt(0).toString(16).toUpperCase(); }).replace(/%20/g, '+');\nrequest.url += '?sysparm_query=' + encoded;\nreturn request;",
+      "items": "$.result",
+      "key": "$.sys_updated_on"
+    }
+  }
+}
