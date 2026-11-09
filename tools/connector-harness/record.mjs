@@ -12,8 +12,9 @@ import { ClientRequestInterceptor } from '@mswjs/interceptors/ClientRequest';
 import { FetchInterceptor } from '@mswjs/interceptors/fetch';
 import { createMockActionContext } from '@activepieces/pieces-framework';
 
-// Headers that differ between HTTP clients without changing what a service receives.
-const NOISE = new Set(['user-agent', 'accept-encoding', 'accept', 'content-length', 'host', 'connection', 'accept-language', 'sec-fetch-mode']);
+// Headers that differ between HTTP clients without changing what a service receives,
+// or that carry a new random value on each request, such as the id Microsoft Graph logs a request by.
+const NOISE = new Set(['user-agent', 'accept-encoding', 'accept', 'content-length', 'host', 'connection', 'accept-language', 'sec-fetch-mode', 'client-request-id']);
 
 // In UTC, as the check runs ours, so that a time is written the same on every machine.
 process.env.TZ = 'UTC';
