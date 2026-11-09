@@ -73,7 +73,7 @@ class ElasticsearchAction : Action() {
         broadcastListener: BroadcastListener?
     ): ActionResult {
         val read = { text: String? -> variableExtractorUtil.extract(text, execution, scriptLanguage) }
-        val site = read(siteUrl).trim().trimEnd('/')
+        val site = JsonApi.baseAddress(siteUrl)
         val indexValue = read(indexName).trim()
         val operationValue = read(operation)
         val idValue = read(documentId).trim()

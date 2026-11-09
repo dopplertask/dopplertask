@@ -65,7 +65,7 @@ class MailchimpAction : Action() {
         if (audienceValue.isBlank() || emailValue.isBlank()) return ActionResult.failure("Mailchimp needs the audience ID and the email of the contact.")
         if (operationValue == TAG_CONTACT && tagValue.isBlank()) return ActionResult.failure("Mailchimp needs the name of the tag.")
 
-        val base = read(baseUrl).trim().trimEnd('/').ifEmpty { if (dataCenter.isEmpty()) "https://api.mailchimp.com" else "https://$dataCenter.api.mailchimp.com" }
+        val base = JsonApi.baseAddress(baseUrl).ifEmpty { if (dataCenter.isEmpty()) "https://api.mailchimp.com" else "https://$dataCenter.api.mailchimp.com" }
         val headers = mapOf("Authorization" to "Basic " + Base64.getEncoder().encodeToString("dopplertask:$keyValue".toByteArray()))
         // Mailchimp finds a contact by this hash of the email.
         val hash = MessageDigest.getInstance("MD5").digest(emailValue.toByteArray()).joinToString("") { "%02x".format(it) }

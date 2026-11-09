@@ -85,7 +85,7 @@ class BitbucketAction : Action() {
         if (operationValue == ADD_COMMENT && commentValue.isBlank()) return ActionResult.failure("Bitbucket needs the text of the comment.")
 
         val headers = mapOf("Authorization" to "Basic " + Base64.getEncoder().encodeToString("$emailValue:$tokenValue".toByteArray()))
-        val requests = read(baseUrl).trim().trimEnd('/') + "/2.0/repositories/${JsonApi.encoded(workspaceValue)}/${JsonApi.encoded(repositoryValue)}/pullrequests"
+        val requests = JsonApi.baseAddress(baseUrl) + "/2.0/repositories/${JsonApi.encoded(workspaceValue)}/${JsonApi.encoded(repositoryValue)}/pullrequests"
         val request = "$requests/$numberValue"
         val branch = { name: String -> mapOf("branch" to mapOf("name" to name)) }
         val result = when (operationValue) {

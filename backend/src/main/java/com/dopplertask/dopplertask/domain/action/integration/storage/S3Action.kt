@@ -7,6 +7,7 @@ import com.dopplertask.dopplertask.domain.action.Action
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationCategory
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
 import com.dopplertask.dopplertask.domain.action.connection.HttpAction
+import com.dopplertask.dopplertask.domain.action.integration.JsonApi
 import com.dopplertask.dopplertask.service.BroadcastListener
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
@@ -82,7 +83,7 @@ class S3Action : Action() {
         }
 
         // The bucket goes in the path, since this is what S3 compatible services such as MinIO take.
-        val base = variableExtractorUtil.extract(baseUrl, execution, scriptLanguage).trim().trimEnd('/').ifEmpty { "https://s3.$regionValue.amazonaws.com" }
+        val base = JsonApi.baseAddress(baseUrl).ifEmpty { "https://s3.$regionValue.amazonaws.com" }
         val path = "/$bucketValue/" + keyValue.split("/").joinToString("/") { encoded(it) }
         val body = if (operationValue == WRITE) contentValue else ""
         val now = ZonedDateTime.now(ZoneOffset.UTC).format(TIMESTAMP)

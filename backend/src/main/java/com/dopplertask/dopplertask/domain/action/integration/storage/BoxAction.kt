@@ -64,7 +64,7 @@ class BoxAction : Action() {
         if (operationValue == CREATE_FOLDER && folderValue.isBlank()) return ActionResult.failure("Box needs a name for the folder.")
 
         val headers = mapOf("Authorization" to "Bearer $tokenValue")
-        val api = read(baseUrl).trim().trimEnd('/') + "/2.0"
+        val api = JsonApi.baseAddress(baseUrl) + "/2.0"
         val file = "$api/files/${JsonApi.encoded(fileValue)}"
         val result = when (operationValue) {
             FIND_FILES -> JsonApi.call("Box", "GET", "$api/search?type=file&limit=$FILES_READ&query=${JsonApi.encoded(searchValue)}", headers, null)

@@ -61,7 +61,7 @@ class TwilioAction : Action() {
         if (messageValue.isBlank()) return ActionResult.failure("Twilio needs a message to send.")
         if (messageValue.length > MAX_MESSAGE_LENGTH) return ActionResult.failure("Twilio allows $MAX_MESSAGE_LENGTH characters in a message, and this one has ${messageValue.length}.")
 
-        val base = read(baseUrl).trimEnd('/')
+        val base = JsonApi.baseAddress(baseUrl)
         val signIn = Base64.getEncoder().encodeToString("$accountValue:$tokenValue".toByteArray())
         val result = JsonApi.callForm("Twilio", "$base/2010-04-01/Accounts/$accountValue/Messages.json", mapOf("Authorization" to "Basic $signIn"), mapOf("From" to senderValue, "To" to toValue, "Body" to messageValue))
         if (result.statusCode == StatusCode.SUCCESS) result.outputVariables["messageId"] = JsonApi.parsed(result).path("sid").asText()

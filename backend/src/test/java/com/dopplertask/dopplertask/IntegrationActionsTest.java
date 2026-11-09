@@ -59,6 +59,7 @@ import jakarta.mail.internet.MimeMessage;
 import com.dopplertask.dopplertask.domain.ExecutionParameter;
 import com.dopplertask.dopplertask.domain.action.integration.anthropic.ClaudeAction;
 import com.dopplertask.dopplertask.domain.action.integration.openai.OpenAIAction;
+import com.dopplertask.dopplertask.domain.action.integration.JsonApi;
 import com.dopplertask.dopplertask.domain.action.integration.chat.MattermostAction;
 import com.dopplertask.dopplertask.domain.action.integration.chat.TeamsAction;
 import com.dopplertask.dopplertask.domain.action.integration.chat.TwilioAction;
@@ -647,6 +648,29 @@ public class IntegrationActionsTest {
         Assert.assertEquals("Is the disk full?", received.path("messages").path(0).path("content").asText());
         Assert.assertEquals("Yes.", result.getOutput());
         Assert.assertEquals(12L, result.getOutputVariables().get("inputTokens"));
+    }
+
+    @Test
+    public void testDataInATaskCannotChooseWhereAStepSendsItsKeyFail() throws IOException {
+        TaskExecution execution = new TaskExecution();
+        execution.getParameters().put("where", new ExecutionParameter("where", baseUrl.getBytes(StandardCharsets.UTF_8), false));
+        ClaudeAction claude = claude();
+        claude.setBaseUrl("$parameters.get(\"where\")");
+        PagerDutyAction pagerDuty = pagerDuty();
+        pagerDuty.setBaseUrl("$parameters.get(\"where\")");
+        for (Action step : List.of(claude, pagerDuty)) {
+            ActionResult result = step.run(new TaskServiceImpl(), execution, new VariableExtractorUtil(new VelocityEngine()), null);
+            Assert.assertEquals(StatusCode.FAILURE, result.getStatusCode());
+        }
+        Assert.assertTrue(requests.isEmpty());
+    }
+
+    @Test
+    public void testABaseAddressIsTakenAsWrittenSuccess() {
+        Assert.assertEquals("http://localhost:8080", JsonApi.INSTANCE.baseAddress(" http://localhost:8080/ "));
+        Assert.assertEquals("https://api.anthropic.com", JsonApi.INSTANCE.baseAddress(new ClaudeAction().getBaseUrl()));
+        Assert.assertEquals("https://api.openai.com/v1", JsonApi.INSTANCE.baseAddress(new OpenAIAction().getBaseUrl()));
+        Assert.assertEquals("", JsonApi.INSTANCE.baseAddress(null));
     }
 
     @Test

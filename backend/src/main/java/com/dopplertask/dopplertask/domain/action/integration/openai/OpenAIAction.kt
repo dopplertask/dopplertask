@@ -52,7 +52,7 @@ class OpenAIAction : Action() {
         // A key is optional, since a server of your own may not ask for one.
         val keyValue = read(apiKey)
         val headers = if (keyValue.isBlank()) mapOf() else mapOf("Authorization" to "Bearer $keyValue")
-        val url = read(baseUrl).trim().trimEnd('/') + "/chat/completions"
+        val url = JsonApi.baseAddress(baseUrl) + "/chat/completions"
         val request = mapOf("model" to modelValue, "messages" to listOf(mapOf("role" to "user", "content" to inputValue)))
         return JsonApi.call("OpenAI", "POST", url, headers, request, Duration.ofMinutes(ANSWER_MINUTES))
     }

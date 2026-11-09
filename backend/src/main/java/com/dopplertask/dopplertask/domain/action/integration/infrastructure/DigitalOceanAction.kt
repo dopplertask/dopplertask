@@ -52,7 +52,7 @@ class DigitalOceanAction : Action() {
         if (operationValue != LIST_DROPLETS && dropletValue.toLongOrNull() == null) return ActionResult.failure("DigitalOcean needs the droplet ID as a number, and got \"$dropletValue\".")
 
         val headers = mapOf("Authorization" to "Bearer $tokenValue")
-        val droplets = read(baseUrl).trim().trimEnd('/') + "/v2/droplets"
+        val droplets = JsonApi.baseAddress(baseUrl) + "/v2/droplets"
         val act = { kind: String -> JsonApi.call("DigitalOcean", "POST", "$droplets/$dropletValue/actions", headers, mapOf("type" to kind)) }
         val result = when (operationValue) {
             LIST_DROPLETS -> JsonApi.call("DigitalOcean", "GET", "$droplets?per_page=$SERVERS_READ" + (if (tagValue.isEmpty()) "" else "&tag_name=${JsonApi.encoded(tagValue)}"), headers, null)

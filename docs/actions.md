@@ -4,6 +4,8 @@ Every step, what it does and its fields. `GET /task/actions` gives the same list
 
 Fields that hold a sign-in, such as `token`, `password` or `apiKey`, belong in a [credential](operations.md#credentials).
 
+A step's base address, `baseUrl`, `siteUrl` or `signInUrl`, is used exactly as typed and not read as Velocity, so data in a task cannot change where the step sends its key.
+
 ## Common variables for all actions
 * scriptLanguage: VELOCITY (default), JAVASCRIPT
 * ports: Defined input and output ports for the current action. A connection object connects two ports together. The next action can be reached via a connection object.

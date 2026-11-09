@@ -51,7 +51,7 @@ class TelegramAction : Action() {
         // A message is limited to 4096 characters, and saying so is better than Telegram's own answer.
         if (messageValue.length > MAX_MESSAGE_LENGTH) return ActionResult.failure("Telegram allows $MAX_MESSAGE_LENGTH characters in a message, and this one has ${messageValue.length}.")
 
-        val base = variableExtractorUtil.extract(baseUrl, execution, scriptLanguage).trimEnd('/')
+        val base = JsonApi.baseAddress(baseUrl)
         val result = JsonApi.call("Telegram", "POST", "$base/bot$tokenValue/sendMessage", mapOf(), mapOf("chat_id" to chatValue, "text" to messageValue))
         if (result.statusCode == StatusCode.SUCCESS) {
             result.outputVariables["messageId"] = JsonApi.parsed(result).path("result").path("message_id").asLong()

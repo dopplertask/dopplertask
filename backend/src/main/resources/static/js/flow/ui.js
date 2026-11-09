@@ -72,6 +72,9 @@ export default function boot() {
 
   // Above this many choices a list is searched by typing.
   const LONG_LIST = 12;
+  // Where a step sends its key. Over plain http, others on the network can read what is sent.
+  const BASE_ADDRESS_FIELDS = ['baseUrl', 'siteUrl', 'signInUrl'];
+  const isUnencrypted = (address) => /^\s*http:\/\//i.test(address ?? '');
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
   const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
   const modKey = isMac ? '⌘' : 'Ctrl+';
@@ -201,11 +204,14 @@ export default function boot() {
         const suggestions = (field.files ? DT.canvas.store.filesBefore(node.id).map((name) => ({ value: name, label: name })) : field.suggestions)
           ?.map((choice) => `<option value="${escapeHtml(choice.value)}" label="${escapeHtml(choice.label)}">`).join('');
         const choices = savedTasks ?? suggestions ?? (field.choices ? '' : null);
+        /* A base address is used as typed, so it offers no parameters or outputs. */
+        const isBaseAddress = BASE_ADDRESS_FIELDS.includes(field.key);
         const list = choices === null ? '' : `<datalist id="${inputId}-choices">${choices}</datalist>`;
         const control = field.multiline
           ? `<textarea class="ui-input is-mono" rows="3" spellcheck="false" data-variables ${common} ${placeholder}>${escapeHtml(fieldValue ?? '')}</textarea>`
-          : `<input class="ui-input is-mono" spellcheck="false" autocomplete="off" data-variables ${list ? `list="${inputId}-choices"` : ''} ${field.choices ? 'data-choices' : ''} ${common} ${placeholder} value="${escapeHtml(fieldValue ?? '')}">`;
-        return wrap(`${label}${control}${list}${field.choices ? `<p class="ui-hint" data-choices-note="${field.key}" hidden></p>` : ''}<p class="ui-preview" data-preview="${field.key}"></p>`);
+          : `<input class="ui-input is-mono" spellcheck="false" autocomplete="off" ${isBaseAddress ? '' : 'data-variables'} ${list ? `list="${inputId}-choices"` : ''} ${field.choices ? 'data-choices' : ''} ${common} ${placeholder} value="${escapeHtml(fieldValue ?? '')}">`;
+        const unencrypted = isBaseAddress ? `<p class="ui-hint" data-unencrypted="${field.key}" hidden>Not encrypted</p>` : '';
+        return wrap(`${label}${control}${list}${unencrypted}${field.choices ? `<p class="ui-hint" data-choices-note="${field.key}" hidden></p>` : ''}<p class="ui-preview" data-preview="${field.key}"></p>`);
       }
       case 'form': {
         /* Saved values show by their key until the fields are loaded, which gives their labels and any new ones. */
@@ -266,6 +272,9 @@ export default function boot() {
       const resolved = DT.interpolate(input.value, lastStep.variables);
       previewElement.hidden = false;
       previewElement.innerHTML = `<span>Last run</span> ${escapeHtml(resolved).slice(0, 140)}`;
+    });
+    root.querySelectorAll('[data-unencrypted]').forEach((note) => {
+      note.hidden = !isUnencrypted(root.querySelector(`[data-field="${note.dataset.unencrypted}"]`)?.value);
     });
   }
 

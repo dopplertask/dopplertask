@@ -62,7 +62,7 @@ class WooCommerceAction : Action() {
         broadcastListener: BroadcastListener?
     ): ActionResult {
         val read = { text: String? -> variableExtractorUtil.extract(text, execution, scriptLanguage) }
-        val site = read(siteUrl).trim().trimEnd('/')
+        val site = JsonApi.baseAddress(siteUrl)
         val keyValue = read(consumerKey).trim()
         val secretValue = read(consumerSecret)
         val operationValue = read(operation)

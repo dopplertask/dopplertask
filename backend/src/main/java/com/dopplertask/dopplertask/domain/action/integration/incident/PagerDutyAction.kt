@@ -68,7 +68,7 @@ class PagerDutyAction : Action() {
                 "severity" to variableExtractorUtil.extract(severity, execution, scriptLanguage)
             )
         }
-        val base = variableExtractorUtil.extract(baseUrl, execution, scriptLanguage).trimEnd('/')
+        val base = JsonApi.baseAddress(baseUrl)
         val result = JsonApi.call("PagerDuty", "POST", "$base/v2/enqueue", mapOf(), event)
         if (result.statusCode == StatusCode.SUCCESS) {
             result.outputVariables["incidentKey"] = JsonApi.parsed(result).path("dedup_key").asText()

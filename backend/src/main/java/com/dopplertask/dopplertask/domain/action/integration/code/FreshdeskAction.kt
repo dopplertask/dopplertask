@@ -57,7 +57,7 @@ class FreshdeskAction : Action() {
         broadcastListener: BroadcastListener?
     ): ActionResult {
         val read = { text: String? -> variableExtractorUtil.extract(text, execution, scriptLanguage) }
-        val site = read(siteUrl).trim().trimEnd('/')
+        val site = JsonApi.baseAddress(siteUrl)
         val keyValue = read(apiKey).trim()
         val operationValue = read(operation)
         val numberValue = read(ticketNumber).trim()

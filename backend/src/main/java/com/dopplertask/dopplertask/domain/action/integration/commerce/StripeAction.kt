@@ -68,7 +68,7 @@ class StripeAction : Action() {
         if ((operationValue == READ_PAYMENT || operationValue == REFUND_PAYMENT) && paymentValue.isBlank()) return ActionResult.failure("Stripe needs the payment ID, such as pi_3Mt.")
         if (operationValue == REFUND_PAYMENT && amountValue.isNotEmpty() && amountValue.toLongOrNull() == null) return ActionResult.failure("Stripe needs the amount in the smallest unit, such as cents, and got \"$amountValue\".")
 
-        val base = read(baseUrl).trim().trimEnd('/')
+        val base = JsonApi.baseAddress(baseUrl)
         val headers = mapOf("Authorization" to "Bearer $keyValue")
         return when (operationValue) {
             CREATE_CUSTOMER -> {
