@@ -1,4 +1,4 @@
-// Loads an Activepieces piece, for the recorder and the scaffolder.
+// Loads an Activepieces piece for the recorder.
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
