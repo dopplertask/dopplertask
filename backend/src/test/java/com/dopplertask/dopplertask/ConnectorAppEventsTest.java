@@ -16,6 +16,8 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.HexFormat;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -87,10 +89,51 @@ public class ConnectorAppEventsTest {
         return started;
     }
 
+    @Test
+    public void testAnEventSignedMoreThanFiveMinutesBeforeItArrivedIsRefusedSuccess() throws Exception {
+        ConnectorTrigger trigger = trigger("T1");
+        String body = "{\"team_id\": \"T1\", \"event\": {\"type\": \"message\", \"text\": \"hello\"}}";
+        Instant now = Instant.now();
+
+        Assert.assertFalse(trigger.accepts(event(body, "secret", now.minus(Duration.ofHours(6)), now)));
+        Assert.assertFalse(trigger.accepts(event(body, "secret", now.minusSeconds(301), now)));
+        Assert.assertFalse(trigger.accepts(event(body, "secret", now.plusSeconds(301), now)));
+    }
+
+    @Test
+    public void testAnEventSignedWithinFiveMinutesOfArrivingIsTakenSuccess() throws Exception {
+        ConnectorTrigger trigger = trigger("T1");
+        String body = "{\"team_id\": \"T1\", \"event\": {\"type\": \"message\", \"text\": \"hello\"}}";
+        Instant now = Instant.now();
+
+        Assert.assertTrue(trigger.accepts(event(body, "secret", now, now)));
+        Assert.assertTrue(trigger.accepts(event(body, "secret", now.minusSeconds(300), now)));
+        Assert.assertTrue(trigger.accepts(event(body, "secret", now.plusSeconds(300), now)));
+    }
+
+    @Test
+    public void testAnEventWithoutTheTimeItWasSignedIsRefusedSuccess() throws Exception {
+        String body = "{\"team_id\": \"T1\", \"event\": {\"type\": \"message\", \"text\": \"hello\"}}";
+        // Signed as the service would sign it with an empty time, but without the header that gives the time.
+        var event = ConnectorWebhooks.INSTANCE.eventOf("application/json", body, Map.of("x-signature", signatureOf("v0::" + body, "secret")), null);
+
+        Assert.assertFalse(trigger("T1").accepts(event));
+    }
+
+    /** An event signed now, as the service sends it, which arrives now. */
     private static ConnectorWebhooks.Event event(String body, String secret) throws Exception {
+        Instant now = Instant.now();
+        return event(body, secret, now, now);
+    }
+
+    private static ConnectorWebhooks.Event event(String body, String secret, Instant signedAt, Instant arrivedAt) throws Exception {
+        String time = String.valueOf(signedAt.getEpochSecond());
+        return ConnectorWebhooks.INSTANCE.eventOf("application/json", body, Map.of("x-timestamp", time, "x-signature", signatureOf("v0:" + time + ":" + body, secret)), null, arrivedAt);
+    }
+
+    private static String signatureOf(String text, String secret) throws Exception {
         Mac mac = Mac.getInstance("HmacSHA256");
         mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-        String signature = "v0=" + HexFormat.of().formatHex(mac.doFinal(("v0:1700000000:" + body).getBytes(StandardCharsets.UTF_8)));
-        return ConnectorWebhooks.INSTANCE.eventOf("application/json", body, Map.of("x-timestamp", "1700000000", "x-signature", signature), null);
+        return "v0=" + HexFormat.of().formatHex(mac.doFinal(text.getBytes(StandardCharsets.UTF_8)));
     }
 }

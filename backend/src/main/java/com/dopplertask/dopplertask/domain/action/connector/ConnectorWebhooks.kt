@@ -7,6 +7,8 @@ import tools.jackson.databind.node.ObjectNode
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
+import java.time.Duration
+import java.time.Instant
 import java.util.Base64
 import java.util.HexFormat
 import java.util.concurrent.BlockingQueue
@@ -33,7 +35,7 @@ object ConnectorWebhooks {
 
     private val listening = ConcurrentHashMap<String, CopyOnWriteArrayList<Listener>>()
 
-    /** An event as it arrived: its body read as JSON, a form or text, and what came with it, its headers, query and text. */
+    /** An event as it arrived: its body read as JSON, a form or text, and what came with it, its headers, query and text, and at, when it arrived in seconds. */
     class Event(val body: JsonNode, val received: JsonNode)
 
     /**
@@ -69,29 +71,37 @@ object ConnectorWebhooks {
     }
 
     /**
-     * Whether an event carries the signature the service makes with the credential's secret. The comparison takes the
-     * same time whatever it finds, so that it gives nothing away.
+     * Whether an event carries the signature the service makes with the credential's secret and, when the service signs
+     * the time too, was signed within five minutes of when it arrived. The comparison takes the same time whatever it
+     * finds, so that it gives nothing away.
      */
     fun isSigned(signature: ConnectorSignature, event: Event, credential: Map<String, String>): Boolean {
-        val received = event.received
-        val fill = { template: String ->
-            SIGNED.replace(template) { match ->
-                val name = match.groupValues[1]
-                when {
-                    name == "text" -> received.path("text").asText()
-                    name.startsWith("headers.") -> received.path("headers").path(name.removePrefix("headers.").lowercase()).asText()
-                    name.startsWith("query.") -> received.path("query").path(name.removePrefix("query.")).asText()
-                    name.startsWith(Connectors.CREDENTIAL) -> credential[name.removePrefix(Connectors.CREDENTIAL)].orEmpty()
-                    else -> ""
-                }
+        val key = filled(signature.key, event, credential).takeIf { it.isNotEmpty() } ?: return false
+        val hash = Mac.getInstance(signature.algorithm).apply { init(SecretKeySpec(key.toByteArray(), signature.algorithm)) }.doFinal(filled(signature.text, event, credential).toByteArray())
+        val expected = signature.prefix + if (signature.encoding == "base64") Base64.getEncoder().encodeToString(hash) else HexFormat.of().formatHex(hash)
+        val given = event.received.path("headers").path(signature.header.lowercase()).asText()
+        if (!MessageDigest.isEqual(expected.toByteArray(), given.toByteArray())) return false
+        val template = signature.signedAt ?: return true
+        val signedAt = filled(template, event, credential).toLongOrNull() ?: return false
+        val arrivedAt = event.received.path("at").asLong()
+        return signedAt in arrivedAt - SIGNED_WITHIN.seconds..arrivedAt + SIGNED_WITHIN.seconds
+    }
+
+    /** How long a signed time is believed, as Slack asks. */
+    private val SIGNED_WITHIN = Duration.ofMinutes(5)
+
+    /** A signature's template with what it names from the event and the credential. */
+    private fun filled(template: String, event: Event, credential: Map<String, String>) =
+        SIGNED.replace(template) { match ->
+            val name = match.groupValues[1]
+            when {
+                name == "text" -> event.received.path("text").asText()
+                name.startsWith("headers.") -> event.received.path("headers").path(name.removePrefix("headers.").lowercase()).asText()
+                name.startsWith("query.") -> event.received.path("query").path(name.removePrefix("query.")).asText()
+                name.startsWith(Connectors.CREDENTIAL) -> credential[name.removePrefix(Connectors.CREDENTIAL)].orEmpty()
+                else -> ""
             }
         }
-        val key = fill(signature.key).takeIf { it.isNotEmpty() } ?: return false
-        val hash = Mac.getInstance(signature.algorithm).apply { init(SecretKeySpec(key.toByteArray(), signature.algorithm)) }.doFinal(fill(signature.text).toByteArray())
-        val expected = signature.prefix + if (signature.encoding == "base64") Base64.getEncoder().encodeToString(hash) else HexFormat.of().formatHex(hash)
-        val given = received.path("headers").path(signature.header.lowercase()).asText()
-        return MessageDigest.isEqual(expected.toByteArray(), given.toByteArray())
-    }
 
     // A signature's templates name headers with dashes, such as {{headers.x-slack-signature}}.
     private val SIGNED = Regex("\\{\\{\\s*([\\w.-]+)\\s*}}")
@@ -100,14 +110,15 @@ object ConnectorWebhooks {
      * An event as a service sent it: a JSON body as JSON, a form as the fields it holds, nested where a name has
      * brackets, such as contact[email], and any other body as text.
      */
-    fun eventOf(contentType: String?, text: String, headers: Map<String, String>, query: String?): Event {
+    @JvmOverloads
+    fun eventOf(contentType: String?, text: String, headers: Map<String, String>, query: String?, at: Instant = Instant.now()): Event {
         val body = when {
             contentType.orEmpty().startsWith("application/x-www-form-urlencoded") -> formOf(text)
             text.isBlank() -> JsonApi.mapper.createObjectNode()
             else -> runCatching { JsonApi.mapper.readTree(text) }.getOrElse { JsonApi.mapper.getNodeFactory().textNode(text) }
         }
         // The query is read as a form is, as the original's server reads both.
-        return Event(body, JsonApi.mapper.valueToTree(mapOf("headers" to headers, "query" to formOf(query.orEmpty()), "text" to text)))
+        return Event(body, JsonApi.mapper.valueToTree(mapOf("headers" to headers, "query" to formOf(query.orEmpty()), "text" to text, "at" to at.epochSecond)))
     }
 
     private fun formOf(text: String): JsonNode {

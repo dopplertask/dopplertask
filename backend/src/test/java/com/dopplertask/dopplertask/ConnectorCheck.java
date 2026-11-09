@@ -5,6 +5,7 @@ import com.dopplertask.dopplertask.domain.RunFiles;
 
 import com.dopplertask.dopplertask.domain.TaskExecution;
 import com.dopplertask.dopplertask.domain.action.connector.ConnectorAction;
+import com.dopplertask.dopplertask.domain.action.connector.ConnectorSignature;
 import com.dopplertask.dopplertask.domain.action.connector.ConnectorTrigger;
 import com.dopplertask.dopplertask.domain.action.connector.ConnectorWebhooks;
 import com.dopplertask.dopplertask.domain.action.integration.JsonApi;
@@ -24,6 +25,7 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -163,8 +165,10 @@ public class ConnectorCheck {
             if (webhook.getSubscribe() != null) {
                 trigger.subscribe(webhook);
             }
-            var event = ConnectorWebhooks.INSTANCE.eventOf("application/json", fixture.path("event").toString(),
-                    fixture.has("eventHeaders") ? MAPPER.convertValue(fixture.path("eventHeaders"), Map.class) : Map.of(), null);
+            Map<String, String> headers = fixture.has("eventHeaders") ? MAPPER.convertValue(fixture.path("eventHeaders"), Map.class) : Map.of();
+            var events = Connectors.INSTANCE.find(connector).getEvents();
+            var signature = webhook.getApp() ? (events == null ? null : events.getSignature()) : webhook.getSignature();
+            var event = ConnectorWebhooks.INSTANCE.eventOf("application/json", fixture.path("event").toString(), headers, null, arrivalOf(signature, headers));
             // The event must be one the trigger takes: signed, and for an app, of its kind and its account.
             if (trigger.accepts(event)) {
                 trigger.takeItemsOf(event);
@@ -185,6 +189,18 @@ public class ConnectorCheck {
         }
         return new Outcome(sorted(items), "");
     }
+
+    /**
+     * When a recorded event arrives: when the service signed it, as an event sent now arrives within seconds of being
+     * signed, so that the fixture's signed time is believed; or now, when the service signs no time.
+     */
+    private static Instant arrivalOf(ConnectorSignature signature, Map<String, String> headers) {
+        var header = SIGNED_AT_HEADER.matcher(signature == null || signature.getSignedAt() == null ? "" : signature.getSignedAt());
+        return header.matches() && headers.getOrDefault(header.group(1), "").matches("\\d+") ? Instant.ofEpochSecond(Long.parseLong(headers.get(header.group(1)))) : Instant.now();
+    }
+
+    // A signed time a service gives in a header, such as {{headers.x-slack-request-timestamp}}.
+    private static final java.util.regex.Pattern SIGNED_AT_HEADER = java.util.regex.Pattern.compile("\\{\\{\\s*headers\\.([\\w-]+)\\s*}}");
 
     /** The keys of the original's store that are the trigger's own memory: not its place, which the trigger keeps itself. */
     private static JsonNode memoryOf(JsonNode store) {

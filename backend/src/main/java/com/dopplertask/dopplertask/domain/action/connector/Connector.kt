@@ -226,6 +226,12 @@ class ConnectorSignature {
     /** hex or base64. */
     var encoding: String = "hex"
     var prefix: String = ""
+
+    /**
+     * When the service signed the event, in seconds, such as {{headers.x-slack-request-timestamp}}. An event without it,
+     * or signed more than five minutes before or after it arrived, is refused, so that a captured event cannot be sent again.
+     */
+    var signedAt: String? = null
 }
 
 class ConnectorInput {
