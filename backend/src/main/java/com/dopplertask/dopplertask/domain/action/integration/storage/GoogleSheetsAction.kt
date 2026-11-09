@@ -64,7 +64,7 @@ class GoogleSheetsAction : Action() {
         if (signIn.failure != null) return signIn.failure
         val headers = signIn.headers
 
-        val base = JsonApi.baseAddress(baseUrl)
+        val base = JsonApi.baseAddress(read(baseUrl))
         val range = JsonApi.encoded(sheetValue)
         val values = "$base/v4/spreadsheets/$spreadsheetId/values/$range"
         return when (operationValue) {

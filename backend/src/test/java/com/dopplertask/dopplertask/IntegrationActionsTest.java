@@ -59,7 +59,6 @@ import jakarta.mail.internet.MimeMessage;
 import com.dopplertask.dopplertask.domain.ExecutionParameter;
 import com.dopplertask.dopplertask.domain.action.integration.anthropic.ClaudeAction;
 import com.dopplertask.dopplertask.domain.action.integration.openai.OpenAIAction;
-import com.dopplertask.dopplertask.domain.action.integration.JsonApi;
 import com.dopplertask.dopplertask.domain.action.integration.chat.MattermostAction;
 import com.dopplertask.dopplertask.domain.action.integration.chat.TeamsAction;
 import com.dopplertask.dopplertask.domain.action.integration.chat.TwilioAction;
@@ -651,26 +650,17 @@ public class IntegrationActionsTest {
     }
 
     @Test
-    public void testDataInATaskCannotChooseWhereAStepSendsItsKeyFail() throws IOException {
+    public void testABaseAddressCanComeFromAParameterSuccess() throws IOException {
         TaskExecution execution = new TaskExecution();
-        execution.getParameters().put("where", new ExecutionParameter("where", baseUrl.getBytes(StandardCharsets.UTF_8), false));
+        execution.getParameters().put("where", new ExecutionParameter("where", (" " + baseUrl + "/ ").getBytes(StandardCharsets.UTF_8), false));
         ClaudeAction claude = claude();
         claude.setBaseUrl("$parameters.get(\"where\")");
         PagerDutyAction pagerDuty = pagerDuty();
         pagerDuty.setBaseUrl("$parameters.get(\"where\")");
         for (Action step : List.of(claude, pagerDuty)) {
-            ActionResult result = step.run(new TaskServiceImpl(), execution, new VariableExtractorUtil(new VelocityEngine()), null);
-            Assert.assertEquals(StatusCode.FAILURE, result.getStatusCode());
+            step.run(new TaskServiceImpl(), execution, new VariableExtractorUtil(new VelocityEngine()), null);
         }
-        Assert.assertTrue(requests.isEmpty());
-    }
-
-    @Test
-    public void testABaseAddressIsTakenAsWrittenSuccess() {
-        Assert.assertEquals("http://localhost:8080", JsonApi.INSTANCE.baseAddress(" http://localhost:8080/ "));
-        Assert.assertEquals("https://api.anthropic.com", JsonApi.INSTANCE.baseAddress(new ClaudeAction().getBaseUrl()));
-        Assert.assertEquals("https://api.openai.com/v1", JsonApi.INSTANCE.baseAddress(new OpenAIAction().getBaseUrl()));
-        Assert.assertEquals("", JsonApi.INSTANCE.baseAddress(null));
+        Assert.assertEquals(List.of("/v1/messages", "/v2/enqueue"), requests);
     }
 
     @Test

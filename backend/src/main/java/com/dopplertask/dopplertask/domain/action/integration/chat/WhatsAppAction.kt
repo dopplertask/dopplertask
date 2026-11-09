@@ -73,7 +73,7 @@ class WhatsAppAction : Action() {
             SEND_TEMPLATE -> common + mapOf("type" to "template", "template" to mapOf("name" to templateValue, "language" to mapOf("policy" to "deterministic", "code" to read(templateLanguage).trim().ifEmpty { "en_US" })))
             else -> return ActionResult.failure("WhatsApp has no operation called \"$operationValue\".")
         }
-        val url = JsonApi.baseAddress(baseUrl) + "/$API_VERSION/${JsonApi.encoded(phoneValue)}/messages"
+        val url = JsonApi.baseAddress(read(baseUrl)) + "/$API_VERSION/${JsonApi.encoded(phoneValue)}/messages"
         val result = JsonApi.call("WhatsApp", "POST", url, mapOf("Authorization" to "Bearer $tokenValue"), sent)
         if (result.statusCode == StatusCode.SUCCESS) result.outputVariables["messageId"] = JsonApi.parsed(result).path("messages").path(0).path("id").asText()
         return result

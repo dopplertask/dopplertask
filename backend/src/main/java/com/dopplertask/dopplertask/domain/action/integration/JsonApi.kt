@@ -29,11 +29,8 @@ object JsonApi {
     fun callText(service: String, method: String, url: String, headers: Map<String, String>, text: String, contentType: String): ActionResult =
         send(service, method, url, headers + mapOf("Content-Type" to contentType), text, Duration.ofMinutes(1))
 
-    /**
-     * Where a service starts, as the person wrote it in the step or its credential. It is not read as Velocity, so
-     * that what a task works with, such as a webhook's data or an earlier step's answer, cannot choose where the key goes.
-     */
-    fun baseAddress(written: String?): String = written.orEmpty().trim().trimEnd('/')
+    /** Where a service starts, once the step has read it, without spaces or a slash at the end. */
+    fun baseAddress(read: String?): String = read.orEmpty().trim().trimEnd('/')
 
     /** A value that a person typed, made safe to put in the address of a request. */
     fun encoded(text: String): String = URLEncoder.encode(text, StandardCharsets.UTF_8).replace("+", "%20")

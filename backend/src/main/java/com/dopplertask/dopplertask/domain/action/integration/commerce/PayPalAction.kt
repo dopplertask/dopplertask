@@ -69,7 +69,7 @@ class PayPalAction : Action() {
         if ((operationValue == READ_ORDER || operationValue == CAPTURE_ORDER) && orderValue.isBlank()) return ActionResult.failure("PayPal needs the ID of the order.")
         if (operationValue == REFUND_PAYMENT && captureValue.isBlank()) return ActionResult.failure("PayPal needs the capture ID of the payment.")
 
-        val base = JsonApi.baseAddress(baseUrl)
+        val base = JsonApi.baseAddress(read(baseUrl))
         val basic = "Basic " + Base64.getEncoder().encodeToString("$clientValue:$secretValue".toByteArray())
         val signIn = JsonApi.callForm("PayPal", "$base/v1/oauth2/token", mapOf("Authorization" to basic), mapOf("grant_type" to "client_credentials"))
         if (signIn.statusCode == StatusCode.FAILURE) return signIn

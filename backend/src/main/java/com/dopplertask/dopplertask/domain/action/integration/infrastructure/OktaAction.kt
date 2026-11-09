@@ -41,7 +41,7 @@ class OktaAction : Action() {
         broadcastListener: BroadcastListener?
     ): ActionResult {
         val read = { text: String? -> variableExtractorUtil.extract(text, execution, scriptLanguage) }
-        val site = JsonApi.baseAddress(siteUrl)
+        val site = JsonApi.baseAddress(read(siteUrl))
         val tokenValue = read(token).trim()
         val operationValue = read(operation)
         val loginValue = read(userLogin).trim()

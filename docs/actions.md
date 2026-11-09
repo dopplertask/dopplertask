@@ -4,7 +4,7 @@ Every step, what it does and its fields. `GET /task/actions` gives the same list
 
 Fields that hold a sign-in, such as `token`, `password` or `apiKey`, belong in a [credential](operations.md#credentials).
 
-A step's base address, `baseUrl`, `siteUrl` or `signInUrl`, is used exactly as typed and not read as Velocity, so data in a task cannot change where the step sends its key.
+An address a step sends its key to, such as `baseUrl` or `hostname`, may use variables, and the editor marks such an address.
 
 ## Common variables for all actions
 * scriptLanguage: VELOCITY (default), JAVASCRIPT

@@ -64,7 +64,7 @@ class JiraAction : Action() {
         variableExtractorUtil: VariableExtractorUtil,
         broadcastListener: BroadcastListener?
     ): ActionResult {
-        val site = JsonApi.baseAddress(siteUrl)
+        val site = JsonApi.baseAddress(variableExtractorUtil.extract(siteUrl, execution, scriptLanguage))
         val emailValue = variableExtractorUtil.extract(email, execution, scriptLanguage).trim()
         val tokenValue = variableExtractorUtil.extract(token, execution, scriptLanguage)
         val operationValue = variableExtractorUtil.extract(operation, execution, scriptLanguage)

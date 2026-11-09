@@ -72,7 +72,7 @@ class CloudflareAction : Action() {
         if (operationValue == DELETE_DNS_RECORD && recordValue.isBlank()) return ActionResult.failure("Cloudflare needs the ID of the record.")
 
         val headers = mapOf("Authorization" to "Bearer $tokenValue")
-        val zone = JsonApi.baseAddress(baseUrl) + "/client/v4/zones/${JsonApi.encoded(zoneValue)}"
+        val zone = JsonApi.baseAddress(read(baseUrl)) + "/client/v4/zones/${JsonApi.encoded(zoneValue)}"
         val result = when (operationValue) {
             PURGE_ADDRESSES -> JsonApi.call("Cloudflare", "POST", "$zone/purge_cache", headers, mapOf("files" to addressList))
             PURGE_EVERYTHING -> JsonApi.call("Cloudflare", "POST", "$zone/purge_cache", headers, mapOf("purge_everything" to true))

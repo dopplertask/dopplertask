@@ -72,9 +72,12 @@ export default function boot() {
 
   // Above this many choices a list is searched by typing.
   const LONG_LIST = 12;
-  // Where a step sends its key. Over plain http, others on the network can read what is sent.
-  const BASE_ADDRESS_FIELDS = ['baseUrl', 'siteUrl', 'signInUrl'];
-  const isUnencrypted = (address) => /^\s*http:\/\//i.test(address ?? '');
+  // Where a step sends its key, and the notes such an address can get. They only inform; the address is the person's choice.
+  const ADDRESS_FIELDS = ['baseUrl', 'siteUrl', 'signInUrl', 'servers', 'hostname', 'brokerUrl', 'jenkinsUrl', 'region'];
+  const ADDRESS_NOTES = {
+    unencrypted: { text: 'Not encrypted', applies: (address) => /^\s*http:\/\//i.test(address) },
+    taskData: { text: 'Uses task data: data from outside the task can choose where your key goes.', applies: (address) => /[$#]/.test(address) },
+  };
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
   const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
   const modKey = isMac ? '⌘' : 'Ctrl+';
@@ -204,14 +207,14 @@ export default function boot() {
         const suggestions = (field.files ? DT.canvas.store.filesBefore(node.id).map((name) => ({ value: name, label: name })) : field.suggestions)
           ?.map((choice) => `<option value="${escapeHtml(choice.value)}" label="${escapeHtml(choice.label)}">`).join('');
         const choices = savedTasks ?? suggestions ?? (field.choices ? '' : null);
-        /* A base address is used as typed, so it offers no parameters or outputs. */
-        const isBaseAddress = BASE_ADDRESS_FIELDS.includes(field.key);
         const list = choices === null ? '' : `<datalist id="${inputId}-choices">${choices}</datalist>`;
         const control = field.multiline
           ? `<textarea class="ui-input is-mono" rows="3" spellcheck="false" data-variables ${common} ${placeholder}>${escapeHtml(fieldValue ?? '')}</textarea>`
-          : `<input class="ui-input is-mono" spellcheck="false" autocomplete="off" ${isBaseAddress ? '' : 'data-variables'} ${list ? `list="${inputId}-choices"` : ''} ${field.choices ? 'data-choices' : ''} ${common} ${placeholder} value="${escapeHtml(fieldValue ?? '')}">`;
-        const unencrypted = isBaseAddress ? `<p class="ui-hint" data-unencrypted="${field.key}" hidden>Not encrypted</p>` : '';
-        return wrap(`${label}${control}${list}${unencrypted}${field.choices ? `<p class="ui-hint" data-choices-note="${field.key}" hidden></p>` : ''}<p class="ui-preview" data-preview="${field.key}"></p>`);
+          : `<input class="ui-input is-mono" spellcheck="false" autocomplete="off" data-variables ${list ? `list="${inputId}-choices"` : ''} ${field.choices ? 'data-choices' : ''} ${common} ${placeholder} value="${escapeHtml(fieldValue ?? '')}">`;
+        const addressNotes = ADDRESS_FIELDS.includes(field.key)
+          ? Object.entries(ADDRESS_NOTES).map(([name, note]) => `<p class="ui-hint" data-address-note="${name}" data-for="${field.key}" hidden>${escapeHtml(note.text)}</p>`).join('')
+          : '';
+        return wrap(`${label}${control}${list}${addressNotes}${field.choices ? `<p class="ui-hint" data-choices-note="${field.key}" hidden></p>` : ''}<p class="ui-preview" data-preview="${field.key}"></p>`);
       }
       case 'form': {
         /* Saved values show by their key until the fields are loaded, which gives their labels and any new ones. */
@@ -273,8 +276,13 @@ export default function boot() {
       previewElement.hidden = false;
       previewElement.innerHTML = `<span>Last run</span> ${escapeHtml(resolved).slice(0, 140)}`;
     });
-    root.querySelectorAll('[data-unencrypted]').forEach((note) => {
-      note.hidden = !isUnencrypted(root.querySelector(`[data-field="${note.dataset.unencrypted}"]`)?.value);
+    updateAddressNotes(root);
+  }
+
+  /* Shows the notes that apply to each address as it is typed, in a step or in its credential. */
+  function updateAddressNotes(root) {
+    root.querySelectorAll('[data-address-note]').forEach((note) => {
+      note.hidden = !ADDRESS_NOTES[note.dataset.addressNote].applies(root.querySelector(`[data-field="${note.dataset.for}"]`)?.value ?? '');
     });
   }
 
@@ -665,6 +673,7 @@ export default function boot() {
         <footer class="ui-dialog-foot"><button type="button" class="ui-button" data-dialog-close>Cancel</button>${accountFields.length ? `<button type="button" class="ui-button" data-connect>${connected ? 'Save and connect again' : 'Save and connect'}</button>` : ''}<button type="submit" class="ui-button is-primary">Save</button></footer>
       </form>`);
     dialog.querySelector('.ui-input')?.focus();
+    dialog.addEventListener('input', () => updateAddressNotes(dialog));
     dialog.addEventListener('click', (event) => {
       const reveal = event.target.closest('[data-reveal]');
       if (reveal) { const input = reveal.parentElement.querySelector('input'); input.type = input.type === 'password' ? 'text' : 'password'; }

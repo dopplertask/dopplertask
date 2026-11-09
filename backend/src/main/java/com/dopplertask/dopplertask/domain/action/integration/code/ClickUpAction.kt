@@ -72,7 +72,7 @@ class ClickUpAction : Action() {
         if (operationValue == ADD_COMMENT && commentValue.isBlank()) return ActionResult.failure("ClickUp needs the text of the comment.")
         if (operationValue == SET_STATUS && statusValue.isBlank()) return ActionResult.failure("ClickUp needs the new status.")
 
-        val api = JsonApi.baseAddress(baseUrl) + "/api/v2"
+        val api = JsonApi.baseAddress(read(baseUrl)) + "/api/v2"
         val headers = mapOf("Authorization" to tokenValue)
         val task = "$api/task/${JsonApi.encoded(taskValue)}"
         val result = when (operationValue) {

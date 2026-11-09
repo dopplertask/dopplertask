@@ -43,7 +43,7 @@ class PrometheusAction : Action() {
         broadcastListener: BroadcastListener?
     ): ActionResult {
         val read = { text: String? -> variableExtractorUtil.extract(text, execution, scriptLanguage) }
-        val site = JsonApi.baseAddress(siteUrl)
+        val site = JsonApi.baseAddress(read(siteUrl))
         val operationValue = read(operation)
         val queryValue = read(query).trim()
         if (site.isBlank()) return ActionResult.failure("Prometheus needs the address of the server, such as https://prometheus.example.com.")
