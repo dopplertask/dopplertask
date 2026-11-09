@@ -1,10 +1,6 @@
-# Notice for the connector files
+# Notice
 
-The connector files in this folder are ported from the pieces of
-[Activepieces](https://github.com/activepieces/activepieces). Each file names
-the package and the version it was ported from under `upstream`. Their labels,
-descriptions and behaviour come from those pieces, which are available under
-the following license:
+Parts of the connector files in this folder are based on software under the following license:
 
 ```
 Copyright (c) 2020-2024 Activepieces Inc.
