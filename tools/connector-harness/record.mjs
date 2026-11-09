@@ -3,14 +3,12 @@
 // Nothing leaves the machine: every request is answered here, and a request that has no answer fails the run.
 //
 //   node record.mjs ../../backend/src/test/resources/connector-fixtures/<piece>/<action>.json
-import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
-import { join } from 'node:path';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { BatchInterceptor } from '@mswjs/interceptors';
 import { ClientRequestInterceptor } from '@mswjs/interceptors/ClientRequest';
 import { FetchInterceptor } from '@mswjs/interceptors/fetch';
 import { createMockActionContext } from '@activepieces/pieces-framework';
+import { loadPiece } from './pieces.mjs';
 
 // Headers that differ between HTTP clients without changing what a service receives,
 // or that carry a new random value on each request, such as the id Microsoft Graph logs a request by.
@@ -86,18 +84,6 @@ try {
 const storeAfter = fixture.store || memory.size ? { storeAfter: Object.fromEntries(memory) } : {};
 writeFileSync(fixturePath, `${JSON.stringify({ ...fixture, exchanges, output, ...storeAfter }, null, 2)}\n`);
 console.log(`${fixture.package} ${fixture.trigger || fixture.action}: ${exchanges.length} request(s) recorded.`);
-
-/** Each piece gets its own folder, so that several pieces can be recorded at the same time. */
-async function loadPiece(name, version) {
-  const folder = join(import.meta.dirname, '.pieces', name.replace(/[@/]/g, '_'), version);
-  if (!existsSync(join(folder, 'node_modules', name))) {
-    execFileSync('npm', ['install', '--prefix', folder, '--ignore-scripts', '--no-audit', '--no-fund', '--no-save', `${name}@${version}`], { stdio: 'inherit' });
-  }
-  const module = createRequire(join(folder, 'package.json'))(name);
-  const found = Object.values(module).find((value) => value && typeof value.getAction === 'function');
-  if (!found) throw new Error(`${name} exports no piece.`);
-  return found;
-}
 
 function headersOf(headers) {
   return Object.fromEntries([...headers.entries()].filter(([key]) => !NOISE.has(key.toLowerCase())).map(([key, value]) => [key.toLowerCase(), value]));
