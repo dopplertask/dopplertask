@@ -845,6 +845,8 @@ export default function boot() {
     const onlyStep = nodeIds.length === 1 ? steps[0] : null;
     const allDeactivated = steps.length > 0 && steps.every(DT.isDeactivated);
     const stepIds = steps.map((node) => node.id);
+    /* While a step runs on its own, every action waits for it. */
+    const waits = store.testingStepId !== null;
     return [
       [
         { id: 'run-step', label: 'Run step', icon: 'play', applies: !!onlyStep, run: () => handlers.testStep() },
@@ -869,11 +871,11 @@ export default function boot() {
       [
         { id: 'delete', label: 'Delete', icon: 'trash', shortcut: '⌫', matches: (event) => pressed('delete')(event) || pressed('backspace')(event), applies: nodeIds.some((nodeId) => nodeId !== DT.rootNode(store.task).id), run: () => removeWithUndo(store, nodeIds) },
       ],
-    ];
+    ].map((group) => group.map((action) => ({ ...action, waits })));
   }
 
   function runStepAction(store, handlers, actionId) {
-    stepActions(store, handlers).flat().find((action) => action.id === actionId && action.applies)?.run();
+    stepActions(store, handlers).flat().find((action) => action.id === actionId && action.applies && !action.waits)?.run();
   }
 
   /* A menu at the pointer has no control to hang from, so it hangs from a point that moves there. */
@@ -887,7 +889,7 @@ export default function boot() {
   /* Opens under a control, or at a point of the page. */
   function openStepMenu(store, handlers, anchor) {
     const groups = stepActions(store, handlers).map((group) => group.filter((action) => action.applies)).filter((group) => group.length);
-    const { element, close } = openPopover(anchor instanceof Element ? anchor : anchorAt(anchor), `<div class="ui-menu">${groups.map((group) => group.map((action) => `<button type="button" class="ui-option" data-step-action="${action.id}">${icon(action.icon)}<span>${escapeHtml(action.label)}</span>${action.shortcut ? kbd(action.shortcut) : ''}</button>`).join('')).join('<hr>')}</div>`);
+    const { element, close } = openPopover(anchor instanceof Element ? anchor : anchorAt(anchor), `<div class="ui-menu">${groups.map((group) => group.map((action) => `<button type="button" class="ui-option" data-step-action="${action.id}" ${action.waits ? 'disabled' : ''}>${icon(action.icon)}<span>${escapeHtml(action.label)}</span>${action.shortcut ? kbd(action.shortcut) : ''}</button>`).join('')).join('<hr>')}</div>`);
     element.addEventListener('click', (event) => {
       const chosen = event.target.closest('[data-step-action]');
       if (!chosen) return;
@@ -923,7 +925,7 @@ export default function boot() {
       if (isTyping(event)) { if (event.key === 'Escape') event.target.blur(); return; }
       if (modified && event.key.toLowerCase() === 'z') { event.preventDefault(); if (event.shiftKey) store.redo(); else store.undo(); return; }
       const stepAction = stepActions(store, handlers).flat().find((action) => action.applies && action.matches?.(event));
-      if (stepAction) { event.preventDefault(); stepAction.run(); return; }
+      if (stepAction) { event.preventDefault(); if (!stepAction.waits) stepAction.run(); return; }
       if (modified) return;
       if (event.key === 'Escape') { handlers.escape ? handlers.escape() : store.select(null); return; }
       if (event.key === '?') { openShortcutsDialog(); return; }

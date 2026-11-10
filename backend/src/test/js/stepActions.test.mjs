@@ -112,3 +112,27 @@ test('replace: the start stays as it is', () => {
   assert.equal(store.replaceStep(start.id, 'print'), null);
   assert.deepEqual(namesOf(store), ['Start', 'Print message']);
 });
+
+test('run step: the store names the step that runs until the server answers, also when the server fails', async () => {
+  const { store, steps: [step] } = taskOf('print');
+  const changes = [];
+  store.subscribe((change) => { if (change === 'testing') changes.push(store.testingStepId); });
+  const serverOf = (answer) => { globalThis.fetch = () => answer; };
+  const fetchBefore = globalThis.fetch;
+  try {
+    let answerNow;
+    serverOf(new Promise((resolve) => { answerNow = resolve; }));
+    const running = store.testStep(step.id, {});
+    assert.equal(store.testingStepId, step.id);
+    answerNow({ ok: true, status: 200, text: async () => JSON.stringify({ statusCode: 'SUCCESS', output: 'done' }) });
+    assert.equal((await running).status, 'success');
+    assert.equal(store.testingStepId, null);
+
+    serverOf(Promise.reject(new Error('no server')));
+    await assert.rejects(store.testStep(step.id, {}));
+    assert.equal(store.testingStepId, null);
+    assert.deepEqual(changes, [step.id, null, step.id, null]);
+  } finally {
+    globalThis.fetch = fetchBefore;
+  }
+});
