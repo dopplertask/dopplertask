@@ -1,5 +1,6 @@
 package com.dopplertask.dopplertask;
 
+import com.dopplertask.dopplertask.filter.Caller;
 import com.jayway.jsonpath.JsonPath;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.AfterClass;
@@ -135,6 +136,25 @@ public class PreviewTest {
         String run = preview("preview_example", "\"exampleAnswers\":{\"after_in\":\"{\\\"id\\\":5}\"}", getOrder(), send("after", "POST", "{}"), print("last", "made $steps[\\\"Send\\\"].data.id"));
         Assert.assertEquals(List.of("GET /order"), RECEIVED);
         Assert.assertTrue(run, outputs(run).contains("made 5"));
+    }
+
+    @Test
+    public void testAPersonPreviewsAProposalAndNothingIsSentSuccess() throws Exception {
+        String proposed = task("preview_proposal", "[" + START + "," + getOrder() + "," + send("after", "POST", "{}") + "," + print("last", "after the write") + "]", CHAIN);
+        String checksum = JsonPath.read(this.mockMvc.perform(post("/task").requestAttr("dopplertask.caller", Caller.AGENT).content(proposed))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString(), "$.checksum");
+
+        // A step the person lets a preview send waits too, until the proposal is approved.
+        String run = runToItsEnd("{\"taskName\":\"" + checksum + "\",\"parameters\":{},\"preview\":{\"sentForReal\":[\"after_in\"]}}");
+        Assert.assertEquals(List.of("GET /order"), RECEIVED);
+        Assert.assertEquals(run, "POST " + address + "/send\n{}", JsonPath.read(run, "$.steps[2].held"));
+        Assert.assertTrue(run, outputs(run).contains("after the write"));
+
+        String realRun = runToItsEnd("{\"taskName\":\"" + checksum + "\",\"parameters\":{}}");
+        Assert.assertTrue(realRun, realRun.contains("\"FAILED\""));
+        this.mockMvc.perform(post("/schedule/task").requestAttr("dopplertask.caller", Caller.AGENT).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"taskName\":\"" + checksum + "\",\"parameters\":{},\"preview\":{}}")).andExpect(status().isForbidden());
+        Assert.assertEquals(List.of("GET /order"), RECEIVED);
     }
 
     @Test
@@ -303,9 +323,16 @@ public class PreviewTest {
         return startRun(name, "[" + START + "," + first + "," + after + "," + last + "]", CHAIN, "{\"taskName\":\"" + name + "\",\"parameters\":{},\"preview\":{" + choices + "}}");
     }
 
+    private static String task(String name, String actions, String connections) {
+        return "{\"name\":\"" + name + "\",\"description\":\"\",\"active\":false,\"actions\":" + actions + ",\"connections\":" + connections + "}";
+    }
+
     private String startRun(String name, String actions, String connections, String request) throws Exception {
-        String createJson = "{\"name\":\"" + name + "\",\"description\":\"\",\"active\":false,\"actions\":" + actions + ",\"connections\":" + connections + "}";
-        this.mockMvc.perform(post("/task").content(createJson)).andExpect(status().isOk());
+        this.mockMvc.perform(post("/task").content(task(name, actions, connections))).andExpect(status().isOk());
+        return runToItsEnd(request);
+    }
+
+    private String runToItsEnd(String request) throws Exception {
         String answer = this.mockMvc.perform(post("/schedule/task").contentType(MediaType.APPLICATION_JSON).content(request))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         Object executionId = JsonPath.read(answer, "$.id");

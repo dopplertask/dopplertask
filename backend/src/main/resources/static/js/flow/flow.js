@@ -116,7 +116,7 @@ export default function boot() {
     const summary = review.isNewTask
       ? `a new task with ${count(review.added.size, '').trim()}`
       : `a change: ${[count(review.added.size, 'added'), count(review.changed.size, 'changed'), count(review.removed.length, 'removed')].join(', ')}`;
-    host.innerHTML = `<div><b>An agent proposes ${escapeHtml(summary)}.</b><small>${review.removed.length ? `Removed: ${escapeHtml(review.removed.join(', '))}. ` : ''}Nothing here runs until you approve it.</small></div>
+    host.innerHTML = `<div><b>An agent proposes ${escapeHtml(summary)}.</b><small>${review.removed.length ? `Removed: ${escapeHtml(review.removed.join(', '))}. ` : ''}Nothing here runs until you approve it. A preview shows what it would do, and sends nothing.</small></div>
       <button type="button" class="ui-button" data-flow="reject">Reject</button>
       <button type="button" class="ui-button is-primary" data-flow="approve">${icon('check')}Approve</button>`;
   }

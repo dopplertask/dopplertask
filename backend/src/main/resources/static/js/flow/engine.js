@@ -739,8 +739,8 @@ function createStore() {
       const node = nodeById(task, nodeId);
       if (!node) return;
       [...new Set([node.savedPort, portId(node.id, INPUT_PORT)])].filter(Boolean).forEach((port) => {
-        if (choice.sentForReal) choices.sentForReal.push(port);
-        if (choice.madeToFail) choices.madeToFail.push(port);
+        if (choice.mode === 'sent') choices.sentForReal.push(port);
+        if (choice.mode === 'fails') choices.madeToFail.push(port);
         if (choice.exampleAnswer) choices.exampleAnswers[port] = choice.exampleAnswer;
       });
     });
@@ -1221,9 +1221,10 @@ function createStore() {
     },
     /* A preview goes through every step with real values and holds what a step would send. One that continues a preview is one too. */
     async startRun(parameterValues, { resumeFrom, preview = !!resumeFrom?.preview } = {}) {
-      if (review) throw new Error('This is a proposal. Approve or reject it before running.');
+      if (review && !preview) throw new Error('This is a proposal. Approve or reject it before running. A preview shows what it would do.');
       if (saveState !== 'saved') await store.save();
-      const { id } = await request('/schedule/task', { method: 'POST', body: JSON.stringify({ taskName: task.name, parameters: parameterValues, resumeFromExecutionId: resumeFrom?.id, preview: preview ? previewRequest() : undefined }) });
+      /* A proposal is known by its checksum, since the name gives the approved version. */
+      const { id } = await request('/schedule/task', { method: 'POST', body: JSON.stringify({ taskName: review ? review.checksum : task.name, parameters: parameterValues, resumeFromExecutionId: resumeFrom?.id, preview: preview ? previewRequest() : undefined }) });
       const finishedSteps = resumeFrom ? resumeFrom.steps.slice(0, -1) : [];
       tested = new Map();
       const run = { id: String(id), preview, status: 'running', live: true, parameters: parameterValues, startedAt: Date.now(), durationMs: finishedSteps.reduce((total, step) => total + step.durationMs, 0), steps: [...finishedSteps], complete: false, nextNodeId: resumeFrom ? resumeFrom.steps.at(-1).nodeId : rootNode(task).id };

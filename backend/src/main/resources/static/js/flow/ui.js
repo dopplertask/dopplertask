@@ -860,7 +860,7 @@ export default function boot() {
     return `
       ${step.error ? `<p class="ui-note is-danger">${icon('alert')}${escapeHtml(step.error)}</p>` : ''}
       ${(step.missingValues || []).map((note) => `<p class="ui-note is-warn">${icon('alert')}${escapeHtml(note)}</p>`).join('')}
-      ${step.held ? `<div class="ui-result is-held"><div class="ui-result-head"><span class="ui-label">What this step would send</span><span class="ui-pill">Not sent</span></div><pre>${escapeHtml(readableOutput(step.held))}</pre></div>` : ''}
+      ${step.held ? `<div class="ui-result is-held"><div class="ui-result-head"><span class="ui-label">What this step would send</span><span class="ui-pill">Not sent</span></div><pre>${escapeHtml(readableOutput(step.held))}</pre></div>${DT.values.heldAnswer(step)}` : ''}
       ${step.output ? `<div class="ui-result"><div class="ui-result-head"><span class="ui-label">Output</span>${navigator.clipboard ? `<button type="button" class="ui-link-button" data-copy-output>${icon('copy')}Copy</button>` : ''}</div><pre>${escapeHtml(readableOutput(step.output))}</pre></div>` : ''}`;
   }
 

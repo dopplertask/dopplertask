@@ -65,13 +65,13 @@ public class ExecutionServiceImpl implements ExecutionService {
 
     @Transactional
     public TaskExecution startExecution(TaskExecutionRequest taskExecutionRequest, TaskService taskService, boolean startedByTrigger) {
-        // Look up by checksum first
-        Optional<Task> taskRequest = lookupTask(taskExecutionRequest, taskService);
-
         // A run that waits is locked while it starts, so that a stop at the same moment waits for it. A linked run never
         // waits, and runs inside its parent's transaction, which a lock would hold until the parent ends.
         Optional<TaskExecution> executionReq = taskExecutionRequest.getDepth() > 0 ? taskExecutionDao.findById(taskExecutionRequest.getExecutionId())
                 : taskExecutionDao.findForUpdate(taskExecutionRequest.getExecutionId());
+        // A person can preview a proposal before the decision. Every other run uses an approved version.
+        boolean mayBeProposal = !taskExecutionRequest.isStartedByAgent() && executionReq.map(TaskExecution::getPreview).isPresent();
+        Optional<Task> taskRequest = lookupTask(taskExecutionRequest, mayBeProposal);
         // Only a run that waits starts. One that was stopped meanwhile, or failed, stays as it is, even if its task is gone.
         if (executionReq.isPresent() && executionReq.get().getStatus() != TaskExecutionStatus.CREATED) {
             return executionReq.get();
@@ -159,10 +159,11 @@ public class ExecutionServiceImpl implements ExecutionService {
         }
     }
 
-    private Optional<Task> lookupTask(TaskExecutionRequest taskExecutionRequest, TaskService taskService) {
+    private Optional<Task> lookupTask(TaskExecutionRequest taskExecutionRequest, boolean mayBeProposal) {
         Optional<Task> taskRequest = Optional.empty();
         if (taskExecutionRequest.getChecksum() != null && !taskExecutionRequest.getChecksum().isEmpty()) {
-            taskRequest = taskDao.findFirstByChecksumStartingWithAndProposedFalse(taskExecutionRequest.getChecksum());
+            taskRequest = mayBeProposal ? taskDao.findFirstByChecksumStartingWith(taskExecutionRequest.getChecksum())
+                    : taskDao.findFirstByChecksumStartingWithAndProposedFalse(taskExecutionRequest.getChecksum());
 
             // Search in the local database by taskName
             if (!taskRequest.isPresent() && taskExecutionRequest.getTaskName() != null && !taskExecutionRequest.getTaskName().isEmpty()) {

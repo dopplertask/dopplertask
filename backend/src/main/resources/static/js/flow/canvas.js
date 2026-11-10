@@ -138,6 +138,13 @@ export default function boot() {
     return review?.changed.has(node.id) ? '<span class="node-change is-changed">Changed</span>' : '';
   }
 
+  /* A step that a preview treats in another way than holding it says so, since that choice is kept from one preview to the next. */
+  const PREVIEW_BADGES = { sent: 'sent in previews', fails: 'fails in previews' };
+  function previewBadge(node) {
+    const label = PREVIEW_BADGES[store.previewChoices(node.id).mode];
+    return label ? `<span class="node-change is-preview">${label}</span>` : '';
+  }
+
   function nodeInnerHtml(node) {
     const issue = store.issues.some((candidate) => candidate.nodeId === node.id);
     const portsHtml = portsOf(node).map((port) => {
@@ -154,6 +161,7 @@ export default function boot() {
       ${hasBranches(node) ? portsOf(node).map((port) => `<div class="branch-row" data-branch="${escapeHtml(port.id)}"><span>${escapeHtml(port.label)}</span></div>`).join('') : ''}
       ${portsHtml}
       ${changeBadge(node)}
+      ${previewBadge(node)}
       <span class="node-status"></span>
       ${issue ? `<span class="node-issue" title="Needs attention">${icon('alert')}</span>` : ''}
       <div class="node-result"></div>`;
@@ -594,7 +602,7 @@ export default function boot() {
       revealSelectedNode();
       return;
     }
-    if (change === 'config' || change === 'review') { renderNodes(); return; }
+    if (change === 'config' || change === 'review' || change === 'preview') { renderNodes(); return; }
     if (change === 'task') {
       nodeElements.forEach((element) => element.remove());
       nodeElements.clear(); displayed.clear();

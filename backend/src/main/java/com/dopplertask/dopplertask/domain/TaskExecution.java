@@ -201,7 +201,10 @@ public class TaskExecution {
     /** Whether a preview keeps this step from sending. */
     public boolean holds(Action step) {
         Preview running = getPreview();
-        return running != null && !running.getSentForReal().contains(step.getPortId());
+        // What waits for approval sends nothing, whichever steps the person lets a preview send.
+        // A preview of one step has no task.
+        boolean waitsForApproval = task != null && task.isProposed();
+        return running != null && (waitsForApproval || !running.getSentForReal().contains(step.getPortId()));
     }
 
     public WebhookReply getWebhookReply() {

@@ -62,7 +62,7 @@ export default function boot() {
 
   function stepValues(node, sample, selected) {
     const heading = `<h4 class="value-heading">${escapeHtml(node.name)}</h4>`;
-    if (!sample) return `${heading}<p class="panel-hint">No example yet. Preview the task, or test that step, to see its values here.</p>`;
+    if (!sample) return `${heading}<p class="panel-hint">No example yet. Preview the task, or run that step, to see its values here.</p>`;
     const answer = parsed(sample.output);
     const loopOver = selected.type === 'loop' ? node.name : null;
     const whole = `<div class="value-row" style="--depth:0"><button type="button" class="data-row" data-insert="${escapeHtml(stepReference(node.name, 'output'))}" title="Use everything ${escapeHtml(node.name)} gave"><b>Whole answer</b><code>${escapeHtml(shownValue(sample.output))}</code></button>
@@ -258,16 +258,16 @@ export default function boot() {
 
   /* ---------- What a preview does with this step ---------- */
 
+  const PREVIEW_MODES = [{ value: 'held', label: 'Sends nothing' }, { value: 'sent', label: 'Is sent for real' }, { value: 'fails', label: 'Fails' }];
+
   function previewChoices(node) {
     if (node.type === 'start') return '';
-    const choices = store.previewChoices(node.id);
-    const toggle = (key, label, hint) => `<label class="ui-toggle" title="${escapeHtml(hint)}"><input type="checkbox" data-preview-choice="${key}" ${choices[key] ? 'checked' : ''}><span class="ui-toggle-track"></span><span>${label}</span></label>`;
-    const chosen = [choices.sentForReal && 'sent for real', choices.madeToFail && 'made to fail'].filter(Boolean).join(', ');
-    return `<details class="ui-disclosure" ${chosen || choices.exampleAnswer ? 'open' : ''}><summary>${icon('chevronRight')}In a preview${chosen ? `<span class="ui-pill">${chosen}</span>` : ''}</summary><div class="ui-field-grid">
-      ${toggle('sentForReal', 'Send this step for real', 'A preview holds what a step would send. With this on, this step sends it.')}
-      ${toggle('madeToFail', 'Make this step fail', 'Shows what the task does when this step fails: its retries, and whether the task stops or continues.')}
-      <div class="ui-field"><label class="ui-label" for="preview-answer">Example answer</label><textarea class="ui-input is-mono" id="preview-answer" rows="2" spellcheck="false" data-preview-choice="exampleAnswer" placeholder='{"id": 1}'>${escapeHtml(choices.exampleAnswer ?? '')}</textarea><p class="ui-hint">While this step is held, the steps after it get this as its answer.</p></div>
-    </div></details>`;
+    return `<div class="ui-field"><label class="ui-label" for="preview-mode">When you preview the task, this step</label>${DT.ui.dropdown(PREVIEW_MODES, store.previewChoices(node.id).mode, `id="preview-mode" data-preview-choice="mode" data-preview-step="${node.id}"`)}</div>`;
+  }
+
+  /* A held step got no answer. The person gives the one that the steps after it read. */
+  function heldAnswer(step) {
+    return `<div class="ui-field"><label class="ui-label" for="preview-answer">Answer the next steps get</label><textarea class="ui-input is-mono" id="preview-answer" rows="2" spellcheck="false" data-preview-choice="exampleAnswer" data-preview-step="${step.nodeId}" placeholder='{"id": 1}'>${escapeHtml(store.previewChoices(step.nodeId).exampleAnswer ?? '')}</textarea><p class="ui-hint">Used from the next preview of the task.</p></div>`;
   }
 
   /* ---------- Wiring ---------- */
@@ -296,14 +296,15 @@ export default function boot() {
   const onBuilderInput = (event) => {
     if (event.target.matches('[data-condition-word]')) { building.word = event.target.value; redrawBuilder(); }
     if (event.target.matches('[data-condition-value]')) building.value = event.target.value;
-    const choice = event.target.dataset?.previewChoice;
-    if (choice) store.setPreviewChoice(store.selectedId, choice, event.target.type === 'checkbox' ? event.target.checked : event.target.value);
+    const { previewChoice, previewStep } = event.target.dataset ?? {};
+    if (previewChoice) store.setPreviewChoice(previewStep, previewChoice, event.target.value);
   };
   document.addEventListener('input', onBuilderInput);
-  document.addEventListener('change', (event) => { if (event.target.matches('[data-condition-word]')) onBuilderInput(event); });
+  /* A dropdown says its new value with a change. */
+  document.addEventListener('change', (event) => { if (event.target.matches('[data-dropdown]')) onBuilderInput(event); });
 
   /* Another step starts its own condition. */
   store.subscribe((change) => { if (change === 'selection') building = null; });
 
-  DT.values = { valueTree, openShape, refresh, conditionBuilder, previewChoices, takeValue };
+  DT.values = { valueTree, openShape, refresh, conditionBuilder, previewChoices, heldAnswer, takeValue };
 }

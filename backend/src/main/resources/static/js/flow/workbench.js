@@ -137,7 +137,7 @@ export default function boot() {
     const accepts = !!byId('panelForm').querySelector('[data-variables]');
     host.hidden = !accepts;
     if (!accepts) return;
-    host.innerHTML = `<h3>Data you can use</h3><div class="data-list">${dataRows(node).map((row) => `<button type="button" class="data-row" data-insert="${escapeHtml(row.insert)}" title="Insert ${escapeHtml(row.insert)}"><b>${escapeHtml(row.label)}</b><code>${escapeHtml(String(row.value ?? '').split('\n')[0]) || 'No value yet'}</code></button>`).join('')}</div>${DT.values.valueTree(node)}<p class="panel-hint">Click a value to use it at the cursor, or type <code>$</code> in a field. The field keeps where the value comes from, so each run uses its own value. The examples are from the latest run or test.</p>`;
+    host.innerHTML = `<h3>Data you can use</h3><div class="data-list">${dataRows(node).map((row) => `<button type="button" class="data-row" data-insert="${escapeHtml(row.insert)}" title="Insert ${escapeHtml(row.insert)}"><b>${escapeHtml(row.label)}</b><code>${escapeHtml(String(row.value ?? '').split('\n')[0]) || 'No value yet'}</code></button>`).join('')}</div>${DT.values.valueTree(node)}<p class="panel-hint">Click a value to use it at the cursor, or type <code>$</code> in a field. The field keeps where the value comes from, so each run uses its own value. The examples are from the latest run or preview.</p>`;
   }
 
   function insertData(text) {
@@ -154,7 +154,7 @@ export default function boot() {
 
   function resultParts(step, { tested = false } = {}) {
     const label = step.status === 'success' ? 'Succeeded' : step.status === 'warning' ? 'Failed, task continued' : step.status === 'stopped' ? 'Stopped' : 'Failed';
-    return `<h3>${statusGlyph(step.status)}${tested ? `${step.preview ? 'Preview' : 'Test'}: ${label.toLowerCase()}` : label}<small>${formatDuration(step.durationMs)}</small></h3>${renderStepResult(step)}`;
+    return `<h3>${statusGlyph(step.status)}${tested ? `${step.preview ? 'Preview' : 'Run'}: ${label.toLowerCase()}` : label}<small>${formatDuration(step.durationMs)}</small></h3>${renderStepResult(step)}`;
   }
 
   const changeParametersButton = () => (store.task.parameters.length ? `<button type="button" class="ui-button" data-action="${runner.run?.preview ? 'preview' : 'run'}" title="Start again with different values">Change parameters</button>` : '');
@@ -183,18 +183,25 @@ export default function boot() {
     if (tested) {
       host.classList.toggle('is-failed', tested.status === 'failed');
       host.innerHTML = `${resultParts(tested, { tested: true })}${runner.finished && state === 'failed' ? rerunButton() : ''}`;
-    } else if (store.review?.changed.has(node.id)) {
-      host.innerHTML = `<h3>The agent changed this step</h3>${store.review.changed.get(node.id).map(({ key, before }) => `<p class="result-note"><b>${escapeHtml(key)}</b>${before === null || before === undefined ? '' : `, was <code>${escapeHtml(typeof before === 'string' ? before : JSON.stringify(before))}</code>`}</p>`).join('')}`;
-    } else if (store.review?.added.has(node.id)) {
-      host.innerHTML = '<h3>The agent added this step</h3>';
-    } else if (!runner.run) host.innerHTML = '';
-    else if (state === 'running') host.innerHTML = `<h3>${statusGlyph('running')}Running…</h3>`;
-    else if (state === 'pending') host.innerHTML = '<p class="result-note">This run has not reached this step yet.</p>';
-    else if (state === 'skipped' || !step) host.innerHTML = '<p class="result-note">This run took a different path.</p>';
+      return;
+    }
+    // A proposal says what the agent did to the step, and a preview of it adds what the step would do.
+    const change = changeByAgent(node);
+    if (!runner.run) host.innerHTML = change;
+    else if (state === 'running') host.innerHTML = `${change}<h3>${statusGlyph('running')}Running…</h3>`;
+    else if (state === 'pending') host.innerHTML = `${change}<p class="result-note">This run has not reached this step yet.</p>`;
+    else if (state === 'skipped' || !step) host.innerHTML = `${change}<p class="result-note">This run took a different path.</p>`;
     else {
       host.classList.toggle('is-failed', state === 'failed');
-      host.innerHTML = `${resultParts(step)}${runner.finished && state === 'failed' ? rerunButton() : ''}`;
+      host.innerHTML = `${change}${resultParts(step)}${runner.finished && state === 'failed' ? rerunButton() : ''}`;
     }
+  }
+
+  function changeByAgent(node) {
+    const { review } = store;
+    if (review?.added.has(node.id)) return '<h3>The agent added this step</h3>';
+    if (!review?.changed.has(node.id)) return '';
+    return `<h3>The agent changed this step</h3>${review.changed.get(node.id).map(({ key, before }) => `<p class="result-note"><b>${escapeHtml(key)}</b>${before === null || before === undefined ? '' : `, was <code>${escapeHtml(typeof before === 'string' ? before : JSON.stringify(before))}</code>`}</p>`).join('')}`;
   }
 
   /* A structural change rebuilds the form, so the field being typed in has to survive it. */
@@ -235,7 +242,7 @@ export default function boot() {
         <section class="panel-section"><h3>Settings</h3><div id="panelForm"></div></section>
         <section class="panel-section" id="panelData"></section>
       </div>
-      ${isStart ? `<div class="panel-foot"><div class="panel-foot-row"><button type="button" class="ui-button" data-inspector="add-trigger" aria-haspopup="listbox">${icon('plus')}Add a trigger</button><span class="panel-foot-space"></span>${node === rootNode(store.task) ? '' : `<button type="button" class="labelled-button" data-inspector="delete" title="Delete (⌫)">${icon('trash')}<span>Delete</span></button>`}</div><small>A task can start in several ways. Running by hand starts at the first start.</small></div>` : `<div class="panel-foot"><div class="panel-foot-row"><button type="button" class="ui-button" data-wb="preview-step" id="previewButton" ${testing ? 'disabled' : ''} title="Shows what this step would do. Nothing is sent.">${icon('eye')}Preview this step</button><button type="button" class="ui-button" data-wb="test" id="testButton" ${testing ? 'disabled' : ''} title="Runs this step for real">${icon('play')}${testing ? 'Testing…' : 'Test this step'}</button><span class="panel-foot-space"></span><button type="button" class="labelled-button" data-inspector="duplicate" title="Duplicate (${modKey}D)">${icon('copy')}<span>Duplicate</span></button><button type="button" class="labelled-button" data-inspector="delete" title="Delete (⌫)">${icon('trash')}<span>Delete</span></button></div><small>Both use only this step, with the values under Data you can use. A preview shows what the step would send. A test sends it.</small></div>`}`;
+      ${isStart ? `<div class="panel-foot"><div class="panel-foot-row"><button type="button" class="ui-button" data-inspector="add-trigger" aria-haspopup="listbox">${icon('plus')}Add a trigger</button><span class="panel-foot-space"></span>${node === rootNode(store.task) ? '' : `<button type="button" class="labelled-button" data-inspector="delete" title="Delete (⌫)">${icon('trash')}<span>Delete</span></button>`}</div><small>A task can start in several ways. Running by hand starts at the first start.</small></div>` : `<div class="panel-foot"><div class="panel-foot-row"><button type="button" class="ui-button" data-wb="preview-step" id="previewButton" ${testing ? 'disabled' : ''} title="Shows what this step would do. Nothing is sent.">${icon('eye')}Preview step</button><button type="button" class="ui-button" data-wb="test" id="testButton" ${testing ? 'disabled' : ''} title="Runs this step for real">${icon('play')}${testing ? 'Running…' : 'Run step'}</button><span class="panel-foot-space"></span><button type="button" class="labelled-button" data-inspector="duplicate" title="Duplicate (${modKey}D)">${icon('copy')}<span>Duplicate</span></button><button type="button" class="labelled-button" data-inspector="delete" title="Delete (⌫)">${icon('trash')}<span>Delete</span></button></div><small>Preview shows what it would send. Run sends it.</small></div>`}`;
     form = DT.ui.mountForm(byId('panelForm'), store, node.id);
     panel.querySelector('.inspector-name').addEventListener('input', (event) => store.rename(node.id, event.target.value));
     byId('panelForm').addEventListener('focusin', (event) => { if (event.target.matches('[data-variables]')) lastDataField = event.target; });
@@ -269,7 +276,7 @@ export default function boot() {
     if (!button) return;
     button.disabled = testing;
     byId('previewButton').disabled = testing;
-    button.innerHTML = `${icon('play')}${testing ? 'Testing…' : 'Test this step'}`;
+    button.innerHTML = `${icon('play')}${testing ? 'Running…' : 'Run step'}`;
   }
 
   /* ---------- Run player ---------- */
