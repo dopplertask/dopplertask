@@ -284,28 +284,31 @@ public class ExecutionServiceImpl implements ExecutionService {
             // The step on the first output follows, unless the step chooses another output, as If, Switch and Loop do.
             execution.setCurrentAction(stepOnFirstOutput(currentAction));
 
-            long actionStart = System.currentTimeMillis();
-            ActionResult actionResult = runAction(taskService, execution, currentAction);
-            recordStep(execution, currentAction, actionResult, System.currentTimeMillis() - actionStart);
+            // A deactivated step is passed over, so the next step reads what the step before it gave.
+            if (!currentAction.isDeactivated()) {
+                long actionStart = System.currentTimeMillis();
+                ActionResult actionResult = runAction(taskService, execution, currentAction);
+                recordStep(execution, currentAction, actionResult, System.currentTimeMillis() - actionStart);
 
-            // The output stays out of the log: it can be large and hold secrets, and it is stored with the run.
-            LOG.info("Ran current action: {} with status code: {}", currentAction.getClass().getSimpleName(), actionResult.getStatusCode());
+                // The output stays out of the log: it can be large and hold secrets, and it is stored with the run.
+                LOG.info("Ran current action: {} with status code: {}", currentAction.getClass().getSimpleName(), actionResult.getStatusCode());
 
-            // What arrived is only for the step the run continues at.
-            execution.setResumeEvent(null);
+                // What arrived is only for the step the run continues at.
+                execution.setResumeEvent(null);
 
-            if (actionResult.getStatusCode() == StatusCode.FAILURE && !currentAction.isContinueOnFailure()) {
-                addLog(execution, actionResult.getErrorMsg(), actionResult.getOutputType(), actionResult.getOutputVariables(), true, false, false);
-                break;
-            }
+                if (actionResult.getStatusCode() == StatusCode.FAILURE && !currentAction.isContinueOnFailure()) {
+                    addLog(execution, actionResult.getErrorMsg(), actionResult.getOutputType(), actionResult.getOutputVariables(), true, false, false);
+                    break;
+                }
 
-            // A step that waits stops the run. Its key continues the run at that step, which then reads the answer.
-            if (actionResult.getWaitKey() != null) {
-                execution.keepRunningLoops();
-                execution.setWaitKey(actionResult.getWaitKey());
-                execution.setStatus(TaskExecutionStatus.WAITING);
-                addLog(execution, "The run waits for an answer at " + currentAction.getActionName() + ".", OutputType.STRING, Map.of(), true, false);
-                return execution;
+                // A step that waits stops the run. Its key continues the run at that step, which then reads the answer.
+                if (actionResult.getWaitKey() != null) {
+                    execution.keepRunningLoops();
+                    execution.setWaitKey(actionResult.getWaitKey());
+                    execution.setStatus(TaskExecutionStatus.WAITING);
+                    addLog(execution, "The run waits for an answer at " + currentAction.getActionName() + ".", OutputType.STRING, Map.of(), true, false);
+                    return execution;
+                }
             }
 
             // A pass of a loop ends where its steps end, and the loop goes on with its next item.

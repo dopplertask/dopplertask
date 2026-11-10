@@ -38,6 +38,11 @@ export default function boot() {
     chevronDown: '<path d="m6 9 6 6 6-6"/>', chevronRight: '<path d="m9 6 6 6-6 6"/>', chevronUp: '<path d="m6 15 6-6 6 6"/>',
     trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5"/>',
     copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4V4h11v1"/>',
+    duplicate: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M12 9v6M9 12h6"/>',
+    paste: '<rect x="5" y="5" width="14" height="16" rx="2"/><path d="M9 5V3h6v2M9 11h6M9 15h4"/>',
+    more: '<path d="M5 12h.01M12 12h.01M19 12h.01" stroke-width="3"/>', power: '<path d="M12 3v9M6.3 6.3a8 8 0 1 0 11.4 0"/>',
+    pen: '<path d="M4 20h4L19 9l-4-4L4 16zM13 7l4 4"/>', swap: '<path d="M4 8h14m-4-4 4 4-4 4M20 16H6m4 4-4-4 4-4"/>',
+    selectAll: '<rect x="4" y="4" width="16" height="16" rx="2" stroke-dasharray="3 3"/><path d="m9 12 2 2 4-4"/>',
     alert: '<path d="M12 3 2.5 20h19zM12 10v4M12 17h.01"/>', clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     sliders: '<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>',
     zoomIn: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5M11 8v6M8 11h6"/>', zoomOut: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5M8 11h6"/>',
@@ -286,7 +291,6 @@ export default function boot() {
       ${DT.values.conditionBuilder(node)}
       ${node.type === 'start' && node.config.trigger === 'webhook' ? addressRow('Call this URL', webhookUrl(store.task, node), 'Works once the task is saved with its trigger on.') : ''}
       ${canFail ? `<details class="ui-disclosure" ${hasFailureSettings ? 'open' : ''}><summary>${icon('chevronRight')}If this step fails${node.config.retries ? `<span class="ui-pill">${node.config.retries} ${node.config.retries === 1 ? 'retry' : 'retries'}</span>` : ''}</summary><div class="ui-field-grid">${FAILURE_FIELDS.map((field) => renderField(field, node)).join('')}</div></details>` : ''}
-      ${DT.values.previewChoices(node)}
       ${advancedFields.length ? `<details class="ui-disclosure" ${node.config.scriptLanguage === 'JAVASCRIPT' || node.config.baseUrl ? 'open' : ''}><summary>${icon('chevronRight')}Advanced</summary><div class="ui-field-grid">${advancedFields.map((field) => renderField(field, node)).join('')}</div></details>` : ''}
       <p class="ui-backend-name">${escapeHtml(action.backend)}</p>`;
   }
@@ -590,11 +594,13 @@ export default function boot() {
       });
       return;
     }
-    if (!store.task.parameters.length) { onRun({}); return; }
+    const previewChoices = preview ? DT.values.previewChoices(store.task) : '';
+    if (!store.task.parameters.length && !previewChoices) { onRun({}); return; }
     const lastValues = values || store.runs[0]?.parameters || {};
-    const dialog = openDialog(`${dialogHeader(`${preview ? 'Preview' : 'Run'} “${store.task.name}”`, preview ? 'Choose the values for this preview. Nothing is sent.' : 'Choose the values for this run.')}
+    const dialog = openDialog(`${dialogHeader(`${preview ? 'Preview' : 'Run'} “${store.task.name}”`, preview ? 'Choose what each step does in this preview.' : 'Choose the values for this run.')}
       <form method="dialog" class="ui-form" novalidate>
         ${store.task.parameters.map((parameter) => `<div class="ui-field"><label class="ui-label" for="run-${escapeHtml(parameter.name)}">${escapeHtml(parameter.name)}<span class="ui-optional">${parameter.required ? 'required' : 'optional'}</span></label><input class="ui-input" id="run-${escapeHtml(parameter.name)}" name="${escapeHtml(parameter.name)}" data-required="${parameter.required ? 1 : ''}" autocomplete="off" spellcheck="false" value="${escapeHtml(lastValues[parameter.name] ?? parameter.defaultValue ?? '')}">${parameter.description ? `<p class="ui-hint">${escapeHtml(parameter.description)}</p>` : ''}</div>`).join('')}
+        ${previewChoices}
         <footer class="ui-dialog-foot"><button type="button" class="ui-button" data-dialog-close>Cancel</button><button type="submit" class="ui-button is-primary">${icon(preview ? 'eye' : 'play')}${preview ? 'Preview' : 'Run'} ${kbd(`${modKey}↵`)}</button></footer>
       </form>`, { className: 'is-small' });
     const form = dialog.querySelector('form');
@@ -612,7 +618,7 @@ export default function boot() {
     };
     form.addEventListener('submit', submit);
     dialog.addEventListener('keydown', (event) => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) submit(event); });
-    form.querySelector('input').select();
+    form.querySelector('input')?.select();
   }
 
   function openParametersDialog(store) {
@@ -805,46 +811,125 @@ export default function boot() {
   function openShortcutsDialog() {
     const rows = [
       [`${modKey}K`, 'Add a step or run a command'], [`${modKey}↵`, 'Run the task'], [`${modKey}S`, 'Save a new version'],
-      [`${modKey}Z`, 'Undo'], [`${modKey}⇧Z`, 'Redo'], [`${modKey}D`, 'Duplicate the selected step'],
-      ['⌫', 'Delete the selected step'], ['P', 'Task parameters'], ['O', 'Open a task'], ['esc', 'Close or clear selection'], ['?', 'This list'],
+      [`${modKey}Z`, 'Undo'], [`${modKey}⇧Z`, 'Redo'],
+      ...stepActions(shortcuts.store, shortcuts.handlers).flat().filter((action) => action.shortcut).map((action) => [action.shortcut, action.label]),
+      ['⇧ click', 'Add a step to the selection'], ['P', 'Task parameters'], ['O', 'Open a task'], ['esc', 'Close or clear selection'], ['?', 'This list'],
     ];
     openDialog(`${dialogHeader('Keyboard shortcuts')}<dl class="ui-shortcuts">${rows.map(([keys, label]) => `<div><dt>${escapeHtml(label)}</dt><dd>${kbd(keys)}</dd></div>`).join('')}</dl>`, { className: 'is-small', animate: false });
   }
 
   const saveStatus = (store) => (store.review ? 'Proposal, not running' : { saving: 'Saving…', saved: 'Saved', unsaved: store.showingOlderVersion ? 'Older version, not current' : store.task.checksum ? 'Unsaved changes' : 'Not saved yet' }[store.saveState]);
 
+  /* ---------- Step actions ---------- */
+
+  const countOf = (nodes) => (nodes.length === 1 ? `“${nodes[0].name}”` : `${nodes.length} steps`);
+  const pressed = (key, { withMod = false } = {}) => (event) => (event.metaKey || event.ctrlKey) === withMod && event.key.toLowerCase() === key;
+
+  /* Everything a person can do with steps, in the groups the menu shows. The menu, the buttons over a tile, the
+     buttons of the step panel and the keys all read this list, so an action is written once. */
+  function stepActions(store, handlers, nodeIds = store.selectedIds) {
+    const steps = nodeIds.map((nodeId) => DT.nodeById(store.task, nodeId)).filter((node) => node && node.type !== 'start');
+    const onlyStep = nodeIds.length === 1 ? steps[0] : null;
+    const allDeactivated = steps.length > 0 && steps.every(DT.isDeactivated);
+    const stepIds = steps.map((node) => node.id);
+    return [
+      [
+        { id: 'run-step', label: 'Run step', icon: 'play', applies: !!onlyStep, run: () => handlers.testStep() },
+        { id: 'preview-step', label: 'Preview step', icon: 'eye', applies: !!onlyStep, run: () => handlers.testStep({ preview: true }) },
+        { id: 'rename', label: 'Rename', icon: 'pen', applies: !!onlyStep, run: () => handlers.renameStep() },
+        { id: 'replace', label: 'Replace…', icon: 'swap', applies: !!onlyStep, run: () => handlers.replaceStep(onlyStep.id) },
+      ],
+      [
+        { id: 'deactivate', label: allDeactivated ? 'Activate' : 'Deactivate', icon: 'power', shortcut: 'D', matches: pressed('d'), applies: steps.length > 0, run: () => store.setDeactivated(stepIds, !allDeactivated) },
+        { id: 'duplicate', label: 'Duplicate', icon: 'duplicate', shortcut: `${modKey}D`, matches: pressed('d', { withMod: true }), applies: steps.length > 0, run: () => store.duplicateNodes(stepIds) },
+        /* The keys copy and paste through the browser's own copy and paste events, so only the menu has to ask
+           the browser for the clipboard. */
+        { id: 'copy', label: 'Copy', icon: 'copy', shortcut: `${modKey}C`, applies: steps.length > 0, run: () => navigator.clipboard.writeText(store.copiedSteps(stepIds)).then(() => toast(`Copied ${countOf(steps)}`), () => toast(`The browser keeps the clipboard closed here. Press ${modKey}C to copy.`)) },
+        { id: 'paste', label: 'Paste', icon: 'paste', shortcut: `${modKey}V`, applies: true, run: () => navigator.clipboard.readText().then((text) => pasteSteps(store, handlers, text), () => toast(`The browser keeps the clipboard closed here. Press ${modKey}V to paste.`)) },
+      ],
+      [
+        { id: 'select-all', label: 'Select all', icon: 'selectAll', shortcut: `${modKey}A`, matches: pressed('a', { withMod: true }), applies: true, run: () => store.selectAll() },
+        { id: 'clear-selection', label: 'Clear selection', icon: 'x', applies: nodeIds.length > 1, run: () => store.select(null) },
+        ...(handlers.extraCommands || []).filter((command) => command.id === 'tidy').map((command) => ({ ...command, applies: true })),
+      ],
+      [
+        { id: 'delete', label: 'Delete', icon: 'trash', shortcut: '⌫', matches: (event) => pressed('delete')(event) || pressed('backspace')(event), applies: nodeIds.some((nodeId) => nodeId !== DT.rootNode(store.task).id), run: () => removeWithUndo(store, nodeIds) },
+      ],
+    ];
+  }
+
+  function runStepAction(store, handlers, actionId) {
+    stepActions(store, handlers).flat().find((action) => action.id === actionId && action.applies)?.run();
+  }
+
+  /* A menu at the pointer has no control to hang from, so it hangs from a point that moves there. */
+  let pointerAnchor = null;
+  function anchorAt({ x, y }) {
+    pointerAnchor ??= document.body.appendChild(Object.assign(document.createElement('span'), { className: 'ui-menu-point', title: 'Step actions' }));
+    Object.assign(pointerAnchor.style, { left: `${x}px`, top: `${y}px` });
+    return pointerAnchor;
+  }
+
+  /* Opens under a control, or at a point of the page. */
+  function openStepMenu(store, handlers, anchor) {
+    const groups = stepActions(store, handlers).map((group) => group.filter((action) => action.applies)).filter((group) => group.length);
+    const { element, close } = openPopover(anchor instanceof Element ? anchor : anchorAt(anchor), `<div class="ui-menu">${groups.map((group) => group.map((action) => `<button type="button" class="ui-option" data-step-action="${action.id}">${icon(action.icon)}<span>${escapeHtml(action.label)}</span>${action.shortcut ? kbd(action.shortcut) : ''}</button>`).join('')).join('<hr>')}</div>`);
+    element.addEventListener('click', (event) => {
+      const chosen = event.target.closest('[data-step-action]');
+      if (!chosen) return;
+      close();
+      runStepAction(store, handlers, chosen.dataset.stepAction);
+    });
+  }
+
+  function pasteSteps(store, handlers, text) {
+    if (!store.pasteSteps(text, handlers.pastePosition()).length) toast('The clipboard holds no copied steps.');
+  }
+
+  function removeWithUndo(store, nodeIds) {
+    const removed = store.removeNodes(nodeIds);
+    toast(`Deleted ${countOf(removed)}`, { actionLabel: 'Undo', onAction: () => store.undo() });
+  }
+
   /* ---------- Shortcuts ---------- */
 
+  /* What the keys work on. The list of shortcuts reads its step rows from the same place. */
+  const shortcuts = {};
   function bindShortcuts(store, handlers) {
+    Object.assign(shortcuts, { store, handlers });
+    const isTyping = (event) => event.target.matches?.('input, textarea, select, [contenteditable="true"]');
+    /* The keys belong to an open dialog or menu until it closes. */
+    const isCovered = () => !!document.querySelector('dialog[open]') || openPopovers.length > 0;
     document.addEventListener('keydown', (event) => {
       const modified = event.metaKey || event.ctrlKey;
-      const typing = event.target.matches?.('input, textarea, select, [contenteditable="true"]');
-      const dialogOpen = !!document.querySelector('dialog[open]');
-      if (modified && event.key.toLowerCase() === 'k') { event.preventDefault(); if (!dialogOpen) handlers.palette(); return; }
-      /* The keys belong to an open dialog or menu until it closes. */
-      if (dialogOpen || openPopovers.length) return;
+      if (modified && event.key.toLowerCase() === 'k') { event.preventDefault(); if (!document.querySelector('dialog[open]')) handlers.palette(); return; }
+      if (isCovered()) return;
       if (modified && event.key === 'Enter') { event.preventDefault(); handlers.run(); return; }
       if (modified && event.key.toLowerCase() === 's') { event.preventDefault(); store.save().then((message) => toast(message), (error) => toast(error.message, { tone: 'danger' })); return; }
-      if (typing) { if (event.key === 'Escape') event.target.blur(); return; }
+      if (isTyping(event)) { if (event.key === 'Escape') event.target.blur(); return; }
       if (modified && event.key.toLowerCase() === 'z') { event.preventDefault(); if (event.shiftKey) store.redo(); else store.undo(); return; }
-      if (modified && event.key.toLowerCase() === 'd' && store.selectedId) { event.preventDefault(); store.duplicateNode(store.selectedId); return; }
+      const stepAction = stepActions(store, handlers).flat().find((action) => action.applies && action.matches?.(event));
+      if (stepAction) { event.preventDefault(); stepAction.run(); return; }
       if (modified) return;
-      if ((event.key === 'Delete' || event.key === 'Backspace') && store.selectedId) { event.preventDefault(); removeWithUndo(store, store.selectedId); return; }
       if (event.key === 'Escape') { handlers.escape ? handlers.escape() : store.select(null); return; }
       if (event.key === '?') { openShortcutsDialog(); return; }
       if (event.key.toLowerCase() === 'p') { openParametersDialog(store); return; }
       if (event.key.toLowerCase() === 'o') { openTaskDialog(store); return; }
       handlers.key?.(event);
     });
-  }
-
-  function removeWithUndo(store, nodeId) {
-    const node = DT.nodeById(store.task, nodeId);
-    if (!node) return;
-    if (node === DT.rootNode(store.task)) { toast('The first start stays, since running by hand starts there.'); return; }
-    const name = node.name;
-    store.removeNode(nodeId);
-    toast(`Deleted “${name}”`, { actionLabel: 'Undo', onAction: () => store.undo() });
+    /* With text marked on the page the key copies that text, as it does everywhere. */
+    document.addEventListener('copy', (event) => {
+      const copied = getSelection().isCollapsed && !isTyping(event) && !isCovered() && store.copiedSteps(store.selectedIds);
+      if (!copied) return;
+      event.preventDefault();
+      event.clipboardData.setData('text/plain', copied);
+      toast(`Copied ${countOf(JSON.parse(copied).nodes)}`);
+    });
+    document.addEventListener('paste', (event) => {
+      if (isTyping(event) || isCovered()) return;
+      event.preventDefault();
+      pasteSteps(store, handlers, event.clipboardData.getData('text/plain'));
+    });
   }
 
   /* The output of a step in a run. */
@@ -874,6 +959,6 @@ export default function boot() {
     statusGlyph, RUN_STATUS_LABELS, runParameterSummary,
     icon, escapeHtml, modKey, toast, openPopover, dropdown, mountForm, openPalette, openTriggerPicker,
     openRunDialog, openParametersDialog, openTaskDialog, openCredentialsDialog, openSaveAsDialog, exportTask, importTask, openShortcutsDialog,
-    saveStatus, bindShortcuts, removeWithUndo, renderStepResult, formatDuration, formatAgo,
+    saveStatus, bindShortcuts, stepActions, runStepAction, openStepMenu, renderStepResult, formatDuration, formatAgo,
   };
 }

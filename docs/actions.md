@@ -727,6 +727,11 @@ All actions have retry mechanisms to allow you to retry an action.
 * retries: (Integer) Amount of retries.
 * retryWait: Milliseconds to wait between retries.
 
+## Deactivate
+A deactivated step stays in the task. A run passes over it and carries on with the step on its first output, which then reads what the step before gave.
+### Variables
+* deactivated: (Boolean) true or false.
+
 ## Webhooks
 Besides actions, there is the webhooks nodes which can be added to the Task to start the task from a REST call.
 

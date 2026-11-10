@@ -195,6 +195,14 @@ abstract class Action {
     @Column(nullable = false)
     open var isContinueOnFailure = false
 
+    /**
+     * A deactivated step stays in the task, and a run passes over it to the step on its first output.
+     * Only a deactivated step writes it, so a task without one keeps its checksum.
+     */
+    @Column(columnDefinition = "boolean default false")
+    @get:JsonInclude(JsonInclude.Include.NON_DEFAULT)
+    open var isDeactivated = false
+
     @Column(length = 4096)
     open var failOn: String? = null
     open var retries = 0
@@ -359,6 +367,15 @@ abstract class Action {
                 PropertyInformationType.BOOLEAN,
                 "false",
                 "The task carries on with the next step when this step fails. Retries are skipped.",
+                mutableListOf(),
+                PropertyInformation.PropertyInformationCategory.SETTING
+            ),
+            PropertyInformation(
+                "deactivated",
+                "Deactivated",
+                PropertyInformationType.BOOLEAN,
+                "false",
+                "A run passes over this step and carries on with the step on its first output.",
                 mutableListOf(),
                 PropertyInformation.PropertyInformationCategory.SETTING
             ),
