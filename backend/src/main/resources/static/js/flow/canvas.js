@@ -138,11 +138,21 @@ export default function boot() {
     return review?.changed.has(node.id) ? '<span class="node-change is-changed">Changed</span>' : '';
   }
 
-  /* A step that a preview treats in another way than holding it says so, since that choice is kept from one preview to the next. */
+  /* A step that a preview treats in another way than holding it says so, since that choice is kept from one preview to the next.
+     A deactivated step says only that, since no run and no preview reaches it. */
   const PREVIEW_BADGES = { sent: 'sent in previews', fails: 'fails in previews' };
-  function previewBadge(node) {
+  function runBadge(node) {
+    if (DT.isDeactivated(node)) return '<span class="node-change is-off">deactivated</span>';
     const label = PREVIEW_BADGES[store.previewChoices(node.id).mode];
     return label ? `<span class="node-change is-preview">${label}</span>` : '';
+  }
+
+  /* The actions a person reaches for most sit over the tile under the pointer. The menu holds all of them. */
+  const QUICK_ACTIONS = ['run-step', 'deactivate', 'delete'];
+  function toolsHtml(node) {
+    const quick = DT.ui.stepActions(store, handlers, [node.id]).flat().filter((action) => action.applies && QUICK_ACTIONS.includes(action.id));
+    const button = (id, label, iconName, more = '') => `<button type="button" class="ui-icon-button" tabindex="-1" data-step-action="${id}" aria-label="${label}" title="${label}" ${more}>${icon(iconName)}</button>`;
+    return `<div class="node-tools">${quick.map((action) => button(action.id, action.shortcut ? `${action.label} (${action.shortcut})` : action.label, action.icon)).join('')}${button('more', 'More actions', 'more', 'aria-haspopup="menu"')}</div>`;
   }
 
   function nodeInnerHtml(node) {
@@ -161,7 +171,8 @@ export default function boot() {
       ${hasBranches(node) ? portsOf(node).map((port) => `<div class="branch-row" data-branch="${escapeHtml(port.id)}"><span>${escapeHtml(port.label)}</span></div>`).join('') : ''}
       ${portsHtml}
       ${changeBadge(node)}
-      ${previewBadge(node)}
+      ${runBadge(node)}
+      ${toolsHtml(node)}
       <span class="node-status"></span>
       ${issue ? `<span class="node-issue" title="Needs attention">${icon('alert')}</span>` : ''}
       <div class="node-result"></div>`;
@@ -194,7 +205,8 @@ export default function boot() {
       element.setAttribute('aria-label', `${node.name}: ${summaryText(node)}`);
       element.dataset.category = categoryOf(node);
       element.dataset.type = node.type;
-      element.classList.toggle('is-selected', node.id === store.selectedId);
+      element.classList.toggle('is-selected', store.selectedIds.includes(node.id));
+      element.classList.toggle('is-deactivated', DT.isDeactivated(node));
       placeNode(element, displayed.get(node.id));
     });
     animateToTargets();
@@ -364,6 +376,18 @@ export default function boot() {
 
   const handlers = {
     run: requestRun,
+    testStep: (testOptions) => DT.workbench.testStep(testOptions),
+    renameStep: () => elements.inspector.querySelector('.inspector-name').select(),
+    replaceStep: (nodeId) => DT.ui.openPalette({ store, handlers, stepsOnly: true, title: 'Find the step to put in its place', onPick: (type) => {
+      if (store.replaceStep(nodeId, type)) requestAnimationFrame(() => elements.inspector.querySelector('[data-field]')?.focus());
+      else DT.ui.toast('A start is added beside the steps, so it takes the place of no step.');
+    } }),
+    /* Pasted steps land in the middle of what the person sees. */
+    pastePosition: () => {
+      const box = elements.stage.getBoundingClientRect();
+      const middle = toWorld(box.left + box.width / 2, box.top + box.height / 2);
+      return { x: snap(middle.x - NODE_WIDTH / 2), y: snap(middle.y - HEAD_HEIGHT / 2) };
+    },
     palette: () => DT.ui.openPalette({ store, handlers, onPick: (type) => addAndFocus(type) }),
     extraCommands: [
       { id: 'fit', label: 'Fit to screen', icon: 'fit', shortcut: 'F', run: fitView },
@@ -371,7 +395,7 @@ export default function boot() {
     ],
     /* Each press closes the nearest thing: the step, then the history, then the run. */
     escape: () => {
-      if (store.selectedId) store.select(null);
+      if (store.selectedIds.length) store.select(null);
       else if (DT.workbench.isHistoryOpen()) options.closeHistory();
       else if (runner.run && runner.finished) runner.clear();
     },
@@ -388,18 +412,23 @@ export default function boot() {
 
   let draftWire = null;
   let gesture = null;
+  const snap = (value) => Math.round(value / 8) * 8;
+  const addsToSelection = (event) => event.shiftKey || (DT.ui.modKey === '⌘' ? event.metaKey : event.ctrlKey);
 
   elements.stage.addEventListener('pointerdown', (event) => {
     if (event.button !== 0) return;
     const portButton = event.target.closest('.port-out');
     const nodeElement = event.target.closest('.node');
     if (event.target.closest('.inspector, .empty-card')) return;
-    if (event.target.closest('.wire-tool, .wire-hit')) return;
+    if (event.target.closest('.wire-tool, .wire-hit, .node-tools')) return;
     if (portButton && nodeElement) {
       gesture = { kind: 'wire', fromId: nodeElement.dataset.node, port: portButton.dataset.port, startX: event.clientX, startY: event.clientY, moved: false };
     } else if (nodeElement) {
-      const position = nodeById(store.task, nodeElement.dataset.node).position;
-      gesture = { kind: 'node', nodeId: nodeElement.dataset.node, element: nodeElement, startX: event.clientX, startY: event.clientY, origin: { ...position }, moved: false };
+      /* A tile of the selection takes the whole selection with it. */
+      const nodeId = nodeElement.dataset.node;
+      const movedIds = store.selectedIds.includes(nodeId) ? store.selectedIds : [nodeId];
+      const origins = new Map(movedIds.map((movedId) => [movedId, { ...nodeById(store.task, movedId).position }]));
+      gesture = { kind: 'node', nodeId, element: nodeElement, startX: event.clientX, startY: event.clientY, origins, addsToSelection: addsToSelection(event), moved: false };
     } else {
       gesture = { kind: 'pan', startX: event.clientX, startY: event.clientY, originX: view.x, originY: view.y, moved: false };
       elements.stage.classList.add('is-panning');
@@ -418,10 +447,11 @@ export default function boot() {
       view.x = gesture.originX + deltaX; view.y = gesture.originY + deltaY; applyView();
     } else if (gesture.kind === 'node') {
       if (justStarted) { store.beginMove(); gesture.element.classList.add('is-dragging'); cancelAnimationFrame(positionAnimation); }
-      const snap = (value) => Math.round(value / 8) * 8;
-      const position = { x: snap(gesture.origin.x + deltaX / view.zoom), y: snap(gesture.origin.y + deltaY / view.zoom) };
-      displayed.set(gesture.nodeId, position);
-      store.moveNode(gesture.nodeId, position);
+      gesture.origins.forEach((origin, movedId) => {
+        const position = { x: snap(origin.x + deltaX / view.zoom), y: snap(origin.y + deltaY / view.zoom) };
+        displayed.set(movedId, position);
+        store.moveNode(movedId, position);
+      });
     } else if (gesture.kind === 'wire') {
       const fromNode = nodeById(store.task, gesture.fromId);
       const fromPosition = positionOf(gesture.fromId);
@@ -442,7 +472,8 @@ export default function boot() {
     if (finished.kind === 'node') {
       finished.element.classList.remove('is-dragging');
       if (finished.moved) store.endMove();
-      else { store.select(finished.nodeId); }
+      else if (finished.addsToSelection) store.toggleSelected(finished.nodeId);
+      else store.select(finished.nodeId);
     }
     if (finished.kind === 'wire') {
       nodeElements.forEach((element) => element.classList.remove('is-drop-target'));
@@ -468,6 +499,15 @@ export default function boot() {
     }
   }
   elements.stage.addEventListener('pointerup', finishGesture);
+
+  /* A right-click works on the selection. A tile outside it becomes the selection first, and the empty canvas clears it. */
+  elements.stage.addEventListener('contextmenu', (event) => {
+    if (event.target.closest('.inspector, .empty-card')) return;
+    event.preventDefault();
+    const nodeId = event.target.closest('.node')?.dataset.node;
+    if (!nodeId || !store.selectedIds.includes(nodeId)) store.select(nodeId || null);
+    DT.ui.openStepMenu(store, handlers, { x: event.clientX, y: event.clientY });
+  });
   elements.stage.addEventListener('pointercancel', finishGesture);
 
   elements.stage.addEventListener('wheel', (event) => {
@@ -539,6 +579,13 @@ export default function boot() {
       openStepPicker({ fromId: openPort.closest('.node').dataset.node, port: openPort.dataset.port });
       return;
     }
+    const stepButton = event.target.closest('.node-tools [data-step-action]');
+    if (stepButton) {
+      store.select(stepButton.closest('.node').dataset.node);
+      if (stepButton.dataset.stepAction === 'more') DT.ui.openStepMenu(store, handlers, stepButton);
+      else DT.ui.runStepAction(store, handlers, stepButton.dataset.stepAction);
+      return;
+    }
     const tool = event.target.closest('.wire-tool');
     if (tool) {
       const wireElement = tool.closest('.wire');
@@ -561,8 +608,7 @@ export default function boot() {
     if (viewAction === 'tidy') store.tidy();
     const inspectorAction = event.target.closest('[data-inspector]')?.dataset.inspector;
     if (inspectorAction === 'close') store.select(null);
-    if (inspectorAction === 'delete') DT.ui.removeWithUndo(store, store.selectedId);
-    if (inspectorAction === 'duplicate') store.duplicateNode(store.selectedId);
+    if (inspectorAction === 'delete' || inspectorAction === 'duplicate') DT.ui.runStepAction(store, handlers, inspectorAction);
     if (inspectorAction === 'add-trigger') DT.ui.openTriggerPicker(store, event.target.closest('[data-inspector]'));
     if (event.target.closest('[data-run-action="close"]')) runner.clear();
     if (event.target.closest('[data-try-example]')) {
@@ -597,7 +643,7 @@ export default function boot() {
     }
     if (change === 'move') { store.task.nodes.forEach((node) => { const element = nodeElements.get(node.id); if (element && displayed.get(node.id)) placeNode(element, displayed.get(node.id)); }); renderWires(); return; }
     if (change === 'selection') {
-      nodeElements.forEach((element, nodeId) => element.classList.toggle('is-selected', nodeId === store.selectedId));
+      nodeElements.forEach((element, nodeId) => element.classList.toggle('is-selected', store.selectedIds.includes(nodeId)));
       renderInspector();
       revealSelectedNode();
       return;

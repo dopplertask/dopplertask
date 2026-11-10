@@ -109,6 +109,13 @@ const triggerBackend = (config) => (config.trigger === APP_TRIGGER ? config.app 
 const TRIGGER_DEFAULTS = { webhook: { method: 'POST', authentication: 'none' }, schedule: { rule: 'DAYS', every: '1', atHour: '9', atMinute: '0' }, interval: { time: '1', timeUnit: 'MINUTES' }, activemq: {} };
 const STEP_ACTION_NAME = 'actionName';
 const FAILURE_FIELD_NAMES = ['continueOnFailure', 'retries', 'retryWait', 'failOn'];
+/* A deactivated step stays in the task and a run passes over it. The step menu sets it, so no form shows it. */
+const STEP_DEACTIVATED = 'deactivated';
+const isDeactivated = (node) => !!node.config[STEP_DEACTIVATED];
+/* Copied steps travel as text, so they also paste into another task or another window. */
+const COPIED_STEPS_KIND = 'dopplertask/steps';
+const COPY_OFFSET = { x: 28, y: 96 };
+const withoutNumber = (name) => name.replace(/ \d+$/, '');
 const AUTO_SAVE_DELAY_MS = 30000;
 const AUTO_SAVE_KEY = 'autoSave';
 const LAST_TASK_KEY = 'lastTask';
@@ -183,7 +190,7 @@ function loadCatalogue(actions) {
     const backend = action.name;
     /* A connector names its own label and icon, since it is described in a file and not here. */
     const [type, label, category, iconName, required] = PRESENTATION[backend] || [backend, action.label || backend.replace(/Action$/, ''), isAppTrigger(backend) ? 'starts' : 'integration', action.icon || `${INITIALS}${isAppTrigger(backend) ? backend.slice(0, -APP_TRIGGER_SUFFIX.length) : backend}`];
-    const fields = fieldsOf(action.propertyInformationList.filter((information) => information.name !== STEP_ACTION_NAME));
+    const fields = fieldsOf(action.propertyInformationList.filter((information) => ![STEP_ACTION_NAME, STEP_DEACTIVATED].includes(information.name)));
     if (!FAILURE_FIELDS.length) FAILURE_FIELDS.push(...fields.filter((field) => FAILURE_FIELD_NAMES.includes(field.key)));
     const own = withCredentialField(fields.filter((field) => !FAILURE_FIELD_NAMES.includes(field.key)).map((field) => ({ ...field, required: field.required || !!required?.includes(field.key) })), action.credentialType);
     /* The language control stays last, so what the step does comes first. */
@@ -633,7 +640,8 @@ function createStore() {
   let tasks = [];
   let credentials = [];
   let task = freshTask();
-  let selectedId = null;
+  let selectedIds = [];
+  const onlySelectedId = () => (selectedIds.length === 1 ? selectedIds[0] : null);
   let saveState = 'unsaved';
   let autoSave = localStorage.getItem(AUTO_SAVE_KEY) === 'true';
   let autoSaveTimer = null;
@@ -676,7 +684,7 @@ function createStore() {
   };
   const restore = (serialized) => {
     task = JSON.parse(serialized);
-    if (selectedId && !nodeById(task, selectedId)) selectedId = null;
+    selectedIds = selectedIds.filter((nodeId) => nodeById(task, nodeId));
   };
   const changed = (change) => { markChanged(); emit(change); };
 
@@ -856,8 +864,23 @@ function createStore() {
   };
 
   const nextNodeAfter = (step) => {
-    const edge = step.port ? edgeFrom(task, step.nodeId, step.port) : null;
+    let edge = step.port ? edgeFrom(task, step.nodeId, step.port) : null;
+    const passedOver = new Set();
+    while (edge && isDeactivated(nodeById(task, edge.to)) && !passedOver.has(edge.to)) {
+      passedOver.add(edge.to);
+      edge = edgeFrom(task, edge.to, portsOf(nodeById(task, edge.to))[0].id);
+    }
     return edge ? edge.to : null;
+  };
+
+  /* The chosen steps and the connections between them, without start tiles: a task keeps the starts it has. */
+  const stepsWithConnections = (nodeIds) => {
+    const steps = task.nodes.filter((node) => nodeIds.includes(node.id) && node.type !== 'start');
+    const stepIds = new Set(steps.map((node) => node.id));
+    return clone({
+      nodes: steps.map(({ id, type, name, config, position }) => ({ id, type, name, config, position })),
+      edges: task.edges.filter((edge) => stepIds.has(edge.from) && stepIds.has(edge.to)),
+    });
   };
 
   /* While a run is going the server reports the steps finished so far. Its final record decides the result. */
@@ -901,8 +924,10 @@ function createStore() {
   const store = {
     runner,
     get task() { return task; },
-    get selectedId() { return selectedId; },
-    get selectedNode() { return selectedId ? nodeById(task, selectedId) : null; },
+    get selectedIds() { return selectedIds; },
+    /* The one selected step. The step panel and the single-step actions work on it. */
+    get selectedId() { return onlySelectedId(); },
+    get selectedNode() { return onlySelectedId() ? nodeById(task, onlySelectedId()) : null; },
     get saveState() { return saveState; },
     get showingOlderVersion() { return showingOlderVersion; },
     get review() { return review; },
@@ -967,7 +992,14 @@ function createStore() {
     },
     /* What the steps just before this one give, by name, for $lastLog.outputVariables. */
     outputsBefore(nodeId) { return Object.assign({}, ...task.edges.filter((edge) => edge.to === nodeId).map((edge) => ACTIONS[nodeById(task, edge.from).type]?.outputs)); },
-    select(nodeId) { if (nodeId === selectedId) return; selectedId = nodeId; emit('selection'); },
+    select(nodeId) { this.selectMany(nodeId ? [nodeId] : []); },
+    selectMany(nodeIds) {
+      if (nodeIds.length === selectedIds.length && nodeIds.every((nodeId) => selectedIds.includes(nodeId))) return;
+      selectedIds = nodeIds;
+      emit('selection');
+    },
+    toggleSelected(nodeId) { this.selectMany(selectedIds.includes(nodeId) ? selectedIds.filter((selected) => selected !== nodeId) : [...selectedIds, nodeId]); },
+    selectAll() { this.selectMany(task.nodes.map((node) => node.id)); },
     updateConfig(nodeId, key, value) {
       remember(`${nodeId}.${key}`);
       const node = nodeById(task, nodeId);
@@ -999,7 +1031,7 @@ function createStore() {
       }
       this.updateConfig(tile.id, 'trigger', trigger);
       if (app) this.updateConfig(tile.id, 'app', app);
-      selectedId = null;
+      selectedIds = [];
       this.select(tile.id);
       return tile;
     },
@@ -1021,7 +1053,7 @@ function createStore() {
       if (isAppTrigger(ACTIONS[type].backend)) return this.addTrigger(APP_TRIGGER, ACTIONS[type].backend);
       remember();
       const node = createNode(`n${uniqueId()}`, type, nameWithNumber(task, ACTIONS[type].label));
-      const anchor = fromId || selectedId || lastOnMainPath(task);
+      const anchor = fromId || onlySelectedId() || lastOnMainPath(task);
       const anchorNode = nodeById(task, anchor);
       const anchorPort = port || (portsOf(anchorNode).find((candidate) => !edgeFrom(task, anchor, candidate.id)) || portsOf(anchorNode)[0]).id;
       const existing = position && !fromId ? null : edgeFrom(task, anchor, anchorPort);
@@ -1043,32 +1075,94 @@ function createStore() {
         task.nodes.push(node);
         task.edges.push({ from: anchor, port: anchorPort, to: node.id });
       }
-      selectedId = node.id;
+      selectedIds = [node.id];
       changed('structure');
       return node;
     },
-    removeNode(nodeId) {
-      const node = nodeById(task, nodeId);
-      if (!node || node === rootNode(task)) return false;
+    /* The steps around a removed step join up when it led to one step. The first start stays. */
+    removeNodes(nodeIds) {
+      const removed = nodeIds.map((nodeId) => nodeById(task, nodeId)).filter((node) => node && node !== rootNode(task));
+      if (!removed.length) return removed;
       remember();
-      const incoming = task.edges.filter((edge) => edge.to === nodeId);
-      const outgoing = task.edges.filter((edge) => edge.from === nodeId);
-      if (outgoing.length === 1) incoming.forEach((edge) => { edge.to = outgoing[0].to; });
-      task.edges = task.edges.filter((edge) => edge.to !== nodeId && edge.from !== nodeId);
-      task.nodes = task.nodes.filter((candidate) => candidate.id !== nodeId);
-      if (selectedId === nodeId) selectedId = null;
+      removed.forEach(({ id }) => {
+        const outgoing = task.edges.filter((edge) => edge.from === id);
+        if (outgoing.length === 1) task.edges.filter((edge) => edge.to === id && edge.from !== outgoing[0].to).forEach((edge) => { edge.to = outgoing[0].to; });
+        task.edges = task.edges.filter((edge) => edge.to !== id && edge.from !== id);
+      });
+      task.nodes = task.nodes.filter((node) => !removed.includes(node));
+      selectedIds = selectedIds.filter((nodeId) => nodeById(task, nodeId));
       changed('structure');
-      return true;
+      return removed;
     },
-    duplicateNode(nodeId) {
-      const source = nodeById(task, nodeId);
-      if (!source || source.type === 'start') return null;
+    /* Adds copies of steps with the connections between them, and selects the copies. Without a position they
+       land beside the steps they come from. */
+    insertSteps({ nodes, edges }, position) {
+      const steps = nodes.filter((step) => ACTIONS[step?.type] && !isEntry(step));
+      if (!steps.length) return [];
       remember();
-      const copy = { ...clone(source), id: `n${uniqueId()}`, name: nameWithNumber(task, source.name.replace(/ \d+$/, '')), position: { x: source.position.x + 28, y: source.position.y + 96 } };
-      task.nodes.push(copy);
-      selectedId = copy.id;
+      const placeOf = (step) => ({ x: Number(step.position?.x) || 0, y: Number(step.position?.y) || 0 });
+      const corner = { x: Math.min(...steps.map((step) => placeOf(step).x)), y: Math.min(...steps.map((step) => placeOf(step).y)) };
+      const moveBy = position ? { x: position.x - corner.x, y: position.y - corner.y } : { x: 0, y: 0 };
+      const landsOnTile = () => steps.some((step) => task.nodes.some((node) => node.position.x === placeOf(step).x + moveBy.x && node.position.y === placeOf(step).y + moveBy.y));
+      const height = Math.max(...steps.map((step) => placeOf(step).y)) - corner.y;
+      while (landsOnTile()) { moveBy.x += COPY_OFFSET.x; moveBy.y += height + COPY_OFFSET.y; }
+      const copies = new Map();
+      steps.forEach((step) => {
+        const copy = createNode(`n${uniqueId()}`, step.type, nameWithNumber(task, withoutNumber(String(step.name || ACTIONS[step.type].label))), clone(step.config || {}));
+        copy.position = { x: placeOf(step).x + moveBy.x, y: placeOf(step).y + moveBy.y };
+        task.nodes.push(copy);
+        copies.set(step.id, copy);
+      });
+      (edges || []).forEach((edge) => {
+        const from = copies.get(edge.from);
+        const to = copies.get(edge.to);
+        if (from && to && from !== to && portsOf(from).some((port) => port.id === edge.port) && !edgeFrom(task, from.id, edge.port)) task.edges.push({ from: from.id, port: edge.port, to: to.id });
+      });
+      selectedIds = [...copies.values()].map((copy) => copy.id);
       changed('structure');
-      return copy;
+      return [...copies.values()];
+    },
+    duplicateNodes(nodeIds) { return this.insertSteps(stepsWithConnections(nodeIds)); },
+    /* The text that Copy puts on the clipboard, or null when no step is chosen. */
+    copiedSteps(nodeIds) {
+      const steps = stepsWithConnections(nodeIds);
+      return steps.nodes.length ? JSON.stringify({ kind: COPIED_STEPS_KIND, ...steps }) : null;
+    },
+    /* Pastes text that Copy made. Any other text adds nothing. */
+    pasteSteps(text, position) {
+      let copied = null;
+      try { copied = JSON.parse(text); } catch { return []; }
+      return copied?.kind === COPIED_STEPS_KIND && Array.isArray(copied.nodes) ? this.insertSteps(copied, position) : [];
+    },
+    setDeactivated(nodeIds, deactivated) {
+      const steps = nodeIds.map((nodeId) => nodeById(task, nodeId)).filter((node) => node && node.type !== 'start');
+      if (!steps.length) return;
+      remember();
+      steps.forEach((node) => { if (deactivated) node.config[STEP_DEACTIVATED] = true; else delete node.config[STEP_DEACTIVATED]; });
+      changed('config');
+    },
+    /* Puts a step of another kind in the same place. It keeps the connections that fit, the name the person gave,
+       what happens on a failure, and whether it is deactivated. Its own settings start empty. */
+    replaceStep(nodeId, type) {
+      const replaced = nodeById(task, nodeId);
+      if (!replaced || isEntry(replaced) || isEntry({ type })) return null;
+      remember();
+      const kept = Object.fromEntries([...FAILURE_FIELD_NAMES, STEP_DEACTIVATED].filter((key) => key in replaced.config).map((key) => [key, replaced.config[key]]));
+      const hasOwnName = withoutNumber(replaced.name) !== ACTIONS[replaced.type].label;
+      const index = task.nodes.indexOf(replaced);
+      task.nodes.splice(index, 1);
+      const node = createNode(`n${uniqueId()}`, type, hasOwnName ? replaced.name : nameWithNumber(task, ACTIONS[type].label), kept);
+      node.position = replaced.position;
+      task.nodes.splice(index, 0, node);
+      const portIds = portsOf(node).map((port) => port.id);
+      task.edges = task.edges.filter((edge) => edge.from !== nodeId || portIds.includes(edge.port));
+      task.edges.forEach((edge) => {
+        if (edge.from === nodeId) edge.from = node.id;
+        if (edge.to === nodeId) edge.to = node.id;
+      });
+      selectedIds = [node.id];
+      changed('structure');
+      return node;
     },
     connect(fromId, port, toId) {
       /* A loop back to an earlier step is fine: the backend limits how often a step can run. */
@@ -1148,7 +1242,7 @@ function createStore() {
       }
       localStorage.setItem(LAST_TASK_KEY, task.name);
       savedName = task.name;
-      selectedId = null; undoStack = []; redoStack = [];
+      selectedIds = []; undoStack = []; redoStack = [];
       runner.clear();
       /* A run always uses the newest version, so an older one on screen has to be saved before it can run. */
       showingOlderVersion = !review && current?.checksum !== checksum;
@@ -1181,7 +1275,7 @@ function createStore() {
       review = null;
       task = freshTask(tasks.map((candidate) => candidate.name));
       savedName = null;
-      selectedId = null; undoStack = []; redoStack = []; runs = [];
+      selectedIds = []; undoStack = []; redoStack = []; runs = [];
       runner.clear();
       saveState = 'unsaved';
       emit('task');
@@ -1196,7 +1290,7 @@ function createStore() {
       task = imported;
       /* Importing under an existing name is how an exported version is restored. */
       savedName = task.name;
-      selectedId = null; undoStack = []; redoStack = []; runs = [];
+      selectedIds = []; undoStack = []; redoStack = []; runs = [];
       runner.clear();
       saveState = 'unsaved';
       emit('task');
@@ -1333,7 +1427,7 @@ export default async function bootEngine() {
   loadCatalogue((await request('/task/actions')).actions);
   window.DT = {
     ACTIONS, CATEGORIES, FAILURE_FIELDS, INITIALS, APP_TRIGGER, iconOf,
-    createStore, stepsMatching, portsOf, edgeFrom, nodeById, rootNode,
+    createStore, stepsMatching, portsOf, edgeFrom, nodeById, rootNode, isDeactivated,
     describeNode, summaryText, fieldVisible,
     formatDuration, formatAgo, intervalText, scheduleText,
   };

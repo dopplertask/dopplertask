@@ -256,13 +256,15 @@ export default function boot() {
     return true;
   }
 
-  /* ---------- What a preview does with this step ---------- */
+  /* ---------- What a preview does with each step ---------- */
 
   const PREVIEW_MODES = [{ value: 'held', label: 'Sends nothing' }, { value: 'sent', label: 'Is sent for real' }, { value: 'fails', label: 'Fails' }];
 
-  function previewChoices(node) {
-    if (node.type === 'start') return '';
-    return `<div class="ui-field"><label class="ui-label" for="preview-mode">When you preview the task, this step</label>${DT.ui.dropdown(PREVIEW_MODES, store.previewChoices(node.id).mode, `id="preview-mode" data-preview-choice="mode" data-preview-step="${node.id}"`)}</div>`;
+  /* The window that starts a preview lists each step with what it does in the preview. */
+  function previewChoices(task) {
+    const steps = task.nodes.filter((node) => node.type !== 'start' && !DT.isDeactivated(node));
+    if (!steps.length) return '';
+    return `<fieldset class="ui-preview-steps"><legend class="ui-label">In this preview, each step</legend>${steps.map((node) => `<div class="ui-preview-step"><span id="preview-step-${node.id}">${escapeHtml(node.name)}</span>${DT.ui.dropdown(PREVIEW_MODES, store.previewChoices(node.id).mode, `aria-labelledby="preview-step-${node.id}" data-preview-choice="mode" data-preview-step="${node.id}"`)}</div>`).join('')}</fieldset>`;
   }
 
   /* A held step got no answer. The person gives the one that the steps after it read. */
