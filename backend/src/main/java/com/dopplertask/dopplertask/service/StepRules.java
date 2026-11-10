@@ -3,6 +3,7 @@ package com.dopplertask.dopplertask.service;
 import com.dopplertask.dopplertask.domain.action.Action;
 
 import java.net.URI;
+import java.nio.file.Path;
 
 /**
  * What steps may do. An install trusts its own tasks, so by default nothing is refused. An add-on can tighten this when
@@ -21,6 +22,16 @@ public interface StepRules {
 
     /** Why a step may not call this address, or null when it may. */
     default String refusalOfAddress(URI address) {
+        return null;
+    }
+
+    /** Why a step may not read or write this file, or null when it may. */
+    default String refusalOfFile(Path file) {
+        return null;
+    }
+
+    /** What the editor adds to the description of this kind of step, or null for nothing. */
+    default String noteOn(Class<? extends Action> kind) {
         return null;
     }
 

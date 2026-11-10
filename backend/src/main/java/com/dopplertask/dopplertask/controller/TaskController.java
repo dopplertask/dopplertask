@@ -545,7 +545,9 @@ public class TaskController {
         ActionListResponseDto actionListResponseDto = new ActionListResponseDto();
         for (Action step : StepTypes.INSTANCE.all()) {
             if (StepRules.active().offers(step.getClass())) {
-                actionListResponseDto.getActions().add(new ActionInfoDto(step.getStepTypeName(), step.getStepLabel(), step.getStepIcon(), step.getDescription(),
+                String note = StepRules.active().noteOn(step.getClass());
+                String description = note == null ? step.getDescription() : step.getDescription() + ". " + note;
+                actionListResponseDto.getActions().add(new ActionInfoDto(step.getStepTypeName(), step.getStepLabel(), step.getStepIcon(), description,
                         step.getActionInfo(), step instanceof Trigger, step.getOutputs(), step.getCredentialType()));
             }
         }

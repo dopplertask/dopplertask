@@ -7,6 +7,7 @@ import com.dopplertask.dopplertask.domain.TaskExecution
 import com.dopplertask.dopplertask.domain.action.Action
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
 import com.dopplertask.dopplertask.service.BroadcastListener
+import com.dopplertask.dopplertask.service.StepRules
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import jakarta.persistence.Column
@@ -36,6 +37,7 @@ class ReadFileAction : Action() {
 
     override fun run(taskService: TaskService, execution: TaskExecution, variableExtractorUtil: VariableExtractorUtil, broadcastListener: BroadcastListener?): ActionResult {
         val path = Path.of(homeOf(variableExtractorUtil.extract(filename, execution, scriptLanguage)))
+        StepRules.active().refusalOfFile(path)?.let { return ActionResult.failure(it) }
         val bytes = try {
             Files.readAllBytes(path)
         } catch (e: IOException) {
