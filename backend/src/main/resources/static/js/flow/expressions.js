@@ -151,6 +151,14 @@ export function inWords(text, mark = (words) => words) {
   return String(text ?? '').replace(TOKEN, (match) => mark(tokenWords({ ...(readGuided(match) || { reference: match }) })));
 }
 
+/** A text where `change` gives what takes the place of each value. It gets the value as `tokensIn` gives it. */
+export function rewriteReferences(text, change) {
+  return text.replace(TOKEN, (match) => change({ text: match, ...(readGuided(match) || { reference: match }) }));
+}
+
+/** The same value read from another place. A guided change on it stays on it. */
+export const readFrom = (token, reference) => writeOperation(token.operation, reference, token.choice, { readAs: token.readAs });
+
 /** The guided changes that fit a sample of this kind. */
 export const operationsFor = (kind) => OPERATIONS.filter((operation) => operation.kinds.includes(kind));
 

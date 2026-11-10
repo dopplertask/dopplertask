@@ -250,6 +250,12 @@ A schedule that cannot start the task, such as a cron line or time zone that doe
 * name: name of another task
 * parameters: a list of parameters to pass to the other task, like `[{"parameterName": "city", "parameterValue": "$parameters.get(\"city\")"}]`
 
+The step runs the current version of the other task, so a change to that task needs no change here. The answer of the step is the answer of the last step of the other task: the next step reads it as `$lastLog.output`.
+
+The step fails when the other task fails, and gives its reason. The other task has to finish in one go: when it stops to wait for an answer, such as an approval, the step fails and that run ends.
+
+In the editor, **Move to a new task…** makes such a task from the steps chosen. One step takes their place and runs it, and each value they read from the rest of the task goes in as a parameter.
+
 ## BrowseWebAction
 Starts a browser and executes a list of UI Actions.
 ### Variables

@@ -3,16 +3,13 @@ package com.dopplertask.dopplertask.domain.action.common
 import com.dopplertask.dopplertask.domain.Preview
 import com.dopplertask.dopplertask.domain.ActionResult
 import com.dopplertask.dopplertask.domain.ExecutionParameter
-import com.dopplertask.dopplertask.domain.StatusCode
 import com.dopplertask.dopplertask.domain.TaskExecution
+import com.dopplertask.dopplertask.domain.TaskExecutionStatus
 import com.dopplertask.dopplertask.domain.action.Action
 import com.dopplertask.dopplertask.service.BroadcastListener
-import com.dopplertask.dopplertask.service.LinkedTaskNotFoundException
 import com.dopplertask.dopplertask.service.TaskRequest
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
-import com.fasterxml.jackson.annotation.JsonIgnore
-import java.io.IOException
 import java.util.function.Consumer
 import jakarta.persistence.CascadeType
 import jakarta.persistence.Column
@@ -31,10 +28,6 @@ class LinkedTaskAction : Action() {
     var name: String? = null
 
     @Column
-    @JsonIgnore
-    var checksum: String? = null
-
-    @Column
     @OneToMany(mappedBy = "linkedTaskAction", cascade = [CascadeType.ALL])
     private var parameters: List<LinkedTaskParameter> = ArrayList()
 
@@ -44,78 +37,31 @@ class LinkedTaskAction : Action() {
             variableExtractorUtil: VariableExtractorUtil,
             broadcastListener: BroadcastListener?
     ): ActionResult {
-        if (execution.depth < MAX_LINKED_TASK_DEPTH) {
-            val taskRequest = TaskRequest()
-            taskRequest.taskName = name
-            taskRequest.checksum = checksum
-            // Increase depth by one
-            taskRequest.depth = execution.depth + 1
-            // The task this step runs sends nothing either, when this run sends nothing.
-            if (Preview.isHolding()) taskRequest.preview = Preview()
-
-            val passedLinkedTaskParameters: MutableMap<String, ExecutionParameter> = mutableMapOf()
-            parameters.forEach(Consumer { linkedActionParameter: LinkedTaskParameter ->
-                try {
-                    val parameterName = variableExtractorUtil.extract(
-                            linkedActionParameter.parameterName,
-                            execution,
-                            scriptLanguage
-                    );
-                    passedLinkedTaskParameters[parameterName] = ExecutionParameter(parameterName, variableExtractorUtil.extract(linkedActionParameter.parameterValue, execution, scriptLanguage).toByteArray(), false)
-                } catch (e: IOException) {
-                    e.printStackTrace()
-                }
-            })
-            taskRequest.parameters = passedLinkedTaskParameters
-            try {
-                val taskExecution = taskService.runRequest(taskRequest)
-                if (taskExecution != null) {
-                    var standardOutput = StringBuilder()
-                    return if (taskExecution.isSuccess) {
-                        val actionResult = ActionResult()
-                        actionResult.statusCode = StatusCode.SUCCESS
-                        standardOutput = getExecutionLogsAsString(taskExecution)
-                        standardOutput.append("Successfully executed linked task [name=$name]")
-                        actionResult.output = standardOutput.toString()
-                        actionResult
-                    } else {
-                        val actionResult = ActionResult()
-                        actionResult.statusCode = StatusCode.FAILURE
-                        standardOutput.append("Linked task execution failed [name=$name]")
-                        standardOutput = getExecutionLogsAsString(taskExecution)
-                        actionResult.errorMsg = standardOutput.toString()
-                        actionResult
-                    }
-                }
-            }
-            catch (e: LinkedTaskNotFoundException) {
-                val actionResult = ActionResult()
-                actionResult.statusCode = StatusCode.FAILURE
-                actionResult.errorMsg = e.message.toString()
-                return actionResult
-            }
+        if (execution.depth >= MAX_LINKED_TASK_DEPTH) {
+            return ActionResult.failure("Tasks run each other more than $MAX_LINKED_TASK_DEPTH levels deep.")
         }
-        val actionResult = ActionResult()
-        actionResult.statusCode = StatusCode.FAILURE
-        actionResult.output = "Could not find the requested linked task [name=$name]"
-        return actionResult
-    }
-
-    /**
-     * Loop over all logs and compress into a string with new lines.
-     *
-     * @param taskExecution to extract logs from.
-     * @return a string builder containing all log messages.
-     */
-    private fun getExecutionLogsAsString(taskExecution: TaskExecution): StringBuilder {
-        val standardOutput = StringBuilder()
-        val logSize = taskExecution.logs.size;
-        for ((i, log) in taskExecution.logs.withIndex()) {
-            if (i != 0 && log.isBroadcasted && i != (logSize - 1)) {
-                standardOutput.append("[" + name + "] " + log.output + "\n")
-            }
+        val taskRequest = TaskRequest()
+        taskRequest.taskName = name
+        taskRequest.depth = execution.depth + 1
+        // The task this step runs sends nothing either, when this run sends nothing.
+        if (Preview.isHolding()) taskRequest.preview = Preview()
+        taskRequest.parameters = parameters.filter { !it.parameterName.isNullOrEmpty() }.associateTo(mutableMapOf()) { given ->
+            val value = variableExtractorUtil.extract(given.parameterValue, execution, scriptLanguage)
+            given.parameterName!! to ExecutionParameter(given.parameterName, value.toByteArray(), false)
         }
-        return standardOutput
+
+        val linkedRun = taskService.runRequest(taskRequest) ?: return ActionResult.failure("The task $name was not found.")
+        if (linkedRun.status == TaskExecutionStatus.WAITING) {
+            // Its answer would otherwise continue it alone, long after this run went on.
+            val reason = "The task $name waits for an answer. A task that another task runs has to finish in one go."
+            taskService.failRun(linkedRun.id, reason)
+            return ActionResult.failure(reason)
+        }
+        if (!linkedRun.isSuccess) {
+            return ActionResult.failure("The task $name failed: ${linkedRun.failureReason?.ifBlank { null } ?: "it was stopped"}")
+        }
+        // The answer of this step is the answer of the last step of the task, so later steps read it as their own.
+        return ActionResult().apply { output = linkedRun.steps.lastOrNull()?.output.orEmpty() }
     }
 
     override val actionInfo: MutableList<PropertyInformation>
@@ -139,7 +85,7 @@ class LinkedTaskAction : Action() {
         }
 
     override val description: String
-        get() = "Execute another task"
+        get() = "Runs another task and gives the answer of its last step"
 
     companion object {
         private const val MAX_LINKED_TASK_DEPTH = 100

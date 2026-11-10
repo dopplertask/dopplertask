@@ -1,6 +1,6 @@
 /* The task model behind the Flow UI. The step catalogue comes from /task/actions, so a new action
    appears here without UI code; this file only adds labels, icons and the task graph on top. */
-import { conditionWords, inWords } from './expressions';
+import { conditionWords, hasHandWrittenLogic, inWords, readFrom, readReference, rewriteReferences, stepReference, tokensIn } from './expressions';
 
 const CATEGORIES = [
   { id: 'starts', label: 'Starts the task' },
@@ -132,6 +132,13 @@ const layout = { columnGap: 256, rowGap: 172 };
 const CREDENTIAL_CATEGORIES = ['CREDENTIAL', 'SECRET'];
 const uniqueId = () => Math.random().toString(36).slice(2, 9);
 const clone = (value) => JSON.parse(JSON.stringify(value));
+/* The settings of a step with each text in them written anew. */
+const withTexts = (value, change) => {
+  if (typeof value === 'string') return change(value);
+  if (Array.isArray(value)) return value.map((item) => withTexts(item, change));
+  return value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).map(([key, item]) => [key, withTexts(item, change)])) : value;
+};
+const textsIn = (value) => { const texts = []; withTexts(value, (text) => texts.push(text)); return texts; };
 
 /* ---------- Catalogue ---------- */
 
@@ -883,6 +890,24 @@ function createStore() {
     });
   };
 
+  /* The chosen steps in the order they run, when they are one line that other steps enter at its first step
+     only. Each has one way out, so the line leaves from its last step only. Null for any other choice. */
+  const lineOf = (nodeIds) => {
+    const steps = task.nodes.filter((node) => nodeIds.includes(node.id));
+    if (!steps.length || steps.some((node) => isEntry(node) || portsOf(node).length !== 1)) return null;
+    const chosen = new Set(steps.map((node) => node.id));
+    const entered = task.edges.filter((edge) => chosen.has(edge.to));
+    const firstSteps = steps.filter((node) => !entered.some((edge) => edge.to === node.id && chosen.has(edge.from)));
+    if (firstSteps.length !== 1 || entered.some((edge) => !chosen.has(edge.from) && edge.to !== firstSteps[0].id)) return null;
+    const line = [firstSteps[0]];
+    for (let next = edgeFrom(task, line[0].id, portsOf(line[0])[0].id); next && chosen.has(next.to); next = edgeFrom(task, next.to, portsOf(nodeById(task, next.to))[0].id)) line.push(nodeById(task, next.to));
+    return line.length === steps.length ? line : null;
+  };
+
+  const refuseTakenName = (name) => {
+    if (tasks.some((candidate) => candidate.name === name)) throw new Error(`A task called ${name} already exists. Choose another name, or open that task to change it.`);
+  };
+
   /* While a run is going the server reports the steps finished so far. Its final record decides the result. */
   const followRun = (run) => {
     if (run.following) return;
@@ -1164,6 +1189,106 @@ function createStore() {
       changed('structure');
       return node;
     },
+    canMoveToTask(nodeIds) { return !review && !showingOlderVersion && !!lineOf(nodeIds); },
+    /* What a person has to know before the move: the values that do not pass between two tasks. */
+    moveToTaskNotes(nodeIds) {
+      const line = lineOf(nodeIds);
+      const lastStep = line.at(-1);
+      const namesOfMoved = new Set(line.map((node) => node.name));
+      const readLater = new Set();
+      const stepAfter = edgeFrom(task, lastStep.id, portsOf(lastStep)[0].id)?.to;
+      const readingByHand = [];
+      task.nodes.filter((node) => !line.includes(node)).forEach((node) => {
+        const texts = textsIn(node.config);
+        texts.flatMap(tokensIn).forEach((token) => {
+          const { source, name } = readReference(token.reference);
+          if (namesOfMoved.has(name) && source !== 'parameter' && (name !== lastStep.name || source === 'outputVariables')) readLater.add(name);
+          if (source === 'previousVariable' && node.id === stepAfter) readLater.add(lastStep.name);
+        });
+        const writtenByHand = texts.map((text) => rewriteReferences(text, () => ''));
+        if ([...namesOfMoved].some((name) => writtenByHand.some((text) => text.includes(`steps["${name}"]`)))) readingByHand.push(node);
+      });
+      const named = (nodes) => nodes.map((node) => `“${node.name}”`).join(', ');
+      const withLogic = line.filter((node) => textsIn(node.config).some(hasHandWrittenLogic));
+      const settingVariables = line.filter((node) => node.type === 'setVariable');
+      const withFiles = line.filter((node) => node.type === 'readFile' || ACTIONS[node.type].fields.some((field) => field.files && node.config[field.key]));
+      return [
+        readLater.size && `Other steps read values of ${[...readLater].map((name) => `“${name}”`).join(', ')}. Only the answer of “${lastStep.name}” comes back from the new task.`,
+        readingByHand.length && `${named(readingByHand)} reads the moved steps in logic written by hand. Point it to the new step after the move.`,
+        withLogic.length && `${named(withLogic)} has logic written by hand. Check the values it reads in the new task.`,
+        settingVariables.length && `The variables that ${named(settingVariables)} sets stay inside the new task.`,
+        withFiles.length && `A file stays in the task that reads it: ${named(withFiles)}.`,
+      ].filter(Boolean);
+    },
+    /* Makes a task of a line of steps, and puts one step in their place that runs it. Each value the steps read
+       from outside the line becomes a parameter of the new task, which the one step gives it. */
+    async moveStepsToTask(nodeIds, name) {
+      const line = lineOf(nodeIds);
+      if (name === task.name) throw new Error('The new task needs a name of its own.');
+      if (name.includes('"')) throw new Error('A task name cannot have a double quote in it.');
+      refuseTakenName(name);
+      const [firstStep, lastStep] = [line[0], line.at(-1)];
+      const namesOfMoved = new Set(line.map((node) => node.name));
+      const parameterNames = new Map();
+      /* `given` is what the step here gives the parameter: the value, or the value with its text for when it is empty. */
+      const parameterFor = (reference, given = reference) => {
+        if (!parameterNames.has(given)) {
+          const { source, name: sourceName, path } = readReference(reference);
+          const baseName = path.match(/[A-Za-z_]\w*/g)?.pop() ?? sourceName ?? source.split('.').pop();
+          let parameterName = baseName;
+          for (let number = 2; [...parameterNames.values()].includes(parameterName); number += 1) parameterName = `${baseName}_${number}`;
+          parameterNames.set(given, parameterName);
+        }
+        return `$parameters.get("${parameterNames.get(given)}")`;
+      };
+      const runsBefore = (step) => line.slice(0, line.findIndex((node) => node.id === step.id)).some((node) => !node.config[STEP_DEACTIVATED]);
+      const moved = stepsWithConnections(nodeIds);
+      moved.nodes.forEach((step) => {
+        step.config = withTexts(step.config, (text) => rewriteReferences(text, (token) => {
+          const { source, name: sourceName } = readReference(token.reference);
+          const staysInside = source.startsWith('previous') ? runsBefore(step) : namesOfMoved.has(sourceName) && source !== 'parameter';
+          if (staysInside) return token.text;
+          /* Only where the value comes from can it be missing, so its text for when it is empty stays there. */
+          return token.operation === 'default' ? parameterFor(token.reference, token.text) : readFrom(token, parameterFor(token.reference));
+        }));
+      });
+      const start = createNode('start', 'start', 'Start');
+      start.position = { x: firstStep.position.x - layout.columnGap, y: firstStep.position.y };
+      const newTask = {
+        name, description: '', active: false, nodes: [start, ...moved.nodes],
+        parameters: [...parameterNames.values()].map((parameterName) => ({ name: parameterName, defaultValue: '', description: '', required: false })),
+        edges: [{ from: start.id, port: portsOf(start)[0].id, to: firstStep.id }, ...moved.edges],
+      };
+      await request('/task', { method: 'POST', body: JSON.stringify(toBackend(newTask)) });
+      await loadTaskList();
+
+      remember();
+      const linkedStep = createNode(`n${uniqueId()}`, 'linkedTask', nameWithNumber(task, name), {
+        name, parameters: [...parameterNames].map(([given, parameterName]) => ({ parameterName, parameterValue: given })),
+      });
+      linkedStep.position = firstStep.position;
+      const linePlace = task.nodes.indexOf(firstStep);
+      task.nodes = task.nodes.filter((node) => !line.includes(node));
+      task.nodes.splice(Math.min(linePlace, task.nodes.length), 0, linkedStep);
+      const chosen = new Set(line.map((node) => node.id));
+      task.edges = task.edges.filter((edge) => !(chosen.has(edge.from) && chosen.has(edge.to)));
+      task.edges.forEach((edge) => {
+        if (edge.to === firstStep.id) edge.to = linkedStep.id;
+        if (edge.from === lastStep.id) Object.assign(edge, { from: linkedStep.id, port: portsOf(linkedStep)[0].id });
+      });
+      /* The step answers what the last moved step answered, so the steps that read that answer now read it here. */
+      task.nodes.forEach((node) => {
+        if (node === linkedStep) return;
+        node.config = withTexts(node.config, (text) => rewriteReferences(text, (token) => {
+          const { source, name: sourceName, path } = readReference(token.reference);
+          return sourceName === lastStep.name && (source === 'output' || source === 'data') ? readFrom(token, stepReference(linkedStep.name, source) + path) : token.text;
+        }));
+      });
+      selectedIds = [linkedStep.id];
+      changed('structure');
+      await store.save();
+      return linkedStep;
+    },
     connect(fromId, port, toId) {
       /* A loop back to an earlier step is fine: the backend limits how often a step can run. */
       if (fromId === toId || isEntry(nodeById(task, toId))) return false;
@@ -1198,9 +1323,7 @@ function createStore() {
     async save({ autoSaved = false } = {}) {
       clearTimeout(autoSaveTimer);
       const renamedFrom = savedName && savedName !== task.name ? savedName : null;
-      if (task.name !== savedName && tasks.some((candidate) => candidate.name === task.name)) {
-        throw new Error(`A task called ${task.name} already exists. Choose another name, or open that task to change it.`);
-      }
+      if (task.name !== savedName) refuseTakenName(task.name);
       setSaveState('saving');
       try {
         const { checksum } = await request(autoSaved ? '/task?autoSaved=true' : '/task', { method: 'POST', body: JSON.stringify(toBackend(task)) });

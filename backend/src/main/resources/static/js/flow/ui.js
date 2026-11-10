@@ -788,6 +788,19 @@ export default function boot() {
     });
   }
 
+  function openMoveToTaskDialog(store, steps) {
+    const stepIds = steps.map((node) => node.id);
+    const notes = store.moveToTaskNotes(stepIds).map((note) => `<p class="ui-note is-warn">${icon('alert')}${escapeHtml(note)}</p>`).join('');
+    const dialog = openDialog(`${dialogHeader('Move to a new task', `${countOf(steps)} become${steps.length === 1 ? 's' : ''} a task that one step here runs. Other tasks can run it too.`)}<form method="dialog" class="ui-form"><div class="ui-field"><label class="ui-label" for="move-to-task-name">Name of the new task</label><input class="ui-input" id="move-to-task-name" autocomplete="off" required><p class="ui-hint">Each value the steps read from the rest of this task goes in as a parameter.</p></div>${notes}<footer class="ui-dialog-foot"><button type="button" class="ui-button" data-dialog-close>Cancel</button><button type="submit" class="ui-button is-primary">Move</button></footer></form>`, { className: 'is-small' });
+    const nameInput = dialog.querySelector('#move-to-task-name');
+    nameInput.focus();
+    dialog.querySelector('form').addEventListener('submit', () => {
+      const name = nameInput.value.trim().replace(/\s+/g, '_');
+      store.moveStepsToTask(stepIds, name)
+        .then(() => toast(`Moved ${countOf(steps)} to ${name}`, { actionLabel: 'Open task', onAction: () => store.switchTask(name) }), (error) => toast(error.message, { tone: 'danger' }));
+    });
+  }
+
   function exportTask(store) {
     const link = document.createElement('a');
     link.href = URL.createObjectURL(new Blob([store.exportTask()], { type: 'application/json' }));
@@ -838,6 +851,7 @@ export default function boot() {
         { id: 'preview-step', label: 'Preview step', icon: 'eye', applies: !!onlyStep, run: () => handlers.testStep({ preview: true }) },
         { id: 'rename', label: 'Rename', icon: 'pen', applies: !!onlyStep, run: () => handlers.renameStep() },
         { id: 'replace', label: 'Replace…', icon: 'swap', applies: !!onlyStep, run: () => handlers.replaceStep(onlyStep.id) },
+        { id: 'move-to-task', label: 'Move to a new task…', icon: 'workflow', applies: store.canMoveToTask(stepIds), run: () => openMoveToTaskDialog(store, steps) },
       ],
       [
         { id: 'deactivate', label: allDeactivated ? 'Activate' : 'Deactivate', icon: 'power', shortcut: 'D', matches: pressed('d'), applies: steps.length > 0, run: () => store.setDeactivated(stepIds, !allDeactivated) },

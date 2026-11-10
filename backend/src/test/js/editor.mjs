@@ -2,7 +2,7 @@
 import { registerHooks } from 'node:module';
 
 const property = (name) => ({ name, displayName: name, type: 'STRING' });
-const CATALOGUE = ['StartAction', 'PrintAction', 'SetVariableAction', 'IfAction']
+const CATALOGUE = ['StartAction', 'PrintAction', 'SetVariableAction', 'IfAction', 'LinkedTaskAction']
   .map((name) => ({ name, propertyInformationList: [property('message'), property('continueOnFailure')] }));
 
 const storage = () => {
