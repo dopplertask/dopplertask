@@ -7,6 +7,7 @@ import com.dopplertask.dopplertask.domain.TaskExecution
 import com.dopplertask.dopplertask.domain.action.Action
 import com.dopplertask.dopplertask.domain.action.Action.PropertyInformation.PropertyInformationType
 import com.dopplertask.dopplertask.service.BroadcastListener
+import com.dopplertask.dopplertask.service.StepRules
 import com.dopplertask.dopplertask.service.TaskService
 import com.dopplertask.dopplertask.service.VariableExtractorUtil
 import jakarta.persistence.Column
@@ -47,6 +48,7 @@ class WriteFileAction : Action() {
 
     override fun run(taskService: TaskService, execution: TaskExecution, variableExtractorUtil: VariableExtractorUtil, broadcastListener: BroadcastListener?): ActionResult {
         val path = Path.of(ReadFileAction.homeOf(variableExtractorUtil.extract(filename, execution, scriptLanguage)))
+        StepRules.active().refusalOfFile(path)?.let { return ActionResult.failure(it) }
         val bytes = if (write == FILE) {
             val name = variableExtractorUtil.extract(file, execution, scriptLanguage)
             RunFiles.read(execution, name) ?: return ActionResult.failure("The run has no file called \"$name\". Read or download it in an earlier step.")

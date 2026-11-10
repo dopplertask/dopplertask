@@ -191,9 +191,13 @@ function loadCatalogue(actions) {
     ACTIONS[type] = { backend, label, category, icon: iconName, description: action.description, outputs: action.outputs || {}, fields: own, hidden: type === 'start' || (!!action.trigger && !isAppTrigger(backend)), trigger: !!action.trigger };
   });
 
-  ACTIONS.switch.ports = (node) => [...(node.config.switchCases || []).map((switchCase, index) => ({ id: `case:${index}`, label: switchCase.currentCase || `Case ${index + 1}` })), { id: 'default', label: 'Default' }];
-  ACTIONS.if.ports = () => [{ id: 'true', label: 'Yes' }, { id: 'false', label: 'No' }];
-  ACTIONS.loop.ports = () => [{ id: 'each', label: 'Each item' }, { id: 'done', label: 'Done' }];
+  /* An install can leave step kinds out, so each of these may be missing. */
+  const branchPorts = {
+    switch: (node) => [...(node.config.switchCases || []).map((switchCase, index) => ({ id: `case:${index}`, label: switchCase.currentCase || `Case ${index + 1}` })), { id: 'default', label: 'Default' }],
+    if: () => [{ id: 'true', label: 'Yes' }, { id: 'false', label: 'No' }],
+    loop: () => [{ id: 'each', label: 'Each item' }, { id: 'done', label: 'Done' }],
+  };
+  Object.entries(branchPorts).forEach(([type, ports]) => { if (ACTIONS[type]) ACTIONS[type].ports = ports; });
   const appTriggers = actions.filter((action) => action.trigger && isAppTrigger(action.name)).map(({ name, label }) => ({ name, label: label || name }));
   ACTIONS.start.fields = [
     { key: 'trigger', label: 'Starts', type: 'select', options: [
@@ -411,7 +415,7 @@ function withoutEmptyValues(config) {
 }
 
 function createNode(id, type, name, config) {
-  const defaults = Object.fromEntries(ACTIONS[type].fields.filter((field) => field.type === 'select').map((field) => [field.key, field.defaultValue ?? field.options[0].value]));
+  const defaults = Object.fromEntries(ACTIONS[type].fields.filter((field) => field.type === 'select').map((field) => [field.key, field.defaultValue ?? field.options[0]?.value]));
   return { id, type, name: name || ACTIONS[type].label, config: { ...(type === 'start' ? { trigger: 'manual' } : defaults), ...(type === 'script' ? { scriptLanguage: 'JAVASCRIPT' } : {}), ...(type === 'switch' ? { switchCases: [{ currentCase: 'first' }, { currentCase: 'second' }] } : {}), ...config }, position: { x: 0, y: 0 } };
 }
 

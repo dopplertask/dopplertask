@@ -9,12 +9,15 @@ import com.dopplertask.dopplertask.domain.action.Action;
 import com.dopplertask.dopplertask.domain.action.common.PrintAction;
 import com.dopplertask.dopplertask.domain.action.common.ScriptLanguage;
 import com.dopplertask.dopplertask.domain.action.connection.HttpAction;
+import com.dopplertask.dopplertask.domain.action.io.ReadFileAction;
+import com.dopplertask.dopplertask.domain.action.io.WriteFileAction;
 import com.dopplertask.dopplertask.service.CredentialCipher;
 import com.dopplertask.dopplertask.service.CredentialProblemException;
 import com.dopplertask.dopplertask.service.CredentialService;
 import com.dopplertask.dopplertask.service.CustomerScope;
 import com.dopplertask.dopplertask.service.StepRules;
 import com.dopplertask.dopplertask.service.StepRunner;
+import com.dopplertask.dopplertask.service.TaskService;
 import com.dopplertask.dopplertask.service.VariableExtractorUtil;
 import org.junit.After;
 import org.junit.Assert;
@@ -26,6 +29,8 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 
 public class CustomerHooksTest {
@@ -125,6 +130,31 @@ public class CustomerHooksTest {
         ActionResult result = new HttpAction().send("http://192.0.2.1/", "", Map.of(), null, java.time.Duration.ofSeconds(5));
         Assert.assertEquals(StatusCode.FAILURE, result.getStatusCode());
         Assert.assertEquals("Not this one: 192.0.2.1", result.getErrorMsg());
+    }
+
+    @Test
+    public void testRefusedFileIsNeitherReadNorWritten() throws IOException {
+        Path file = Files.createTempFile("refused", ".txt");
+        Files.writeString(file, "kept");
+        StepRules.use(new StepRules() {
+            @Override
+            public String refusalOfFile(Path asked) {
+                return "Not this file: " + asked.getFileName();
+            }
+        });
+        ReadFileAction read = new ReadFileAction();
+        read.setFilename(file.toString());
+        WriteFileAction write = new WriteFileAction();
+        write.setFilename(file.toString());
+        write.setContents("replaced");
+        for (Action step : List.of(read, write)) {
+            ActionResult result = step.run(Mockito.mock(TaskService.class), execution, extractor, null);
+            Assert.assertEquals(StatusCode.FAILURE, result.getStatusCode());
+            Assert.assertEquals("Not this file: " + file.getFileName(), result.getErrorMsg());
+        }
+        Assert.assertTrue(execution.getParameters().isEmpty());
+        Assert.assertEquals("kept", Files.readString(file));
+        Files.delete(file);
     }
 
     @Test
