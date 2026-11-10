@@ -175,8 +175,11 @@ export default function boot() {
     const common = `id="${inputId}" data-field="${field.key}"`;
     const label = `<label class="ui-label" for="${inputId}">${escapeHtml(field.label)}${field.required ? '' : '<span class="ui-optional">optional</span>'}</label>`;
     const hint = field.hint ? `<p class="ui-hint">${escapeHtml(field.hint)}</p>` : '';
-    const wrap = (inner) => `<div class="ui-field ${field.half ? 'is-half' : ''}">${inner}${hint}</div>`;
+    /* The value notes come last, under the words that say what the field is for. */
+    const wrap = (inner, notes = '') => `<div class="ui-field ${field.half ? 'is-half' : ''}">${inner}${hint}${notes}</div>`;
     const placeholder = `placeholder="${escapeHtml(field.placeholder || '')}"`;
+    /* Where the values of the field show as chips, and what the field gives with the example values. */
+    const valueNotes = `<div class="ui-chips" data-chips="${field.key}" hidden></div><p class="ui-preview" data-preview="${field.key}" hidden></p>`;
     switch (field.type) {
       case 'select': {
         const options = field.options.map((option) => (typeof option === 'string' ? { value: option, label: option } : option));
@@ -197,7 +200,7 @@ export default function boot() {
       case 'number': return wrap(`${label}<input class="ui-input" type="number" min="0" ${common} ${placeholder} value="${escapeHtml(fieldValue ?? '')}">`);
       case 'password': return wrap(`${label}<div class="ui-input-wrap"><input class="ui-input" type="password" autocomplete="off" ${common} ${placeholder} value="${escapeHtml(fieldValue ?? '')}"><button type="button" class="ui-input-action" data-reveal aria-label="Show value">${icon('eye')}</button></div>`);
       case 'toggle': return wrap(`<label class="ui-toggle"><input type="checkbox" ${common} ${fieldValue ? 'checked' : ''}><span class="ui-toggle-track"></span><span>${escapeHtml(field.label)}</span></label>`);
-      case 'code': return wrap(`${label}<textarea class="ui-input is-mono" rows="${Math.min(8, Math.max(3, String(fieldValue ?? '').split('\n').length + 1))}" spellcheck="false" data-variables ${common} ${placeholder}>${escapeHtml(fieldValue ?? '')}</textarea><p class="ui-hint">Type <code>$</code> to insert a parameter or earlier output.</p>`);
+      case 'code': return wrap(`${label}<textarea class="ui-input is-mono" rows="${Math.min(8, Math.max(3, String(fieldValue ?? '').split('\n').length + 1))}" spellcheck="false" data-variables ${common} ${placeholder}>${escapeHtml(fieldValue ?? '')}</textarea><p class="ui-hint">Type <code>$</code> to insert a parameter or earlier output.</p>`, node.type === 'script' ? '' : valueNotes);
       case 'expression': {
         /* Which task to run is picked from the saved ones, and a connector reads the choices of a field from its service
            when the field is entered, rather than a person typing an id from memory. */
@@ -214,7 +217,7 @@ export default function boot() {
         const addressNotes = ADDRESS_FIELDS.includes(field.key)
           ? Object.entries(ADDRESS_NOTES).map(([name, note]) => `<p class="ui-hint" data-address-note="${name}" data-for="${field.key}" hidden>${escapeHtml(note.text)}</p>`).join('')
           : '';
-        return wrap(`${label}${control}${list}${addressNotes}${field.choices ? `<p class="ui-hint" data-choices-note="${field.key}" hidden></p>` : ''}<p class="ui-preview" data-preview="${field.key}"></p>`);
+        return wrap(`${label}${control}${list}${addressNotes}${field.choices ? `<p class="ui-hint" data-choices-note="${field.key}" hidden></p>` : ''}`, valueNotes);
       }
       case 'form': {
         /* Saved values show by their key until the fields are loaded, which gives their labels and any new ones. */
@@ -259,23 +262,17 @@ export default function boot() {
     return `
       ${issues.map((issue) => `<p class="ui-note is-warn">${icon('alert')}${escapeHtml(issue.message)}</p>`).join('')}
       <div class="ui-field-grid">${visibleFields.map((field) => renderField(field, node)).join('')}</div>
+      ${DT.values.conditionBuilder(node)}
       ${node.type === 'start' && node.config.trigger === 'webhook' ? addressRow('Call this URL', webhookUrl(store.task, node), 'Works once the task is saved with its trigger on.') : ''}
       ${canFail ? `<details class="ui-disclosure" ${hasFailureSettings ? 'open' : ''}><summary>${icon('chevronRight')}If this step fails${node.config.retries ? `<span class="ui-pill">${node.config.retries} ${node.config.retries === 1 ? 'retry' : 'retries'}</span>` : ''}</summary><div class="ui-field-grid">${FAILURE_FIELDS.map((field) => renderField(field, node)).join('')}</div></details>` : ''}
+      ${DT.values.previewChoices(node)}
       ${advancedFields.length ? `<details class="ui-disclosure" ${node.config.scriptLanguage === 'JAVASCRIPT' || node.config.baseUrl ? 'open' : ''}><summary>${icon('chevronRight')}Advanced</summary><div class="ui-field-grid">${advancedFields.map((field) => renderField(field, node)).join('')}</div></details>` : ''}
       <p class="ui-backend-name">${escapeHtml(action.backend)}</p>`;
   }
 
 
-  function updatePreviews(root, store) {
-    root.querySelectorAll('[data-preview]').forEach((previewElement) => {
-      const input = root.querySelector(`[data-field="${previewElement.dataset.preview}"]`);
-      if (!input || !input.value.includes('$')) { previewElement.textContent = ''; previewElement.hidden = true; return; }
-      const lastStep = store.runs[0]?.steps.at(-1);
-      if (!lastStep) { previewElement.hidden = true; return; }
-      const resolved = DT.interpolate(input.value, lastStep.variables);
-      previewElement.hidden = false;
-      previewElement.innerHTML = `<span>Last run</span> ${escapeHtml(resolved).slice(0, 140)}`;
-    });
+  function updatePreviews(root, nodeId) {
+    DT.values.refresh(root, nodeId);
     updateAddressNotes(root);
   }
 
@@ -292,7 +289,7 @@ export default function boot() {
       const node = DT.nodeById(store.task, nodeId);
       if (!node) { root.innerHTML = ''; return; }
       root.innerHTML = renderForm(node, store);
-      updatePreviews(root, store);
+      updatePreviews(root, nodeId);
     };
     const currentNode = () => DT.nodeById(store.task, nodeId);
     const hasConditionalFields = () => ACTIONS[currentNode().type].fields.some((field) => field.showWhen);
@@ -305,7 +302,7 @@ export default function boot() {
            under the pointer, which would swallow the click that left the field. */
         if (node.config[target.dataset.field] !== newValue) store.updateConfig(nodeId, target.dataset.field, newValue);
         if (event.type === 'change' && (target.tagName === 'SELECT' || target.type === 'checkbox') && (hasConditionalFields() || target.dataset.field === 'credential')) render();
-        updatePreviews(root, store);
+        updatePreviews(root, nodeId);
         const urlElement = node.config.trigger === 'webhook' && root.querySelector('[data-address]');
         if (urlElement) {
           urlElement.textContent = webhookUrl(store.task, node);
@@ -565,7 +562,7 @@ export default function boot() {
 
   /* ---------- Task-level dialogs ---------- */
 
-  function openRunDialog(store, onRun, { onFixIssue, values } = {}) {
+  function openRunDialog(store, onRun, { onFixIssue, values, preview = false } = {}) {
     const issues = store.issues;
     if (issues.length) {
       const dialog = openDialog(`${dialogHeader(`${issues.length} ${issues.length === 1 ? 'thing needs' : 'things need'} attention before running`)}<ul class="ui-issue-list">${issues.map((issue) => `<li><button type="button" data-node="${issue.nodeId}">${icon('alert')}<span><b>${escapeHtml(DT.nodeById(store.task, issue.nodeId).name)}</b>${escapeHtml(issue.message)}</span>${icon('chevronRight')}</button></li>`).join('')}</ul>`, { className: 'is-small' });
@@ -580,10 +577,10 @@ export default function boot() {
     }
     if (!store.task.parameters.length) { onRun({}); return; }
     const lastValues = values || store.runs[0]?.parameters || {};
-    const dialog = openDialog(`${dialogHeader(`Run “${store.task.name}”`, 'Choose the values for this run.')}
+    const dialog = openDialog(`${dialogHeader(`${preview ? 'Preview' : 'Run'} “${store.task.name}”`, preview ? 'Choose the values for this preview. Nothing is sent.' : 'Choose the values for this run.')}
       <form method="dialog" class="ui-form" novalidate>
         ${store.task.parameters.map((parameter) => `<div class="ui-field"><label class="ui-label" for="run-${escapeHtml(parameter.name)}">${escapeHtml(parameter.name)}<span class="ui-optional">${parameter.required ? 'required' : 'optional'}</span></label><input class="ui-input" id="run-${escapeHtml(parameter.name)}" name="${escapeHtml(parameter.name)}" data-required="${parameter.required ? 1 : ''}" autocomplete="off" spellcheck="false" value="${escapeHtml(lastValues[parameter.name] ?? parameter.defaultValue ?? '')}">${parameter.description ? `<p class="ui-hint">${escapeHtml(parameter.description)}</p>` : ''}</div>`).join('')}
-        <footer class="ui-dialog-foot"><button type="button" class="ui-button" data-dialog-close>Cancel</button><button type="submit" class="ui-button is-primary">${icon('play')}Run ${kbd(`${modKey}↵`)}</button></footer>
+        <footer class="ui-dialog-foot"><button type="button" class="ui-button" data-dialog-close>Cancel</button><button type="submit" class="ui-button is-primary">${icon(preview ? 'eye' : 'play')}${preview ? 'Preview' : 'Run'} ${kbd(`${modKey}↵`)}</button></footer>
       </form>`, { className: 'is-small' });
     const form = dialog.querySelector('form');
     const submit = (event) => {
@@ -846,6 +843,8 @@ export default function boot() {
     if (!step) return '<p class="ui-empty">This step did not run.</p>';
     return `
       ${step.error ? `<p class="ui-note is-danger">${icon('alert')}${escapeHtml(step.error)}</p>` : ''}
+      ${(step.missingValues || []).map((note) => `<p class="ui-note is-warn">${icon('alert')}${escapeHtml(note)}</p>`).join('')}
+      ${step.held ? `<div class="ui-result is-held"><div class="ui-result-head"><span class="ui-label">What this step would send</span><span class="ui-pill">Not sent</span></div><pre>${escapeHtml(readableOutput(step.held))}</pre></div>` : ''}
       ${step.output ? `<div class="ui-result"><div class="ui-result-head"><span class="ui-label">Output</span>${navigator.clipboard ? `<button type="button" class="ui-link-button" data-copy-output>${icon('copy')}Copy</button>` : ''}</div><pre>${escapeHtml(readableOutput(step.output))}</pre></div>` : ''}`;
   }
 

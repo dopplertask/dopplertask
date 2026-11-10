@@ -22,6 +22,8 @@ import java.io.IOException
 @Table(name = "PrometheusAction")
 @DiscriminatorValue("prometheus_action")
 class PrometheusAction : Action() {
+    override val runsInPreview get() = true
+
     @Column
     var siteUrl: String? = null
 

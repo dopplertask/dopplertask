@@ -1,5 +1,7 @@
 /* The task model behind the Flow UI. The step catalogue comes from /task/actions, so a new action
    appears here without UI code; this file only adds labels, icons and the task graph on top. */
+import { conditionWords, inWords } from './expressions';
+
 const CATEGORIES = [
   { id: 'starts', label: 'Starts the task' },
   { id: 'logic', label: 'Logic' },
@@ -293,20 +295,15 @@ function layoutTask(task) {
 
 /* ---------- Human descriptions ---------- */
 
+/* A condition or a value in words. One the editor wrote reads as it was built, and any other keeps its own signs. */
 function readableExpression(text) {
-  return String(text ?? '')
-    .replace(/\$parameters\.get\("([^"]+)"\)/g, '$1')
-    .replace(/\$lastLog\.outputVariables\.(\w+)/g, 'previous $1')
-    .replace(/\$lastLog\.output/g, 'previous output')
-    .replace(/\s*==\s*"?([^"]*)"?$/, ' is $1')
-    .replace(/\s*!=\s*"?([^"]*)"?$/, ' is not $1');
+  return conditionWords(text) || inWords(text)
+    .replace(/\s*==\s*["']?([^"']*)["']?$/, ' is $1')
+    .replace(/\s*!=\s*["']?([^"']*)["']?$/, ' is not $1');
 }
 
-/* Keeps literal text readable while showing where a parameter lands: /etc/app/{env}.yml */
-const inlineVariables = (text) => String(text ?? '')
-  .replace(/\$parameters\.get\("([^"]+)"\)/g, '{$1}')
-  .replace(/\$lastLog\.outputVariables\.(\w+)/g, '{previous $1}')
-  .replace(/\$lastLog\.output/g, '{previous output}');
+/* Keeps literal text readable while showing where a value lands: /etc/app/{env}.yml */
+const inlineVariables = (text) => inWords(text, (words) => `{${words}}`);
 
 const firstLine = (text) => String(text ?? '').split('\n')[0];
 
@@ -389,14 +386,6 @@ function findIssues(task) {
     if (node.type === 'start' && node !== rootNode(task) && !triggerBackend(node.config)) issues.push({ nodeId: node.id, field: 'trigger', message: 'Choose what starts the task here. Running by hand starts at the first start' });
   });
   return issues;
-}
-
-function interpolate(text, variables) {
-  return String(text ?? '')
-    .replace(/\$parameters\.get\("([^"]+)"\)/g, (match, name) => variables.parameters[name] ?? '')
-    .replace(/\$lastLog\.outputVariables\.(\w+)/g, (match, name) => variables.lastOutputVariables?.[name] ?? '')
-    .replace(/\$lastLog\.output/g, variables.lastOutput ?? '')
-    .replace(/\$executionId/g, variables.executionId);
 }
 
 /* ---------- The saved task format ---------- */
@@ -693,6 +682,73 @@ function createStore() {
 
   const runner = createRunner((kind) => emit(kind === 'tick' ? 'tick' : 'run'));
 
+  /* ---------- Example values: what each step gave the last time it ran or was tested ---------- */
+
+  /* What a step gave when it was tested on its own, by step. A run that starts replaces them. */
+  let tested = new Map();
+
+  const earlierNodes = (nodeId) => {
+    const earlier = new Set();
+    const visit = (id) => task.edges.filter((edge) => edge.to === id).forEach((edge) => { if (!earlier.has(edge.from)) { earlier.add(edge.from); visit(edge.from); } });
+    visit(nodeId);
+    return [...earlier].map((id) => nodeById(task, id));
+  };
+
+  const latestRecord = (nodeId, fits = () => true) => {
+    for (const run of [runner.run, ...runs].filter(Boolean)) {
+      const step = run.steps.findLast((candidate) => candidate.nodeId === nodeId && candidate.status !== 'failed' && fits(candidate));
+      if (step) return step;
+    }
+    return null;
+  };
+
+  const sampleOf = (nodeId) => tested.get(nodeId) || latestRecord(nodeId);
+
+  /* The loop whose pass this step is in. Inside two loops the inner one counts, as it does in a run. */
+  const loopAround = (nodeId) => task.nodes.filter((node) => node.type === 'loop' && node.id !== nodeId)
+    .map((loop) => ({ loop, pass: reachableIds(task, task.edges.filter((edge) => edge.from === loop.id && edge.port === 'each').map((edge) => edge.to), new Set([loop.id])) }))
+    .filter(({ pass }) => pass.has(nodeId))
+    .sort((first, second) => first.pass.size - second.pass.size)[0]?.loop || null;
+
+  /* The latest pass of the loop around this step: its item, where the item is in the list, and how many the list has. */
+  const loopPassSample = (nodeId) => {
+    const loop = loopAround(nodeId);
+    return (loop && latestRecord(loop.id, (step) => step.outputVariables.item !== undefined)?.outputVariables) || null;
+  };
+
+  const loopItemSample = (nodeId) => loopPassSample(nodeId)?.item ?? null;
+
+  /* What the server needs to read values of earlier steps and of the current item, when a step runs on its own. */
+  const examplesBefore = (nodeId) => ({
+    steps: Object.fromEntries(earlierNodes(nodeId).map((node) => [node.name, sampleOf(node.id)]).filter(([, sample]) => sample)
+      .map(([name, sample]) => [name, { output: sample.output, outputVariables: sample.outputVariables }])),
+    loopItem: loopPassSample(nodeId)?.item,
+    loopIndex: loopPassSample(nodeId)?.index,
+    loopCount: loopPassSample(nodeId)?.count,
+  });
+
+  /* ---------- Preview choices: kept in this browser, by task and step ---------- */
+
+  const previewKey = () => `preview:${task.name}`;
+  const allPreviewChoices = () => JSON.parse(localStorage.getItem(previewKey()) || '{}');
+
+  /* The server knows a step by its first port, which is the saved one until the task is saved from this editor. */
+  const previewRequest = () => {
+    const choices = { sentForReal: [], madeToFail: [], exampleAnswers: {} };
+    Object.entries(allPreviewChoices()).forEach(([nodeId, choice]) => {
+      const node = nodeById(task, nodeId);
+      if (!node) return;
+      [...new Set([node.savedPort, portId(node.id, INPUT_PORT)])].filter(Boolean).forEach((port) => {
+        if (choice.sentForReal) choices.sentForReal.push(port);
+        if (choice.madeToFail) choices.madeToFail.push(port);
+        if (choice.exampleAnswer) choices.exampleAnswers[port] = choice.exampleAnswer;
+      });
+    });
+    return choices;
+  };
+
+  const testOnServer = (action, values, nodeId, preview) => request('/task/action/test', { method: 'POST', body: JSON.stringify({ action, parameters: values.parameters, lastOutput: values.lastOutput, lastOutputVariables: values.lastOutputVariables, ...examplesBefore(nodeId), preview }) });
+
   const loadCredentials = async () => {
     credentials = await request('/credentials');
     emit('tasks');
@@ -707,7 +763,7 @@ function createStore() {
   const runListItem = (execution) => ({
     id: execution.executionId, status: RUN_STATUSES[execution.status] || 'running', taskName: execution.taskName,
     startedByAgent: execution.startedByAgent, startedAt: new Date(execution.startDate).getTime(), durationMs: execution.endDate ? new Date(execution.endDate) - new Date(execution.startDate) : 0,
-    parameters: {}, steps: [], complete: false,
+    parameters: {}, steps: [], complete: false, preview: !!execution.preview,
   });
 
   /* A schedule can leave many thousands of runs, and only the latest of this task are shown. */
@@ -764,7 +820,7 @@ function createStore() {
       status: failed ? (node.config.continueOnFailure ? 'warning' : 'failed') : 'success',
       output: failed && !raw.error ? '' : output, error: failed ? raw.error || output || 'This step failed.' : null,
       port: failed && !node.config.continueOnFailure ? null : choosePort(node, output),
-      outputVariables: raw.outputVariables || {},
+      outputVariables: raw.outputVariables || {}, held: raw.held, missingValues: raw.missingValues || [],
       variables: { parameters, lastOutput: previous?.output || '', lastOutputVariables: previous?.outputVariables || {}, executionId },
     };
   };
@@ -783,6 +839,7 @@ function createStore() {
 
   const applyExecution = (run, execution) => {
     run.status = RUN_STATUSES[execution.status] || 'running';
+    run.preview = !!execution.preview;
     run.parameters = execution.parameters || run.parameters;
     run.steps = stepsOf(execution.steps || [], run.parameters, run.id);
     run.logLines = execution.output || [];
@@ -885,11 +942,28 @@ function createStore() {
 
     /* The files the run keeps before this step: what each earlier Read file keeps, by the name later steps choose it by. */
     filesBefore(nodeId) {
-      const earlier = new Set();
-      const visit = (id) => task.edges.filter((edge) => edge.to === id).forEach((edge) => { if (!earlier.has(edge.from)) { earlier.add(edge.from); visit(edge.from); } });
-      visit(nodeId);
-      return [...earlier].map((id) => nodeById(task, id)).filter((node) => node.type === 'readFile' && node.config.filename)
+      return earlierNodes(nodeId).filter((node) => node.type === 'readFile' && node.config.filename)
         .map((node) => node.config.keepAs || node.config.filename.split(/[\\/]/).pop());
+    },
+    /* What this step would see: the values just before it in the run on screen, or else in the latest run that reached it. */
+    valuesBefore(nodeId) {
+      const shown = runner.run || runs[0];
+      for (const run of [shown, ...runs].filter(Boolean)) {
+        const step = run.steps.findLast((candidate) => candidate.nodeId === nodeId);
+        if (step) return step.variables;
+      }
+      return { parameters: { ...this.defaults, ...shown?.parameters }, lastOutput: '', lastOutputVariables: {}, executionId: shown?.id || '' };
+    },
+    /* The steps a run reaches before this one, each with what it gave the last time, for the values a person can click. */
+    stepsBefore(nodeId) { return earlierNodes(nodeId).filter((node) => node.type !== 'start').map((node) => ({ node, sample: sampleOf(node.id) })); },
+    loopAround,
+    loopItemSample,
+    previewChoices(nodeId) { return allPreviewChoices()[nodeId] || {}; },
+    setPreviewChoice(nodeId, key, value) {
+      const all = allPreviewChoices();
+      all[nodeId] = { ...all[nodeId], [key]: value };
+      localStorage.setItem(previewKey(), JSON.stringify(all));
+      emit('preview');
     },
     /* What the steps just before this one give, by name, for $lastLog.outputVariables. */
     outputsBefore(nodeId) { return Object.assign({}, ...task.edges.filter((edge) => edge.to === nodeId).map((edge) => ACTIONS[nodeById(task, edge.from).type]?.outputs)); },
@@ -1145,12 +1219,14 @@ function createStore() {
       if (tasks.some((candidate) => candidate.name === name)) await store.switchTask(name);
       else store.newTask();
     },
-    async startRun(parameterValues, { resumeFrom } = {}) {
+    /* A preview goes through every step with real values and holds what a step would send. One that continues a preview is one too. */
+    async startRun(parameterValues, { resumeFrom, preview = !!resumeFrom?.preview } = {}) {
       if (review) throw new Error('This is a proposal. Approve or reject it before running.');
       if (saveState !== 'saved') await store.save();
-      const { id } = await request('/schedule/task', { method: 'POST', body: JSON.stringify({ taskName: task.name, parameters: parameterValues, resumeFromExecutionId: resumeFrom?.id }) });
+      const { id } = await request('/schedule/task', { method: 'POST', body: JSON.stringify({ taskName: task.name, parameters: parameterValues, resumeFromExecutionId: resumeFrom?.id, preview: preview ? previewRequest() : undefined }) });
       const finishedSteps = resumeFrom ? resumeFrom.steps.slice(0, -1) : [];
-      const run = { id: String(id), status: 'running', live: true, parameters: parameterValues, startedAt: Date.now(), durationMs: finishedSteps.reduce((total, step) => total + step.durationMs, 0), steps: [...finishedSteps], complete: false, nextNodeId: resumeFrom ? resumeFrom.steps.at(-1).nodeId : rootNode(task).id };
+      tested = new Map();
+      const run = { id: String(id), preview, status: 'running', live: true, parameters: parameterValues, startedAt: Date.now(), durationMs: finishedSteps.reduce((total, step) => total + step.durationMs, 0), steps: [...finishedSteps], complete: false, nextNodeId: resumeFrom ? resumeFrom.steps.at(-1).nodeId : rootNode(task).id };
       runs = [run, ...runs];
       runner.load(run, { atEnd: true });
       followRun(run);
@@ -1172,14 +1248,26 @@ function createStore() {
       await request(`/execution/${run.id}/stop`, { method: 'POST' });
       if (!run.live) followRun(run);
     },
-    /* Runs one step on its own with the values given, without touching the run history. */
-    async testStep(nodeId, { parameters, lastOutput, lastOutputVariables }) {
+    /* Runs one step on its own with the values given, without touching the run history. In a preview the step
+       holds what it would send. What it gives becomes the example the steps after it read. */
+    async testStep(nodeId, values, { preview = false } = {}) {
       const node = nodeById(task, nodeId);
-      const action = { '@type': ACTIONS[node.type].backend, ...withoutEmptyValues(node.config), ports: [] };
       const started = performance.now();
-      const result = await request('/task/action/test', { method: 'POST', body: JSON.stringify({ action, parameters, lastOutput, lastOutputVariables }) });
+      const result = await testOnServer({ '@type': ACTIONS[node.type].backend, ...withoutEmptyValues(node.config), ports: [] }, values, nodeId, preview);
       const failed = result.statusCode === 'FAILURE';
-      return { nodeId, status: failed ? 'failed' : 'success', output: failed && !result.errorMsg ? '' : result.output, error: failed ? result.errorMsg || result.output || 'This step failed.' : null, durationMs: performance.now() - started };
+      const step = { nodeId, preview, status: failed ? 'failed' : 'success', output: failed && !result.errorMsg ? '' : result.output, error: failed ? result.errorMsg || result.output || 'This step failed.' : null, outputVariables: result.outputVariables || {}, held: result.held, missingValues: result.missingValues || [], durationMs: performance.now() - started };
+      if (!failed) { tested.set(nodeId, step); emit('run'); }
+      return step;
+    },
+    /* What a text or a condition of this step gives with the example values, worked out by the server that runs the
+       task, so a preview and a run agree. Nothing is sent. */
+    async previewField(nodeId, text, values, { asCondition = false } = {}) {
+      const { scriptLanguage } = nodeById(task, nodeId).config;
+      const action = asCondition ? { '@type': 'IfAction', condition: text } : { '@type': 'PrintAction', message: text };
+      const result = await testOnServer({ ...action, scriptLanguage, ports: [] }, values, nodeId, true);
+      const problem = result.statusCode === 'FAILURE' ? result.errorMsg || result.output : null;
+      const isEmpty = problem === 'No output';
+      return { text: problem ? '' : result.output, error: isEmpty ? null : problem, missingValues: result.missingValues || [] };
     },
   };
   return store;
@@ -1245,7 +1333,7 @@ export default async function bootEngine() {
   window.DT = {
     ACTIONS, CATEGORIES, FAILURE_FIELDS, INITIALS, APP_TRIGGER, iconOf,
     createStore, stepsMatching, portsOf, edgeFrom, nodeById, rootNode,
-    describeNode, summaryText, fieldVisible, interpolate,
+    describeNode, summaryText, fieldVisible,
     formatDuration, formatAgo, intervalText, scheduleText,
   };
 }

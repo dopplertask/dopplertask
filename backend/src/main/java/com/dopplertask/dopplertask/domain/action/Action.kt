@@ -249,6 +249,29 @@ abstract class Action {
     open val stepTypeName: String
         get() = javaClass.simpleName
 
+    /** The id of the step's first port, which is how clients and the record of a run name the step. */
+    @get:JsonIgnore
+    val portId: String?
+        get() = ports?.firstOrNull()?.externalId
+
+    /**
+     * Whether a preview runs this step. A step that says yes only reads, or reaches outside through web requests
+     * alone, which a preview holds by itself. Every other step is shown and not run.
+     */
+    @get:JsonIgnore
+    open val runsInPreview: Boolean
+        get() = false
+
+    /** The step's settings with their values filled in, for a preview that shows the step and does not run it. */
+    fun filledSettings(variableExtractorUtil: VariableExtractorUtil, execution: TaskExecution): String {
+        val step = BeanWrapperImpl(this)
+        return actionInfo.filter { it.category == PropertyInformation.PropertyInformationCategory.PROPERTY && step.isReadableProperty(it.name) }
+            .mapNotNull { setting ->
+                (step.getPropertyValue(setting.name) as? String)?.takeIf { it.isNotBlank() }
+                    ?.let { written -> "${setting.displayName}: ${variableExtractorUtil.extract(written, execution, scriptLanguage)}" }
+            }.joinToString("\n")
+    }
+
     /** Takes what the step's credential holds, only while it runs. A step reads them as its own fields. */
     open fun useCredentialValues(values: Map<String, String>) {
         BeanWrapperImpl(this).setPropertyValues(values)

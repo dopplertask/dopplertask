@@ -92,6 +92,8 @@ public class Application {
         velocityEngine.setProperty(RuntimeConstants.RESOURCE_LOADERS, "string");
         velocityEngine.setProperty("resource.loader.string.class", StringResourceLoader.class.getName());
         velocityEngine.setProperty(RuntimeConstants.MAX_NUMBER_LOOPS, loopLimit);
+        // A field that is there and empty is told to the person in the same way as a field that is not there.
+        velocityEngine.setProperty(RuntimeConstants.EVENTHANDLER_INVALIDREFERENCES_NULL, true);
         velocityEngine.init();
         return velocityEngine;
     }

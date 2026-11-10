@@ -23,6 +23,8 @@ import jakarta.persistence.Transient
 @Table(name = "ClaudeAction")
 @DiscriminatorValue("claude_action")
 class ClaudeAction : Action() {
+    override val runsInPreview get() = true
+
     @Column
     var baseUrl: String? = "https://api.anthropic.com"
 

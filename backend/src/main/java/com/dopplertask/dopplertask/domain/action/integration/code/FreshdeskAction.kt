@@ -23,6 +23,8 @@ import java.util.Base64
 @Table(name = "FreshdeskAction")
 @DiscriminatorValue("freshdesk_action")
 class FreshdeskAction : Action() {
+    override val runsInPreview get() = true
+
     @Column
     var siteUrl: String? = null
 

@@ -22,6 +22,8 @@ import java.io.IOException
 @Table(name = "ClickUpAction")
 @DiscriminatorValue("clickup_action")
 class ClickUpAction : Action() {
+    override val runsInPreview get() = true
+
     @Column
     var baseUrl: String? = "https://api.clickup.com"
 

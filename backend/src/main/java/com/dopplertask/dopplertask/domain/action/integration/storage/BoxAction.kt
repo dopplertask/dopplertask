@@ -21,6 +21,8 @@ import java.io.IOException
 @Table(name = "BoxAction")
 @DiscriminatorValue("box_action")
 class BoxAction : Action() {
+    override val runsInPreview get() = true
+
     @Column
     var baseUrl: String? = "https://api.box.com"
 

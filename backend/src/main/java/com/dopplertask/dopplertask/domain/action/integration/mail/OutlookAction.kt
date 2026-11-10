@@ -24,6 +24,8 @@ import java.io.IOException
 @Table(name = "OutlookAction")
 @DiscriminatorValue("outlook_action")
 class OutlookAction : Action() {
+    override val runsInPreview get() = true
+
     @Transient
     var tenantId: String? = null
 

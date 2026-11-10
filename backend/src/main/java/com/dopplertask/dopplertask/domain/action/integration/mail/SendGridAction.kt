@@ -22,6 +22,8 @@ import java.io.IOException
 @Table(name = "SendGridAction")
 @DiscriminatorValue("sendgrid_action")
 class SendGridAction : Action() {
+    override val runsInPreview get() = true
+
     @Column
     var baseUrl: String? = "https://api.sendgrid.com"
 

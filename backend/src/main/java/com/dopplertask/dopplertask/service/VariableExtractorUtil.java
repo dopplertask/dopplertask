@@ -1,6 +1,7 @@
 package com.dopplertask.dopplertask.service;
 
 import com.dopplertask.dopplertask.domain.ActionResult;
+import com.dopplertask.dopplertask.domain.Preview;
 import com.dopplertask.dopplertask.domain.TaskExecution;
 import com.dopplertask.dopplertask.domain.action.common.LoopState;
 import com.dopplertask.dopplertask.domain.action.common.ScriptLanguage;
@@ -55,6 +56,8 @@ public class VariableExtractorUtil {
             context.put("parameters", execution.getParameters());
             context.put("executionId", execution.getId());
             context.put("logs", execution.getLogs());
+            context.put("steps", execution.getStepOutputs());
+            MissingValues.noteOn(context, execution, fieldValue);
 
             if (extraTools != null && extraTools.size() > 0) {
                 extraTools.forEach(context::put);
@@ -114,7 +117,8 @@ public class VariableExtractorUtil {
     private Value extractJavascript(String fieldValue, TaskExecution execution, ActionResult result, Map<String, Object> extraTools) throws IOException {
         if (fieldValue != null) {
 
-            if (StepRules.active().scriptsAreRestricted()) {
+            // A script with the whole machine in reach could send something, which a preview promises not to do.
+            if (StepRules.active().scriptsAreRestricted() || Preview.isHolding()) {
                 return evaluateRestricted(fieldValue, execution, result);
             }
 
@@ -140,6 +144,7 @@ public class VariableExtractorUtil {
             }
 
             bindLoops(context, execution);
+            bindSteps(context, execution);
 
             // Evaluate the original field
             return context.eval(Source.newBuilder("js", fieldValue, "src.js").build());
@@ -183,6 +188,7 @@ public class VariableExtractorUtil {
             context.getBindings("js").putMember("result", plainLog(result.getOutput(), result.getOutputVariables()));
         }
         bindLoops(context, execution);
+        bindSteps(context, execution);
         return context.eval(Source.newBuilder("js", fieldValue, "src.js").build());
     }
 
@@ -201,6 +207,11 @@ public class VariableExtractorUtil {
         Value parse = context.eval("js", "JSON.parse");
         context.getBindings("js").putMember("loop", parse.execute(JsonApi.INSTANCE.getMapper().writeValueAsString(innermost.variables())));
         context.getBindings("js").putMember("loops", parse.execute(JsonApi.INSTANCE.getMapper().writeValueAsString(loopsByName(execution))));
+    }
+
+    /** Scripts read an earlier step in the same way as Velocity does: steps["Get order"].data.customer.email. */
+    private static void bindSteps(Context context, TaskExecution execution) {
+        context.getBindings("js").putMember("steps", context.eval("js", "JSON.parse").execute(JsonApi.INSTANCE.getMapper().writeValueAsString(execution.getStepOutputs())));
     }
 
     private static ProxyObject plainLog(String output, Map<String, ?> variables) {

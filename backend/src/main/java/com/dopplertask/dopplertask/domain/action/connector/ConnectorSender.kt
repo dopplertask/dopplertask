@@ -1,6 +1,7 @@
 package com.dopplertask.dopplertask.domain.action.connector
 
 import com.dopplertask.dopplertask.domain.ActionResult
+import com.dopplertask.dopplertask.domain.Preview
 import com.dopplertask.dopplertask.domain.StatusCode
 import com.dopplertask.dopplertask.domain.action.Action
 import com.dopplertask.dopplertask.domain.action.integration.JsonApi
@@ -28,7 +29,7 @@ class ConnectorSender(private val step: Action, private val connector: Connector
         val opening = connector.credential?.session ?: return
         if (Connectors.credentialFieldsOf(opening.request).any { credential[it].isNullOrBlank() }) return
         val signIn = ConnectorOperation().also { it.request = opening.request }
-        val answer = send(ConnectorRequests.build(connector, signIn, values + credential.mapKeys { Connectors.CREDENTIAL + it.key }, credential))
+        val answer = Preview.sendingForReal { send(ConnectorRequests.build(connector, signIn, values + credential.mapKeys { Connectors.CREDENTIAL + it.key }, credential)) }
         require(answer.statusCode == StatusCode.SUCCESS) { "${connector.label} did not sign in: ${answer.errorMsg}" }
         session = JsonPaths.read(answerOf(answer), opening.token)?.asText()?.takeIf { it.isNotBlank() }
             ?: throw IllegalArgumentException("${connector.label} signed in, but gave no token at ${opening.token}.")

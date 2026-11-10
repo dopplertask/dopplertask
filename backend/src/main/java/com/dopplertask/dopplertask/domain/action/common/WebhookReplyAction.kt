@@ -24,6 +24,8 @@ import jakarta.persistence.Table
 @Table(name = "WebhookReplyAction")
 @DiscriminatorValue("webhook_reply_action")
 class WebhookReplyAction : Action() {
+    override val runsInPreview get() = true
+
 
     /** TEXT, JSON, LAST_STEP, NO_DATA or REDIRECT. */
     @Column

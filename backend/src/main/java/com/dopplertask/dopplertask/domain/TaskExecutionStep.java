@@ -5,6 +5,7 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
@@ -61,6 +62,14 @@ public class TaskExecutionStep {
     @Column
     private long durationMs;
 
+    // In a preview: what the step would have sent or done.
+    @Lob
+    private String held;
+
+    // Values the step's settings asked for that nothing gave, as a JSON list.
+    @Lob
+    private String missingValues;
+
     public TaskExecutionStep() {
     }
 
@@ -72,6 +81,8 @@ public class TaskExecutionStep {
         this.output = result.getOutput();
         this.error = result.getErrorMsg();
         this.durationMs = durationMs;
+        this.held = result.getHeld();
+        this.missingValues = result.getMissingValues().isEmpty() ? null : MAPPER.writeValueAsString(result.getMissingValues());
     }
 
     /**
@@ -112,6 +123,8 @@ public class TaskExecutionStep {
         copy.error = error;
         copy.outputVariables = outputVariables;
         copy.durationMs = durationMs;
+        copy.held = held;
+        copy.missingValues = missingValues;
         return copy;
     }
 
@@ -137,5 +150,14 @@ public class TaskExecutionStep {
 
     public long getDurationMs() {
         return durationMs;
+    }
+
+    public String getHeld() {
+        return held;
+    }
+
+    public List<String> getMissingValues() {
+        return missingValues == null ? List.of() : MAPPER.readValue(missingValues, new TypeReference<>() {
+        });
     }
 }

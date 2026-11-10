@@ -40,6 +40,11 @@ import java.util.Map;
 @DiscriminatorValue("jenkins_action")
 public class JenkinsAction extends Action {
 
+    @Override
+    public boolean getRunsInPreview() {
+        return true;
+    }
+
     // Credentials
     @Transient
     private String username;

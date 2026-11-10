@@ -22,6 +22,8 @@ import java.io.IOException
 @Table(name = "OneDriveAction")
 @DiscriminatorValue("onedrive_action")
 class OneDriveAction : Action() {
+    override val runsInPreview get() = true
+
     @Transient
     var tenantId: String? = null
 

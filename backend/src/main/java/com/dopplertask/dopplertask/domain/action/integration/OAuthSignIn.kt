@@ -1,6 +1,7 @@
 package com.dopplertask.dopplertask.domain.action.integration
 
 import com.dopplertask.dopplertask.domain.ActionResult
+import com.dopplertask.dopplertask.domain.Preview
 import com.dopplertask.dopplertask.domain.StatusCode
 import com.dopplertask.dopplertask.domain.action.Action
 import com.dopplertask.dopplertask.domain.action.connector.Connectors
@@ -152,7 +153,7 @@ object OAuthSignIn {
             form["client_id"] = clientId
             if (clientSecret.isNotBlank()) form["client_secret"] = clientSecret
         }
-        return JsonApi.callForm(service, tokenUrl, headers, form)
+        return Preview.sendingForReal { JsonApi.callForm(service, tokenUrl, headers, form) }
     }
 
     fun valuesOf(step: Action): Map<String, String?> = mapOf(

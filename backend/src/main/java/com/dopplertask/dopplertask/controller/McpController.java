@@ -1,5 +1,6 @@
 package com.dopplertask.dopplertask.controller;
 
+import com.dopplertask.dopplertask.domain.Preview;
 import com.dopplertask.dopplertask.dto.TaskRequestDTO;
 import com.dopplertask.dopplertask.filter.AccessFilter;
 import com.dopplertask.dopplertask.service.CredentialProblemException;
@@ -43,9 +44,9 @@ public class McpController {
             + "An HTTP status of 400 or above fails the step: to branch on it, set continueOnFailure to true on that step and read the status in the next one. "
             + "$result is only available in failOn. An unknown variable is empty rather than an error, so read the warnings from propose_task.";
 
-    private static final List<String> OPTIONAL_ARGUMENTS = List.of("parameters", "resumeFromExecutionId", "checksum");
+    private static final List<String> OPTIONAL_ARGUMENTS = List.of("parameters", "resumeFromExecutionId", "checksum", "preview");
     private static final Pattern VELOCITY_VARIABLE = Pattern.compile("\\$!?\\{?([a-zA-Z_]\\w*)");
-    private static final Set<String> RUN_VARIABLES = Set.of("parameters", "lastLog", "logs", "executionId");
+    private static final Set<String> RUN_VARIABLES = Set.of("parameters", "lastLog", "logs", "executionId", "steps", "loop", "loops");
     // In these, $HOME and the like belong to the shell or the script.
     private static final Set<String> FIELDS_WITH_THEIR_OWN_VARIABLES = Set.of("command", "script");
 
@@ -105,8 +106,9 @@ public class McpController {
         tools.add(tool("propose_task", "Save a new task, or a change to one, as a proposal for a person to approve. The task has a name without spaces, active set to false, "
                 + "parameters (a list), actions and connections. Actions have @type, their settings and ports, where a port is {\"externalId\": \"any-id\", \"portType\": \"INPUT\" or \"OUTPUT\"}. A parameter is {\"name\": \"...\", \"required\": false}. One action must be a StartAction with one OUTPUT port, and other actions have one INPUT port and an OUTPUT port for what follows. "
                 + "A connection joins them: {\"source\": {\"externalId\": \"...\"}, \"target\": {\"externalId\": \"...\"}}. An IfAction has two OUTPUT ports, first for true. A SwitchAction has value and switchCases: [{\"currentCase\": \"...\"}], with one OUTPUT port per case and then one for the default. A LoopAction has two OUTPUT ports, first for each item and then for Done, and a pass ends where its steps end, reading $loop.item. A Webhook with responseMode replyStep answers with what a WebhookReplyAction sends. The answer lists warnings to fix.", Map.of("task", "object")));
-        tools.add(tool("run_task", "Run the approved version of a task and wait for the result. A proposal cannot run. With resumeFromExecutionId it continues a failed run at the step that failed, without repeating earlier steps, or a waiting run that a person has answered. A run that goes on after a person's answer keeps exactly the values it had, so give it no parameters or the same values.",
-                Map.of("name", "string", "parameters", "object", "resumeFromExecutionId", "number")));
+        tools.add(tool("run_task", "Run the approved version of a task and wait for the result. A proposal cannot run. With resumeFromExecutionId it continues a failed run at the step that failed, without repeating earlier steps, or a waiting run that a person has answered. A run that goes on after a person's answer keeps exactly the values it had, so give it no parameters or the same values. "
+                        + "With preview set to true the run sends nothing: steps that read run as usual, and get_run shows for each other step what it would have sent (held) and the values its settings asked for that nothing gave (missingValues).",
+                Map.of("name", "string", "parameters", "object", "resumeFromExecutionId", "number", "preview", "boolean")));
         tools.add(tool("get_run", "Read the status of a run and the result of each step.", Map.of("id", "number")));
         tools.add(tool("list_runs", "List the latest runs of a task, newest first.", Map.of("name", "string")));
         return tools;
@@ -200,6 +202,9 @@ public class McpController {
         run.setParameters(arguments.has("parameters") ? mapper.convertValue(arguments.get("parameters"), Map.class) : Map.of());
         if (arguments.hasNonNull("resumeFromExecutionId")) {
             run.setResumeFromExecutionId(arguments.get("resumeFromExecutionId").asLong());
+        }
+        if (arguments.path("preview").asBoolean()) {
+            run.setPreview(new Preview());
         }
         return run;
     }

@@ -337,8 +337,8 @@ export default function boot() {
 
   /* ---------- Actions ---------- */
 
-  function requestRun() {
-    DT.ui.openRunDialog(store, (values) => { store.select(null); store.startRun(values).catch((error) => DT.ui.toast(error.message, { tone: 'danger' })); }, { values: runner.run?.parameters, onFixIssue: () => { renderInspector(); } });
+  function requestRun({ preview = false } = {}) {
+    DT.ui.openRunDialog(store, (values) => { store.select(null); store.startRun(values, { preview }).catch((error) => DT.ui.toast(error.message, { tone: 'danger' })); }, { preview, values: runner.run?.parameters, onFixIssue: () => { renderInspector(); } });
   }
 
   /* A step is added to be filled in, so typing should go straight to its first field. */
@@ -543,6 +543,7 @@ export default function boot() {
     if (topAction === 'redo') store.redo();
     if (topAction === 'parameters') DT.ui.openParametersDialog(store);
     if (topAction === 'run') requestRun();
+    if (topAction === 'preview') requestRun({ preview: true });
     if (topAction === 'add') handlers.palette();
     const viewAction = event.target.closest('[data-view]')?.dataset.view;
     if (viewAction === 'zoom-in') zoomAround(1.2);

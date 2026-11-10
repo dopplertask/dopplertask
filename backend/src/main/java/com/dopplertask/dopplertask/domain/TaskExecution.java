@@ -12,8 +12,10 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Entity
 @Table(name = "TaskExecution")
@@ -98,6 +100,19 @@ public class TaskExecution {
     @Column(columnDefinition = "TEXT")
     private String runningLoops;
 
+    // What each step gave so far, by the name of the step, for the steps after it. The latest wins when a name repeats.
+    @Transient
+    private Map<String, StepOutput> stepOutputs = new LinkedHashMap<>();
+
+    // Values the step that runs now asked for and nothing gave. They go to the record of that step.
+    @Transient
+    private Set<String> missingValues = new LinkedHashSet<>();
+
+    // Set when the run is a preview, as JSON, since a run starts on another thread than the one that asked for it.
+    @Lob
+    @Column(columnDefinition = "TEXT")
+    private String preview;
+
     // How many more visits to a step a run may make, since every item of a loop visits the steps of a pass again.
     @Transient
     private long loopVisits = 0;
@@ -151,6 +166,42 @@ public class TaskExecution {
         if (runningLoops != null && loops.isEmpty()) {
             List.of(JsonApi.INSTANCE.getMapper().readValue(runningLoops, LoopState[].class)).forEach(this::startLoop);
         }
+    }
+
+    public Map<String, StepOutput> getStepOutputs() {
+        return stepOutputs;
+    }
+
+    public void noteMissingValue(String note) {
+        missingValues.add(note);
+    }
+
+    /** Hands over what the current step missed, so that the next step starts with none. */
+    public List<String> takeMissingValues() {
+        List<String> taken = List.copyOf(missingValues);
+        missingValues.clear();
+        return taken;
+    }
+
+    public Preview getPreview() {
+        return preview == null ? null : JsonApi.INSTANCE.getMapper().readValue(preview, Preview.class);
+    }
+
+    public void setPreview(Preview preview) {
+        this.preview = preview == null ? null : JsonApi.INSTANCE.getMapper().writeValueAsString(preview);
+    }
+
+    /** A run that continues a preview is one too, since the steps before it gave values that were never sent. */
+    public void continuePreviewOf(TaskExecution earlierRun) {
+        if (preview == null) {
+            preview = earlierRun.preview;
+        }
+    }
+
+    /** Whether a preview keeps this step from sending. */
+    public boolean holds(Action step) {
+        Preview running = getPreview();
+        return running != null && !running.getSentForReal().contains(step.getPortId());
     }
 
     public WebhookReply getWebhookReply() {

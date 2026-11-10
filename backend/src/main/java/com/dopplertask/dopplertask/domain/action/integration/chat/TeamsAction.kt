@@ -22,6 +22,8 @@ import jakarta.persistence.Transient
 @Table(name = "TeamsAction")
 @DiscriminatorValue("teams_action")
 class TeamsAction : Action() {
+    override val runsInPreview get() = true
+
     @Transient
     var webhookUrl: String? = null
 

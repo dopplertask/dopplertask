@@ -101,7 +101,7 @@ public class CustomerHooksTest {
                 return "Not here.";
             }
         });
-        CredentialService credentials = new CredentialService(Mockito.mock(CredentialDao.class), Mockito.mock(CredentialCipher.class));
+        CredentialService credentials = new CredentialService(Mockito.mock(CredentialDao.class), Mockito.mock(CredentialCipher.class), null);
         ActionResult result = credentials.runWith(new PrintAction(), execution, () -> {
             throw new AssertionError("The step ran.");
         });
@@ -177,7 +177,7 @@ public class CustomerHooksTest {
         });
         Assert.assertEquals("evaluated elsewhere", extractor.extract("$anything", execution, ScriptLanguage.VELOCITY));
         Assert.assertEquals("plain words", extractor.extract("plain words", execution, ScriptLanguage.VELOCITY));
-        CredentialService credentials = new CredentialService(Mockito.mock(CredentialDao.class), Mockito.mock(CredentialCipher.class));
+        CredentialService credentials = new CredentialService(Mockito.mock(CredentialDao.class), Mockito.mock(CredentialCipher.class), null);
         ActionResult result = credentials.runWith(new PrintAction(), execution, () -> {
             throw new AssertionError("The step ran here.");
         });

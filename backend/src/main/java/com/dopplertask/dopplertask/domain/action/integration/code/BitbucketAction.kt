@@ -23,6 +23,8 @@ import java.util.Base64
 @Table(name = "BitbucketAction")
 @DiscriminatorValue("bitbucket_action")
 class BitbucketAction : Action() {
+    override val runsInPreview get() = true
+
     @Column
     var baseUrl: String? = "https://api.bitbucket.org"
 

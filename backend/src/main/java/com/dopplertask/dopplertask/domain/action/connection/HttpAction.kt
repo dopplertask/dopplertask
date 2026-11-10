@@ -2,6 +2,7 @@ package com.dopplertask.dopplertask.domain.action.connection
 
 import com.dopplertask.dopplertask.domain.action.integration.OAuthSignIn
 import com.dopplertask.dopplertask.domain.ActionResult
+import com.dopplertask.dopplertask.domain.Preview
 import com.dopplertask.dopplertask.domain.StatusCode
 import com.dopplertask.dopplertask.domain.TaskExecution
 import com.dopplertask.dopplertask.domain.action.Action
@@ -48,6 +49,8 @@ private const val FIRST_ERROR_STATUS = 400
 @Table(name = "HttpAction")
 @DiscriminatorValue("http_action")
 class HttpAction : Action() {
+    override val runsInPreview get() = true
+
     @Lob
     @Column(columnDefinition = "TEXT")
     var url: String? = null
@@ -111,6 +114,7 @@ class HttpAction : Action() {
             actionResult.statusCode = StatusCode.FAILURE
             return actionResult
         }
+        Preview.holdRequest(method, urlVariable.trim(), body)
         when (method) {
             "POST" -> builder = builder.POST(HttpRequest.BodyPublishers.ofByteArray(body))
             "PUT" -> builder = builder.PUT(HttpRequest.BodyPublishers.ofByteArray(body))

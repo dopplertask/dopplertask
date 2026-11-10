@@ -2,6 +2,7 @@ package com.dopplertask.dopplertask.service;
 
 import com.dopplertask.dopplertask.dao.CredentialDao;
 import com.dopplertask.dopplertask.domain.ActionResult;
+import com.dopplertask.dopplertask.domain.Preview;
 import com.dopplertask.dopplertask.domain.Credential;
 import com.dopplertask.dopplertask.domain.TaskExecution;
 import com.dopplertask.dopplertask.domain.action.Action;
@@ -26,6 +27,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.Optional;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -47,9 +49,11 @@ public class CredentialService {
 
     private final CredentialDao credentialDao;
     private final CredentialCipher cipher;
+    private final VariableExtractorUtil variableExtractorUtil;
     private final ObjectMapper mapper = new ObjectMapper();
 
-    public CredentialService(CredentialDao credentialDao, CredentialCipher cipher) {
+    public CredentialService(CredentialDao credentialDao, CredentialCipher cipher, VariableExtractorUtil variableExtractorUtil) {
+        this.variableExtractorUtil = variableExtractorUtil;
         this.credentialDao = credentialDao;
         this.cipher = cipher;
     }
@@ -151,6 +155,11 @@ public class CredentialService {
         if (refusal != null) {
             return ActionResult.Companion.failure(refusal);
         }
+        boolean held = execution.holds(action);
+        if (held && !action.getRunsInPreview()) {
+            return Preview.notSent(action.getActionName() + " was not run, since the run is a preview and this step reaches outside in its own way. It would have used:\n"
+                    + action.filledSettings(variableExtractorUtil, execution));
+        }
         Map<String, String> values = Map.of();
         String name = action.getCredential();
         if (name != null && !name.isBlank()) {
@@ -165,11 +174,13 @@ public class CredentialService {
         }
         StepRunner elsewhere = StepRunner.active();
         if (elsewhere != null && elsewhere.runsElsewhere(action)) {
-            return withoutSecrets(elsewhere.runStep(action, values, execution), action, values);
+            Map<String, String> sent = values;
+            Callable<ActionResult> there = () -> elsewhere.runStep(action, sent, execution);
+            return withoutSecrets(held ? Preview.run(there) : elsewhere.runStep(action, values, execution), action, values);
         }
         action.useCredentialValues(values);
         try {
-            return withoutSecrets(run.run(), action, values);
+            return withoutSecrets(held ? Preview.run(run::run) : run.run(), action, values);
         } finally {
             action.forgetCredentialValues(values.keySet());
         }
@@ -245,6 +256,9 @@ public class CredentialService {
             if (Boolean.TRUE.equals(fields.get(field)) && value.length() >= SHORTEST_HIDDEN_VALUE) {
                 result.setOutput(result.getOutput().replace(value, HIDDEN));
                 result.setErrorMsg(result.getErrorMsg().replace(value, HIDDEN));
+                if (result.getHeld() != null) {
+                    result.setHeld(result.getHeld().replace(value, HIDDEN));
+                }
             }
         });
         return result;

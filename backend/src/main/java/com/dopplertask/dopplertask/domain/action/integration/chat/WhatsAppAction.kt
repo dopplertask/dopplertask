@@ -22,6 +22,8 @@ import java.io.IOException
 @Table(name = "WhatsAppAction")
 @DiscriminatorValue("whatsapp_action")
 class WhatsAppAction : Action() {
+    override val runsInPreview get() = true
+
     @Column
     var baseUrl: String? = "https://graph.facebook.com"
 

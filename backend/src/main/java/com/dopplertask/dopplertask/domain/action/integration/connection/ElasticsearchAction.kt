@@ -23,6 +23,8 @@ import java.util.Base64
 @Table(name = "ElasticsearchAction")
 @DiscriminatorValue("elasticsearch_action")
 class ElasticsearchAction : Action() {
+    override val runsInPreview get() = true
+
     // The address is part of the credential, so that a step can only send a key to the cluster the key belongs to.
     @Transient
     var siteUrl: String? = null

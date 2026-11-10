@@ -76,6 +76,7 @@ export default function boot() {
   function syncRunPill() {
     const last = store.runs[0];
     byId('runPill').innerHTML = `<button type="button" class="run-main" data-action="run" title="Run this task (${modKey}↵)"><span class="run-circle">${icon('play')}</span><b>Run</b></button>
+      <button type="button" class="preview-main" data-action="preview" title="Go through the task with nothing sent, to see what every step would do">${icon('eye')}<b>Preview</b></button>
       ${last
         ? `<button type="button" class="last-run" data-run="${last.id}" title="Open the last run">${statusGlyph(last.status)}<span><b>Last run</b><small>${formatAgo(last.startedAt)}</small></span></button>`
         : '<span class="last-run is-none"><span><b>Not run yet</b></span></span>'}`;

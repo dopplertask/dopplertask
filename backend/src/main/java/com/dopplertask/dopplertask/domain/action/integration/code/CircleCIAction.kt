@@ -21,6 +21,8 @@ import java.io.IOException
 @Table(name = "CircleCIAction")
 @DiscriminatorValue("circleci_action")
 class CircleCIAction : Action() {
+    override val runsInPreview get() = true
+
     @Column
     var baseUrl: String? = "https://circleci.com"
 

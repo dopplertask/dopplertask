@@ -66,6 +66,7 @@ public class TaskServiceImpl implements TaskService {
 
         TaskExecution execution = new TaskExecution();
         execution.setResumedFrom(request.getResumeFromExecutionId());
+        execution.setPreview(request.getPreview());
         // Create execution record
         taskExecutionDao.save(execution);
 
@@ -472,6 +473,7 @@ public class TaskServiceImpl implements TaskService {
         TaskExecution execution = new TaskExecution();
         execution.setDepth(request.getDepth());
         execution.setResumedFrom(request.getResumeFromExecutionId());
+        execution.setPreview(request.getPreview());
         // Create execution record
         // Always save to allow consumer to get a message
         taskExecutionDao.save(execution);

@@ -25,6 +25,8 @@ private const val ATLASSIAN_ACCOUNT = "Atlassian account"
 @Table(name = "JiraAction")
 @DiscriminatorValue("jira_action")
 class JiraAction : Action() {
+    override val runsInPreview get() = true
+
     @Column
     var siteUrl: String? = null
 

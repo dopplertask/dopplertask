@@ -22,6 +22,8 @@ import jakarta.persistence.Transient
 @Table(name = "OpenAIAction")
 @DiscriminatorValue("openai_action")
 class OpenAIAction : Action() {
+    override val runsInPreview get() = true
+
     @Lob
     @Column(columnDefinition = "TEXT")
     var baseUrl: String? = "https://api.openai.com/v1"
