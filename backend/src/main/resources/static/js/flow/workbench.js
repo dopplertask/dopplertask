@@ -93,9 +93,9 @@ export default function boot() {
       ...(store.person ? [['logOut', `Sign out ${store.person.email}`, () => store.signOut()]] : []),
     ];
     const { element, close } = DT.ui.openPopover(anchor, `<div class="ui-menu task-switcher">
-      <div class="task-switcher-list">${store.tasks.map((task) => `<button type="button" class="is-task ${task.id === store.task.id ? 'is-current' : ''}" data-switch="${escapeHtml(task.id)}">${icon('workflow')}<span><b>${escapeHtml(task.name)}</b><small>${task.versions[0].proposed ? 'A proposal is waiting' : `${task.versions.length} ${task.versions.length === 1 ? 'version' : 'versions'}`}</small></span></button>`).join('')}</div>
+      <div class="task-switcher-list">${store.tasks.map((task) => `<button type="button" class="ui-option is-task ${task.id === store.task.id ? 'is-current' : ''}" data-switch="${escapeHtml(task.id)}">${icon('workflow')}<span><b>${escapeHtml(task.name)}</b><small>${task.versions[0].proposed ? 'A proposal is waiting' : `${task.versions.length} ${task.versions.length === 1 ? 'version' : 'versions'}`}</small></span></button>`).join('')}</div>
       ${store.tasks.length ? '<hr>' : ''}
-      ${others.map((item, index) => `<button type="button" data-other="${index}">${icon(item[0])}<span>${item[1]}</span></button>`).join('')}
+      ${others.map((item, index) => `<button type="button" class="ui-option" data-other="${index}">${icon(item[0])}<span>${item[1]}</span></button>`).join('')}
       <hr>
       <label class="ui-toggle" title="Saves a marked version 30 seconds after the last change. Pauses while the task's triggers are on."><input type="checkbox" data-wb-autosave ${store.autoSave ? 'checked' : ''}><span class="ui-toggle-track"></span><span>Auto save</span></label>
     </div>`);
@@ -112,16 +112,6 @@ export default function boot() {
 
   /* ---------- Step panel ---------- */
 
-  /* What this step would see: the values just before it in the run on screen, or else the latest run that reached it. */
-  function variablesBefore(nodeId) {
-    const run = runner.run || store.runs[0];
-    for (const candidate of [run, ...store.runs].filter(Boolean)) {
-      const step = candidate.steps.findLast((candidateStep) => candidateStep.nodeId === nodeId);
-      if (step) return step.variables;
-    }
-    return { parameters: { ...store.defaults, ...run?.parameters }, lastOutput: '', lastOutputVariables: {}, executionId: run?.id || '' };
-  }
-
   /* What each trigger hands to the task, as parameters named by the backend. */
   const TRIGGER_DATA = {
     webhook: [['Request body', 'TRIGGER_body']],
@@ -130,7 +120,7 @@ export default function boot() {
   };
 
   function dataRows(node) {
-    const values = variablesBefore(node.id);
+    const values = store.valuesBefore(node.id);
     const rows = store.task.parameters.map((parameter) => ({ label: parameter.name, insert: `$parameters.get("${parameter.name}")`, value: values.parameters[parameter.name] ?? parameter.defaultValue }));
     store.task.nodes.filter((candidate) => candidate.type === 'setVariable').flatMap((candidate) => candidate.config.setVariableList || []).forEach((variable) => { if (variable.name) rows.push({ label: variable.name, insert: `$parameters.get("${variable.name}")`, value: values.parameters[variable.name] ?? '' }); });
     new Set(store.task.nodes.filter((candidate) => candidate.type === 'start').flatMap((start) => TRIGGER_DATA[start.config.trigger] || []))
@@ -147,7 +137,7 @@ export default function boot() {
     const accepts = !!byId('panelForm').querySelector('[data-variables]');
     host.hidden = !accepts;
     if (!accepts) return;
-    host.innerHTML = `<h3>Data you can use</h3><div class="data-list">${dataRows(node).map((row) => `<button type="button" class="data-row" data-insert="${escapeHtml(row.insert)}" title="Insert ${escapeHtml(row.insert)}"><b>${escapeHtml(row.label)}</b><code>${escapeHtml(String(row.value ?? '').split('\n')[0]) || 'No value yet'}</code></button>`).join('')}</div><p class="panel-hint">Click to insert at the cursor, or type <code>$</code> in a field. Values are from the latest run.</p>`;
+    host.innerHTML = `<h3>Data you can use</h3><div class="data-list">${dataRows(node).map((row) => `<button type="button" class="data-row" data-insert="${escapeHtml(row.insert)}" title="Insert ${escapeHtml(row.insert)}"><b>${escapeHtml(row.label)}</b><code>${escapeHtml(String(row.value ?? '').split('\n')[0]) || 'No value yet'}</code></button>`).join('')}</div>${DT.values.valueTree(node)}<p class="panel-hint">Click a value to use it at the cursor, or type <code>$</code> in a field. The field keeps where the value comes from, so each run uses its own value. The examples are from the latest run or preview.</p>`;
   }
 
   function insertData(text) {
@@ -164,18 +154,18 @@ export default function boot() {
 
   function resultParts(step, { tested = false } = {}) {
     const label = step.status === 'success' ? 'Succeeded' : step.status === 'warning' ? 'Failed, task continued' : step.status === 'stopped' ? 'Stopped' : 'Failed';
-    return `<h3>${statusGlyph(step.status)}${tested ? `Test: ${label.toLowerCase()}` : label}<small>${formatDuration(step.durationMs)}</small></h3>${renderStepResult(step)}`;
+    return `<h3>${statusGlyph(step.status)}${tested ? `${step.preview ? 'Preview' : 'Run'}: ${label.toLowerCase()}` : label}<small>${formatDuration(step.durationMs)}</small></h3>${renderStepResult(step)}`;
   }
 
-  const changeParametersButton = () => (store.task.parameters.length ? `<button type="button" class="ui-button" data-action="run" title="Run from the start with different values">Change parameters</button>` : '');
+  const changeParametersButton = () => (store.task.parameters.length ? `<button type="button" class="ui-button" data-action="${runner.run?.preview ? 'preview' : 'run'}" title="Start again with different values">Change parameters</button>` : '');
   const failedStepOf = (run) => run.steps.find((step) => step.status === 'failed' || step.status === 'stopped');
   /* A run can continue at its failed step while that step is still in the task. */
   const canResume = (run, failed) => failed && failed === run.steps.at(-1) && run.steps.length > 1 && nodeById(store.task, failed.nodeId);
-  const runAgainButton = '<button type="button" class="ui-button" data-wb="again" title="Run from the start with the same parameters">Run again</button>';
+  const runAgainButton = () => `<button type="button" class="ui-button" data-wb="again" title="Start again with the same parameters">${runner.run.preview ? 'Preview again' : 'Run again'}</button>`;
   const rerunButton = () => {
     const run = runner.run;
     const resumable = canResume(run, failedStepOf(run));
-    return `<div class="result-actions">${resumable ? `<button type="button" class="ui-button is-primary" data-wb="resume" title="Keep the results before this step and continue from here">${icon('replay')}Rerun from this step</button>` : ''}${runAgainButton}${changeParametersButton()}<button type="button" class="ui-link-button" data-wb="continue-on-failure">Let the task continue when this step fails</button></div>`;
+    return `<div class="result-actions">${resumable ? `<button type="button" class="ui-button is-primary" data-wb="resume" title="Keep the results before this step and continue from here">${icon('replay')}Rerun from this step</button>` : ''}${runAgainButton()}${changeParametersButton()}<button type="button" class="ui-link-button" data-wb="continue-on-failure">Let the task continue when this step fails</button></div>`;
   };
 
   let resultKey = null;
@@ -193,18 +183,25 @@ export default function boot() {
     if (tested) {
       host.classList.toggle('is-failed', tested.status === 'failed');
       host.innerHTML = `${resultParts(tested, { tested: true })}${runner.finished && state === 'failed' ? rerunButton() : ''}`;
-    } else if (store.review?.changed.has(node.id)) {
-      host.innerHTML = `<h3>The agent changed this step</h3>${store.review.changed.get(node.id).map(({ key, before }) => `<p class="result-note"><b>${escapeHtml(key)}</b>${before === null || before === undefined ? '' : `, was <code>${escapeHtml(typeof before === 'string' ? before : JSON.stringify(before))}</code>`}</p>`).join('')}`;
-    } else if (store.review?.added.has(node.id)) {
-      host.innerHTML = '<h3>The agent added this step</h3>';
-    } else if (!runner.run) host.innerHTML = '';
-    else if (state === 'running') host.innerHTML = `<h3>${statusGlyph('running')}Running…</h3>`;
-    else if (state === 'pending') host.innerHTML = '<p class="result-note">This run has not reached this step yet.</p>';
-    else if (state === 'skipped' || !step) host.innerHTML = '<p class="result-note">This run took a different path.</p>';
+      return;
+    }
+    // A proposal says what the agent did to the step, and a preview of it adds what the step would do.
+    const change = changeByAgent(node);
+    if (!runner.run) host.innerHTML = change;
+    else if (state === 'running') host.innerHTML = `${change}<h3>${statusGlyph('running')}Running…</h3>`;
+    else if (state === 'pending') host.innerHTML = `${change}<p class="result-note">This run has not reached this step yet.</p>`;
+    else if (state === 'skipped' || !step) host.innerHTML = `${change}<p class="result-note">This run took a different path.</p>`;
     else {
       host.classList.toggle('is-failed', state === 'failed');
-      host.innerHTML = `${resultParts(step)}${runner.finished && state === 'failed' ? rerunButton() : ''}`;
+      host.innerHTML = `${change}${resultParts(step)}${runner.finished && state === 'failed' ? rerunButton() : ''}`;
     }
+  }
+
+  function changeByAgent(node) {
+    const { review } = store;
+    if (review?.added.has(node.id)) return '<h3>The agent added this step</h3>';
+    if (!review?.changed.has(node.id)) return '';
+    return `<h3>The agent changed this step</h3>${review.changed.get(node.id).map(({ key, before }) => `<p class="result-note"><b>${escapeHtml(key)}</b>${before === null || before === undefined ? '' : `, was <code>${escapeHtml(typeof before === 'string' ? before : JSON.stringify(before))}</code>`}</p>`).join('')}`;
   }
 
   /* A structural change rebuilds the form, so the field being typed in has to survive it. */
@@ -245,7 +242,7 @@ export default function boot() {
         <section class="panel-section"><h3>Settings</h3><div id="panelForm"></div></section>
         <section class="panel-section" id="panelData"></section>
       </div>
-      ${isStart ? `<div class="panel-foot"><div class="panel-foot-row"><button type="button" class="ui-button" data-inspector="add-trigger" aria-haspopup="listbox">${icon('plus')}Add a trigger</button><span class="panel-foot-space"></span>${node === rootNode(store.task) ? '' : `<button type="button" class="labelled-button" data-inspector="delete" title="Delete (⌫)">${icon('trash')}<span>Delete</span></button>`}</div><small>A task can start in several ways. Running by hand starts at the first start.</small></div>` : `<div class="panel-foot"><div class="panel-foot-row"><button type="button" class="ui-button" data-wb="test" id="testButton" ${testing ? 'disabled' : ''}>${icon('play')}${testing ? 'Testing…' : 'Test this step'}</button><span class="panel-foot-space"></span><button type="button" class="labelled-button" data-inspector="duplicate" title="Duplicate (${modKey}D)">${icon('copy')}<span>Duplicate</span></button><button type="button" class="labelled-button" data-inspector="delete" title="Delete (⌫)">${icon('trash')}<span>Delete</span></button></div><small>Test runs only this step, with the values shown under Data you can use.</small></div>`}`;
+      ${isStart ? `<div class="panel-foot"><div class="panel-foot-row"><button type="button" class="ui-button" data-inspector="add-trigger" aria-haspopup="listbox">${icon('plus')}Add a trigger</button><span class="panel-foot-space"></span>${node === rootNode(store.task) ? '' : `<button type="button" class="labelled-button" data-inspector="delete" title="Delete (⌫)">${icon('trash')}<span>Delete</span></button>`}</div><small>A task can start in several ways. Running by hand starts at the first start.</small></div>` : `<div class="panel-foot"><div class="panel-foot-row"><button type="button" class="ui-button" data-wb="preview-step" id="previewButton" ${testing ? 'disabled' : ''} title="Shows what this step would do. Nothing is sent.">${icon('eye')}Preview step</button><button type="button" class="ui-button" data-wb="test" id="testButton" ${testing ? 'disabled' : ''} title="Runs this step for real">${icon('play')}${testing ? 'Running…' : 'Run step'}</button><span class="panel-foot-space"></span><button type="button" class="labelled-button" data-inspector="duplicate" title="Duplicate (${modKey}D)">${icon('copy')}<span>Duplicate</span></button><button type="button" class="labelled-button" data-inspector="delete" title="Delete (⌫)">${icon('trash')}<span>Delete</span></button></div><small>Preview shows what it would send. Run sends it.</small></div>`}`;
     form = DT.ui.mountForm(byId('panelForm'), store, node.id);
     panel.querySelector('.inspector-name').addEventListener('input', (event) => store.rename(node.id, event.target.value));
     byId('panelForm').addEventListener('focusin', (event) => { if (event.target.matches('[data-variables]')) lastDataField = event.target; });
@@ -257,17 +254,19 @@ export default function boot() {
     }
   }
 
-  function testSelectedStep() {
+  function testSelectedStep({ preview = false } = {}) {
     const node = store.selectedNode;
     testing = true;
     syncTestButton();
-    store.testStep(node.id, variablesBefore(node.id)).then((result) => { testResult = result; }, (error) => {
-      testResult = { nodeId: node.id, status: 'failed', error: error.message, output: '', durationMs: 0 };
+    store.testStep(node.id, store.valuesBefore(node.id), { preview }).then((result) => { testResult = result; }, (error) => {
+      testResult = { nodeId: node.id, preview, status: 'failed', error: error.message, output: '', durationMs: 0 };
     }).then(() => {
       testing = false;
       syncTestButton();
       resultKey = null;
       renderResult();
+      /* The step now has an example of what it gives, for the steps after it. */
+      if (store.selectedNode) renderData(store.selectedNode);
       if (byId('panelBody')) byId('panelBody').scrollTop = 0;
     });
   }
@@ -276,7 +275,8 @@ export default function boot() {
     const button = byId('testButton');
     if (!button) return;
     button.disabled = testing;
-    button.innerHTML = `${icon('play')}${testing ? 'Testing…' : 'Test this step'}`;
+    byId('previewButton').disabled = testing;
+    button.innerHTML = `${icon('play')}${testing ? 'Running…' : 'Run step'}`;
   }
 
   /* ---------- Run player ---------- */
@@ -287,6 +287,8 @@ export default function boot() {
     if (failed) return `${failed.status === 'stopped' ? 'Stopped' : 'Failed'} at ${failed.name}`;
     return run.failure || RUN_STATUS_LABELS[run.status];
   }
+  /* A preview is said to be one wherever a run is named, so that nobody takes it for a run that sent something. */
+  const runTitle = (run) => `${run.preview ? 'Preview' : 'Run'} #${run.id}`;
   const historyToggle = () => `<button type="button" class="labelled-button history-toggle ${historyOpen ? 'is-on' : ''}" data-wb="history" aria-expanded="${historyOpen}" title="Run history">${icon(historyOpen ? 'chevronDown' : 'chevronUp')}<span>History</span></button>`;
 
   let stripRun;
@@ -316,7 +318,7 @@ export default function boot() {
     /* While the panel shows the failed step, these actions are already there. */
     if (failed?.nodeId === store.selectedId) return '';
     const resume = canResume(runner.run, failed) ? `<button type="button" class="ui-button is-primary" data-wb="resume" title="Keep the results before this step and continue from it">${icon('replay')}Rerun from ${failed.status} step</button>` : '';
-    return `${resume}${runAgainButton}`;
+    return `${resume}${runAgainButton()}`;
   }
 
   let statusKey = null;
@@ -335,8 +337,8 @@ export default function boot() {
     if (key === statusKey) return;
     statusKey = key;
     byId('stripStatus').innerHTML = runner.finished
-      ? `${statusGlyph(run.status)}<b>${escapeHtml(runHeadline(run))}</b><small>${run.resumedFrom ? `from ${escapeHtml(run.resumedFrom)}, ` : ''}${formatAgo(run.startedAt)}</small>`
-      : `${statusGlyph(runner.playing || run.live ? 'running' : 'pending')}<b>${escapeHtml((run.live ? nodeById(store.task, run.nextNodeId)?.name : active?.name) || 'Finishing')}</b><small>${run.live ? 'running' : runner.playing ? 'replaying' : 'paused'}</small>`;
+      ? `${statusGlyph(run.status)}<b>${escapeHtml(`${run.preview ? 'Preview: ' : ''}${runHeadline(run)}`)}</b><small>${run.preview ? 'nothing was sent, ' : ''}${run.resumedFrom ? `from ${escapeHtml(run.resumedFrom)}, ` : ''}${formatAgo(run.startedAt)}</small>`
+      : `${statusGlyph(runner.playing || run.live ? 'running' : 'pending')}<b>${escapeHtml((run.live ? nodeById(store.task, run.nextNodeId)?.name : active?.name) || 'Finishing')}</b><small>${run.preview ? 'preview, ' : ''}${run.live ? 'running' : runner.playing ? 'replaying' : 'paused'}</small>`;
     const toggle = byId('stripToggle');
     /* Nothing to replay while it runs, or in a run from before steps were recorded. */
     const nothingToReplay = run.live || !run.steps.length;
@@ -371,7 +373,7 @@ export default function boot() {
     host.innerHTML = `<div class="history-runs">
         <h3 class="history-heading">Recent runs</h3>
         <p class="history-stat">${finished.length ? `${successes} of ${finished.length} succeeded, ${formatDuration(average)} on average` : store.runs.length ? '' : 'No runs yet. Press Run to start the first one.'}</p>
-        ${store.runs.map((run) => { const live = run.status === 'running' || (run === runner.run && isLive()); return `<button type="button" class="history-run ${run === shown ? 'is-current' : ''}" data-run="${run.id}">${statusGlyph(live ? 'running' : run.status)}<b>Run #${run.id}</b><em>${live ? 'now' : `${formatDuration(run.durationMs)}, ${formatAgo(run.startedAt)}`}</em><small>${run.startedByAgent ? 'Started by an agent. ' : ''}${escapeHtml(runParameterSummary(run)) || 'No parameters'}</small></button>`; }).join('')}
+        ${store.runs.map((run) => { const live = run.status === 'running' || (run === runner.run && isLive()); return `<button type="button" class="history-run ${run === shown ? 'is-current' : ''}" data-run="${run.id}">${statusGlyph(live ? 'running' : run.status)}<b>${runTitle(run)}</b><em>${live ? 'now' : `${formatDuration(run.durationMs)}, ${formatAgo(run.startedAt)}`}</em><small>${run.startedByAgent ? 'Started by an agent. ' : ''}${escapeHtml(runParameterSummary(run)) || 'No parameters'}</small></button>`; }).join('')}
       </div>
       <div class="trace"><div class="trace-head"><span></span><span>Step</span><span>Output</span><span>Time</span></div>${steps.map((step) => { const done = !runner.run || stepIsDone(step); const shownStatus = done ? step.status : 'running'; return `<button type="button" class="trace-row ${shownStatus === 'failed' ? 'is-failed' : ''} ${store.selectedId === step.nodeId ? 'is-selected' : ''}" data-step="${step.nodeId}">${statusGlyph(shownStatus)}<b>${escapeHtml(step.name)}</b><code>${done ? escapeHtml(step.error || String(step.output || '').split('\n')[0]) : ''}</code><em>${done ? formatDuration(step.durationMs) : ''}</em></button>`; }).join('')}${!steps.length && shown?.logLines?.length ? `<p class="ui-empty">This run is from before each step was recorded, so here is its log.</p><pre class="ui-log trace-log">${escapeHtml(shown.logLines.join('\n'))}</pre>` : ''}</div>`;
     host.querySelector('.history-runs').scrollTop = runsScroll;
@@ -449,6 +451,7 @@ export default function boot() {
     if (action === 'tasks') openTaskSwitcher(actionElement);
     if (action === 'trigger') store.select(rootNode(store.task).id);
     if (action === 'test') testSelectedStep();
+    if (action === 'preview-step') testSelectedStep({ preview: true });
     if (action === 'history') setHistory(!historyOpen);
     if (action === 'continue-on-failure') {
       store.updateConfig(store.selectedId, 'continueOnFailure', true);
@@ -456,11 +459,13 @@ export default function boot() {
       DT.ui.toast('This step no longer stops the task. It takes effect from the next run.');
     }
     if (action === 'resume') { store.select(null); store.startRun(runner.run.parameters, { resumeFrom: runner.run }).catch((error) => DT.ui.toast(error.message, { tone: 'danger' })); }
-    if (action === 'again') { store.select(null); store.startRun(runner.run.parameters).catch((error) => DT.ui.toast(error.message, { tone: 'danger' })); }
+    if (action === 'again') { store.select(null); store.startRun(runner.run.parameters, { preview: runner.run.preview }).catch((error) => DT.ui.toast(error.message, { tone: 'danger' })); }
     if (action === 'toggle-play') { if (runner.playing) runner.pause(); else runner.play(); }
     if (action === 'stop') store.stopRun(runner.run).then(() => DT.ui.toast('Stopping the run'), (error) => DT.ui.toast(error.message, { tone: 'danger' }));
     const insert = target.closest('[data-insert]');
-    if (insert) insertData(insert.dataset.insert);
+    if (insert && !DT.values.takeValue(insert.dataset.insert)) insertData(insert.dataset.insert);
+    const shape = target.closest('[data-shape]');
+    if (shape) DT.values.openShape(shape, store.selectedId, shape.dataset.shape, insertData);
     const runButton = target.closest('[data-run]');
     if (runButton) store.openRun(runButton.dataset.run).catch((error) => DT.ui.toast(error.message, { tone: 'danger' }));
     const stepRow = target.closest('[data-step]');

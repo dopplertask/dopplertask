@@ -23,6 +23,8 @@ import java.util.Base64
 @Table(name = "WooCommerceAction")
 @DiscriminatorValue("woocommerce_action")
 class WooCommerceAction : Action() {
+    override val runsInPreview get() = true
+
     @Column
     var siteUrl: String? = null
 

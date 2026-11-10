@@ -24,6 +24,8 @@ import java.time.OffsetDateTime
 @Table(name = "GoogleCalendarAction")
 @DiscriminatorValue("google_calendar_action")
 class GoogleCalendarAction : Action() {
+    override val runsInPreview get() = true
+
     @Column
     var baseUrl: String? = "https://www.googleapis.com"
 

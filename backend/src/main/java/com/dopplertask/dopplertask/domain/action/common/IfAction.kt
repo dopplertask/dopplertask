@@ -17,6 +17,8 @@ import jakarta.persistence.Table
 @Table(name = "IfAction")
 @DiscriminatorValue("if_action")
 class IfAction : Action() {
+    override val runsInPreview get() = true
+
     var condition: String? = null
 
     @Throws(IOException::class)

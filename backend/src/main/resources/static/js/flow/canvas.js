@@ -138,6 +138,13 @@ export default function boot() {
     return review?.changed.has(node.id) ? '<span class="node-change is-changed">Changed</span>' : '';
   }
 
+  /* A step that a preview treats in another way than holding it says so, since that choice is kept from one preview to the next. */
+  const PREVIEW_BADGES = { sent: 'sent in previews', fails: 'fails in previews' };
+  function previewBadge(node) {
+    const label = PREVIEW_BADGES[store.previewChoices(node.id).mode];
+    return label ? `<span class="node-change is-preview">${label}</span>` : '';
+  }
+
   function nodeInnerHtml(node) {
     const issue = store.issues.some((candidate) => candidate.nodeId === node.id);
     const portsHtml = portsOf(node).map((port) => {
@@ -154,6 +161,7 @@ export default function boot() {
       ${hasBranches(node) ? portsOf(node).map((port) => `<div class="branch-row" data-branch="${escapeHtml(port.id)}"><span>${escapeHtml(port.label)}</span></div>`).join('') : ''}
       ${portsHtml}
       ${changeBadge(node)}
+      ${previewBadge(node)}
       <span class="node-status"></span>
       ${issue ? `<span class="node-issue" title="Needs attention">${icon('alert')}</span>` : ''}
       <div class="node-result"></div>`;
@@ -332,13 +340,13 @@ export default function boot() {
 
   function renderEmptyCard() {
     const suggestions = ['command', 'http', 'ssh', 'script', 'if', 'readFile'];
-    elements.emptyCard.innerHTML = `<h2>What should happen first?</h2><p>Choose a step. You can change or rearrange anything later.</p><div class="empty-options">${suggestions.filter((type) => ACTIONS[Array.isArray(type) ? type[0] : type]).map((type) => `<button type="button" data-first-step="${type}"><span class="node-icon" data-category="${ACTIONS[type].category}">${icon(ACTIONS[type].icon)}</span>${escapeHtml(ACTIONS[type].label)}</button>`).join('')}</div><button type="button" class="ui-link-button empty-example" data-try-example>Or try an example you can run right away</button>`;
+    elements.emptyCard.innerHTML = `<h2>What should happen first?</h2><p>Choose a step. You can change or rearrange anything later.</p><div class="empty-options">${suggestions.filter((type) => ACTIONS[Array.isArray(type) ? type[0] : type]).map((type) => `<button type="button" class="ui-option" data-first-step="${type}"><span class="node-icon" data-category="${ACTIONS[type].category}">${icon(ACTIONS[type].icon)}</span>${escapeHtml(ACTIONS[type].label)}</button>`).join('')}</div><button type="button" class="ui-link-button empty-example" data-try-example>Or try an example you can run right away</button>`;
   }
 
   /* ---------- Actions ---------- */
 
-  function requestRun() {
-    DT.ui.openRunDialog(store, (values) => { store.select(null); store.startRun(values).catch((error) => DT.ui.toast(error.message, { tone: 'danger' })); }, { values: runner.run?.parameters, onFixIssue: () => { renderInspector(); } });
+  function requestRun({ preview = false } = {}) {
+    DT.ui.openRunDialog(store, (values) => { store.select(null); store.startRun(values, { preview }).catch((error) => DT.ui.toast(error.message, { tone: 'danger' })); }, { preview, values: runner.run?.parameters, onFixIssue: () => { renderInspector(); } });
   }
 
   /* A step is added to be filled in, so typing should go straight to its first field. */
@@ -543,6 +551,7 @@ export default function boot() {
     if (topAction === 'redo') store.redo();
     if (topAction === 'parameters') DT.ui.openParametersDialog(store);
     if (topAction === 'run') requestRun();
+    if (topAction === 'preview') requestRun({ preview: true });
     if (topAction === 'add') handlers.palette();
     const viewAction = event.target.closest('[data-view]')?.dataset.view;
     if (viewAction === 'zoom-in') zoomAround(1.2);
@@ -593,7 +602,7 @@ export default function boot() {
       revealSelectedNode();
       return;
     }
-    if (change === 'config' || change === 'review') { renderNodes(); return; }
+    if (change === 'config' || change === 'review' || change === 'preview') { renderNodes(); return; }
     if (change === 'task') {
       nodeElements.forEach((element) => element.remove());
       nodeElements.clear(); displayed.clear();

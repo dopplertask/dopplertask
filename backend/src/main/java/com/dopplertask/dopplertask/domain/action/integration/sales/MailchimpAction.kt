@@ -23,6 +23,8 @@ import java.util.Base64
 @Table(name = "MailchimpAction")
 @DiscriminatorValue("mailchimp_action")
 class MailchimpAction : Action() {
+    override val runsInPreview get() = true
+
     @Column
     var baseUrl: String? = null
 

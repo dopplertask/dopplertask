@@ -65,13 +65,13 @@ public class ExecutionServiceImpl implements ExecutionService {
 
     @Transactional
     public TaskExecution startExecution(TaskExecutionRequest taskExecutionRequest, TaskService taskService, boolean startedByTrigger) {
-        // Look up by checksum first
-        Optional<Task> taskRequest = lookupTask(taskExecutionRequest, taskService);
-
         // A run that waits is locked while it starts, so that a stop at the same moment waits for it. A linked run never
         // waits, and runs inside its parent's transaction, which a lock would hold until the parent ends.
         Optional<TaskExecution> executionReq = taskExecutionRequest.getDepth() > 0 ? taskExecutionDao.findById(taskExecutionRequest.getExecutionId())
                 : taskExecutionDao.findForUpdate(taskExecutionRequest.getExecutionId());
+        // A person can preview a proposal before the decision. Every other run uses an approved version.
+        boolean mayBeProposal = !taskExecutionRequest.isStartedByAgent() && executionReq.map(TaskExecution::getPreview).isPresent();
+        Optional<Task> taskRequest = lookupTask(taskExecutionRequest, mayBeProposal);
         // Only a run that waits starts. One that was stopped meanwhile, or failed, stays as it is, even if its task is gone.
         if (executionReq.isPresent() && executionReq.get().getStatus() != TaskExecutionStatus.CREATED) {
             return executionReq.get();
@@ -159,10 +159,11 @@ public class ExecutionServiceImpl implements ExecutionService {
         }
     }
 
-    private Optional<Task> lookupTask(TaskExecutionRequest taskExecutionRequest, TaskService taskService) {
+    private Optional<Task> lookupTask(TaskExecutionRequest taskExecutionRequest, boolean mayBeProposal) {
         Optional<Task> taskRequest = Optional.empty();
         if (taskExecutionRequest.getChecksum() != null && !taskExecutionRequest.getChecksum().isEmpty()) {
-            taskRequest = taskDao.findFirstByChecksumStartingWithAndProposedFalse(taskExecutionRequest.getChecksum());
+            taskRequest = mayBeProposal ? taskDao.findFirstByChecksumStartingWith(taskExecutionRequest.getChecksum())
+                    : taskDao.findFirstByChecksumStartingWithAndProposedFalse(taskExecutionRequest.getChecksum());
 
             // Search in the local database by taskName
             if (!taskRequest.isPresent() && taskExecutionRequest.getTaskName() != null && !taskExecutionRequest.getTaskName().isEmpty()) {
@@ -270,6 +271,7 @@ public class ExecutionServiceImpl implements ExecutionService {
             execution.addLog(previousOutput);
         }
 
+        execution.getSteps().forEach(step -> keepForLaterSteps(execution, task.getActionByPort(step.getPortId()), step));
         execution.restoreRunningLoops();
         while (execution.getCurrentAction() != null && !toldToStop()) {
             Action currentAction = execution.getCurrentAction();
@@ -399,6 +401,7 @@ public class ExecutionServiceImpl implements ExecutionService {
         List<TaskExecutionStep> steps = earlierRun.getSteps();
         steps.subList(0, steps.size() - 1).forEach(step -> execution.addStep(step.copyTo(execution)));
         execution.continueLoopsOf(earlierRun);
+        execution.continuePreviewOf(earlierRun);
     }
 
     private static Action stepOnFirstOutput(Action action) {
@@ -410,14 +413,22 @@ public class ExecutionServiceImpl implements ExecutionService {
     }
 
     private void recordStep(TaskExecution execution, Action action, ActionResult result, long durationMs) {
-        String portId = action.getPorts() == null || action.getPorts().isEmpty() ? null : action.getPorts().get(0).getExternalId();
-        TaskExecutionStep step = new TaskExecutionStep(execution, portId, action.getStepTypeName(), result, durationMs);
+        result.setMissingValues(execution.takeMissingValues());
+        TaskExecutionStep step = new TaskExecutionStep(execution, action.getPortId(), action.getStepTypeName(), result, durationMs);
         step.keepOutputs(action.getOutputs().keySet(), result.getOutputVariables());
+        keepForLaterSteps(execution, action, step);
         if (execution.getWebhookReply() != null) {
             execution.getWebhookReply().setLastOutput(result.getOutput());
         }
         execution.addStep(step);
         liveSteps.computeIfAbsent(live(execution.getId()), run -> new CopyOnWriteArrayList<>()).add(step);
+    }
+
+    /** A later step reads this one by its name, such as $steps["Get order"].data.total. */
+    private static void keepForLaterSteps(TaskExecution execution, Action action, TaskExecutionStep step) {
+        if (action != null) {
+            execution.getStepOutputs().put(action.getActionName(), new StepOutput(step.getOutput(), step.getOutputVariables()));
+        }
     }
 
     @Override
@@ -436,18 +447,25 @@ public class ExecutionServiceImpl implements ExecutionService {
 
     private ActionResult runAction(TaskService taskService, TaskExecution execution, Action currentAction) {
         ActionResult actionResult = new ActionResult();
+        Preview preview = execution.getPreview();
+        boolean madeToFail = preview != null && preview.getMadeToFail().contains(currentAction.getPortId());
 
         int tries = 0;
         do {
             try {
-                // Only wait if we are in a retry.
-                if (tries > 0) {
+                // Only wait if we are in a retry. A preview shows the retries and does not wait for them.
+                if (tries > 0 && preview == null) {
                     String retryWaitAmount = variableExtractorUtil.extract(currentAction.getRetryWait(), execution, null, currentAction.getScriptLanguage(), Map.of("retryCount", tries + 1));
                     if (retryWaitAmount != null && !retryWaitAmount.isEmpty()) {
                         Thread.sleep(Long.parseLong(retryWaitAmount));
                     }
                 }
-                actionResult = credentialService.runWith(currentAction, execution, () -> currentAction.run(taskService, execution, variableExtractorUtil, (output, outputType) -> addLog(execution, output, outputType, Map.of(), true)));
+                actionResult = madeToFail ? ActionResult.Companion.failure("This step was made to fail in the preview.")
+                        : credentialService.runWith(currentAction, execution, () -> currentAction.run(taskService, execution, variableExtractorUtil, (output, outputType) -> addLog(execution, output, outputType, Map.of(), true)));
+                // A held step got no answer. The steps after it read the example the person gave for it.
+                if (actionResult.getHeld() != null) {
+                    actionResult.setOutput(preview.getExampleAnswers().getOrDefault(currentAction.getPortId(), ""));
+                }
 
                 if (!actionResult.getOutput().isEmpty()) {
                     addLog(execution, actionResult.getOutput(), actionResult.getOutputType(), actionResult.getOutputVariables(), actionResult.isBroadcastMessage());

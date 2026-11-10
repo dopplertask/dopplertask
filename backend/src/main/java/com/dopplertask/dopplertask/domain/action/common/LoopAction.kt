@@ -24,6 +24,8 @@ import jakarta.persistence.Table
 @Table(name = "LoopAction")
 @DiscriminatorValue("loop_action")
 class LoopAction : Action() {
+    override val runsInPreview get() = true
+
 
     /** The list: JSON, or text with one item per line. */
     @Lob

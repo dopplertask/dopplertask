@@ -22,6 +22,17 @@ public class TaskExecutionLogResponseDTO {
     private List<String> logs = new ArrayList<>();
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private List<TaskExecutionStep> steps = new ArrayList<>();
+
+    // A preview showed what its steps would send, and sent none of it.
+    private boolean preview;
+
+    public boolean isPreview() {
+        return preview;
+    }
+
+    public void setPreview(boolean preview) {
+        this.preview = preview;
+    }
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private Map<String, String> parameters = new HashMap<>();
     @JsonInclude(JsonInclude.Include.NON_NULL)

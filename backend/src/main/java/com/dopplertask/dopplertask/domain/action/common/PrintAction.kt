@@ -19,6 +19,8 @@ import jakarta.persistence.Table
 @Table(name = "PrintAction")
 @DiscriminatorValue("print_action")
 class PrintAction : Action {
+    override val runsInPreview get() = true
+
     @Lob
     @Column(columnDefinition = "TEXT")
     var message: String? = null

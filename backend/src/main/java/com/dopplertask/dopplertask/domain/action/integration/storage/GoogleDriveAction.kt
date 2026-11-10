@@ -23,6 +23,8 @@ import java.io.IOException
 @Table(name = "GoogleDriveAction")
 @DiscriminatorValue("google_drive_action")
 class GoogleDriveAction : Action() {
+    override val runsInPreview get() = true
+
     @Column
     var baseUrl: String? = "https://www.googleapis.com"
 

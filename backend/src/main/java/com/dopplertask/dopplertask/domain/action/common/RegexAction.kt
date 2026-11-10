@@ -19,6 +19,8 @@ import jakarta.persistence.*
 @Table(name = "RegexAction")
 @DiscriminatorValue("regex_action")
 class RegexAction : Action {
+    override val runsInPreview get() = true
+
     @Lob
     @Column(columnDefinition = "TEXT")
     var regexPattern: String = ""

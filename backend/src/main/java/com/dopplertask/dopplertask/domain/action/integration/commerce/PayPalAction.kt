@@ -22,6 +22,8 @@ import java.util.Base64
 @Table(name = "PayPalAction")
 @DiscriminatorValue("paypal_action")
 class PayPalAction : Action() {
+    override val runsInPreview get() = true
+
     @Column
     var baseUrl: String? = "https://api-m.paypal.com"
 

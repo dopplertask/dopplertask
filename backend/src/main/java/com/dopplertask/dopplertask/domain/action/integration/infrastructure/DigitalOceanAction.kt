@@ -21,6 +21,8 @@ import java.io.IOException
 @Table(name = "DigitalOceanAction")
 @DiscriminatorValue("digitalocean_action")
 class DigitalOceanAction : Action() {
+    override val runsInPreview get() = true
+
     @Column
     var baseUrl: String? = "https://api.digitalocean.com"
 

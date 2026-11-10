@@ -22,6 +22,8 @@ import jakarta.persistence.Transient
 @Table(name = "TelegramAction")
 @DiscriminatorValue("telegram_action")
 class TelegramAction : Action() {
+    override val runsInPreview get() = true
+
     @Column
     var baseUrl: String? = "https://api.telegram.org"
 

@@ -22,6 +22,8 @@ import jakarta.persistence.Transient
 @Table(name = "MattermostAction")
 @DiscriminatorValue("mattermost_action")
 class MattermostAction : Action() {
+    override val runsInPreview get() = true
+
     @Column
     var siteUrl: String? = null
 

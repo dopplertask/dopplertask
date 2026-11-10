@@ -1,6 +1,7 @@
 import bootEngine from './flow/engine';
 import bootUi from './flow/ui';
 import bootCanvas from './flow/canvas';
+import bootValues from './flow/values';
 import bootWorkbench from './flow/workbench';
 import bootFlow from './flow/flow';
 
@@ -11,6 +12,7 @@ bootEngine().then(() => {
   window.DT.canvasOptions = { nodeWidth: 176, headHeight: 132, rowHeight: 30, wireLead: 12, topInset: 76, bottomInset: 92, leftInset: 92, rightInset: 20 };
   bootUi();
   bootCanvas();
+  bootValues();
   bootWorkbench();
   bootFlow();
 }, (error) => {

@@ -18,6 +18,8 @@ import jakarta.persistence.Table
 @Table(name = "TimedWait")
 @DiscriminatorValue("timedwait_action")
 class TimedWait : Action {
+    override val runsInPreview get() = true
+
     @Column
     var seconds: Long? = null
 

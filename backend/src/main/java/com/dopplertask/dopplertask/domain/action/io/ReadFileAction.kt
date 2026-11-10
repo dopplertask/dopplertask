@@ -27,6 +27,8 @@ import java.nio.file.Path
 @Table(name = "ReadFileAction")
 @DiscriminatorValue("readfile_action")
 class ReadFileAction : Action() {
+    override val runsInPreview get() = true
+
 
     @Column
     var filename: String? = null

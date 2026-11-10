@@ -21,6 +21,8 @@ import java.io.IOException
 @Table(name = "OktaAction")
 @DiscriminatorValue("okta_action")
 class OktaAction : Action() {
+    override val runsInPreview get() = true
+
     @Column
     var siteUrl: String? = null
 

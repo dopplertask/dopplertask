@@ -66,7 +66,7 @@ public class CredentialServiceTest {
 
     @Before
     public void createService() {
-        credentials = new CredentialService(credentialDao, new CredentialCipher("a key for tests", folder.getRoot() + "/unused.key"));
+        credentials = new CredentialService(credentialDao, new CredentialCipher("a key for tests", folder.getRoot() + "/unused.key"), null);
     }
 
     private TelegramAction telegramUsing(String credential) {

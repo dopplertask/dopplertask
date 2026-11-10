@@ -22,6 +22,8 @@ import java.io.IOException
 @Table(name = "GiteaAction")
 @DiscriminatorValue("gitea_action")
 class GiteaAction : Action() {
+    override val runsInPreview get() = true
+
     @Column
     var siteUrl: String? = null
 

@@ -21,6 +21,8 @@ import java.io.IOException
 @Table(name = "StripeAction")
 @DiscriminatorValue("stripe_action")
 class StripeAction : Action() {
+    override val runsInPreview get() = true
+
     @Column
     var baseUrl: String? = "https://api.stripe.com"
 

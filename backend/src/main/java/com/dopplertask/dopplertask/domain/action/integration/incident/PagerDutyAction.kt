@@ -21,6 +21,8 @@ import jakarta.persistence.Transient
 @Table(name = "PagerDutyAction")
 @DiscriminatorValue("pagerduty_action")
 class PagerDutyAction : Action() {
+    override val runsInPreview get() = true
+
     @Column
     var baseUrl: String? = "https://events.pagerduty.com"
 

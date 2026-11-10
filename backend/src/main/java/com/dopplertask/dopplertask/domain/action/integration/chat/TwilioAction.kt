@@ -23,6 +23,8 @@ import jakarta.persistence.Transient
 @Table(name = "TwilioAction")
 @DiscriminatorValue("twilio_action")
 class TwilioAction : Action() {
+    override val runsInPreview get() = true
+
     @Column
     var baseUrl: String? = "https://api.twilio.com"
 

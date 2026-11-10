@@ -21,6 +21,8 @@ import jakarta.persistence.Table
 @Table(name = "XMLAction")
 @DiscriminatorValue("xml_action")
 class XMLAction : Action() {
+    override val runsInPreview get() = true
+
     @Lob
     @Column(columnDefinition = "TEXT")
     var content: String? = null

@@ -21,6 +21,8 @@ import java.io.IOException
 @Table(name = "SentryAction")
 @DiscriminatorValue("sentry_action")
 class SentryAction : Action() {
+    override val runsInPreview get() = true
+
     @Column
     var baseUrl: String? = "https://sentry.io"
 

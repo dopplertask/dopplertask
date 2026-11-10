@@ -4,6 +4,15 @@ import java.util.Date;
 
 public class TaskExecutionDTO {
     private boolean startedByAgent;
+    private boolean preview;
+
+    public boolean isPreview() {
+        return preview;
+    }
+
+    public void setPreview(boolean preview) {
+        this.preview = preview;
+    }
     private String executionId;
     private String taskName;
     private String status;

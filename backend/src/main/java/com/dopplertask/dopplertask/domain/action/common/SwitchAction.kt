@@ -20,6 +20,8 @@ import jakarta.persistence.Table
 @Table(name = "SwitchAction")
 @DiscriminatorValue("switch_action")
 class SwitchAction : Action() {
+    override val runsInPreview get() = true
+
     var value: String? = null
 
     @OneToMany(mappedBy = "switchAction", cascade = [CascadeType.ALL])

@@ -8,6 +8,8 @@ import jakarta.persistence.Transient
 
 @MappedSuperclass
 abstract class Trigger : Action() {
+    override val runsInPreview get() = true
+
 
     @Column
     var triggerSuffix = ""

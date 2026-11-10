@@ -23,6 +23,8 @@ import java.util.Base64
 @Table(name = "WordPressAction")
 @DiscriminatorValue("wordpress_action")
 class WordPressAction : Action() {
+    override val runsInPreview get() = true
+
     @Column
     var siteUrl: String? = null
 

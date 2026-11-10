@@ -1,6 +1,8 @@
 package com.dopplertask.dopplertask.controller;
 
 import com.dopplertask.dopplertask.domain.ActionResult;
+import com.dopplertask.dopplertask.domain.Preview;
+import com.dopplertask.dopplertask.domain.StepOutput;
 import com.dopplertask.dopplertask.domain.ExecutionParameter;
 import com.dopplertask.dopplertask.domain.StatusCode;
 import com.dopplertask.dopplertask.domain.Task;
@@ -8,6 +10,8 @@ import com.dopplertask.dopplertask.domain.TaskExecution;
 import com.dopplertask.dopplertask.domain.TaskExecutionLog;
 import com.dopplertask.dopplertask.domain.TaskExecutionStatus;
 import com.dopplertask.dopplertask.domain.action.Action;
+import com.dopplertask.dopplertask.domain.action.common.LoopAction;
+import com.dopplertask.dopplertask.domain.action.common.LoopState;
 import com.dopplertask.dopplertask.domain.action.trigger.Trigger;
 import com.dopplertask.dopplertask.domain.action.StepTypes;
 import com.dopplertask.dopplertask.dto.ActionInfoDto;
@@ -139,6 +143,7 @@ public class TaskController {
         TaskRequest request = new TaskRequest(removeTaskAfterExecution ? taskRequestDTO.getTaskName() + token : taskRequestDTO.getTaskName(), parameters, removeTaskAfterExecution);
         request.setChecksum(taskRequestDTO.getTaskName());
         request.setResumeFromExecutionId(taskRequestDTO.getResumeFromExecutionId());
+        request.setPreview(taskRequestDTO.getPreview());
         request.setStartedByAgent(AccessFilter.callerOf(servletRequest) == Caller.AGENT);
 
 
@@ -163,6 +168,7 @@ public class TaskController {
         TaskRequest request = new TaskRequest(taskRequestDTO.getTaskName(), parameters);
         request.setChecksum(taskRequestDTO.getTaskName());
         request.setResumeFromExecutionId(taskRequestDTO.getResumeFromExecutionId());
+        request.setPreview(taskRequestDTO.getPreview());
         request.setStartedByAgent(AccessFilter.callerOf(servletRequest) == Caller.AGENT);
         TaskExecution execution = taskService.runRequest(request);
         ResponseEntity<TaskExecutionLogResponseDTO> result = runResult(execution, taskRequestDTO.getTaskName());
@@ -410,7 +416,23 @@ public class TaskController {
         lastLog.setOutput(request.getLastOutput());
         lastLog.setOutputVariables(request.getLastOutputVariables());
         execution.addLog(lastLog);
-        return runAction(request.getAction(), execution);
+        request.getSteps().forEach((stepName, given) -> execution.getStepOutputs().put(stepName, new StepOutput(given.getOutput(), given.getOutputVariables())));
+        if (request.isPreview()) {
+            execution.setPreview(new Preview());
+        }
+        if (request.getLoopItem() != null) {
+            // Only the item of this pass is known, so the other places in the list stay empty.
+            List<Object> items = new ArrayList<>(Collections.nCopies(Math.max(request.getLoopCount(), request.getLoopIndex() + 1), null));
+            items.set(request.getLoopIndex(), LoopAction.valueOf(request.getLoopItem()));
+            LoopState pass = new LoopState("test", "Loop", items, 1, request.getLoopIndex(), -1, new ArrayList<>());
+            pass.next();
+            execution.startLoop(pass);
+        }
+        ResponseEntity<ActionResult> answer = runAction(request.getAction(), execution);
+        if (answer.getBody() != null) {
+            answer.getBody().setMissingValues(execution.takeMissingValues());
+        }
+        return answer;
     }
 
     private ResponseEntity<ActionResult> runAction(Action action, TaskExecution execution) throws IOException {
@@ -515,6 +537,7 @@ public class TaskController {
             dto.setEndDate(item.getEnddate());
             dto.setExecutionId(Long.toString(item.getId()));
             dto.setStartedByAgent(item.isStartedByAgent());
+            dto.setPreview(item.getPreview() != null);
             dto.setTaskName(item.getTask().getName() != null ? item.getTask().getName() : Long.toString(item.getTask().getId()));
             executionDTOList.add(dto);
         });

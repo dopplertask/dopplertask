@@ -20,6 +20,8 @@ import jakarta.persistence.Table
 @Table(name = "SetVariableAction")
 @DiscriminatorValue("setvariable_action")
 class SetVariableAction : Action() {
+    override val runsInPreview get() = true
+
     @OneToMany(mappedBy = "setVariableAction", cascade = [CascadeType.ALL])
     private var setVariableList: List<SetVariable>? = null
 

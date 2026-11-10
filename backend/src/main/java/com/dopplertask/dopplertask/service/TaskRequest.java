@@ -1,5 +1,6 @@
 package com.dopplertask.dopplertask.service;
 
+import com.dopplertask.dopplertask.domain.Preview;
 import com.dopplertask.dopplertask.domain.ExecutionParameter;
 
 import java.util.Map;
@@ -15,6 +16,15 @@ public class TaskRequest {
     private TriggerInfo triggerInfo;
     private Long resumeFromExecutionId;
     private boolean startedByAgent;
+    private Preview preview;
+
+    public Preview getPreview() {
+        return preview;
+    }
+
+    public void setPreview(Preview preview) {
+        this.preview = preview;
+    }
 
     public TaskRequest(String taskName, Map<String, ExecutionParameter> parameters) {
         this(taskName, parameters, false);

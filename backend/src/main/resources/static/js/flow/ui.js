@@ -111,15 +111,18 @@ export default function boot() {
 
   /* ---------- Popover & dialog ---------- */
 
-  let closeActivePopover = null;
-  function openPopover(anchor, html, { align = 'start', className = '' } = {}) {
-    closeActivePopover?.();
+  /* The open popovers, the innermost last. A dropdown inside a popover opens over it; any other popover closes first. */
+  const openPopovers = [];
+  function openPopover(anchor, html, { align = 'start', className = '', minWidth = 0 } = {}) {
+    while (openPopovers.length && !openPopovers.at(-1).element.contains(anchor)) openPopovers.at(-1).close();
     const element = document.createElement('div');
     element.className = `ui-popover ${className}`;
     element.setAttribute('role', 'dialog');
     element.setAttribute('aria-label', anchor.getAttribute('aria-label') || anchor.title || 'Menu');
+    element.style.minWidth = `${minWidth}px`;
     element.innerHTML = html;
-    document.body.append(element);
+    /* A dialog shows above the page, so what opens from inside it lives in it. */
+    (anchor.closest('dialog') || document.body).append(element);
     const anchorBox = anchor.getBoundingClientRect();
     /* offset sizes ignore the opening scale animation, which would make the popover measure small. */
     const box = { width: element.offsetWidth, height: element.offsetHeight };
@@ -129,18 +132,23 @@ export default function boot() {
     element.style.left = `${Math.max(8, Math.min(left, innerWidth - box.width - 8))}px`;
     element.style.top = `${top}px`;
     element.style.transformOrigin = `${align === 'end' ? 'right' : 'left'} ${opensUpward ? 'bottom' : 'top'}`;
-    const onOutside = (event) => { if (!element.contains(event.target) && !anchor.contains(event.target)) close(); };
-    const onKey = (event) => { if (event.key === 'Escape') close(); };
+    const popover = { element, close };
+    const holds = (target) => anchor.contains(target) || openPopovers.slice(openPopovers.indexOf(popover)).some((open) => open.element.contains(target));
+    const onOutside = (event) => { if (!holds(event.target)) close(); };
+    /* Escape closes the innermost popover only, and leaves a dialog around it open. */
+    const onKey = (event) => { if (event.key === 'Escape' && openPopovers.at(-1) === popover) { event.preventDefault(); close(); } };
     function close() {
+      if (!openPopovers.includes(popover)) return;
+      while (openPopovers.at(-1) !== popover) openPopovers.at(-1).close();
+      openPopovers.pop();
       element.remove();
       document.removeEventListener('pointerdown', onOutside, true);
       document.removeEventListener('keydown', onKey);
-      closeActivePopover = null;
     }
     document.addEventListener('pointerdown', onOutside, true);
     document.addEventListener('keydown', onKey);
-    closeActivePopover = close;
-    return { element, close };
+    openPopovers.push(popover);
+    return popover;
   }
 
   function openDialog(html, { className = '', animate = true } = {}) {
@@ -169,35 +177,51 @@ export default function boot() {
     { insert: '$parameters.get("TRIGGER_body")', label: 'Webhook body', detail: 'Body of the incoming call', group: 'From the trigger' },
   ];
 
+  /* The one dropdown: a button that carries its value as a select does, and says a new one with a change event. */
+  function dropdown(options, current, attributes = '') {
+    const choices = options.map((option) => (typeof option === 'string' ? { value: option, label: option } : option));
+    const chosen = choices.find((choice) => choice.value === current) ?? choices[0];
+    return `<button type="button" class="ui-input ui-picker" aria-haspopup="listbox" data-dropdown="${escapeHtml(JSON.stringify(choices))}" value="${escapeHtml(chosen.value)}" ${attributes}><span>${escapeHtml(chosen.label)}</span>${icon('chevronDown')}</button>`;
+  }
+  document.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-dropdown]');
+    if (!button) return;
+    const choices = JSON.parse(button.dataset.dropdown);
+    openPicker(button, choices, button.value, (value) => {
+      button.value = value;
+      button.querySelector('span').textContent = choices.find((choice) => choice.value === value).label;
+      button.focus();
+      button.dispatchEvent(new Event('change', { bubbles: true }));
+      /* A change can draw the form again, which puts a new button in the place of this one. */
+      if (!button.isConnected && button.id) document.getElementById(button.id)?.focus();
+    }, button.dataset.grouped !== undefined);
+  });
+
   function renderField(field, node) {
     const inputId = `field-${node.id}-${field.key}`;
     const fieldValue = node.config[field.key];
     const common = `id="${inputId}" data-field="${field.key}"`;
     const label = `<label class="ui-label" for="${inputId}">${escapeHtml(field.label)}${field.required ? '' : '<span class="ui-optional">optional</span>'}</label>`;
     const hint = field.hint ? `<p class="ui-hint">${escapeHtml(field.hint)}</p>` : '';
-    const wrap = (inner) => `<div class="ui-field ${field.half ? 'is-half' : ''}">${inner}${hint}</div>`;
+    /* The value notes come last, under the words that say what the field is for. */
+    const wrap = (inner, notes = '') => `<div class="ui-field ${field.half ? 'is-half' : ''}">${inner}${hint}${notes}</div>`;
     const placeholder = `placeholder="${escapeHtml(field.placeholder || '')}"`;
+    /* Where the values of the field show as chips, and what the field gives with the example values. */
+    const valueNotes = `<div class="ui-chips" data-chips="${field.key}" hidden></div><p class="ui-preview" data-preview="${field.key}" hidden></p>`;
     switch (field.type) {
-      case 'select': {
-        const options = field.options.map((option) => (typeof option === 'string' ? { value: option, label: option } : option));
-        const current = fieldValue ?? options[0].value;
-        /* A long list, such as the actions of a big connector, opens a picker that is searched by typing. */
-        if (options.length > LONG_LIST) {
-          const shown = options.find((option) => option.value === current)?.label ?? current;
-          return wrap(`${label.replace('<span class="ui-optional">optional</span>', '')}<button type="button" class="ui-input ui-picker" aria-haspopup="listbox" data-picker ${common}><span>${escapeHtml(shown)}</span>${icon('chevronDown')}</button>`);
-        }
-        return wrap(`${label.replace('<span class="ui-optional">optional</span>', '')}<div class="ui-select"><select ${common}>${options.map((option) => `<option value="${escapeHtml(option.value)}" ${option.value === current ? 'selected' : ''}>${escapeHtml(option.label)}</option>`).join('')}</select>${icon('chevronDown')}</div>`);
-      }
+      case 'select':
+        /* The choices of a big connector carry their group in the label, which the open list shows as headings. */
+        return wrap(`${label.replace('<span class="ui-optional">optional</span>', '')}${dropdown(field.options, fieldValue, `${common} ${field.options.length > LONG_LIST ? 'data-grouped' : ''}`)}`);
       case 'credential': {
         const choices = DT.canvas.store.credentials.filter((credential) => credential.type === field.credentialType);
         const missing = fieldValue && !choices.some((credential) => credential.name === fieldValue);
-        const options = [{ name: '', text: choices.length ? 'Choose a credential' : 'No credential yet' }, ...choices.map(({ name }) => ({ name, text: name })), ...(missing ? [{ name: fieldValue, text: `${fieldValue} (does not exist)` }] : [])];
-        return wrap(`${label}<div class="ui-credential-row"><div class="ui-select"><select ${common}>${options.map(({ name, text }) => `<option value="${escapeHtml(name)}" ${name === (fieldValue || '') ? 'selected' : ''}>${escapeHtml(text)}</option>`).join('')}</select>${icon('chevronDown')}</div>${fieldValue && !missing ? '<button type="button" class="ui-button" data-credential-edit>Edit</button>' : ''}<button type="button" class="ui-button" data-credential-new>New</button></div>`);
+        const options = [{ value: '', label: choices.length ? 'Choose a credential' : 'No credential yet' }, ...choices.map(({ name }) => ({ value: name, label: name })), ...(missing ? [{ value: fieldValue, label: `${fieldValue} (does not exist)` }] : [])];
+        return wrap(`${label}<div class="ui-credential-row">${dropdown(options, fieldValue || '', common)}${fieldValue && !missing ? '<button type="button" class="ui-button" data-credential-edit>Edit</button>' : ''}<button type="button" class="ui-button" data-credential-new>New</button></div>`);
       }
       case 'number': return wrap(`${label}<input class="ui-input" type="number" min="0" ${common} ${placeholder} value="${escapeHtml(fieldValue ?? '')}">`);
       case 'password': return wrap(`${label}<div class="ui-input-wrap"><input class="ui-input" type="password" autocomplete="off" ${common} ${placeholder} value="${escapeHtml(fieldValue ?? '')}"><button type="button" class="ui-input-action" data-reveal aria-label="Show value">${icon('eye')}</button></div>`);
       case 'toggle': return wrap(`<label class="ui-toggle"><input type="checkbox" ${common} ${fieldValue ? 'checked' : ''}><span class="ui-toggle-track"></span><span>${escapeHtml(field.label)}</span></label>`);
-      case 'code': return wrap(`${label}<textarea class="ui-input is-mono" rows="${Math.min(8, Math.max(3, String(fieldValue ?? '').split('\n').length + 1))}" spellcheck="false" data-variables ${common} ${placeholder}>${escapeHtml(fieldValue ?? '')}</textarea><p class="ui-hint">Type <code>$</code> to insert a parameter or earlier output.</p>`);
+      case 'code': return wrap(`${label}<textarea class="ui-input is-mono" rows="${Math.min(8, Math.max(3, String(fieldValue ?? '').split('\n').length + 1))}" spellcheck="false" data-variables ${common} ${placeholder}>${escapeHtml(fieldValue ?? '')}</textarea><p class="ui-hint">Type <code>$</code> to insert a parameter or earlier output.</p>`, node.type === 'script' ? '' : valueNotes);
       case 'expression': {
         /* Which task to run is picked from the saved ones, and a connector reads the choices of a field from its service
            when the field is entered, rather than a person typing an id from memory. */
@@ -214,7 +238,7 @@ export default function boot() {
         const addressNotes = ADDRESS_FIELDS.includes(field.key)
           ? Object.entries(ADDRESS_NOTES).map(([name, note]) => `<p class="ui-hint" data-address-note="${name}" data-for="${field.key}" hidden>${escapeHtml(note.text)}</p>`).join('')
           : '';
-        return wrap(`${label}${control}${list}${addressNotes}${field.choices ? `<p class="ui-hint" data-choices-note="${field.key}" hidden></p>` : ''}<p class="ui-preview" data-preview="${field.key}"></p>`);
+        return wrap(`${label}${control}${list}${addressNotes}${field.choices ? `<p class="ui-hint" data-choices-note="${field.key}" hidden></p>` : ''}`, valueNotes);
       }
       case 'form': {
         /* Saved values show by their key until the fields are loaded, which gives their labels and any new ones. */
@@ -227,7 +251,7 @@ export default function boot() {
       case 'map': {
         const rows = fieldValue || [];
         const cell = (column, row, index) => (column.options
-          ? `<div class="ui-select"><select aria-label="${escapeHtml(column.label)}" data-map-index="${index}" data-map-part="${column.key}">${column.options.map((choice) => `<option ${choice === row[column.key] ? 'selected' : ''}>${escapeHtml(choice)}</option>`).join('')}</select>${icon('chevronDown')}</div>`
+          ? dropdown(column.options, row[column.key], `aria-label="${escapeHtml(column.label)}" data-map-index="${index}" data-map-part="${column.key}"`)
           : `<input class="ui-input is-mono" data-variables placeholder="${escapeHtml(column.label)}" aria-label="${escapeHtml(column.label)}" data-map-index="${index}" data-map-part="${column.key}" value="${escapeHtml(row[column.key] ?? '')}">`);
         return `<fieldset class="ui-field ui-list" data-map="${field.key}"><legend class="ui-label">${escapeHtml(field.label)}${field.required ? '' : '<span class="ui-optional">optional</span>'}</legend>${rows.map((row, index) => `<div class="ui-list-row">${field.columns.map((column) => cell(column, row, index)).join('')}<button type="button" class="ui-icon-button" data-map-remove="${index}" aria-label="Remove">${icon('x')}</button></div>`).join('')}<button type="button" class="ui-link-button" data-map-add>${icon('plus')}Add</button></fieldset>`;
       }
@@ -259,23 +283,17 @@ export default function boot() {
     return `
       ${issues.map((issue) => `<p class="ui-note is-warn">${icon('alert')}${escapeHtml(issue.message)}</p>`).join('')}
       <div class="ui-field-grid">${visibleFields.map((field) => renderField(field, node)).join('')}</div>
+      ${DT.values.conditionBuilder(node)}
       ${node.type === 'start' && node.config.trigger === 'webhook' ? addressRow('Call this URL', webhookUrl(store.task, node), 'Works once the task is saved with its trigger on.') : ''}
       ${canFail ? `<details class="ui-disclosure" ${hasFailureSettings ? 'open' : ''}><summary>${icon('chevronRight')}If this step fails${node.config.retries ? `<span class="ui-pill">${node.config.retries} ${node.config.retries === 1 ? 'retry' : 'retries'}</span>` : ''}</summary><div class="ui-field-grid">${FAILURE_FIELDS.map((field) => renderField(field, node)).join('')}</div></details>` : ''}
+      ${DT.values.previewChoices(node)}
       ${advancedFields.length ? `<details class="ui-disclosure" ${node.config.scriptLanguage === 'JAVASCRIPT' || node.config.baseUrl ? 'open' : ''}><summary>${icon('chevronRight')}Advanced</summary><div class="ui-field-grid">${advancedFields.map((field) => renderField(field, node)).join('')}</div></details>` : ''}
       <p class="ui-backend-name">${escapeHtml(action.backend)}</p>`;
   }
 
 
-  function updatePreviews(root, store) {
-    root.querySelectorAll('[data-preview]').forEach((previewElement) => {
-      const input = root.querySelector(`[data-field="${previewElement.dataset.preview}"]`);
-      if (!input || !input.value.includes('$')) { previewElement.textContent = ''; previewElement.hidden = true; return; }
-      const lastStep = store.runs[0]?.steps.at(-1);
-      if (!lastStep) { previewElement.hidden = true; return; }
-      const resolved = DT.interpolate(input.value, lastStep.variables);
-      previewElement.hidden = false;
-      previewElement.innerHTML = `<span>Last run</span> ${escapeHtml(resolved).slice(0, 140)}`;
-    });
+  function updatePreviews(root, nodeId) {
+    DT.values.refresh(root, nodeId);
     updateAddressNotes(root);
   }
 
@@ -292,7 +310,7 @@ export default function boot() {
       const node = DT.nodeById(store.task, nodeId);
       if (!node) { root.innerHTML = ''; return; }
       root.innerHTML = renderForm(node, store);
-      updatePreviews(root, store);
+      updatePreviews(root, nodeId);
     };
     const currentNode = () => DT.nodeById(store.task, nodeId);
     const hasConditionalFields = () => ACTIONS[currentNode().type].fields.some((field) => field.showWhen);
@@ -304,8 +322,8 @@ export default function boot() {
         /* Leaving a field fires change with the value input already saved. Saving it again rebuilds the panel
            under the pointer, which would swallow the click that left the field. */
         if (node.config[target.dataset.field] !== newValue) store.updateConfig(nodeId, target.dataset.field, newValue);
-        if (event.type === 'change' && (target.tagName === 'SELECT' || target.type === 'checkbox') && (hasConditionalFields() || target.dataset.field === 'credential')) render();
-        updatePreviews(root, store);
+        if (event.type === 'change' && (target.matches('[data-dropdown]') || target.type === 'checkbox') && (hasConditionalFields() || target.dataset.field === 'credential')) render();
+        updatePreviews(root, nodeId);
         const urlElement = node.config.trigger === 'webhook' && root.querySelector('[data-address]');
         if (urlElement) {
           urlElement.textContent = webhookUrl(store.task, node);
@@ -327,12 +345,6 @@ export default function boot() {
       if (!button) return;
       const node = currentNode();
       const mapKey = button.closest('[data-map]')?.dataset.map;
-      if (button.dataset.picker !== undefined) {
-        const key = button.dataset.field;
-        const { options } = ACTIONS[node.type].fields.find((field) => field.key === key);
-        openPicker(button, options, node.config[key] ?? options[0].value, (value) => { store.updateConfig(nodeId, key, value); render(); root.querySelector(`[data-field="${key}"]`)?.focus(); });
-        return;
-      }
       if (button.dataset.credentialNew !== undefined || button.dataset.credentialEdit !== undefined) {
         const field = ACTIONS[node.type].fields.find((candidate) => candidate.key === 'credential' && DT.fieldVisible(candidate, node.config));
         const editing = button.dataset.credentialEdit !== undefined ? store.credentials.find((credential) => credential.name === node.config.credential) : null;
@@ -392,10 +404,10 @@ export default function boot() {
     return { render, dispose() { root.removeEventListener('focusin', onFocus); root.removeEventListener('input', onInput); root.removeEventListener('change', onInput); root.removeEventListener('click', onClick); onVariableKey(); } };
   }
 
-  /* Shows every choice of a long list at once, narrowed by the words typed and headed by the group in a
-     "Group: Choice" label. Keeps the order of the list inside each group. */
-  function openPicker(anchor, options, current, onPick) {
-    const groupOf = (option) => (option.label.includes(': ') ? option.label.slice(0, option.label.indexOf(': ')) : '');
+  /* The open list of a dropdown. A long list is narrowed by the words typed. A grouped one is headed by the group in a
+     "Group: Choice" label, and keeps the order of the list inside each group. */
+  function openPicker(anchor, options, current, onPick, isGrouped = false) {
+    const groupOf = (option) => (isGrouped && option.label.includes(': ') ? option.label.slice(0, option.label.indexOf(': ')) : '');
     const sorted = [...options].sort((first, second) => groupOf(first).localeCompare(groupOf(second)));
     let shown = sorted;
     let activeIndex = Math.max(0, sorted.findIndex((option) => option.value === current));
@@ -409,17 +421,17 @@ export default function boot() {
         const heading = group && group !== groupOf(shown[index - 1] ?? { label: '' }) ? `<h3>${escapeHtml(group)}</h3>` : '';
         const name = group ? option.label.slice(group.length + 2) : option.label;
         const isCurrent = option.value === current;
-        return `${heading}<button type="button" role="option" aria-selected="${isCurrent}" class="ui-palette-item ${index === activeIndex ? 'is-active' : ''}" data-index="${index}"><span class="ui-palette-label">${escapeHtml(name)}</span>${isCurrent ? icon('check') : ''}</button>`;
+        return `${heading}<button type="button" role="option" aria-selected="${isCurrent}" class="ui-option ${index === activeIndex ? 'is-active' : ''}" data-index="${index}"><span class="ui-palette-label">${escapeHtml(name)}</span>${isCurrent ? icon('check') : ''}</button>`;
       }).join('');
     };
-    const { element, close } = openPopover(anchor, `<div class="ui-palette-search">${icon('search')}<input placeholder="Search" aria-label="Search the choices" autocomplete="off" spellcheck="false"></div><div class="ui-palette-list" role="listbox">${listHtml('')}</div>`, { className: 'ui-picker-menu' });
-    element.style.width = `${anchor.offsetWidth}px`;
+    const search = options.length > LONG_LIST ? `<div class="ui-palette-search">${icon('search')}<input placeholder="Search" aria-label="Search the choices" autocomplete="off" spellcheck="false"></div>` : '';
+    const { element, close } = openPopover(anchor, `${search}<div class="ui-palette-list" role="listbox" tabindex="-1">${listHtml('')}</div>`, { className: 'ui-picker-menu', minWidth: Math.max(anchor.offsetWidth, 180) });
     const input = element.querySelector('input');
     const list = element.querySelector('.ui-palette-list');
-    const draw = () => { list.innerHTML = listHtml(input.value); list.querySelector('.is-active')?.scrollIntoView({ block: 'nearest' }); };
+    const draw = () => { list.innerHTML = listHtml(input?.value ?? ''); list.querySelector('.is-active')?.scrollIntoView({ block: 'nearest' }); };
     const pick = (option) => { if (!option) return; close(); onPick(option.value); };
-    input.addEventListener('input', () => { activeIndex = 0; draw(); });
-    input.addEventListener('keydown', (event) => {
+    input?.addEventListener('input', () => { activeIndex = 0; draw(); });
+    element.addEventListener('keydown', (event) => {
       if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && shown.length) {
         event.preventDefault();
         activeIndex = (activeIndex + (event.key === 'ArrowDown' ? 1 : -1) + shown.length) % shown.length;
@@ -428,7 +440,7 @@ export default function boot() {
     });
     list.addEventListener('click', (event) => { const button = event.target.closest('[data-index]'); if (button) pick(shown[Number(button.dataset.index)]); });
     list.querySelector('.is-active')?.scrollIntoView({ block: 'center' });
-    input.focus();
+    (input ?? list).focus();
   }
 
   /* The ways a task can start, built in and from every app, in one searchable list. */
@@ -437,7 +449,7 @@ export default function boot() {
       .filter((option) => option.value !== 'manual' && option.value !== DT.APP_TRIGGER)
       .map((option) => ({ value: option.value, label: `Built in: ${option.label}` }));
     const apps = Object.entries(ACTIONS).filter(([, action]) => action.category === 'starts').map(([type, action]) => ({ value: type, label: `Apps: ${action.label}` }));
-    openPicker(anchor, [...builtIn, ...apps], null, (value) => (ACTIONS[value] ? store.addStep(value) : store.addTrigger(value)));
+    openPicker(anchor, [...builtIn, ...apps], null, (value) => (ACTIONS[value] ? store.addStep(value) : store.addTrigger(value)), true);
   }
 
   /* `$` in any expression-capable input opens a menu of what is available at this point. */
@@ -449,7 +461,7 @@ export default function boot() {
     let tokenStart = 0;
     const closeMenu = () => { menu?.remove(); menu = null; };
     const renderMenu = () => {
-      menu.innerHTML = suggestions.map((item, index) => `<button type="button" class="ui-var-item ${index === activeIndex ? 'is-active' : ''}" data-index="${index}"><span>${escapeHtml(item.label)}</span><small>${escapeHtml(item.detail)}</small></button>`).join('');
+      menu.innerHTML = suggestions.map((item, index) => `<button type="button" class="ui-option ${index === activeIndex ? 'is-active' : ''}" data-index="${index}"><span>${escapeHtml(item.label)}</span><small>${escapeHtml(item.detail)}</small></button>`).join('');
     };
     const insert = (item) => {
       const end = activeInput.selectionStart;
@@ -473,7 +485,7 @@ export default function boot() {
       activeIndex = 0;
       if (!menu) {
         menu = document.createElement('div');
-        menu.className = 'ui-var-menu';
+        menu.className = 'ui-popover ui-menu ui-var-menu';
         menu.addEventListener('pointerdown', (pointerEvent) => {
           pointerEvent.preventDefault();
           const item = pointerEvent.target.closest('[data-index]');
@@ -538,7 +550,7 @@ export default function boot() {
       flatItems = groups.flatMap((group) => group.items);
       activeIndex = Math.min(activeIndex, Math.max(0, flatItems.length - 1));
       let position = -1;
-      list.innerHTML = groups.length ? groups.map((group) => `<div class="ui-palette-group"><h3>${escapeHtml(group.label)}</h3>${group.items.map((item) => { position += 1; return `<button type="button" role="option" class="ui-palette-item ${position === activeIndex ? 'is-active' : ''}" data-index="${position}" ${item.category ? `data-category="${item.category}"` : ''}><span class="ui-palette-icon">${icon(item.icon)}</span><span class="ui-palette-label">${escapeHtml(item.label)}</span>${item.detail ? `<small>${escapeHtml(item.detail)}</small>` : ''}${item.shortcut ? kbd(item.shortcut) : ''}</button>`; }).join('')}</div>`).join('') : `<p class="ui-empty">Nothing matches “${escapeHtml(input.value)}”.</p>`;
+      list.innerHTML = groups.length ? groups.map((group) => `<div class="ui-palette-group"><h3>${escapeHtml(group.label)}</h3>${group.items.map((item) => { position += 1; return `<button type="button" role="option" class="ui-option ${position === activeIndex ? 'is-active' : ''}" data-index="${position}" ${item.category ? `data-category="${item.category}"` : ''}><span class="ui-palette-icon">${icon(item.icon)}</span><span class="ui-palette-label">${escapeHtml(item.label)}</span>${item.detail ? `<small>${escapeHtml(item.detail)}</small>` : ''}${item.shortcut ? kbd(item.shortcut) : ''}</button>`; }).join('')}</div>`).join('') : `<p class="ui-empty">Nothing matches “${escapeHtml(input.value)}”.</p>`;
     };
     const choose = (item) => {
       if (!item) return;
@@ -565,7 +577,7 @@ export default function boot() {
 
   /* ---------- Task-level dialogs ---------- */
 
-  function openRunDialog(store, onRun, { onFixIssue, values } = {}) {
+  function openRunDialog(store, onRun, { onFixIssue, values, preview = false } = {}) {
     const issues = store.issues;
     if (issues.length) {
       const dialog = openDialog(`${dialogHeader(`${issues.length} ${issues.length === 1 ? 'thing needs' : 'things need'} attention before running`)}<ul class="ui-issue-list">${issues.map((issue) => `<li><button type="button" data-node="${issue.nodeId}">${icon('alert')}<span><b>${escapeHtml(DT.nodeById(store.task, issue.nodeId).name)}</b>${escapeHtml(issue.message)}</span>${icon('chevronRight')}</button></li>`).join('')}</ul>`, { className: 'is-small' });
@@ -580,10 +592,10 @@ export default function boot() {
     }
     if (!store.task.parameters.length) { onRun({}); return; }
     const lastValues = values || store.runs[0]?.parameters || {};
-    const dialog = openDialog(`${dialogHeader(`Run “${store.task.name}”`, 'Choose the values for this run.')}
+    const dialog = openDialog(`${dialogHeader(`${preview ? 'Preview' : 'Run'} “${store.task.name}”`, preview ? 'Choose the values for this preview. Nothing is sent.' : 'Choose the values for this run.')}
       <form method="dialog" class="ui-form" novalidate>
         ${store.task.parameters.map((parameter) => `<div class="ui-field"><label class="ui-label" for="run-${escapeHtml(parameter.name)}">${escapeHtml(parameter.name)}<span class="ui-optional">${parameter.required ? 'required' : 'optional'}</span></label><input class="ui-input" id="run-${escapeHtml(parameter.name)}" name="${escapeHtml(parameter.name)}" data-required="${parameter.required ? 1 : ''}" autocomplete="off" spellcheck="false" value="${escapeHtml(lastValues[parameter.name] ?? parameter.defaultValue ?? '')}">${parameter.description ? `<p class="ui-hint">${escapeHtml(parameter.description)}</p>` : ''}</div>`).join('')}
-        <footer class="ui-dialog-foot"><button type="button" class="ui-button" data-dialog-close>Cancel</button><button type="submit" class="ui-button is-primary">${icon('play')}Run ${kbd(`${modKey}↵`)}</button></footer>
+        <footer class="ui-dialog-foot"><button type="button" class="ui-button" data-dialog-close>Cancel</button><button type="submit" class="ui-button is-primary">${icon(preview ? 'eye' : 'play')}${preview ? 'Preview' : 'Run'} ${kbd(`${modKey}↵`)}</button></footer>
       </form>`, { className: 'is-small' });
     const form = dialog.querySelector('form');
     const submit = (event) => {
@@ -635,12 +647,12 @@ export default function boot() {
   const versionLabel = (version) => `${new Date(version.created).toLocaleString('sv-SE')}${version.description ? ` - ${version.description}` : ''}${version.autoSaved ? ' - AUTO SAVED' : ''}${version.proposed ? ' - PROPOSED BY AN AGENT' : version.madeByAgent ? ` - MADE BY AN AGENT${version.approvedBy ? `, APPROVED BY ${version.approvedBy}` : ''}` : ''}`;
 
   function openTaskDialog(store) {
-    const dialog = openDialog(`${dialogHeader('Tasks', 'Open any saved version, or delete a task.')}<div class="ui-task-list">${store.tasks.length ? store.tasks.map((task) => `<div class="ui-task-row ${task.id === store.task.id ? 'is-current' : ''}" data-task="${escapeHtml(task.id)}"><span><b>${escapeHtml(task.name)}</b><div class="ui-select"><select aria-label="Version of ${escapeHtml(task.name)}">${task.versions.map((version) => `<option value="${version.checksum}">${escapeHtml(versionLabel(version))}</option>`).join('')}</select>${icon('chevronDown')}</div></span><button type="button" class="ui-button" data-open>Open</button><button type="button" class="ui-button" data-delete aria-label="Delete ${escapeHtml(task.name)}">${icon('trash')}Delete</button></div>`).join('') : '<p class="ui-empty">No saved tasks yet.</p>'}</div><footer class="ui-dialog-foot"><button type="button" class="ui-button" data-import>${icon('upload')}Import…</button><span class="ui-spacer"></span><button type="button" class="ui-button is-primary" data-new>${icon('plus')}New task</button></footer>`, { className: 'is-medium' });
+    const dialog = openDialog(`${dialogHeader('Tasks', 'Open any saved version, or delete a task.')}<div class="ui-task-list">${store.tasks.length ? store.tasks.map((task) => `<div class="ui-task-row ${task.id === store.task.id ? 'is-current' : ''}" data-task="${escapeHtml(task.id)}"><span><b>${escapeHtml(task.name)}</b>${dropdown(task.versions.map((version) => ({ value: version.checksum, label: versionLabel(version) })), task.versions[0].checksum, `aria-label="Version of ${escapeHtml(task.name)}"`)}</span><button type="button" class="ui-button" data-open>Open</button><button type="button" class="ui-button" data-delete aria-label="Delete ${escapeHtml(task.name)}">${icon('trash')}Delete</button></div>`).join('') : '<p class="ui-empty">No saved tasks yet.</p>'}</div><footer class="ui-dialog-foot"><button type="button" class="ui-button" data-import>${icon('upload')}Import…</button><span class="ui-spacer"></span><button type="button" class="ui-button is-primary" data-new>${icon('plus')}New task</button></footer>`, { className: 'is-medium' });
     dialog.addEventListener('click', async (event) => {
       const row = event.target.closest('[data-task]');
       if (event.target.closest('[data-open]')) {
         dialog.close();
-        store.openVersion(row.querySelector('select').value).catch((error) => toast(error.message, { tone: 'danger' }));
+        store.openVersion(row.querySelector('[data-dropdown]').value).catch((error) => toast(error.message, { tone: 'danger' }));
       }
       if (event.target.closest('[data-delete]')) {
         const name = row.dataset.task;
@@ -809,7 +821,8 @@ export default function boot() {
       const typing = event.target.matches?.('input, textarea, select, [contenteditable="true"]');
       const dialogOpen = !!document.querySelector('dialog[open]');
       if (modified && event.key.toLowerCase() === 'k') { event.preventDefault(); if (!dialogOpen) handlers.palette(); return; }
-      if (dialogOpen) return;
+      /* The keys belong to an open dialog or menu until it closes. */
+      if (dialogOpen || openPopovers.length) return;
       if (modified && event.key === 'Enter') { event.preventDefault(); handlers.run(); return; }
       if (modified && event.key.toLowerCase() === 's') { event.preventDefault(); store.save().then((message) => toast(message), (error) => toast(error.message, { tone: 'danger' })); return; }
       if (typing) { if (event.key === 'Escape') event.target.blur(); return; }
@@ -846,6 +859,8 @@ export default function boot() {
     if (!step) return '<p class="ui-empty">This step did not run.</p>';
     return `
       ${step.error ? `<p class="ui-note is-danger">${icon('alert')}${escapeHtml(step.error)}</p>` : ''}
+      ${(step.missingValues || []).map((note) => `<p class="ui-note is-warn">${icon('alert')}${escapeHtml(note)}</p>`).join('')}
+      ${step.held ? `<div class="ui-result is-held"><div class="ui-result-head"><span class="ui-label">What this step would send</span><span class="ui-pill">Not sent</span></div><pre>${escapeHtml(readableOutput(step.held))}</pre></div>${DT.values.heldAnswer(step)}` : ''}
       ${step.output ? `<div class="ui-result"><div class="ui-result-head"><span class="ui-label">Output</span>${navigator.clipboard ? `<button type="button" class="ui-link-button" data-copy-output>${icon('copy')}Copy</button>` : ''}</div><pre>${escapeHtml(readableOutput(step.output))}</pre></div>` : ''}`;
   }
 
@@ -857,7 +872,7 @@ export default function boot() {
 
   window.DT.ui = {
     statusGlyph, RUN_STATUS_LABELS, runParameterSummary,
-    icon, escapeHtml, modKey, toast, openPopover, mountForm, openPalette, openTriggerPicker,
+    icon, escapeHtml, modKey, toast, openPopover, dropdown, mountForm, openPalette, openTriggerPicker,
     openRunDialog, openParametersDialog, openTaskDialog, openCredentialsDialog, openSaveAsDialog, exportTask, importTask, openShortcutsDialog,
     saveStatus, bindShortcuts, removeWithUndo, renderStepResult, formatDuration, formatAgo,
   };

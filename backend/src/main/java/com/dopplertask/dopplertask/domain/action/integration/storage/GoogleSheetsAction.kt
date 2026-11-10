@@ -24,6 +24,8 @@ import jakarta.persistence.Transient
 @Table(name = "GoogleSheetsAction")
 @DiscriminatorValue("google_sheets_action")
 class GoogleSheetsAction : Action() {
+    override val runsInPreview get() = true
+
     @Column
     var baseUrl: String? = "https://sheets.googleapis.com"
 

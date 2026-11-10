@@ -45,8 +45,8 @@ export default function boot() {
     const starts = START_OPTIONS.filter(([, , label, detail]) => matches(`${label} ${detail}`));
     const groups = DT.stepsMatching(query).map(({ category, items }) => ({ category, items: items.map(({ type, action }) => [type, action]) }));
     if (!starts.length && !groups.length) return `<p class="ui-empty">No step matches “${escapeHtml(librarySearch)}”.</p>`;
-    return `${starts.length ? `<details class="side-group" ${query ? 'open' : ''}><summary>${icon('chevronRight')}Starts when</summary>${starts.map(([value, iconName, label, detail]) => `<button type="button" class="side-item" data-start="${value}"><span class="side-icon">${icon(iconName)}</span><span><b>${label}</b><small>${detail}</small></span></button>`).join('')}</details>` : ''}
-      ${groups.map(({ category, items }, index) => `<details class="side-group" data-category="${category.id}" ${query || index === 0 ? 'open' : ''}><summary>${icon('chevronRight')}${query ? '' : '<i class="side-swatch"></i>'}${escapeHtml(category.label)}</summary>${items.map(([type, action]) => `<button type="button" class="side-item library-item" data-type="${type}" data-category="${action.category}" title="Click to add after the last step, or drag onto the canvas"><span class="side-icon">${icon(action.icon)}</span><span><b>${escapeHtml(action.label)}</b><small>${escapeHtml(action.description)}</small></span></button>`).join('')}</details>`).join('')}`;
+    return `${starts.length ? `<details class="side-group" ${query ? 'open' : ''}><summary>${icon('chevronRight')}Starts when</summary>${starts.map(([value, iconName, label, detail]) => `<button type="button" class="ui-option side-item" data-start="${value}"><span class="side-icon">${icon(iconName)}</span><span><b>${label}</b><small>${detail}</small></span></button>`).join('')}</details>` : ''}
+      ${groups.map(({ category, items }, index) => `<details class="side-group" data-category="${category.id}" ${query || index === 0 ? 'open' : ''}><summary>${icon('chevronRight')}${query ? '' : '<i class="side-swatch"></i>'}${escapeHtml(category.label)}</summary>${items.map(([type, action]) => `<button type="button" class="ui-option side-item library-item" data-type="${type}" data-category="${action.category}" title="Click to add after the last step, or drag onto the canvas"><span class="side-icon">${icon(action.icon)}</span><span><b>${escapeHtml(action.label)}</b><small>${escapeHtml(action.description)}</small></span></button>`).join('')}</details>`).join('')}`;
   }
 
   function renderSide() {
@@ -76,6 +76,7 @@ export default function boot() {
   function syncRunPill() {
     const last = store.runs[0];
     byId('runPill').innerHTML = `<button type="button" class="run-main" data-action="run" title="Run this task (${modKey}↵)"><span class="run-circle">${icon('play')}</span><b>Run</b></button>
+      <button type="button" class="preview-main" data-action="preview" title="Go through the task with nothing sent, to see what every step would do">${icon('eye')}<b>Preview</b></button>
       ${last
         ? `<button type="button" class="last-run" data-run="${last.id}" title="Open the last run">${statusGlyph(last.status)}<span><b>Last run</b><small>${formatAgo(last.startedAt)}</small></span></button>`
         : '<span class="last-run is-none"><span><b>Not run yet</b></span></span>'}`;
@@ -115,7 +116,7 @@ export default function boot() {
     const summary = review.isNewTask
       ? `a new task with ${count(review.added.size, '').trim()}`
       : `a change: ${[count(review.added.size, 'added'), count(review.changed.size, 'changed'), count(review.removed.length, 'removed')].join(', ')}`;
-    host.innerHTML = `<div><b>An agent proposes ${escapeHtml(summary)}.</b><small>${review.removed.length ? `Removed: ${escapeHtml(review.removed.join(', '))}. ` : ''}Nothing here runs until you approve it.</small></div>
+    host.innerHTML = `<div><b>An agent proposes ${escapeHtml(summary)}.</b><small>${review.removed.length ? `Removed: ${escapeHtml(review.removed.join(', '))}. ` : ''}Nothing here runs until you approve it. A preview shows what it would do, and sends nothing.</small></div>
       <button type="button" class="ui-button" data-flow="reject">Reject</button>
       <button type="button" class="ui-button is-primary" data-flow="approve">${icon('check')}Approve</button>`;
   }

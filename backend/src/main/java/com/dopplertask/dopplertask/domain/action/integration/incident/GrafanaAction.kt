@@ -22,6 +22,8 @@ import java.io.IOException
 @Table(name = "GrafanaAction")
 @DiscriminatorValue("grafana_action")
 class GrafanaAction : Action() {
+    override val runsInPreview get() = true
+
     @Column
     var siteUrl: String? = null
 

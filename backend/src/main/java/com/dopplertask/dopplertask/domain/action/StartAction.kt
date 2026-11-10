@@ -19,6 +19,8 @@ import jakarta.persistence.Table
 @Table(name = "StartAction")
 @DiscriminatorValue("start_action")
 class StartAction : Action() {
+    override val runsInPreview get() = true
+
     @Throws(IOException::class)
     override fun run(
         taskService: TaskService,

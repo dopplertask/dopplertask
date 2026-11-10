@@ -36,6 +36,8 @@ import java.util.UUID
 @Table(name = "ConnectorAction")
 @DiscriminatorValue("connector_action")
 class ConnectorAction : Action() {
+    override val runsInPreview get() = true
+
 
     @Column
     @JsonProperty(value = "@type", access = JsonProperty.Access.WRITE_ONLY)

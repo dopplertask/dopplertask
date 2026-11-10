@@ -22,6 +22,8 @@ import java.io.IOException
 @Table(name = "DatadogAction")
 @DiscriminatorValue("datadog_action")
 class DatadogAction : Action() {
+    override val runsInPreview get() = true
+
     @Column
     var baseUrl: String? = "https://api.datadoghq.com"
 

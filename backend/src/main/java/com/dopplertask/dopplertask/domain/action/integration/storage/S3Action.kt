@@ -33,6 +33,8 @@ import jakarta.persistence.Transient
 @Table(name = "s3action")
 @DiscriminatorValue("s3_action")
 class S3Action : Action() {
+    override val runsInPreview get() = true
+
     @Column
     var baseUrl: String? = null
 

@@ -56,6 +56,7 @@ public class ExecutionController {
                 steps.addAll(executionService.getLiveSteps(id));
             }
             responseDTO.setSteps(steps);
+            responseDTO.setPreview(executionObj.getPreview() != null);
             responseDTO.setStartDate(executionObj.getStartdate());
             responseDTO.setEndDate(executionObj.getEnddate());
             executionObj.getParameters().forEach((name, parameter) -> {

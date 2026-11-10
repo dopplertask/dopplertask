@@ -22,6 +22,8 @@ import java.io.IOException
 @Table(name = "CloudflareAction")
 @DiscriminatorValue("cloudflare_action")
 class CloudflareAction : Action() {
+    override val runsInPreview get() = true
+
     @Column
     var baseUrl: String? = "https://api.cloudflare.com"
 

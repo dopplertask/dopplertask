@@ -18,6 +18,8 @@ import jakarta.persistence.Table
 @Table(name = "ScriptAction")
 @DiscriminatorValue("script_action")
 class ScriptAction : Action() {
+    override val runsInPreview get() = true
+
     @Lob
     @Column(columnDefinition = "TEXT")
     var script: String? = null

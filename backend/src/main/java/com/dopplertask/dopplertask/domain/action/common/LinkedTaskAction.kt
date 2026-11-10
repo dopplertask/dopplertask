@@ -1,5 +1,6 @@
 package com.dopplertask.dopplertask.domain.action.common
 
+import com.dopplertask.dopplertask.domain.Preview
 import com.dopplertask.dopplertask.domain.ActionResult
 import com.dopplertask.dopplertask.domain.ExecutionParameter
 import com.dopplertask.dopplertask.domain.StatusCode
@@ -24,6 +25,8 @@ import jakarta.persistence.Table
 @Table(name = "LinkedTaskAction")
 @DiscriminatorValue("linkedtask_action")
 class LinkedTaskAction : Action() {
+    override val runsInPreview get() = true
+
     @Column
     var name: String? = null
 
@@ -47,6 +50,8 @@ class LinkedTaskAction : Action() {
             taskRequest.checksum = checksum
             // Increase depth by one
             taskRequest.depth = execution.depth + 1
+            // The task this step runs sends nothing either, when this run sends nothing.
+            if (Preview.isHolding()) taskRequest.preview = Preview()
 
             val passedLinkedTaskParameters: MutableMap<String, ExecutionParameter> = mutableMapOf()
             parameters.forEach(Consumer { linkedActionParameter: LinkedTaskParameter ->
