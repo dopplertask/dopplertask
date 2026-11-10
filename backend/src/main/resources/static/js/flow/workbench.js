@@ -93,9 +93,9 @@ export default function boot() {
       ...(store.person ? [['logOut', `Sign out ${store.person.email}`, () => store.signOut()]] : []),
     ];
     const { element, close } = DT.ui.openPopover(anchor, `<div class="ui-menu task-switcher">
-      <div class="task-switcher-list">${store.tasks.map((task) => `<button type="button" class="is-task ${task.id === store.task.id ? 'is-current' : ''}" data-switch="${escapeHtml(task.id)}">${icon('workflow')}<span><b>${escapeHtml(task.name)}</b><small>${task.versions[0].proposed ? 'A proposal is waiting' : `${task.versions.length} ${task.versions.length === 1 ? 'version' : 'versions'}`}</small></span></button>`).join('')}</div>
+      <div class="task-switcher-list">${store.tasks.map((task) => `<button type="button" class="ui-option is-task ${task.id === store.task.id ? 'is-current' : ''}" data-switch="${escapeHtml(task.id)}">${icon('workflow')}<span><b>${escapeHtml(task.name)}</b><small>${task.versions[0].proposed ? 'A proposal is waiting' : `${task.versions.length} ${task.versions.length === 1 ? 'version' : 'versions'}`}</small></span></button>`).join('')}</div>
       ${store.tasks.length ? '<hr>' : ''}
-      ${others.map((item, index) => `<button type="button" data-other="${index}">${icon(item[0])}<span>${item[1]}</span></button>`).join('')}
+      ${others.map((item, index) => `<button type="button" class="ui-option" data-other="${index}">${icon(item[0])}<span>${item[1]}</span></button>`).join('')}
       <hr>
       <label class="ui-toggle" title="Saves a marked version 30 seconds after the last change. Pauses while the task's triggers are on."><input type="checkbox" data-wb-autosave ${store.autoSave ? 'checked' : ''}><span class="ui-toggle-track"></span><span>Auto save</span></label>
     </div>`);

@@ -332,7 +332,7 @@ export default function boot() {
 
   function renderEmptyCard() {
     const suggestions = ['command', 'http', 'ssh', 'script', 'if', 'readFile'];
-    elements.emptyCard.innerHTML = `<h2>What should happen first?</h2><p>Choose a step. You can change or rearrange anything later.</p><div class="empty-options">${suggestions.filter((type) => ACTIONS[Array.isArray(type) ? type[0] : type]).map((type) => `<button type="button" data-first-step="${type}"><span class="node-icon" data-category="${ACTIONS[type].category}">${icon(ACTIONS[type].icon)}</span>${escapeHtml(ACTIONS[type].label)}</button>`).join('')}</div><button type="button" class="ui-link-button empty-example" data-try-example>Or try an example you can run right away</button>`;
+    elements.emptyCard.innerHTML = `<h2>What should happen first?</h2><p>Choose a step. You can change or rearrange anything later.</p><div class="empty-options">${suggestions.filter((type) => ACTIONS[Array.isArray(type) ? type[0] : type]).map((type) => `<button type="button" class="ui-option" data-first-step="${type}"><span class="node-icon" data-category="${ACTIONS[type].category}">${icon(ACTIONS[type].icon)}</span>${escapeHtml(ACTIONS[type].label)}</button>`).join('')}</div><button type="button" class="ui-link-button empty-example" data-try-example>Or try an example you can run right away</button>`;
   }
 
   /* ---------- Actions ---------- */

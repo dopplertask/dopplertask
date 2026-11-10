@@ -8,7 +8,7 @@ const OWN_CHOICE = '';
 
 export default function boot() {
   const { store } = DT.canvas;
-  const { icon, escapeHtml, openPopover } = DT.ui;
+  const { icon, escapeHtml, openPopover, dropdown } = DT.ui;
   const form = () => document.getElementById('panelForm');
   const fieldInput = (key) => form()?.querySelector(`[data-field="${key}"]`);
 
@@ -109,7 +109,7 @@ export default function boot() {
     const isListed = operation.choices?.some(([value]) => value === current);
     const usesOwn = !operation.choices || (current !== undefined && !isListed);
     const select = operation.choices
-      ? `<div class="ui-select"><select data-shape-choice aria-label="${escapeHtml(operation.label)}">${operation.choices.map(([value, label]) => `<option value="${escapeHtml(value)}" ${value === current ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('')}${operation.ownChoice ? `<option value="${OWN_CHOICE}" ${usesOwn ? 'selected' : ''}>Your own…</option>` : ''}</select>${icon('chevronDown')}</div>`
+      ? dropdown([...operation.choices.map(([value, label]) => ({ value, label })), ...(operation.ownChoice ? [{ value: OWN_CHOICE, label: 'Your own…' }] : [])], usesOwn ? OWN_CHOICE : current, `data-shape-choice aria-label="${escapeHtml(operation.label)}"`)
       : '';
     const own = operation.ownChoice
       ? `<input class="ui-input" data-shape-own autocomplete="off" spellcheck="false" placeholder="${escapeHtml(operation.ownChoice)}" value="${escapeHtml(usesOwn ? current ?? '' : '')}" ${usesOwn ? '' : 'hidden'}>`
@@ -125,7 +125,7 @@ export default function boot() {
     const { element, close } = openPopover(anchor, `<div class="shape">
       <b class="shape-title">${escapeHtml(referenceWords(reference))}</b>
       <small class="shape-sample">${sample === undefined ? 'No example value yet' : `Example: ${escapeHtml(shownValue(sample))}`}</small>
-      <div class="ui-select"><select data-shape-operation aria-label="Change"><option value="">Use it as it is</option>${offered.map((operation) => `<option value="${operation.id}" ${operation.id === current.operation ? 'selected' : ''}>${escapeHtml(operation.label)}</option>`).join('')}</select>${icon('chevronDown')}</div>
+      ${dropdown([{ value: '', label: 'Use it as it is' }, ...offered.map((operation) => ({ value: operation.id, label: operation.label }))], current.operation, 'data-shape-operation aria-label="Change"')}
       <div class="shape-choice" data-shape-choices>${choiceControls(offered.find((operation) => operation.id === current.operation), current.choice)}</div>
       <p class="ui-preview" data-shape-preview hidden></p>
       <div class="shape-foot"><button type="button" class="ui-button is-primary" data-shape-use>Use</button></div>
@@ -235,7 +235,7 @@ export default function boot() {
       <span class="ui-label">Build the condition</span>
       <div class="condition-row">
         <button type="button" class="ui-button condition-slot ${state.isWaiting ? 'is-waiting' : ''}" data-condition-slot title="Then click a value under Data you can use">${escapeHtml(state.isWaiting ? 'Click a value below…' : state.reference ? referenceWords(state.reference) : 'Pick a value')}</button>
-        <div class="ui-select"><select data-condition-word aria-label="How to compare">${words.map((candidate) => `<option value="${candidate.id}" ${candidate.id === word.id ? 'selected' : ''}>${escapeHtml(candidate.label)}</option>`).join('')}</select>${icon('chevronDown')}</div>
+        ${dropdown(words.map((candidate) => ({ value: candidate.id, label: candidate.label })), word.id, 'data-condition-word aria-label="How to compare"')}
         <input class="ui-input" data-condition-value aria-label="Compare with" autocomplete="off" ${word.takes === 'number' ? 'type="number" step="any"' : ''} value="${escapeHtml(state.value)}" ${word.takes ? '' : 'hidden'}>
       </div>
       <div class="condition-foot"><button type="button" class="ui-button" data-condition-use ${state.reference ? '' : 'disabled'}>Use this condition</button>
