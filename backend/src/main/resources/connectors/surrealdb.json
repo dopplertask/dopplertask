@@ -1,0 +1,380 @@
+{
+  "name": "surrealdb",
+  "label": "SurrealDB",
+  "description": "Multi Model Database",
+  "icon": "",
+  "hosts": [
+    "{{credential.url}}"
+  ],
+  "upstream": {
+    "package": "@activepieces/piece-surrealdb",
+    "version": "0.2.0"
+  },
+  "credential": {
+    "fields": {
+      "url": {
+        "label": "Connection URL",
+        "description": "Connection string, e.g. http://1.2.3.5:8000. The host only, without https://, such as name.example.com.",
+        "required": true
+      },
+      "database": {
+        "label": "Database",
+        "description": "A string indicating the name of the database to connect to.",
+        "required": true
+      },
+      "namespace": {
+        "label": "Namespace",
+        "description": "As string indicating the namespace of the database to connect to.",
+        "required": true
+      },
+      "username": {
+        "label": "Username",
+        "description": "As string indicating the username of the database to connect to.",
+        "required": true
+      },
+      "password": {
+        "label": "Password",
+        "description": "As string indicating the password of the database to connect to.",
+        "required": true
+      }
+    },
+    "headers": {
+      "surreal-db": "{{credential.database}}",
+      "surreal-ns": "{{credential.namespace}}"
+    }
+  },
+  "actions": {
+    "run-query": {
+      "label": "Run Query",
+      "description": "Run a query in SurrealDB.",
+      "inputs": {
+        "query": {
+          "label": "Query",
+          "description": "Provide a SurrealDB query string to execute.",
+          "required": true
+        },
+        "args": {
+          "label": "Arguments",
+          "description": "Add all arguments as names here, don't add the $ sign.",
+          "type": "json"
+        },
+        "query_timeout": {
+          "label": "Query Timeout (ms)",
+          "description": "The maximum time to wait for a query to complete before timing out.",
+          "type": "number",
+          "defaultValue": "30000"
+        },
+        "application_name": {
+          "label": "Application Name",
+          "description": "An identifier for the client application executing the query."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.url}}/sql",
+        "headers": {
+          "authorization": "Basic Y3JlZGVudGlhbDAwM3o6Y3JlZGVudGlhbDAwNHo=",
+          "content-type": "text/plain"
+        },
+        "body": "{{query}}"
+      }
+    },
+    "surrealdb_list_namespaces": {
+      "label": "List Namespaces",
+      "description": "Lists the namespaces on the SurrealDB server.",
+      "inputs": {},
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.url}}/rpc",
+        "headers": {
+          "authorization": "Basic Y3JlZGVudGlhbDAwM3o6Y3JlZGVudGlhbDAwNHo="
+        },
+        "body": {
+          "id": 1,
+          "method": "query",
+          "params": [
+            "INFO FOR ROOT STRUCTURE;",
+            {}
+          ]
+        }
+      }
+    },
+    "surrealdb_list_databases": {
+      "label": "List Databases",
+      "description": "Lists the databases in the connection's namespace.",
+      "inputs": {},
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.url}}/rpc",
+        "headers": {
+          "authorization": "Basic Y3JlZGVudGlhbDAwM3o6Y3JlZGVudGlhbDAwNHo="
+        },
+        "body": {
+          "id": 1,
+          "method": "query",
+          "params": [
+            "INFO FOR NS STRUCTURE;",
+            {}
+          ]
+        }
+      }
+    },
+    "surrealdb_list_tables": {
+      "label": "List Tables",
+      "description": "Lists the tables defined in the connected database.",
+      "inputs": {},
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.url}}/rpc",
+        "headers": {
+          "authorization": "Basic Y3JlZGVudGlhbDAwM3o6Y3JlZGVudGlhbDAwNHo="
+        },
+        "body": {
+          "id": 1,
+          "method": "query",
+          "params": [
+            "INFO FOR DB STRUCTURE;",
+            {}
+          ]
+        }
+      }
+    },
+    "surrealdb_get_database_info": {
+      "label": "Get Database Info",
+      "description": "Gets everything defined in the connected database.",
+      "inputs": {},
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.url}}/rpc",
+        "headers": {
+          "authorization": "Basic Y3JlZGVudGlhbDAwM3o6Y3JlZGVudGlhbDAwNHo="
+        },
+        "body": {
+          "id": 1,
+          "method": "query",
+          "params": [
+            "INFO FOR DB STRUCTURE;",
+            {}
+          ]
+        }
+      }
+    },
+    "surrealdb_describe_table": {
+      "label": "Describe Table",
+      "description": "Gets a table's fields, indexes, events and views.",
+      "inputs": {
+        "table": {
+          "label": "Table",
+          "description": "Table name, e.g. \"person\". Use List Tables to find it.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.url}}/rpc",
+        "headers": {
+          "authorization": "Basic Y3JlZGVudGlhbDAwM3o6Y3JlZGVudGlhbDAwNHo="
+        },
+        "body": {
+          "id": 1,
+          "method": "query",
+          "params": [
+            "IF $table NOTINSIDE (INFO FOR DB STRUCTURE).tables.name { THROW \"Table '\" + $table + \"' does not exist. Use List Tables to see the tables.\"; }; INFO FOR TABLE $table STRUCTURE;",
+            {
+              "table": "{{table}}"
+            }
+          ]
+        }
+      }
+    },
+    "surrealdb_get_record": {
+      "label": "Get Record",
+      "description": "Gets one record by its id.",
+      "inputs": {
+        "recordId": {
+          "label": "Record ID",
+          "description": "Full record id in \"table:id\" form, e.g. \"person:tobie\", as returned in the id field by Find Records, Create Record and the other record actions.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.url}}/rpc",
+        "headers": {
+          "authorization": "Basic Y3JlZGVudGlhbDAwM3o6Y3JlZGVudGlhbDAwNHo="
+        },
+        "body": {
+          "id": 1,
+          "method": "query",
+          "params": [
+            "SELECT * FROM type::record($recordId);",
+            {
+              "recordId": "{{recordId}}"
+            }
+          ]
+        }
+      }
+    },
+    "surrealdb_count_records": {
+      "label": "Count Records",
+      "description": "Counts the records in a table that match filters.",
+      "inputs": {
+        "table": {
+          "label": "Table",
+          "description": "Table name, e.g. \"person\". Use List Tables to find it.",
+          "required": true
+        },
+        "filters": {
+          "label": "Filters",
+          "description": "JSON object of conditions, all combined with AND. {\"field\": value} matches equality; {\"field\": {\"$gt\": 18}} uses an operator: $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin, $contains, $containsNot, $containsAny, $containsAll, $exists (true/false). Nested fields use dots (\"address.city\"). Wrap a value as {\"$record\": \"user:tobie\"}, {\"$datetime\": \"2024-01-01T00:00:00Z\"}, {\"$decimal\": \"1.50\"}, {\"$uuid\": \"...\"} or {\"$duration\": \"1h\"} to compare against that SurrealDB type; plain strings stay strings.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.url}}/rpc",
+        "headers": {
+          "authorization": "Basic Y3JlZGVudGlhbDAwM3o6Y3JlZGVudGlhbDAwNHo="
+        },
+        "body": {
+          "id": 1,
+          "method": "query",
+          "params": [
+            "SELECT count() FROM type::table($table) GROUP ALL;",
+            {
+              "table": "{{table}}"
+            }
+          ]
+        }
+      }
+    },
+    "surrealdb_delete_record": {
+      "label": "Delete Record",
+      "description": "Permanently deletes one record by its id.",
+      "inputs": {
+        "recordId": {
+          "label": "Record ID",
+          "description": "Full record id in \"table:id\" form, e.g. \"person:tobie\", as returned in the id field by Find Records, Create Record and the other record actions.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.url}}/rpc",
+        "headers": {
+          "authorization": "Basic Y3JlZGVudGlhbDAwM3o6Y3JlZGVudGlhbDAwNHo="
+        },
+        "body": {
+          "id": 1,
+          "method": "query",
+          "params": [
+            "DELETE type::record($recordId) RETURN BEFORE;",
+            {
+              "recordId": "{{recordId}}"
+            }
+          ]
+        }
+      }
+    },
+    "surrealdb_relate_records": {
+      "label": "Relate Records",
+      "description": "Creates a graph edge from one record to another.",
+      "inputs": {
+        "fromRecordId": {
+          "label": "From Record ID",
+          "description": "Record the edge starts at, in \"table:id\" form, e.g. \"person:tobie\".",
+          "required": true
+        },
+        "edge": {
+          "label": "Edge Table",
+          "description": "Name of the edge table, e.g. \"knows\" or \"purchased\". Created if it does not exist.",
+          "required": true
+        },
+        "toRecordId": {
+          "label": "To Record ID",
+          "description": "Record the edge points to, in \"table:id\" form, e.g. \"person:jaime\".",
+          "required": true
+        },
+        "data": {
+          "label": "Data",
+          "description": "Optional JSON object of fields stored on the edge, e.g. {\"since\": 2020}.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.url}}/rpc",
+        "headers": {
+          "authorization": "Basic Y3JlZGVudGlhbDAwM3o6Y3JlZGVudGlhbDAwNHo="
+        },
+        "body": {
+          "id": 1,
+          "method": "query",
+          "params": [
+            "RELATE (type::record($from))->(type::table($edge))->(type::record($to)) CONTENT $data;",
+            {
+              "from": "{{fromRecordId}}",
+              "edge": "{{edge}}",
+              "to": "{{toRecordId}}",
+              "data": {}
+            }
+          ]
+        }
+      }
+    },
+    "surrealdb_run_function": {
+      "label": "Run Function",
+      "description": "Runs a custom or built-in SurrealDB function with arguments.",
+      "inputs": {
+        "name": {
+          "label": "Function",
+          "description": "Function name, e.g. \"fn::greet\" or \"math::sum\".",
+          "required": true
+        },
+        "args": {
+          "label": "Arguments",
+          "description": "JSON array of positional arguments, e.g. [\"Tobie\", 33]. Leave empty for none.",
+          "type": "json"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.url}}/rpc",
+        "headers": {
+          "authorization": "Basic Y3JlZGVudGlhbDAwM3o6Y3JlZGVudGlhbDAwNHo="
+        },
+        "body": {
+          "id": 1,
+          "method": "run",
+          "params": [
+            "{{name}}",
+            null,
+            []
+          ]
+        }
+      }
+    },
+    "surrealdb_run_gql_query": {
+      "label": "Run GQL Query",
+      "description": "Runs an ISO GQL graph query, e.g. MATCH (p:person) RETURN p.",
+      "inputs": {
+        "query": {
+          "label": "GQL Query",
+          "description": "GQL statement, e.g. MATCH (p:person) RETURN p.",
+          "required": true,
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.url}}/gql",
+        "headers": {
+          "authorization": "Basic Y3JlZGVudGlhbDAwM3o6Y3JlZGVudGlhbDAwNHo=",
+          "content-type": "text/plain"
+        },
+        "body": "{{query}}"
+      }
+    }
+  },
+  "triggers": {}
+}

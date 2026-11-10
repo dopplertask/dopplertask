@@ -1,0 +1,825 @@
+{
+  "name": "outseta",
+  "label": "Outseta",
+  "description": "Triggers and actions for Outseta CRM and Billing",
+  "icon": "",
+  "hosts": [
+    "{{credential.domain}}"
+  ],
+  "upstream": {
+    "package": "@activepieces/piece-outseta",
+    "version": "0.3.3"
+  },
+  "credential": {
+    "fields": {
+      "domain": {
+        "label": "Outseta Domain",
+        "description": "Your full Outseta domain URL, e.g. https://yourcompany.outseta.com. The host only, without https://, such as name.example.com.",
+        "required": true
+      },
+      "apiKey": {
+        "label": "API Key",
+        "description": "Found in Outseta → Settings → Integrations → API",
+        "required": true
+      },
+      "apiSecret": {
+        "label": "API Secret",
+        "description": "Found alongside your API Key in Outseta → Settings → Integrations → API",
+        "required": true
+      }
+    },
+    "headers": {
+      "authorization": "Outseta {{credential.apiKey}}:{{credential.apiSecret}}"
+    }
+  },
+  "actions": {
+    "get_person": {
+      "label": "Retrieve Person",
+      "description": "Retrieve a person by email or by UID, including the linked account.",
+      "inputs": {
+        "lookupBy": {
+          "label": "Lookup by",
+          "description": "How to find the person to retrieve.",
+          "required": true,
+          "type": "select",
+          "options": [
+            {
+              "value": "email",
+              "label": "Email"
+            },
+            {
+              "value": "uid",
+              "label": "Person UID"
+            }
+          ],
+          "defaultValue": "email"
+        },
+        "email": {
+          "label": "Email",
+          "description": "Used when \"Lookup by\" is set to Email."
+        },
+        "personUid": {
+          "label": "Person UID",
+          "description": "Used when \"Lookup by\" is set to Person UID."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.domain}}/api/v1/crm/people",
+        "query": {
+          "Email": "{{email}}",
+          "fields": "*,PersonAccount.Account.Uid,PersonAccount.Account.Name,PersonAccount.Account.AccountStage",
+          "limit": "100",
+          "offset": "0"
+        }
+      }
+    },
+    "get_deal": {
+      "label": "Retrieve Deal",
+      "description": "Retrieve a deal by its UID, or by the email of the contact associated with the deal plus the pipeline.",
+      "inputs": {
+        "lookupBy": {
+          "label": "Lookup by",
+          "description": "How to find the deal to retrieve.",
+          "required": true,
+          "type": "select",
+          "options": [
+            {
+              "value": "uid",
+              "label": "Deal UID"
+            },
+            {
+              "value": "email",
+              "label": "Contact email + pipeline"
+            }
+          ],
+          "defaultValue": "uid"
+        },
+        "dealUid": {
+          "label": "Deal UID",
+          "description": "Used when \"Lookup by\" is set to Deal UID."
+        },
+        "contactEmail": {
+          "label": "Contact Email",
+          "description": "Used when \"Lookup by\" is set to Contact email + pipeline."
+        },
+        "pipelineUid": {
+          "label": "Pipeline",
+          "description": "Used when \"Lookup by\" is set to Contact email + pipeline. Required in that mode."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.domain}}/api/v1/crm/deals",
+        "query": {
+          "DealPipelineStage.DealPipeline.Uid": "{{pipelineUid}}",
+          "fields": "Uid,Name,Amount,DueDate,Created,Updated,AssignedToPersonClientIdentifier,DealPipelineStage.Uid,DealPipelineStage.Name,DealPipelineStage.DealPipeline.Uid,DealPeople.Person.Uid,DealPeople.Person.Email,Account.Uid,Account.Name",
+          "limit": "100",
+          "offset": "0"
+        }
+      }
+    },
+    "create_account": {
+      "label": "Create Account",
+      "description": "Create a new account in Outseta CRM. Optionally start a subscription on a plan in the same call.",
+      "inputs": {
+        "name": {
+          "label": "Name",
+          "required": true
+        },
+        "accountStage": {
+          "label": "Account Stage",
+          "type": "select",
+          "options": [
+            {
+              "value": 1,
+              "label": "Lead"
+            },
+            {
+              "value": 2,
+              "label": "Trialing"
+            },
+            {
+              "value": 3,
+              "label": "Subscribing"
+            },
+            {
+              "value": 4,
+              "label": "Delinquent"
+            },
+            {
+              "value": 5,
+              "label": "Cancelling"
+            },
+            {
+              "value": 6,
+              "label": "Expired"
+            },
+            {
+              "value": 7,
+              "label": "Demo"
+            }
+          ]
+        },
+        "clientIdentifier": {
+          "label": "Client Identifier",
+          "description": "A custom identifier you assign to this account (e.g. your internal customer ID)."
+        },
+        "invoiceNotes": {
+          "label": "Invoice Notes",
+          "description": "Notes that appear on invoices sent to this account.",
+          "type": "multiline"
+        },
+        "addressLine1": {
+          "label": "Address Line 1"
+        },
+        "addressLine2": {
+          "label": "Address Line 2"
+        },
+        "city": {
+          "label": "City"
+        },
+        "state": {
+          "label": "State/Region"
+        },
+        "postalCode": {
+          "label": "Postal Code"
+        },
+        "country": {
+          "label": "Country"
+        },
+        "primaryContactPersonUid": {
+          "label": "Primary Contact Person UID",
+          "description": "Optional. UID of an existing person to set as primary contact on the new account. Required by Outseta when starting a subscription with a paid plan."
+        },
+        "planUid": {
+          "label": "Starting Plan",
+          "description": "Optional. If set, the account is created with an active subscription on this plan."
+        },
+        "billingRenewalTerm": {
+          "label": "Billing Renewal Term",
+          "description": "Used only when Starting Plan is set. Defaults to Monthly.",
+          "type": "select",
+          "options": [
+            {
+              "value": 1,
+              "label": "Monthly"
+            },
+            {
+              "value": 2,
+              "label": "Annual"
+            },
+            {
+              "value": 3,
+              "label": "Quarterly"
+            },
+            {
+              "value": 4,
+              "label": "One-time"
+            }
+          ],
+          "defaultValue": "1"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.domain}}/api/v1/crm/accounts",
+        "body": {
+          "Name": "{{name}}",
+          "ClientIdentifier": "{{clientIdentifier}}",
+          "InvoiceNotes": "{{invoiceNotes}}",
+          "BillingAddress": {
+            "AddressLine1": "{{addressLine1}}",
+            "AddressLine2": "{{addressLine2}}",
+            "City": "{{city}}",
+            "State": "{{state}}",
+            "PostalCode": "{{postalCode}}",
+            "Country": "{{country}}"
+          },
+          "PersonAccount": [
+            {
+              "Person": {
+                "Uid": "{{primaryContactPersonUid}}"
+              },
+              "IsPrimary": true
+            }
+          ],
+          "Subscriptions": [
+            {
+              "Plan": {
+                "Uid": "{{planUid}}"
+              },
+              "BillingRenewalTerm": 1
+            }
+          ]
+        }
+      }
+    },
+    "create_deal": {
+      "label": "Create Deal",
+      "description": "Create a new deal in the CRM.",
+      "inputs": {
+        "name": {
+          "label": "Deal Name",
+          "required": true
+        },
+        "pipelineUid": {
+          "label": "Pipeline",
+          "description": "Select the deal pipeline.",
+          "required": true
+        },
+        "pipelineStageUid": {
+          "label": "Pipeline Stage",
+          "description": "Pipeline stage for the deal.",
+          "required": true
+        },
+        "contactEmail": {
+          "label": "Contact Email",
+          "description": "Email of the person to associate with this deal."
+        },
+        "amount": {
+          "label": "Amount",
+          "type": "number"
+        },
+        "accountUid": {
+          "label": "Account UID",
+          "description": "UID of the account to associate with this deal."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.domain}}/api/v1/crm/deals",
+        "body": {
+          "Name": "{{name}}",
+          "DealPipelineStage": {
+            "Uid": "{{pipelineStageUid}}"
+          },
+          "Amount": "{{amount}}",
+          "Account": {
+            "Uid": "{{accountUid}}"
+          },
+          "DealPeople": [
+            {
+              "Person": {
+                "Email": "{{contactEmail}}"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "list_accounts": {
+      "label": "List Accounts",
+      "description": "Retrieve a paginated list of accounts from your Outseta CRM.",
+      "inputs": {
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of accounts to return (default 100).",
+          "type": "number",
+          "defaultValue": "100"
+        },
+        "offset": {
+          "label": "Page",
+          "description": "Page number to fetch (0 = first page, 1 = second page, ...). Outseta uses page-based pagination, not record-based.",
+          "type": "number",
+          "defaultValue": "0"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.domain}}/api/v1/crm/accounts",
+        "query": {
+          "limit": "{{limit}}",
+          "offset": "{{offset}}"
+        }
+      }
+    },
+    "list_persons": {
+      "label": "List Persons",
+      "description": "Retrieve a paginated list of persons from your Outseta CRM.",
+      "inputs": {
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of persons to return (default 100).",
+          "type": "number",
+          "defaultValue": "100"
+        },
+        "offset": {
+          "label": "Page",
+          "description": "Page number to fetch (0 = first page, 1 = second page, ...). Outseta uses page-based pagination, not record-based.",
+          "type": "number",
+          "defaultValue": "0"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.domain}}/api/v1/crm/people",
+        "query": {
+          "limit": "{{limit}}",
+          "offset": "{{offset}}"
+        }
+      }
+    },
+    "list_deals": {
+      "label": "List Deals",
+      "description": "Retrieve a paginated list of deals from your Outseta CRM.",
+      "inputs": {
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of deals to return (default 100).",
+          "type": "number",
+          "defaultValue": "100"
+        },
+        "offset": {
+          "label": "Page",
+          "description": "Page number to fetch (0 = first page, 1 = second page, ...). Outseta uses page-based pagination, not record-based.",
+          "type": "number",
+          "defaultValue": "0"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.domain}}/api/v1/crm/deals",
+        "query": {
+          "limit": "{{limit}}",
+          "offset": "{{offset}}"
+        }
+      }
+    },
+    "list_plans": {
+      "label": "List Plans",
+      "description": "Retrieve a paginated list of subscription plans from your Outseta billing catalog.",
+      "inputs": {
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of plans to return (default 100).",
+          "type": "number",
+          "defaultValue": "100"
+        },
+        "offset": {
+          "label": "Page",
+          "description": "Page number to fetch (0 = first page, 1 = second page, ...). Outseta uses page-based pagination, not record-based.",
+          "type": "number",
+          "defaultValue": "0"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.domain}}/api/v1/billing/plans",
+        "query": {
+          "limit": "{{limit}}",
+          "offset": "{{offset}}"
+        }
+      }
+    },
+    "list_addons": {
+      "label": "List Add-Ons",
+      "description": "Retrieve a paginated list of add-ons from your Outseta billing catalog.",
+      "inputs": {
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of add-ons to return (default 100).",
+          "type": "number",
+          "defaultValue": "100"
+        },
+        "offset": {
+          "label": "Page",
+          "description": "Page number to fetch (0 = first page, 1 = second page, ...). Outseta uses page-based pagination, not record-based.",
+          "type": "number",
+          "defaultValue": "0"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.domain}}/api/v1/billing/addons",
+        "query": {
+          "limit": "{{limit}}",
+          "offset": "{{offset}}"
+        }
+      }
+    },
+    "list_discounts": {
+      "label": "List Discounts",
+      "description": "Retrieve a paginated list of discount coupons from your Outseta billing catalog.",
+      "inputs": {
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of discounts to return (default 100).",
+          "type": "number",
+          "defaultValue": "100"
+        },
+        "offset": {
+          "label": "Page",
+          "description": "Page number to fetch (0 = first page, 1 = second page, ...). Outseta uses page-based pagination, not record-based.",
+          "type": "number",
+          "defaultValue": "0"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.domain}}/api/v1/billing/discountcoupons",
+        "query": {
+          "limit": "{{limit}}",
+          "offset": "{{offset}}"
+        }
+      }
+    },
+    "list_cases": {
+      "label": "List Cases",
+      "description": "Retrieve a paginated list of support tickets (cases) from Outseta. Optionally filter by the person who submitted them.",
+      "inputs": {
+        "fromPersonUid": {
+          "label": "From Person UID",
+          "description": "Optional. Only return cases submitted by this person."
+        },
+        "fromPersonEmail": {
+          "label": "From Person Email",
+          "description": "Optional. Only return cases submitted by the person with this email."
+        },
+        "limit": {
+          "label": "Limit",
+          "description": "Maximum number of cases to return (default 100).",
+          "type": "number",
+          "defaultValue": "100"
+        },
+        "offset": {
+          "label": "Page",
+          "description": "Page number to fetch (0 = first page, 1 = second page, ...). Outseta uses page-based pagination, not record-based.",
+          "type": "number",
+          "defaultValue": "0"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.domain}}/api/v1/support/cases",
+        "query": {
+          "limit": "{{limit}}",
+          "offset": "{{offset}}",
+          "FromPerson.Uid": "{{fromPersonUid}}",
+          "FromPerson.Email": "{{fromPersonEmail}}"
+        }
+      }
+    },
+    "change_account_plan": {
+      "label": "Change Account Plan",
+      "description": "Change an account's current subscription plan (upgrade, downgrade, or switch to free).",
+      "inputs": {
+        "accountUid": {
+          "label": "Account UID",
+          "description": "The UID of the account whose plan to change.",
+          "required": true
+        },
+        "planUid": {
+          "label": "New Plan",
+          "description": "Select the subscription plan.",
+          "required": true
+        },
+        "billingRenewalTerm": {
+          "label": "Billing Renewal Term",
+          "required": true,
+          "type": "select",
+          "options": [
+            {
+              "value": 1,
+              "label": "Monthly"
+            },
+            {
+              "value": 2,
+              "label": "Annual"
+            },
+            {
+              "value": 3,
+              "label": "Quarterly"
+            },
+            {
+              "value": 4,
+              "label": "One-time"
+            }
+          ],
+          "defaultValue": "1"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.domain}}/api/v1/crm/accounts/{{accountUid}}",
+        "query": {
+          "fields": "Uid,CurrentSubscription.Uid"
+        }
+      }
+    },
+    "add_discount_to_subscription": {
+      "label": "Apply Discount to Account",
+      "description": "Apply a discount coupon to the current subscription of an account.",
+      "inputs": {
+        "accountUid": {
+          "label": "Account UID",
+          "description": "The UID of the account whose subscription will receive the discount.",
+          "required": true
+        },
+        "discountUid": {
+          "label": "Discount",
+          "description": "Select the discount coupon to apply.",
+          "required": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.domain}}/api/v1/crm/accounts/{{accountUid}}",
+        "query": {
+          "fields": "CurrentSubscription.*"
+        }
+      }
+    },
+    "add_addon_usage": {
+      "label": "Add Usage for Add-on",
+      "description": "Track usage for a metered (usage-based) add-on on an account.",
+      "inputs": {
+        "accountUid": {
+          "label": "Account UID",
+          "description": "The UID of the account to record usage for.",
+          "required": true
+        },
+        "addOnUid": {
+          "label": "Add-On",
+          "description": "Select the metered add-on.",
+          "required": true
+        },
+        "amount": {
+          "label": "Amount",
+          "description": "The usage amount to record.",
+          "required": true,
+          "type": "number"
+        },
+        "usageDate": {
+          "label": "Usage Date",
+          "description": "The date of usage. Defaults to now if not provided."
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.domain}}/api/v1/crm/accounts/{{accountUid}}",
+        "query": {
+          "fields": "Uid,CurrentSubscription.*,CurrentSubscription.SubscriptionAddOns.*,CurrentSubscription.SubscriptionAddOns.AddOn.*"
+        }
+      }
+    },
+    "add_addon_to_subscription": {
+      "label": "Add Add-on to Subscription",
+      "description": "Attach a recurring add-on to an account's current subscription. Different from Add Usage for Add-on, which only records consumption on a metered add-on already attached.",
+      "inputs": {
+        "accountUid": {
+          "label": "Account UID",
+          "description": "The UID of the account whose subscription will receive the add-on.",
+          "required": true
+        },
+        "addOnUid": {
+          "label": "Add-On",
+          "description": "Select the metered add-on.",
+          "required": true
+        },
+        "quantity": {
+          "label": "Quantity",
+          "description": "Number of add-on units to attach. Defaults to 1.",
+          "type": "number",
+          "defaultValue": "1"
+        },
+        "billingRenewalTerm": {
+          "label": "Billing Renewal Term",
+          "description": "How often the add-on is billed. Defaults to Monthly.",
+          "type": "select",
+          "options": [
+            {
+              "value": 1,
+              "label": "Monthly"
+            },
+            {
+              "value": 2,
+              "label": "Annual"
+            },
+            {
+              "value": 3,
+              "label": "Quarterly"
+            },
+            {
+              "value": 4,
+              "label": "One-time"
+            }
+          ],
+          "defaultValue": "1"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.domain}}/api/v1/crm/accounts/{{accountUid}}",
+        "query": {
+          "fields": "CurrentSubscription.Uid"
+        }
+      }
+    },
+    "update_payment_information": {
+      "label": "Update Payment Information",
+      "description": "Update the credit card / payment method on an account. The payment processor tokens (CustomerToken, PaymentToken) must come from your payment processor (e.g. Stripe Elements) — not from Outseta.",
+      "inputs": {
+        "accountUid": {
+          "label": "Account UID",
+          "description": "The UID of the account to update payment information for.",
+          "required": true
+        },
+        "customerToken": {
+          "label": "Customer Token",
+          "description": "The customer ID issued by the payment processor (e.g. Stripe customer ID, \"cust_…\").",
+          "required": true
+        },
+        "paymentToken": {
+          "label": "Payment Token",
+          "description": "The payment method ID issued by the payment processor (e.g. Stripe payment method, \"pm_…\").",
+          "required": true
+        },
+        "nameOnCard": {
+          "label": "Name on Card",
+          "description": "Cardholder name as it appears on the card."
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.domain}}/api/v1/billing/paymentinformation",
+        "body": {
+          "Account": {
+            "Uid": "{{accountUid}}"
+          },
+          "CustomerToken": "{{customerToken}}",
+          "PaymentToken": "{{paymentToken}}",
+          "NameOnCard": "{{nameOnCard}}"
+        }
+      }
+    },
+    "add_invoice": {
+      "label": "Create Invoice",
+      "description": "Create an ad-hoc invoice for an account. The invoice is linked to the account's current subscription.",
+      "inputs": {
+        "accountUid": {
+          "label": "Account UID",
+          "description": "The UID of the account to invoice.",
+          "required": true
+        },
+        "description": {
+          "label": "Description",
+          "description": "Description for the invoice line item.",
+          "required": true
+        },
+        "amount": {
+          "label": "Amount",
+          "description": "Amount for the invoice line item.",
+          "required": true,
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.domain}}/api/v1/crm/accounts/{{accountUid}}",
+        "query": {
+          "fields": "CurrentSubscription.*"
+        }
+      }
+    },
+    "add_invoice_payment": {
+      "label": "Add Invoice Payment",
+      "description": "Record a payment against an invoice. The invoice is marked as paid if the total payments match the invoice amount.",
+      "inputs": {
+        "accountUid": {
+          "label": "Account UID",
+          "description": "The UID of the account that owns the invoice.",
+          "required": true
+        },
+        "invoiceUid": {
+          "label": "Invoice UID",
+          "description": "The UID of the invoice to apply the payment to.",
+          "required": true
+        },
+        "amount": {
+          "label": "Amount",
+          "description": "Payment amount as a negative number (e.g. -49.00), as required by the Outseta API.",
+          "required": true,
+          "type": "number"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.domain}}/api/v1/billing/transactions/payment",
+        "body": {
+          "Account": {
+            "Uid": "{{accountUid}}"
+          },
+          "Invoice": {
+            "Uid": "{{invoiceUid}}"
+          },
+          "Amount": "{{amount}}"
+        }
+      }
+    },
+    "update_account_membership": {
+      "label": "Update Account Membership",
+      "description": "Update a person's membership on an account — typically used to designate them as the primary contact.",
+      "inputs": {
+        "accountUid": {
+          "label": "Account UID",
+          "description": "The UID of the account.",
+          "required": true
+        },
+        "personUid": {
+          "label": "Person UID",
+          "description": "The UID of the person whose membership to update.",
+          "required": true
+        },
+        "isPrimary": {
+          "label": "Is Primary Contact",
+          "description": "Whether this person should be the primary contact for the account.",
+          "required": true,
+          "type": "boolean",
+          "defaultValue": "true"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "url": "https://{{credential.domain}}/api/v1/crm/accounts/{{accountUid}}",
+        "query": {
+          "fields": "Uid,PersonAccount.*,PersonAccount.Person.Uid"
+        }
+      }
+    },
+    "add_reply": {
+      "label": "Reply to Ticket",
+      "description": "Add a reply to an existing support ticket (case) in Outseta.",
+      "inputs": {
+        "caseUid": {
+          "label": "Case UID",
+          "description": "The UID of the support ticket to reply to.",
+          "required": true
+        },
+        "agentName": {
+          "label": "Agent Name",
+          "description": "Name of the agent sending the reply.",
+          "required": true
+        },
+        "comment": {
+          "label": "Comment",
+          "description": "The reply content.",
+          "required": true,
+          "type": "multiline"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://{{credential.domain}}/api/v1/support/cases/{{caseUid}}/replies",
+        "body": {
+          "AgentName": "{{agentName}}",
+          "Case": {
+            "Uid": "{{caseUid}}"
+          },
+          "Comment": "{{comment}}"
+        }
+      }
+    }
+  },
+  "triggers": {}
+}
