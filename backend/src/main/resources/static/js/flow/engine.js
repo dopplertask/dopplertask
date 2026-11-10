@@ -701,6 +701,8 @@ function createStore() {
 
   /* What a step gave when it was tested on its own, by step. A run that starts replaces them. */
   let tested = new Map();
+  /* The step that runs on its own now. One step runs at a time. */
+  let testingStepId = null;
 
   const earlierNodes = (nodeId) => {
     const earlier = new Set();
@@ -952,6 +954,7 @@ function createStore() {
     get selectedIds() { return selectedIds; },
     /* The one selected step. The step panel and the single-step actions work on it. */
     get selectedId() { return onlySelectedId(); },
+    get testingStepId() { return testingStepId; },
     get selectedNode() { return onlySelectedId() ? nodeById(task, onlySelectedId()) : null; },
     get saveState() { return saveState; },
     get showingOlderVersion() { return showingOlderVersion; },
@@ -1469,13 +1472,20 @@ function createStore() {
     /* Runs one step on its own with the values given, without touching the run history. In a preview the step
        holds what it would send. What it gives becomes the example the steps after it read. */
     async testStep(nodeId, values, { preview = false } = {}) {
-      const node = nodeById(task, nodeId);
-      const started = performance.now();
-      const result = await testOnServer({ '@type': ACTIONS[node.type].backend, ...withoutEmptyValues(node.config), ports: [] }, values, nodeId, preview);
-      const failed = result.statusCode === 'FAILURE';
-      const step = { nodeId, preview, status: failed ? 'failed' : 'success', output: failed && !result.errorMsg ? '' : result.output, error: failed ? result.errorMsg || result.output || 'This step failed.' : null, outputVariables: result.outputVariables || {}, held: result.held, missingValues: result.missingValues || [], durationMs: performance.now() - started };
-      if (!failed) { tested.set(nodeId, step); emit('run'); }
-      return step;
+      testingStepId = nodeId;
+      emit('testing');
+      try {
+        const node = nodeById(task, nodeId);
+        const started = performance.now();
+        const result = await testOnServer({ '@type': ACTIONS[node.type].backend, ...withoutEmptyValues(node.config), ports: [] }, values, nodeId, preview);
+        const failed = result.statusCode === 'FAILURE';
+        const step = { nodeId, preview, status: failed ? 'failed' : 'success', output: failed && !result.errorMsg ? '' : result.output, error: failed ? result.errorMsg || result.output || 'This step failed.' : null, outputVariables: result.outputVariables || {}, held: result.held, missingValues: result.missingValues || [], durationMs: performance.now() - started };
+        if (!failed) { tested.set(nodeId, step); emit('run'); }
+        return step;
+      } finally {
+        testingStepId = null;
+        emit('testing');
+      }
     },
     /* What a text or a condition of this step gives with the example values, worked out by the server that runs the
        task, so a preview and a run agree. Nothing is sent. */

@@ -32,7 +32,6 @@ export default function boot() {
 
   let historyOpen = false;
   let testResult = null;
-  let testing = false;
   let form = null;
   let lastDataField = null;
   let idleStrip = () => '';
@@ -242,10 +241,11 @@ export default function boot() {
         <section class="panel-section"><h3>Settings</h3><div id="panelForm"></div></section>
         <section class="panel-section" id="panelData"></section>
       </div>
-      ${isStart ? `<div class="panel-foot"><div class="panel-foot-row"><button type="button" class="ui-button" data-inspector="add-trigger" aria-haspopup="listbox">${icon('plus')}Add a trigger</button><span class="panel-foot-space"></span>${node === rootNode(store.task) ? '' : `<button type="button" class="labelled-button" data-inspector="delete" title="Delete (⌫)">${icon('trash')}<span>Delete</span></button>`}</div><small>A task can start in several ways. Running by hand starts at the first start.</small></div>` : `<div class="panel-foot"><div class="panel-foot-row"><button type="button" class="ui-button" data-wb="preview-step" id="previewButton" ${testing ? 'disabled' : ''} title="Shows what this step would do. Nothing is sent.">${icon('eye')}Preview step</button><button type="button" class="ui-button" data-wb="test" id="testButton" ${testing ? 'disabled' : ''} title="Runs this step for real">${icon('play')}${testing ? 'Running…' : 'Run step'}</button><span class="panel-foot-edits"><button type="button" class="labelled-button" data-inspector="duplicate" title="Duplicate (${modKey}D)">${icon('duplicate')}<span>Duplicate</span></button><button type="button" class="labelled-button" data-inspector="delete" title="Delete (⌫)">${icon('trash')}<span>Delete</span></button></span></div><small>Preview shows what it would send. Run sends it.</small></div>`}`;
+      ${isStart ? `<div class="panel-foot"><div class="panel-foot-row"><button type="button" class="ui-button" data-inspector="add-trigger" aria-haspopup="listbox">${icon('plus')}Add a trigger</button><span class="panel-foot-space"></span>${node === rootNode(store.task) ? '' : `<button type="button" class="labelled-button" data-inspector="delete" title="Delete (⌫)">${icon('trash')}<span>Delete</span></button>`}</div><small>A task can start in several ways. Running by hand starts at the first start.</small></div>` : `<div class="panel-foot"><div class="panel-foot-row"><button type="button" class="ui-button" data-wb="preview-step" id="previewButton" title="Shows what this step would do. Nothing is sent.">${icon('eye')}Preview step</button><button type="button" class="ui-button" data-wb="test" id="testButton" title="Runs this step for real"></button><span class="panel-foot-edits"><button type="button" class="labelled-button" data-inspector="duplicate" title="Duplicate (${modKey}D)">${icon('duplicate')}<span>Duplicate</span></button><button type="button" class="labelled-button" data-inspector="delete" title="Delete (⌫)">${icon('trash')}<span>Delete</span></button></span></div><small>Preview shows what it would send. Run sends it.</small></div>`}`;
     form = DT.ui.mountForm(byId('panelForm'), store, node.id);
     panel.querySelector('.inspector-name').addEventListener('input', (event) => store.rename(node.id, event.target.value));
     byId('panelForm').addEventListener('focusin', (event) => { if (event.target.matches('[data-variables]')) lastDataField = event.target; });
+    syncTestButton();
     renderData(node);
     renderResult();
     if (focused) {
@@ -256,13 +256,9 @@ export default function boot() {
 
   function testSelectedStep({ preview = false } = {}) {
     const node = store.selectedNode;
-    testing = true;
-    syncTestButton();
     store.testStep(node.id, store.valuesBefore(node.id), { preview }).then((result) => { testResult = result; }, (error) => {
       testResult = { nodeId: node.id, preview, status: 'failed', error: error.message, output: '', durationMs: 0 };
     }).then(() => {
-      testing = false;
-      syncTestButton();
       resultKey = null;
       renderResult();
       /* The step now has an example of what it gives, for the steps after it. */
@@ -274,6 +270,7 @@ export default function boot() {
   function syncTestButton() {
     const button = byId('testButton');
     if (!button) return;
+    const testing = store.testingStepId !== null;
     button.disabled = testing;
     byId('previewButton').disabled = testing;
     button.innerHTML = `${icon('play')}${testing ? 'Running…' : 'Run step'}`;
@@ -392,6 +389,7 @@ export default function boot() {
 
   store.subscribe((change) => {
     if (change === 'tick') { updateStrip(); renderResult(); renderHistory(); return; }
+    if (change === 'testing') { syncTestButton(); return; }
     if (change === 'save') { byId('barSave').textContent = DT.ui.saveStatus(store); return; }
     if (change === 'move') { byId('barUndo').disabled = !store.canUndo; return; }
     if (change === 'run') {

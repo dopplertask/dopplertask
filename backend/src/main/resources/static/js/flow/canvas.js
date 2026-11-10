@@ -151,8 +151,12 @@ export default function boot() {
   const QUICK_ACTIONS = ['run-step', 'deactivate', 'delete'];
   function toolsHtml(node) {
     const quick = DT.ui.stepActions(store, handlers, [node.id]).flat().filter((action) => action.applies && QUICK_ACTIONS.includes(action.id));
-    const button = (id, label, iconName, more = '') => `<button type="button" class="ui-icon-button" tabindex="-1" data-step-action="${id}" aria-label="${label}" title="${label}" ${more}>${icon(iconName)}</button>`;
-    return `<div class="node-tools">${quick.map((action) => button(action.id, action.shortcut ? `${action.label} (${action.shortcut})` : action.label, action.icon)).join('')}${button('more', 'More actions', 'more', 'aria-haspopup="menu"')}</div>`;
+    const waits = store.testingStepId !== null;
+    const runsNow = (action) => action.id === 'run-step' && store.testingStepId === node.id;
+    const button = (id, label, glyph, more = '') => `<button type="button" class="ui-icon-button" tabindex="-1" data-step-action="${id}" aria-label="${label}" title="${label}" ${waits ? 'disabled' : ''} ${more}>${glyph}</button>`;
+    return `<div class="node-tools">${quick.map((action) => (runsNow(action)
+      ? button(action.id, 'Running…', statusGlyph('running'), 'aria-busy="true"')
+      : button(action.id, action.shortcut ? `${action.label} (${action.shortcut})` : action.label, icon(action.icon)))).join('')}${button('more', 'More actions', icon('more'), 'aria-haspopup="menu"')}</div>`;
   }
 
   function nodeInnerHtml(node) {
@@ -639,6 +643,13 @@ export default function boot() {
       updateRunState();
       if (runner.finished && runner.run?.status === 'failed' && !store.selectedId) showFailure();
       else if (store.selectedId) renderInspector();
+      return;
+    }
+    if (change === 'testing') {
+      nodeElements.forEach((element, nodeId) => {
+        element.classList.toggle('is-testing', store.testingStepId === nodeId);
+        element.querySelector('.node-tools').outerHTML = toolsHtml(nodeById(store.task, nodeId));
+      });
       return;
     }
     if (change === 'move') { store.task.nodes.forEach((node) => { const element = nodeElements.get(node.id); if (element && displayed.get(node.id)) placeNode(element, displayed.get(node.id)); }); renderWires(); return; }
