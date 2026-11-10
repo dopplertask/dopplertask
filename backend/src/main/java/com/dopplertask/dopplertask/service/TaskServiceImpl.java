@@ -301,14 +301,12 @@ public class TaskServiceImpl implements TaskService {
         actions.forEach(action -> {
             action.setTask(task);
 
-            // Find task or download it if necessary and assign checksum
+            // A step can only run a task that exists.
             if (action instanceof LinkedTaskAction) {
                 if (((LinkedTaskAction) action).getName() != null && !((LinkedTaskAction) action).getName().isEmpty()) {
                     Optional<Task> linkedTask = taskDao.findFirstByNameAndProposedFalseOrderByCreatedDesc(((LinkedTaskAction) action).getName());
 
-                    if (linkedTask.isPresent()) {
-                        ((LinkedTaskAction) action).setChecksum(linkedTask.get().getChecksum());
-                    } else {
+                    if (linkedTask.isEmpty()) {
                         throw new LinkedTaskNotFoundException("Linked Task could not be found locally or in the public hub [name=" + ((LinkedTaskAction) action).getName() + "]");
                     }
                 } else {
@@ -466,6 +464,11 @@ public class TaskServiceImpl implements TaskService {
             return taskObj;
         }
         return null;
+    }
+
+    @Override
+    public TaskExecution failRun(long executionId, String reason) {
+        return executionService.failRun(executionId, reason);
     }
 
     @Override

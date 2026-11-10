@@ -44,6 +44,9 @@ public interface TaskService {
      */
     TaskExecution runRequest(TaskRequest request);
 
+    /** Ends a run as failed, with the reason a person reads. */
+    TaskExecution failRun(long executionId, String reason);
+
     /** Whether a run waits for the key. */
     boolean isWaiting(String waitKey);
 
