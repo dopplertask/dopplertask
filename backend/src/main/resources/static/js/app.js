@@ -22,6 +22,11 @@ bootEngine().then(() => {
 
 async function askForToken() {
   const status = await fetch('/sso/status').then((response) => response.json());
+  /* With only one way in, there is nothing to choose, so the person goes straight there. */
+  if (status.sso && !status.tokens) {
+    window.location.assign('/sso/login');
+    return;
+  }
   const signInError = new URLSearchParams(window.location.search).get('signInError') || (triedToken ? 'That access token was not accepted.' : null);
   const tokenForm = `<label class="ui-label" for="accessToken">Access token</label>
     <input class="ui-input" id="accessToken" type="password" autocomplete="current-password">
