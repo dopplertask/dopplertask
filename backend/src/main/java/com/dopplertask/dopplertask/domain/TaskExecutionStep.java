@@ -16,6 +16,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
@@ -25,7 +26,7 @@ import jakarta.persistence.Table;
  * What one action did in a run. The action is identified by the external id of its first port, since that is the id clients know it by.
  */
 @Entity
-@Table(name = "TaskExecutionStep")
+@Table(name = "TaskExecutionStep", indexes = @Index(name = "task_execution_step_run", columnList = "task_execution_id"))
 public class TaskExecutionStep {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
