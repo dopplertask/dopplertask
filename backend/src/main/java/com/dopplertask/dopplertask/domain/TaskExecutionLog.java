@@ -5,7 +5,7 @@ import java.util.Date;
 import java.util.Map;
 
 @Entity
-@Table(name = "TaskExecutionLog")
+@Table(name = "TaskExecutionLog", indexes = @Index(name = "task_execution_log_run", columnList = "task_execution_id"))
 public class TaskExecutionLog {
 
     @Id

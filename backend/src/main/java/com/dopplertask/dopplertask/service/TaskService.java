@@ -84,7 +84,10 @@ public interface TaskService {
     Long createTask(String name, List<TaskParameter> taskParameters, List<Action> actions, String description, List<Connection> connections, String checksum, boolean active);
     Long createTask(String name, List<TaskParameter> taskParameters, List<Action> actions, String description, List<Connection> connections, String checksum, boolean active, boolean autoSaved);
 
-    List<TaskExecution> getExecutions();
+    /**
+     * The latest runs of every task, newest first.
+     */
+    List<TaskExecution> getExecutions(int limit);
 
     /**
      * The latest runs of one task, newest first, across all its versions.

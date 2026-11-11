@@ -373,8 +373,8 @@ public class TaskServiceImpl implements TaskService {
     }
 
     @Override
-    public List<TaskExecution> getExecutions() {
-        return taskExecutionDao.findAllByTaskNotNull();
+    public List<TaskExecution> getExecutions(int limit) {
+        return taskExecutionDao.findByTaskNotNullOrderByIdDesc(PageRequest.of(0, limit));
     }
 
     @Override

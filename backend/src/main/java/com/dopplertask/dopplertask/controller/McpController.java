@@ -35,7 +35,7 @@ public class McpController {
 
     private static final String LATEST_PROTOCOL = "2025-06-18";
     private static final List<String> PROTOCOLS = List.of(LATEST_PROTOCOL, "2025-03-26");
-    private static final String INSTRUCTIONS = "DopplerTask runs automations on the machine it is installed on. What you save with propose_task is a proposal: "
+    static final String INSTRUCTIONS = "DopplerTask runs automations on the machine it is installed on. What you save with propose_task is a proposal: "
             + "nothing runs until a person approves it in the editor, so tell the person when one is ready. Start with list_step_types and get_step_type. "
             + "When changing a task, read it with get_task and keep the externalId of its ports, so that the person sees what you changed. "
             + "Steps never hold passwords or keys. Set credential on a step to a name from list_credentials whose steps include that step. You can use a credential but not read or create one, so ask a person when none fits. "
@@ -96,7 +96,7 @@ public class McpController {
         return result.put("instructions", INSTRUCTIONS);
     }
 
-    private ArrayNode toolList() {
+    ArrayNode toolList() {
         ArrayNode tools = mapper.createArrayNode();
         tools.add(tool("list_step_types", "List every kind of step a task can use, with a description of each.", Map.of()));
         tools.add(tool("get_step_type", "Get the settings of one kind of step.", Map.of("name", "string")));
@@ -124,7 +124,7 @@ public class McpController {
         return tool;
     }
 
-    private ObjectNode callTool(String name, JsonNode arguments, HttpServletRequest request) {
+    ObjectNode callTool(String name, JsonNode arguments, HttpServletRequest request) {
         try {
             ResponseEntity<?> answer = switch (name) {
                 case "list_step_types", "get_step_type" -> tasks.getAllActions();
