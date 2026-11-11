@@ -118,7 +118,6 @@ const COPY_OFFSET = { x: 28, y: 96 };
 const withoutNumber = (name) => name.replace(/ \d+$/, '');
 const AUTO_SAVE_DELAY_MS = 30000;
 const AUTO_SAVE_KEY = 'autoSave';
-const LAST_TASK_KEY = 'lastTask';
 const RUNS_SHOWN = 100;
 const LIVE_POLL_MS = 250;
 /* Runs that a schedule or a webhook starts show up in the history this soon. */
@@ -980,6 +979,8 @@ function createStore() {
       await loadCredentials();
     },
     get runs() { return runs; },
+    /* The latest runs of every task, for the home page. */
+    async loadAllRuns(limit) { return (await request(`/executions?limit=${limit}`)).executions.filter((execution) => execution.startDate).map(runListItem); },
     get issues() { return findIssues(task); },
     get defaults() { return Object.fromEntries(task.parameters.map((parameter) => [parameter.name, parameter.defaultValue || ''])); },
     get autoSave() { return autoSave; },
@@ -1333,7 +1334,6 @@ function createStore() {
         const { checksum } = await request(autoSaved ? '/task?autoSaved=true' : '/task', { method: 'POST', body: JSON.stringify(toBackend(task)) });
         task.checksum = checksum;
         task.id = task.name;
-        localStorage.setItem(LAST_TASK_KEY, task.name);
         savedName = task.name;
         /* What a person saves replaces the proposal it started from. */
         if (review && review.checksum !== checksum) await request(`/task/${review.checksum}`, { method: 'DELETE' });
@@ -1367,7 +1367,6 @@ function createStore() {
         const baseline = current ? fromBackend(await request(`/task/${current.checksum}/checksum`)) : { nodes: [], edges: [] };
         review = { checksum, isNewTask: !current, ...compareVersions(baseline, task) };
       }
-      localStorage.setItem(LAST_TASK_KEY, task.name);
       savedName = task.name;
       selectedIds = []; undoStack = []; redoStack = [];
       runner.clear();
@@ -1376,14 +1375,6 @@ function createStore() {
       saveState = showingOlderVersion ? 'unsaved' : 'saved';
       emit('task');
       await loadRuns();
-    },
-    /* Otherwise the empty task keeps a name that is free now that the saved ones are known. */
-    openLastTask() {
-      if (tasks.some((candidate) => candidate.name === localStorage.getItem(LAST_TASK_KEY))) return store.switchTask(localStorage.getItem(LAST_TASK_KEY));
-      const { id, name } = freshTask(tasks.map((candidate) => candidate.name));
-      Object.assign(task, { id, name });
-      emit('meta');
-      return null;
     },
     async switchTask(name) {
       const entry = tasks.find((candidate) => candidate.id === name);

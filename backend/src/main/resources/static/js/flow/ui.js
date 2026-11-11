@@ -524,7 +524,7 @@ export default function boot() {
       { id: 'params', label: 'Task parameters', icon: 'sliders', shortcut: 'P', run: () => openParametersDialog(store) },
       { id: 'new', label: 'New task', icon: 'filePlus', run: () => store.newTask() },
       { id: 'open', label: 'Open task…', icon: 'folder', shortcut: 'O', run: () => openTaskDialog(store) },
-      { id: 'credentials', label: 'Credentials…', icon: 'key', run: () => openCredentialsDialog(store) },
+      { id: 'credentials', label: 'Credentials…', icon: 'key', run: () => { location.hash = '#/credentials'; } },
       { id: 'duplicate', label: 'Save as…', icon: 'copy', run: () => openSaveAsDialog(store) },
       { id: 'export', label: 'Export task as JSON', icon: 'download', run: () => exportTask(store) },
       { id: 'import', label: 'Import task from JSON…', icon: 'upload', run: () => importTask(store) },
@@ -746,7 +746,8 @@ export default function boot() {
   const credentialFieldOf = (type) => Object.values(ACTIONS).flatMap((action) => action.fields).find((field) => field.type === 'credential' && field.credentialType === type);
   const typeLabel = (type) => Object.values(ACTIONS).find((action) => action.backend === type)?.label || type;
 
-  function openCredentialsDialog(store) {
+  /* The credentials, as a page of their own: what steps sign in with. Drawn again whenever they change. */
+  function mountCredentials(host, store) {
     const usedBy = ({ usedBy: names }) => (names.length ? `Used by ${names.join(', ')}` : 'Not used by a task');
     /* There is a kind for every service, so the kind is searched for by name, and the kinds already in use come first. */
     const used = new Set(store.credentials.map((credential) => credential.type));
@@ -754,26 +755,24 @@ export default function boot() {
       .map((type) => [typeLabel(type), type])
       .sort(([first, firstType], [second, secondType]) => used.has(secondType) - used.has(firstType) || first.localeCompare(second));
     const kindByLabel = new Map(kinds);
-    const dialog = openDialog(`${dialogHeader('Credentials', 'What steps sign in with. Tasks only hold the name, so they can be shared and exported safely.')}
-      <div class="ui-task-list">${store.credentials.length ? store.credentials.map((credential) => `<div class="ui-task-row" data-credential="${escapeHtml(credential.name)}"><span><b>${escapeHtml(credential.name)}</b><small>${escapeHtml(typeLabel(credential.type))}. ${escapeHtml(usedBy(credential))}</small></span><button type="button" class="ui-button" data-edit>Edit</button><button type="button" class="ui-button" data-delete>Delete</button></div>`).join('') : '<p class="ui-hint">No credentials yet. Create one here, or from a step that needs it.</p>'}</div>
-      <footer class="ui-dialog-foot"><input class="ui-input" id="credential-kind" list="credential-kinds" autocomplete="off" placeholder="Kind, such as Slack" aria-label="Kind of credential"><datalist id="credential-kinds">${kinds.map(([label]) => `<option value="${escapeHtml(label)}">`).join('')}</datalist><button type="button" class="ui-button is-primary" data-new>New credential</button><button type="button" class="ui-button" data-dialog-close>Close</button></footer>`);
-    dialog.addEventListener('click', (event) => {
+    host.innerHTML = `<p class="home-intro">What steps sign in with. Tasks only hold the name, so they can be shared and exported safely.</p>
+      <div class="home-new-credential"><input class="ui-input" id="credential-kind" list="credential-kinds" autocomplete="off" placeholder="Kind, such as Slack" aria-label="Kind of credential"><datalist id="credential-kinds">${kinds.map(([label]) => `<option value="${escapeHtml(label)}">`).join('')}</datalist><button type="button" class="ui-button is-primary" data-new>New credential</button></div>
+      <div class="home-list">${store.credentials.length ? store.credentials.map((credential) => `<div class="home-row" data-credential="${escapeHtml(credential.name)}"><span class="home-row-main"><b>${escapeHtml(credential.name)}</b><small>${escapeHtml(typeLabel(credential.type))}. ${escapeHtml(usedBy(credential))}</small></span><button type="button" class="ui-button" data-edit>Edit</button><button type="button" class="ui-button" data-delete>Delete</button></div>`).join('') : '<p class="home-empty">No credentials yet. Create one here, or from a step that needs it.</p>'}</div>`;
+    host.onclick = (event) => {
       const name = event.target.closest('[data-credential]')?.dataset.credential;
       const credential = store.credentials.find((candidate) => candidate.name === name);
       if (event.target.closest('[data-new]')) {
-        const type = kindByLabel.get(dialog.querySelector('#credential-kind').value.trim());
+        const type = kindByLabel.get(host.querySelector('#credential-kind').value.trim());
         if (!type) { toast('Choose a kind from the list, such as Slack.', { tone: 'danger' }); return; }
-        dialog.close();
         openCredentialDialog(store, credentialFieldOf(type), null);
       }
-      if (event.target.closest('[data-edit]')) { dialog.close(); openCredentialDialog(store, credentialFieldOf(credential.type), credential); }
+      if (event.target.closest('[data-edit]')) openCredentialDialog(store, credentialFieldOf(credential.type), credential);
       if (event.target.closest('[data-delete]') && confirm(`Delete ${name}? This cannot be undone.`)) {
-        dialog.close();
         store.deleteCredential(name).then(() => toast(`Deleted ${name}`), (error) => toast(error.message, { tone: 'danger' }));
       }
-    });
-    dialog.querySelector('#credential-kind').addEventListener('keydown', (event) => {
-      if (event.key === 'Enter') dialog.querySelector('[data-new]').click();
+    };
+    host.querySelector('#credential-kind').addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') host.querySelector('[data-new]').click();
     });
   }
 
@@ -913,8 +912,8 @@ export default function boot() {
   function bindShortcuts(store, handlers) {
     Object.assign(shortcuts, { store, handlers });
     const isTyping = (event) => event.target.matches?.('input, textarea, select, [contenteditable="true"]');
-    /* The keys belong to an open dialog or menu until it closes. */
-    const isCovered = () => !!document.querySelector('dialog[open]') || openPopovers.length > 0;
+    /* The keys belong to an open dialog or menu until it closes, and to a task only while it is on screen. */
+    const isCovered = () => !!document.querySelector('dialog[open]') || openPopovers.length > 0 || document.documentElement.classList.contains('is-home');
     document.addEventListener('keydown', (event) => {
       const modified = event.metaKey || event.ctrlKey;
       if (modified && event.key.toLowerCase() === 'k') { event.preventDefault(); if (!document.querySelector('dialog[open]')) handlers.palette(); return; }
@@ -973,7 +972,7 @@ export default function boot() {
   window.DT.ui = {
     statusGlyph, RUN_STATUS_LABELS, runParameterSummary,
     icon, escapeHtml, modKey, toast, openPopover, dropdown, mountForm, openPalette, openTriggerPicker,
-    openRunDialog, openParametersDialog, openTaskDialog, openCredentialsDialog, openSaveAsDialog, exportTask, importTask, openShortcutsDialog,
+    openRunDialog, openParametersDialog, openTaskDialog, mountCredentials, openSaveAsDialog, exportTask, importTask, openShortcutsDialog,
     saveStatus, bindShortcuts, stepActions, runStepAction, openStepMenu, renderStepResult, formatDuration, formatAgo,
   };
 }

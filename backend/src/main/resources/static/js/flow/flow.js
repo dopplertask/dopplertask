@@ -12,15 +12,18 @@ export default function boot() {
 
   const railButton = (iconName, label, attributes, active, hint = label) => `<button type="button" class="rail-button ${active ? 'is-active' : ''}" ${attributes} title="${hint}">${icon(iconName)}<span>${label}</span></button>`;
 
+  /* On the home page Runs lists every task's runs; in a task it opens that task's run history. */
   function renderRail() {
+    const tab = DT.home?.tab();
     byId('rail').innerHTML = `
-      <button type="button" class="rail-mark" data-wb="tasks" title="Tasks">${core.MARK}<span>DopplerTask</span></button>
-      ${railButton('workflow', 'Diagram', 'data-flow="diagram"', !core.isHistoryOpen())}
-      ${railButton('folder', 'Tasks', 'data-wb="tasks"', false, 'Switch task, new, import or export')}
-      ${railButton('history', 'Runs', 'data-wb="history"', core.isHistoryOpen(), 'Run history')}
-      ${railButton('key', 'Credentials', 'data-flow="credentials"', false, 'What steps sign in with')}
+      <button type="button" class="rail-mark" data-go="tasks" title="Home">${core.MARK}<span>DopplerTask</span></button>
+      ${railButton('folder', 'Tasks', 'data-go="tasks"', tab === 'tasks', 'All tasks')}
+      ${railButton('workflow', 'Diagram', 'data-flow="diagram"', !tab && !core.isHistoryOpen(), 'The task you are working on')}
+      ${railButton('history', 'Runs', tab ? 'data-go="runs"' : 'data-wb="history"', tab === 'runs' || (!tab && core.isHistoryOpen()), tab ? 'The latest runs of every task' : 'Run history of this task')}
+      ${railButton('key', 'Credentials', 'data-go="credentials"', tab === 'credentials', 'What steps sign in with')}
       <span class="rail-space"></span>
-      ${railButton('keyboard', 'Shortcuts', 'data-flow="shortcuts"', false, 'Keyboard shortcuts (?)')}`;
+      ${railButton('keyboard', 'Shortcuts', 'data-flow="shortcuts"', false, 'Keyboard shortcuts (?)')}
+      ${store.person ? railButton('logOut', 'Sign out', 'data-flow="sign-out"', false, `Sign out ${escapeHtml(store.person.email)}`) : ''}`;
   }
 
   /* ---------- Frequent steps and library ---------- */
@@ -219,7 +222,7 @@ export default function boot() {
     if (action === 'library') setLibrary(!libraryOpen || !!store.selectedId);
     if (action === 'diagram') { store.select(null); if (core.isHistoryOpen()) byId('rail').querySelector('[data-wb="history"]').click(); setLibrary(false); }
     if (action === 'shortcuts') DT.ui.openShortcutsDialog();
-    if (action === 'credentials') store.loadCredentials().then(() => DT.ui.openCredentialsDialog(store), (error) => DT.ui.toast(error.message, { tone: 'danger' }));
+    if (action === 'sign-out') store.signOut();
     if (action === 'save') store.save().then((message) => DT.ui.toast(message), (error) => DT.ui.toast(error.message, { tone: 'danger' }));
     if (action === 'approve') store.approveProposal().then(() => DT.ui.toast('Approved. This version is now the current one.'), (error) => DT.ui.toast(error.message, { tone: 'danger' }));
     if (action === 'reject') store.rejectProposal().then(() => DT.ui.toast('Proposal rejected.'), (error) => DT.ui.toast(error.message, { tone: 'danger' }));
@@ -242,8 +245,8 @@ export default function boot() {
   syncRunMode();
   core.syncTaskControls();
   syncParameters();
-  store.loadPerson().catch(() => {});
-  Promise.all([store.loadCredentials().catch(() => {}), store.loadTaskList()]).then(store.openLastTask).catch((error) => DT.ui.toast(error.message, { tone: 'danger' }));
+  store.loadPerson().then(renderRail, () => {});
+  DT.flow = { renderRail };
   renderWires();
   Object.assign(view, fitTarget());
   applyView();

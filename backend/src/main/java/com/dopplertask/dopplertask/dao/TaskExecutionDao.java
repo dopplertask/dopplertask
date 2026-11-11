@@ -19,7 +19,7 @@ import java.util.Optional;
 
 @Repository
 public interface TaskExecutionDao extends JpaRepository<TaskExecution, Long> {
-    List<TaskExecution> findAllByTaskNotNull();
+    List<TaskExecution> findByTaskNotNullOrderByIdDesc(Pageable pageable);
 
     List<TaskExecution> findByTask_NameOrderByIdDesc(String taskName, Pageable pageable);
 
