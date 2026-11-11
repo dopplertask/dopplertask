@@ -553,16 +553,22 @@ function lookUp(node, input, what) {
     body: JSON.stringify({ operation: node.config.operation, input, credential: node.config.credential, settings }) });
 }
 
-async function request(url, options = {}) {
+/* Sends with the person's token, and turns a refusal into an error that says what the server said. */
+async function send(url, options = {}) {
   const accessToken = sessionStorage.getItem(ACCESS_TOKEN_KEY);
-  const response = await fetch(url, { ...options, headers: { Accept: 'application/json', ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) } })
+  const response = await fetch(url, { ...options, headers: { Accept: 'application/json', ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), ...options.headers } })
     .catch(() => { throw new Error('The server could not be reached. Nothing was changed there.'); });
-  const text = await response.text();
-  let body = null;
-  try { body = text ? JSON.parse(text) : null; } catch (error) { body = null; }
   if (response.status === 401) sessionStorage.removeItem(ACCESS_TOKEN_KEY);
-  if (!response.ok) throw Object.assign(new Error(body?.message || body?.error || `The server answered ${response.status}.`), { status: response.status });
-  return body;
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw Object.assign(new Error(body?.message || body?.error || `The server answered ${response.status}.`), { status: response.status });
+  }
+  return response;
+}
+
+async function request(url, options = {}) {
+  const text = await (await send(url, options)).text();
+  try { return text ? JSON.parse(text) : null; } catch (error) { return null; }
 }
 
 /* ---------- Runs ---------- */
@@ -660,6 +666,7 @@ function createStore() {
   let showingOlderVersion = false;
   let review = null;
   let person = null;
+  let assistantReady = false;
 
   const emit = (change) => listeners.forEach((listener) => listener(change));
 
@@ -986,6 +993,20 @@ function createStore() {
     get autoSave() { return autoSave; },
     get person() { return person; },
     async loadPerson() { person = (await request('/sso/status')).person || null; },
+    get assistantReady() { return assistantReady; },
+    async loadAssistant() { assistantReady = !!(await request('/assistant')).ready; emit('meta'); },
+    /* The assistant works in steps, and each arrives as it happens. It knows which saved task is open. */
+    async askAssistant(messages, onEvent) {
+      const response = await send('/assistant', { method: 'POST', headers: { Accept: 'text/event-stream' }, body: JSON.stringify({ messages, task: savedName || '' }) });
+      const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+      let buffer = '';
+      for (let read = await reader.read(); !read.done; read = await reader.read()) {
+        buffer += read.value;
+        const events = buffer.split('\n\n');
+        buffer = events.pop();
+        events.map((event) => event.split('\n').find((line) => line.startsWith('data:'))).filter(Boolean).forEach((line) => onEvent(JSON.parse(line.slice(5))));
+      }
+    },
     async signOut() {
       await request('/sso/logout', { method: 'POST' });
       window.location.assign('/public/index.html');

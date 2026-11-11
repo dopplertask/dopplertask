@@ -355,7 +355,7 @@ export default function boot() {
   /* ---------- Library & empty state ---------- */
 
   function renderEmptyCard() {
-    elements.emptyCard.innerHTML = `<div class="empty-choices"><button type="button" class="empty-choice" data-empty="step"><span class="empty-tile">${icon('plus')}</span><b>Add first step</b></button></div>
+    elements.emptyCard.innerHTML = `<div class="empty-choices"><button type="button" class="empty-choice" data-empty="step"><span class="empty-tile">${icon('plus')}</span><b>Add first step</b></button>${store.assistantReady ? `<span class="empty-or">or</span><button type="button" class="empty-choice" data-flow="assistant"><span class="empty-tile is-ai">${icon('sparkles')}</span><b>Build with AI</b></button>` : ''}</div>
       <button type="button" class="ui-link-button empty-example" data-try-example>Or try an example you can run right away</button>`;
   }
 
@@ -666,6 +666,7 @@ export default function boot() {
       return;
     }
     if (change === 'structure') { renderNodes(); renderInspector(); }
+    if (change === 'meta' && store.task.nodes.length === 1) renderEmptyCard();
   });
 
   function showFailure() {

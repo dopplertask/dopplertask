@@ -8,7 +8,8 @@ export default function boot() {
   const byId = (id) => document.getElementById(id);
   const SVG_NS = 'http://www.w3.org/2000/svg';
   const FREQUENT_STEPS = [['command', 'Command'], ['http', 'HTTP'], ['ssh', 'SSH'], ['script', 'Script'], ['if', 'If'], ['mysql', 'MySQL'], ['openAI', 'OpenAI']].filter(([type]) => ACTIONS[type]);
-  let libraryOpen = false;
+  /* The column beside the canvas holds one panel at a time: the step library or the AI, or for an empty task how it starts. */
+  let panel = null;
 
   const railButton = (iconName, label, attributes, active, hint = label) => `<button type="button" class="rail-button ${active ? 'is-active' : ''}" ${attributes} title="${hint}">${icon(iconName)}<span>${label}</span></button>`;
 
@@ -29,8 +30,9 @@ export default function boot() {
   /* ---------- Frequent steps and library ---------- */
 
   function renderQuick() {
-    const showing = libraryOpen && !store.selectedId;
-    byId('quick').innerHTML = `<button type="button" class="quick-button is-add ${showing ? 'is-on' : ''}" data-flow="library" aria-expanded="${showing}" title="${showing ? 'Close the step library' : 'Open the step library'}"><span class="quick-circle">${icon(showing ? 'x' : 'plus')}</span><small>${showing ? 'Close' : 'All steps'}</small></button>
+    const showing = panel === 'library' && !store.selectedId;
+    const asking = panel === 'assistant' && !store.selectedId;
+    byId('quick').innerHTML = `${store.assistantReady ? `<button type="button" class="quick-button is-ai ${asking ? 'is-on' : ''}" data-flow="assistant" aria-expanded="${asking}" title="${asking ? 'Close Build with AI' : 'Build or change this task by saying what it should do'}"><span class="quick-circle">${icon(asking ? 'x' : 'sparkles')}</span><small>${asking ? 'Close' : 'Ask AI'}</small></button>` : ''}<button type="button" class="quick-button is-add ${showing ? 'is-on' : ''}" data-flow="library" aria-expanded="${showing}" title="${showing ? 'Close the step library' : 'Open the step library'}"><span class="quick-circle">${icon(showing ? 'x' : 'plus')}</span><small>${showing ? 'Close' : 'All steps'}</small></button>
       ${FREQUENT_STEPS.map(([type, label]) => `<button type="button" class="quick-button library-item" data-type="${type}" data-category="${ACTIONS[type].category}" aria-label="Add ${escapeHtml(ACTIONS[type].label)}" title="${escapeHtml(ACTIONS[type].label)}: click to add after the selected or last step, or drag onto the canvas"><span class="quick-circle">${icon(ACTIONS[type].icon)}</span><small>${label}</small></button>`).join('')}`;
   }
 
@@ -40,7 +42,7 @@ export default function boot() {
   let sideSearch = '';
   let shownMode = null;
   const startsOpen = () => store.task.nodes.length === 1 && startsChosenFor !== store.task.id && !store.review;
-  const sideMode = () => (store.selectedId ? null : libraryOpen ? 'library' : startsOpen() ? 'starts' : null);
+  const sideMode = () => (store.selectedId ? null : panel ?? (startsOpen() ? 'starts' : null));
 
   const startItem = ({ value, label, icon: iconName, detail }, attributes = `data-start="${value}"`) => `<button type="button" class="ui-option side-item" ${attributes}><span class="side-icon">${icon(iconName)}</span><span><b>${escapeHtml(label)}</b><small>${escapeHtml(detail)}</small></span></button>`;
   const noMatch = (what) => `<p class="ui-empty">No ${what} matches “${escapeHtml(sideSearch)}”.</p>`;
@@ -76,6 +78,7 @@ export default function boot() {
     sideSearch = '';
     startsShowApps = false;
     if (!mode) { side.innerHTML = ''; return; }
+    if (mode === 'assistant') { DT.assistant.mount(side); return; }
     side.innerHTML = `${mode === 'starts' ? '<div class="side-head"><h2>What starts this task?</h2><p>A trigger is the step that starts a task. You can change it at any time.</p></div>' : ''}
       <label class="side-search">${icon('search')}<input id="sideSearch" placeholder="${mode === 'starts' ? 'Search triggers and apps' : 'Search steps'}" aria-label="${mode === 'starts' ? 'Search triggers' : 'Search steps'}" autocomplete="off" spellcheck="false"></label><div class="side-card" id="sideList"></div>`;
     refreshSideList();
@@ -86,10 +89,10 @@ export default function boot() {
     });
   }
 
-  function setLibrary(open) {
-    libraryOpen = open;
-    /* The step panel takes the library's place, so the library needs it out of the way. */
-    if (open) store.select(null);
+  function setPanel(name) {
+    panel = name;
+    /* The step panel takes this column too, so an opened panel needs it out of the way. */
+    if (name) store.select(null);
     renderRail();
     renderQuick();
     renderSide();
@@ -201,7 +204,7 @@ export default function boot() {
     if (change === 'task' || change === 'review') { renderReview(); renderSide(); }
     if (change === 'run') { syncRunPill(); syncRunMode(); return; }
     if (change === 'selection') { renderQuick(); renderSide(); return; }
-    if (change === 'meta') { syncParameters(); renderSide(); return; }
+    if (change === 'meta') { syncParameters(); renderQuick(); renderSide(); return; }
     if (change === 'task') { syncRunPill(); syncRunMode(); syncParameters(); }
     if (change === 'structure') renderSide();
   });
@@ -218,9 +221,9 @@ export default function boot() {
 
   document.addEventListener('click', (event) => {
     const action = event.target.closest('[data-flow]')?.dataset.flow;
-    /* With a step selected the panel covers the library, so this asks for the library rather than to close it. */
-    if (action === 'library') setLibrary(!libraryOpen || !!store.selectedId);
-    if (action === 'diagram') { store.select(null); if (core.isHistoryOpen()) byId('rail').querySelector('[data-wb="history"]').click(); setLibrary(false); }
+    /* With a step selected its panel covers this one, so the button asks for it rather than to close it. */
+    if (action === 'library' || action === 'assistant') setPanel(panel !== action || store.selectedId ? action : null);
+    if (action === 'diagram') { store.select(null); if (core.isHistoryOpen()) byId('rail').querySelector('[data-wb="history"]').click(); setPanel(null); }
     if (action === 'shortcuts') DT.ui.openShortcutsDialog();
     if (action === 'sign-out') store.signOut();
     if (action === 'save') store.save().then((message) => DT.ui.toast(message), (error) => DT.ui.toast(error.message, { tone: 'danger' }));
@@ -246,6 +249,7 @@ export default function boot() {
   core.syncTaskControls();
   syncParameters();
   store.loadPerson().then(renderRail, () => {});
+  store.loadAssistant().catch(() => {});
   DT.flow = { renderRail };
   renderWires();
   Object.assign(view, fitTarget());

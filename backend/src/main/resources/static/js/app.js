@@ -5,6 +5,7 @@ import bootValues from './flow/values';
 import bootWorkbench from './flow/workbench';
 import bootFlow from './flow/flow';
 import bootHome from './flow/home';
+import bootAssistant from './flow/assistant';
 
 const triedToken = !!sessionStorage.getItem('accessToken');
 
@@ -17,6 +18,7 @@ bootEngine().then(() => {
   bootWorkbench();
   bootFlow();
   bootHome();
+  bootAssistant();
 }, (error) => {
   if (error.status === 401) askForToken();
   else document.body.textContent = `DopplerTask could not reach its server. ${error.message}`;

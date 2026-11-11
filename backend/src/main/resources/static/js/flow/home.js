@@ -110,6 +110,7 @@ export default function boot() {
   async function route() {
     const { view, name } = viewOf(location.hash);
     routed = true;
+    const wasHome = document.documentElement.classList.contains('is-home');
     tab = view === 'task' || view === 'new' ? null : TABS.find(([id]) => id === view)?.[0] ?? 'tasks';
     document.documentElement.classList.toggle('is-home', !!tab);
     DT.flow.renderRail();
@@ -128,7 +129,8 @@ export default function boot() {
     /* The task may not exist, or the person kept the one with unsaved changes. The address says what is open. */
     history.replaceState(null, '', editorHash());
     DT.workbench.syncTaskControls();
-    window.dispatchEvent(new Event('resize'));
+    /* A hidden canvas has no size, so a task opened from home is fitted once it shows. */
+    if (wasHome) { Object.assign(DT.canvas.view, DT.canvas.fitTarget()); DT.canvas.applyView(); }
   }
 
   /* Going somewhere adds to the history, so Back returns; the page then follows the address. */
