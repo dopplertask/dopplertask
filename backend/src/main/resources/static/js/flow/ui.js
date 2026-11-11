@@ -449,11 +449,10 @@ export default function boot() {
 
   /* The ways a task can start, built in and from every app, in one searchable list. */
   function openTriggerPicker(store, anchor) {
-    const builtIn = ACTIONS.start.fields.find((field) => field.key === 'trigger').options
-      .filter((option) => option.value !== 'manual' && option.value !== DT.APP_TRIGGER)
-      .map((option) => ({ value: option.value, label: `Built in: ${option.label}` }));
-    const apps = Object.entries(ACTIONS).filter(([, action]) => action.category === 'starts').map(([type, action]) => ({ value: type, label: `Apps: ${action.label}` }));
-    openPicker(anchor, [...builtIn, ...apps], null, (value) => (ACTIONS[value] ? store.addStep(value) : store.addTrigger(value)), true);
+    const { builtIn, apps } = DT.startChoices();
+    const options = [...builtIn.filter((choice) => choice.value !== 'manual').map((choice) => ({ value: choice.value, label: `Built in: ${choice.label}` })),
+      ...apps.map((choice) => ({ value: choice.value, label: `Apps: ${choice.label}` }))];
+    openPicker(anchor, options, null, (value) => store.addStart(value), true);
   }
 
   /* `$` in any expression-capable input opens a menu of what is available at this point. */

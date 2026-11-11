@@ -217,13 +217,12 @@ function loadCatalogue(actions) {
   const appTriggers = actions.filter((action) => action.trigger && isAppTrigger(action.name)).map(({ name, label }) => ({ name, label: label || name }));
   ACTIONS.start.fields = [
     { key: 'trigger', label: 'Starts', type: 'select', options: [
-      { value: 'manual', label: 'Only when I run it' },
-      { value: 'webhook', label: 'When a webhook is called' },
-      { value: 'schedule', label: 'On a schedule' },
-      { value: 'interval', label: 'After a fixed pause (older)' },
-      { value: 'activemq', label: 'When a queue message arrives' },
-    // A server can leave out kinds of trigger that it does not offer.
-      { value: APP_TRIGGER, label: 'When something new appears in an app' },
+      { value: 'manual', label: 'Only when I run it', icon: 'play', detail: 'Starts when someone presses Run. Good for trying things out.' },
+      { value: 'webhook', label: 'When a webhook is called', icon: 'webhook', detail: 'Starts when another system calls its own URL.' },
+      { value: 'schedule', label: 'On a schedule', icon: 'clock', detail: 'Starts every few minutes, at set times, or by cron.' },
+      { value: 'interval', label: 'After a fixed pause (older)', older: true },
+      { value: 'activemq', label: 'When a queue message arrives', icon: 'server', detail: 'Starts when a message arrives on an ActiveMQ queue.' },
+      { value: APP_TRIGGER, label: 'When something new appears in an app', icon: 'appWindow', detail: 'Starts on a new email, row, message or file in an app.' },
     // A server can leave out kinds of trigger that it does not offer.
     ].filter((option) => (option.value === APP_TRIGGER ? appTriggers.length : !TRIGGER_ACTIONS[option.value] || triggers[TRIGGER_ACTIONS[option.value]])) },
     { key: 'app', label: 'App', type: 'select', required: true, options: appTriggers.map(({ name, label }) => ({ value: name, label })), showWhen: { trigger: [APP_TRIGGER] } },
@@ -1063,6 +1062,8 @@ function createStore() {
       this.select(tile.id);
       return tile;
     },
+    /* A choice from the start lists: an app's trigger is a step type, a built-in one a kind of trigger. */
+    addStart(value) { return ACTIONS[value] ? this.addStep(value) : this.addTrigger(value); },
     rename(nodeId, name) { remember(`${nodeId}.name`); nodeById(task, nodeId).name = name; changed('config'); },
     updateTask(fields) { remember(`task.${Object.keys(fields)[0]}`); Object.assign(task, fields); changed('meta'); },
     setParameters(parameters) { remember(); task.parameters = parameters; changed('meta'); },
@@ -1556,11 +1557,19 @@ function formatAgo(timestamp) {
   return `${Math.round(minutes / 1440)} d ago`;
 }
 
+/* The ways a task can start, as the lists that offer them show it: the built-in kinds, and each app's own trigger. */
+function startChoices() {
+  const builtIn = ACTIONS.start.fields[0].options.filter((option) => !option.older && option.value !== APP_TRIGGER);
+  const apps = Object.entries(ACTIONS).filter(([, action]) => action.category === 'starts')
+    .map(([type, action]) => ({ value: type, label: action.label, icon: action.icon, detail: action.description }));
+  return { builtIn, apps, appOption: ACTIONS.start.fields[0].options.find((option) => option.value === APP_TRIGGER) };
+}
+
 export default async function bootEngine() {
   loadCatalogue((await request('/task/actions')).actions);
   window.DT = {
     ACTIONS, CATEGORIES, FAILURE_FIELDS, INITIALS, APP_TRIGGER, iconOf,
-    createStore, stepsMatching, portsOf, edgeFrom, nodeById, rootNode, isDeactivated,
+    createStore, stepsMatching, startChoices, portsOf, edgeFrom, nodeById, rootNode, isDeactivated,
     describeNode, summaryText, fieldVisible,
     formatDuration, formatAgo, intervalText, scheduleText,
   };

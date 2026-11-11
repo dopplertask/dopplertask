@@ -355,8 +355,8 @@ export default function boot() {
   /* ---------- Library & empty state ---------- */
 
   function renderEmptyCard() {
-    const suggestions = ['command', 'http', 'ssh', 'script', 'if', 'readFile'];
-    elements.emptyCard.innerHTML = `<h2>What should happen first?</h2><p>Choose a step. You can change or rearrange anything later.</p><div class="empty-options">${suggestions.filter((type) => ACTIONS[Array.isArray(type) ? type[0] : type]).map((type) => `<button type="button" class="ui-option" data-first-step="${type}"><span class="node-icon" data-category="${ACTIONS[type].category}">${icon(ACTIONS[type].icon)}</span>${escapeHtml(ACTIONS[type].label)}</button>`).join('')}</div><button type="button" class="ui-link-button empty-example" data-try-example>Or try an example you can run right away</button>`;
+    elements.emptyCard.innerHTML = `<div class="empty-choices"><button type="button" class="empty-choice" data-empty="step"><span class="empty-tile">${icon('plus')}</span><b>Add first step</b></button></div>
+      <button type="button" class="ui-link-button empty-example" data-try-example>Or try an example you can run right away</button>`;
   }
 
   /* ---------- Actions ---------- */
@@ -619,8 +619,7 @@ export default function boot() {
       store.addExample();
       DT.ui.toast('Press Run to see it work.');
     }
-    const firstStep = event.target.closest('[data-first-step]');
-    if (firstStep) addAndFocus(firstStep.dataset.firstStep, { fromId: DT.rootNode(store.task).id });
+    if (event.target.closest('[data-empty="step"]')) openStepPicker({ fromId: DT.rootNode(store.task).id });
   });
 
   /* SVG buttons do not turn Enter or Space into a click by themselves. */
