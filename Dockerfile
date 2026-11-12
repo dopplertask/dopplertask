@@ -1,41 +1,15 @@
-FROM alpine:3.24 AS jlink-package
-# First: generate java runtime module by jlink.
-
+FROM alpine:3.24 AS build
 RUN apk add openjdk25-jdk openjdk25-jmods
+ENV PATH="/usr/lib/jvm/java-25-openjdk/bin:$PATH"
+COPY . /src
+RUN /src/bundle.sh
 
-RUN jlink \
-     --module-path /usr/lib/jvm/java-25-openjdk/jmods \
-     --compress=2 \
-     --add-modules jdk.jfr,jdk.management.agent,java.base,java.logging,java.xml,jdk.unsupported,java.sql,java.naming,java.desktop,java.management,java.security.jgss,java.instrument,java.net.http,java.compiler  \
-     --no-header-files \
-     --no-man-pages \
-     --output /opt/jdk-25-mini-runtime
-
-ADD . /root
-
-RUN cd ~/backend && chmod +x gradlew && ./gradlew build -x test && chmod +x /root/start.sh && chmod +x /root/setup.sh
-
-
-# Second image
-
-
-# Third image
 FROM alpine:3.24
-
-MAINTAINER Feras Wilson, http://www.dopplertask.com
-
-ENV JAVA_HOME=/opt/jdk-25-mini-runtime
-ENV PATH="$PATH:$JAVA_HOME/bin"
-
+LABEL maintainer="Feras Wilson, https://www.dopplertask.com"
 RUN apk add chromium chromium-chromedriver
-
-COPY --from=jlink-package /root/start.sh /opt/spring-boot/
-COPY --from=jlink-package /root/backend/build/libs/doppler-*.jar /opt/spring-boot/
-COPY --from=jlink-package /opt/jdk-25-mini-runtime /opt/jdk-25-mini-runtime
-
-
-
+COPY --from=build /src/dist/dopplertask /opt/dopplertask
+ENV JAVA_OPTS="-Dwebdriver.chrome.driver=/usr/bin/chromedriver"
 EXPOSE 8090
 EXPOSE 61617
-WORKDIR  /opt/spring-boot/
-CMD ["/opt/spring-boot/start.sh"]
+WORKDIR /opt/dopplertask
+CMD ["/opt/dopplertask/bin/dopplertask"]
