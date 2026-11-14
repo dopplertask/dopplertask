@@ -89,7 +89,6 @@ export default function boot() {
       ['download', 'Export as JSON', () => DT.ui.exportTask(store)],
       ['upload', 'Import from JSON…', () => DT.ui.importTask(store)],
       ['keyboard', 'Keyboard shortcuts', () => DT.ui.openShortcutsDialog()],
-      ...(store.person ? [['logOut', `Sign out ${store.person.email}`, () => store.signOut()]] : []),
     ];
     const { element, close } = DT.ui.openPopover(anchor, `<div class="ui-menu task-switcher">
       <div class="task-switcher-list">${store.tasks.map((task) => `<button type="button" class="ui-option is-task ${task.id === store.task.id ? 'is-current' : ''}" data-switch="${escapeHtml(task.id)}">${icon('workflow')}<span><b>${escapeHtml(task.name)}</b><small>${task.versions[0].proposed ? 'A proposal is waiting' : `${task.versions.length} ${task.versions.length === 1 ? 'version' : 'versions'}`}</small></span></button>`).join('')}</div>

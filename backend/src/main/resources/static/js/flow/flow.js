@@ -8,64 +8,91 @@ export default function boot() {
   const byId = (id) => document.getElementById(id);
   const SVG_NS = 'http://www.w3.org/2000/svg';
   const FREQUENT_STEPS = [['command', 'Command'], ['http', 'HTTP'], ['ssh', 'SSH'], ['script', 'Script'], ['if', 'If'], ['mysql', 'MySQL'], ['openAI', 'OpenAI']].filter(([type]) => ACTIONS[type]);
-  const START_OPTIONS = [
-    ['manual', 'play', 'Run by hand', 'Starts only when someone runs it.'],
-    ['webhook', 'webhook', 'Webhook', 'Starts when a URL is called.'],
-    ['schedule', 'clock', 'Schedule', 'Starts every few minutes, at set times, or by cron.'],
-    ['activemq', 'server', 'Queue message', 'Starts when an ActiveMQ message arrives.'],
-  ];
-
-  let libraryOpen = false;
-  let librarySearch = '';
+  /* The column beside the canvas holds one panel at a time: the step library or the AI, or for an empty task how it starts. */
+  let panel = null;
 
   const railButton = (iconName, label, attributes, active, hint = label) => `<button type="button" class="rail-button ${active ? 'is-active' : ''}" ${attributes} title="${hint}">${icon(iconName)}<span>${label}</span></button>`;
 
+  /* On the home page Runs lists every task's runs; in a task it opens that task's run history. */
   function renderRail() {
+    const tab = DT.home?.tab();
     byId('rail').innerHTML = `
-      <button type="button" class="rail-mark" data-wb="tasks" title="Tasks">${core.MARK}<span>DopplerTask</span></button>
-      ${railButton('workflow', 'Diagram', 'data-flow="diagram"', !core.isHistoryOpen())}
-      ${railButton('folder', 'Tasks', 'data-wb="tasks"', false, 'Switch task, new, import or export')}
-      ${railButton('history', 'Runs', 'data-wb="history"', core.isHistoryOpen(), 'Run history')}
-      ${railButton('key', 'Credentials', 'data-flow="credentials"', false, 'What steps sign in with')}
+      <button type="button" class="rail-mark" data-go="tasks" title="Home">${core.MARK}<span>DopplerTask</span></button>
+      ${railButton('folder', 'Tasks', 'data-go="tasks"', tab === 'tasks', 'All tasks')}
+      ${railButton('workflow', 'Diagram', 'data-flow="diagram"', !tab && !core.isHistoryOpen(), 'The task you are working on')}
+      ${railButton('history', 'Runs', tab ? 'data-go="runs"' : 'data-wb="history"', tab === 'runs' || (!tab && core.isHistoryOpen()), tab ? 'The latest runs of every task' : 'Run history of this task')}
+      ${railButton('key', 'Credentials', 'data-go="credentials"', tab === 'credentials', 'What steps sign in with')}
       <span class="rail-space"></span>
-      ${railButton('keyboard', 'Shortcuts', 'data-flow="shortcuts"', false, 'Keyboard shortcuts (?)')}`;
+      ${railButton('keyboard', 'Shortcuts', 'data-flow="shortcuts"', false, 'Keyboard shortcuts (?)')}
+      ${store.person ? railButton('logOut', 'Sign out', 'data-flow="sign-out"', false, `Sign out ${escapeHtml(store.person.email)}`) : ''}`;
   }
 
   /* ---------- Frequent steps and library ---------- */
 
   function renderQuick() {
-    const showing = libraryOpen && !store.selectedId;
-    byId('quick').innerHTML = `<button type="button" class="quick-button is-add ${showing ? 'is-on' : ''}" data-flow="library" aria-expanded="${showing}" title="${showing ? 'Close the step library' : 'Open the step library'}"><span class="quick-circle">${icon(showing ? 'x' : 'plus')}</span><small>${showing ? 'Close' : 'All steps'}</small></button>
+    const showing = panel === 'library' && !store.selectedId;
+    const asking = panel === 'assistant' && !store.selectedId;
+    byId('quick').innerHTML = `${store.assistantReady ? `<button type="button" class="quick-button is-ai ${asking ? 'is-on' : ''}" data-flow="assistant" aria-expanded="${asking}" title="${asking ? 'Close Build with AI' : 'Build or change this task by saying what it should do'}"><span class="quick-circle">${icon(asking ? 'x' : 'sparkles')}</span><small>${asking ? 'Close' : 'Ask AI'}</small></button>` : ''}<button type="button" class="quick-button is-add ${showing ? 'is-on' : ''}" data-flow="library" aria-expanded="${showing}" title="${showing ? 'Close the step library' : 'Open the step library'}"><span class="quick-circle">${icon(showing ? 'x' : 'plus')}</span><small>${showing ? 'Close' : 'All steps'}</small></button>
       ${FREQUENT_STEPS.map(([type, label]) => `<button type="button" class="quick-button library-item" data-type="${type}" data-category="${ACTIONS[type].category}" aria-label="Add ${escapeHtml(ACTIONS[type].label)}" title="${escapeHtml(ACTIONS[type].label)}: click to add after the selected or last step, or drag onto the canvas"><span class="quick-circle">${icon(ACTIONS[type].icon)}</span><small>${label}</small></button>`).join('')}`;
   }
 
+  /* An empty task asks how it starts, in the same place the library opens. Choosing once is enough for that task. */
+  let startsChosenFor = null;
+  let startsShowApps = false;
+  let sideSearch = '';
+  let shownMode = null;
+  const startsOpen = () => store.task.nodes.length === 1 && startsChosenFor !== store.task.id && !store.review;
+  const sideMode = () => (store.selectedId ? null : panel ?? (startsOpen() ? 'starts' : null));
+
+  const startItem = ({ value, label, icon: iconName, detail }, attributes = `data-start="${value}"`) => `<button type="button" class="ui-option side-item" ${attributes}><span class="side-icon">${icon(iconName)}</span><span><b>${escapeHtml(label)}</b><small>${escapeHtml(detail)}</small></span></button>`;
+  const noMatch = (what) => `<p class="ui-empty">No ${what} matches “${escapeHtml(sideSearch)}”.</p>`;
+
   function libraryListHtml() {
-    const query = librarySearch.trim().toLowerCase();
-    const matches = (text) => !query || text.toLowerCase().includes(query);
-    const starts = START_OPTIONS.filter(([, , label, detail]) => matches(`${label} ${detail}`));
+    const query = sideSearch.trim().toLowerCase();
+    const starts = DT.startChoices().builtIn.filter((choice) => !query || `${choice.label} ${choice.detail}`.toLowerCase().includes(query));
     const groups = DT.stepsMatching(query).map(({ category, items }) => ({ category, items: items.map(({ type, action }) => [type, action]) }));
-    if (!starts.length && !groups.length) return `<p class="ui-empty">No step matches “${escapeHtml(librarySearch)}”.</p>`;
-    return `${starts.length ? `<details class="side-group" ${query ? 'open' : ''}><summary>${icon('chevronRight')}Starts when</summary>${starts.map(([value, iconName, label, detail]) => `<button type="button" class="ui-option side-item" data-start="${value}"><span class="side-icon">${icon(iconName)}</span><span><b>${label}</b><small>${detail}</small></span></button>`).join('')}</details>` : ''}
+    if (!starts.length && !groups.length) return noMatch('step');
+    return `${starts.length ? `<details class="side-group" ${query ? 'open' : ''}><summary>${icon('chevronRight')}Starts when</summary>${starts.map((choice) => startItem(choice)).join('')}</details>` : ''}
       ${groups.map(({ category, items }, index) => `<details class="side-group" data-category="${category.id}" ${query || index === 0 ? 'open' : ''}><summary>${icon('chevronRight')}${query ? '' : '<i class="side-swatch"></i>'}${escapeHtml(category.label)}</summary>${items.map(([type, action]) => `<button type="button" class="ui-option side-item library-item" data-type="${type}" data-category="${action.category}" title="Click to add after the last step, or drag onto the canvas"><span class="side-icon">${icon(action.icon)}</span><span><b>${escapeHtml(action.label)}</b><small>${escapeHtml(action.description)}</small></span></button>`).join('')}</details>`).join('')}`;
   }
 
+  function startsListHtml() {
+    const { builtIn, apps, appOption } = DT.startChoices();
+    const query = sideSearch.trim().toLowerCase();
+    if (query) {
+      const found = [...builtIn, ...apps].filter((choice) => `${choice.label} ${choice.detail}`.toLowerCase().includes(query));
+      return found.length ? found.map((choice) => startItem(choice)).join('') : noMatch('trigger');
+    }
+    if (startsShowApps) return `<button type="button" class="side-back" data-starts-apps="false">${icon('chevronRight')}All the ways to start</button>${apps.map((choice) => startItem(choice)).join('')}`;
+    return `${builtIn.map((choice) => startItem(choice)).join('')}${appOption && apps.length ? startItem({ ...appOption, label: `${appOption.label} (${apps.length} apps)` }, 'data-starts-apps="true"') : ''}`;
+  }
+
+  const refreshSideList = () => { byId('sideList').innerHTML = shownMode === 'starts' ? startsListHtml() : libraryListHtml(); };
+
   function renderSide() {
     const side = byId('side');
-    side.hidden = !libraryOpen || !!store.selectedId;
-    if (side.hidden || side.querySelector('#sideList')) return;
-    side.innerHTML = `<label class="side-search">${icon('search')}<input id="sideSearch" placeholder="Search steps" aria-label="Search steps" autocomplete="off" spellcheck="false"></label><div class="side-card" id="sideList">${libraryListHtml()}</div>`;
+    const mode = sideMode();
+    side.hidden = !mode;
+    if (mode === shownMode) return;
+    shownMode = mode;
+    sideSearch = '';
+    startsShowApps = false;
+    if (!mode) { side.innerHTML = ''; return; }
+    if (mode === 'assistant') { DT.assistant.mount(side); return; }
+    side.innerHTML = `${mode === 'starts' ? '<div class="side-head"><h2>What starts this task?</h2><p>A trigger is the step that starts a task. You can change it at any time.</p></div>' : ''}
+      <label class="side-search">${icon('search')}<input id="sideSearch" placeholder="${mode === 'starts' ? 'Search triggers and apps' : 'Search steps'}" aria-label="${mode === 'starts' ? 'Search triggers' : 'Search steps'}" autocomplete="off" spellcheck="false"></label><div class="side-card" id="sideList"></div>`;
+    refreshSideList();
     const input = byId('sideSearch');
-    input.value = librarySearch;
-    input.addEventListener('input', () => { librarySearch = input.value; byId('sideList').innerHTML = libraryListHtml(); });
+    input.addEventListener('input', () => { sideSearch = input.value; refreshSideList(); });
     input.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter') byId('sideList').querySelector('.library-item')?.click();
+      if (event.key === 'Enter') byId('sideList').querySelector('[data-start], .library-item')?.click();
     });
   }
 
-  function setLibrary(open) {
-    libraryOpen = open;
-    /* The step panel takes the library's place, so the library needs it out of the way. */
-    if (open) store.select(null);
+  function setPanel(name) {
+    panel = name;
+    /* The step panel takes this column too, so an opened panel needs it out of the way. */
+    if (name) store.select(null);
     renderRail();
     renderQuick();
     renderSide();
@@ -174,11 +201,11 @@ export default function boot() {
   }
 
   store.subscribe((change) => {
-    if (change === 'task' || change === 'review') renderReview();
+    if (change === 'task' || change === 'review') { renderReview(); renderSide(); }
     if (change === 'run') { syncRunPill(); syncRunMode(); return; }
     if (change === 'selection') { renderQuick(); renderSide(); return; }
-    if (change === 'meta') { syncParameters(); return; }
-    if (change === 'task') { syncRunPill(); syncRunMode(); syncParameters(); renderSide(); }
+    if (change === 'meta') { syncParameters(); renderQuick(); renderSide(); return; }
+    if (change === 'task') { syncRunPill(); syncRunMode(); syncParameters(); }
     if (change === 'structure') renderSide();
   });
 
@@ -194,11 +221,11 @@ export default function boot() {
 
   document.addEventListener('click', (event) => {
     const action = event.target.closest('[data-flow]')?.dataset.flow;
-    /* With a step selected the panel covers the library, so this asks for the library rather than to close it. */
-    if (action === 'library') setLibrary(!libraryOpen || !!store.selectedId);
-    if (action === 'diagram') { store.select(null); if (core.isHistoryOpen()) byId('rail').querySelector('[data-wb="history"]').click(); setLibrary(false); }
+    /* With a step selected its panel covers this one, so the button asks for it rather than to close it. */
+    if (action === 'library' || action === 'assistant') setPanel(panel !== action || store.selectedId ? action : null);
+    if (action === 'diagram') { store.select(null); if (core.isHistoryOpen()) byId('rail').querySelector('[data-wb="history"]').click(); setPanel(null); }
     if (action === 'shortcuts') DT.ui.openShortcutsDialog();
-    if (action === 'credentials') store.loadCredentials().then(() => DT.ui.openCredentialsDialog(store), (error) => DT.ui.toast(error.message, { tone: 'danger' }));
+    if (action === 'sign-out') store.signOut();
     if (action === 'save') store.save().then((message) => DT.ui.toast(message), (error) => DT.ui.toast(error.message, { tone: 'danger' }));
     if (action === 'approve') store.approveProposal().then(() => DT.ui.toast('Approved. This version is now the current one.'), (error) => DT.ui.toast(error.message, { tone: 'danger' }));
     if (action === 'reject') store.rejectProposal().then(() => DT.ui.toast('Proposal rejected.'), (error) => DT.ui.toast(error.message, { tone: 'danger' }));
@@ -208,18 +235,22 @@ export default function boot() {
     if (event.target.closest('[data-wb="history"]')) renderRail();
     announceAddedStep(event.target.closest('.library-item'));
     const start = event.target.closest('[data-start]');
-    if (start) store.addTrigger(start.dataset.start);
+    if (start) { startsChosenFor = store.task.id; store.addStart(start.dataset.start); }
+    const appsToggle = event.target.closest('[data-starts-apps]');
+    if (appsToggle) { startsShowApps = appsToggle.dataset.startsApps === 'true'; refreshSideList(); }
   });
 
   core.start({ idle: () => '' });
   renderRail();
   renderQuick();
+  renderSide();
   syncRunPill();
   syncRunMode();
   core.syncTaskControls();
   syncParameters();
-  store.loadPerson().catch(() => {});
-  Promise.all([store.loadCredentials().catch(() => {}), store.loadTaskList()]).then(store.openLastTask).catch((error) => DT.ui.toast(error.message, { tone: 'danger' }));
+  store.loadPerson().then(renderRail, () => {});
+  store.loadAssistant().catch(() => {});
+  DT.flow = { renderRail };
   renderWires();
   Object.assign(view, fitTarget());
   applyView();

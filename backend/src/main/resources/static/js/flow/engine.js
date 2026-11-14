@@ -118,7 +118,6 @@ const COPY_OFFSET = { x: 28, y: 96 };
 const withoutNumber = (name) => name.replace(/ \d+$/, '');
 const AUTO_SAVE_DELAY_MS = 30000;
 const AUTO_SAVE_KEY = 'autoSave';
-const LAST_TASK_KEY = 'lastTask';
 const RUNS_SHOWN = 100;
 const LIVE_POLL_MS = 250;
 /* Runs that a schedule or a webhook starts show up in the history this soon. */
@@ -217,13 +216,12 @@ function loadCatalogue(actions) {
   const appTriggers = actions.filter((action) => action.trigger && isAppTrigger(action.name)).map(({ name, label }) => ({ name, label: label || name }));
   ACTIONS.start.fields = [
     { key: 'trigger', label: 'Starts', type: 'select', options: [
-      { value: 'manual', label: 'Only when I run it' },
-      { value: 'webhook', label: 'When a webhook is called' },
-      { value: 'schedule', label: 'On a schedule' },
-      { value: 'interval', label: 'After a fixed pause (older)' },
-      { value: 'activemq', label: 'When a queue message arrives' },
-    // A server can leave out kinds of trigger that it does not offer.
-      { value: APP_TRIGGER, label: 'When something new appears in an app' },
+      { value: 'manual', label: 'Only when I run it', icon: 'play', detail: 'Starts when someone presses Run. Good for trying things out.' },
+      { value: 'webhook', label: 'When a webhook is called', icon: 'webhook', detail: 'Starts when another system calls its own URL.' },
+      { value: 'schedule', label: 'On a schedule', icon: 'clock', detail: 'Starts every few minutes, at set times, or by cron.' },
+      { value: 'interval', label: 'After a fixed pause (older)', older: true },
+      { value: 'activemq', label: 'When a queue message arrives', icon: 'server', detail: 'Starts when a message arrives on an ActiveMQ queue.' },
+      { value: APP_TRIGGER, label: 'When something new appears in an app', icon: 'appWindow', detail: 'Starts on a new email, row, message or file in an app.' },
     // A server can leave out kinds of trigger that it does not offer.
     ].filter((option) => (option.value === APP_TRIGGER ? appTriggers.length : !TRIGGER_ACTIONS[option.value] || triggers[TRIGGER_ACTIONS[option.value]])) },
     { key: 'app', label: 'App', type: 'select', required: true, options: appTriggers.map(({ name, label }) => ({ value: name, label })), showWhen: { trigger: [APP_TRIGGER] } },
@@ -555,16 +553,22 @@ function lookUp(node, input, what) {
     body: JSON.stringify({ operation: node.config.operation, input, credential: node.config.credential, settings }) });
 }
 
-async function request(url, options = {}) {
+/* Sends with the person's token, and turns a refusal into an error that says what the server said. */
+async function send(url, options = {}) {
   const accessToken = sessionStorage.getItem(ACCESS_TOKEN_KEY);
-  const response = await fetch(url, { ...options, headers: { Accept: 'application/json', ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) } })
+  const response = await fetch(url, { ...options, headers: { Accept: 'application/json', ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), ...options.headers } })
     .catch(() => { throw new Error('The server could not be reached. Nothing was changed there.'); });
-  const text = await response.text();
-  let body = null;
-  try { body = text ? JSON.parse(text) : null; } catch (error) { body = null; }
   if (response.status === 401) sessionStorage.removeItem(ACCESS_TOKEN_KEY);
-  if (!response.ok) throw Object.assign(new Error(body?.message || body?.error || `The server answered ${response.status}.`), { status: response.status });
-  return body;
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw Object.assign(new Error(body?.message || body?.error || `The server answered ${response.status}.`), { status: response.status });
+  }
+  return response;
+}
+
+async function request(url, options = {}) {
+  const text = await (await send(url, options)).text();
+  try { return text ? JSON.parse(text) : null; } catch (error) { return null; }
 }
 
 /* ---------- Runs ---------- */
@@ -662,6 +666,7 @@ function createStore() {
   let showingOlderVersion = false;
   let review = null;
   let person = null;
+  let assistantReady = false;
 
   const emit = (change) => listeners.forEach((listener) => listener(change));
 
@@ -981,11 +986,27 @@ function createStore() {
       await loadCredentials();
     },
     get runs() { return runs; },
+    /* The latest runs of every task, for the home page. */
+    async loadAllRuns(limit) { return (await request(`/executions?limit=${limit}`)).executions.filter((execution) => execution.startDate).map(runListItem); },
     get issues() { return findIssues(task); },
     get defaults() { return Object.fromEntries(task.parameters.map((parameter) => [parameter.name, parameter.defaultValue || ''])); },
     get autoSave() { return autoSave; },
     get person() { return person; },
     async loadPerson() { person = (await request('/sso/status')).person || null; },
+    get assistantReady() { return assistantReady; },
+    async loadAssistant() { assistantReady = !!(await request('/assistant')).ready; emit('meta'); },
+    /* The assistant works in steps, and each arrives as it happens. It knows which saved task is open. */
+    async askAssistant(messages, onEvent) {
+      const response = await send('/assistant', { method: 'POST', headers: { Accept: 'text/event-stream' }, body: JSON.stringify({ messages, task: savedName || '' }) });
+      const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+      let buffer = '';
+      for (let read = await reader.read(); !read.done; read = await reader.read()) {
+        buffer += read.value;
+        const events = buffer.split('\n\n');
+        buffer = events.pop();
+        events.map((event) => event.split('\n').find((line) => line.startsWith('data:'))).filter(Boolean).forEach((line) => onEvent(JSON.parse(line.slice(5))));
+      }
+    },
     async signOut() {
       await request('/sso/logout', { method: 'POST' });
       window.location.assign('/public/index.html');
@@ -1063,6 +1084,8 @@ function createStore() {
       this.select(tile.id);
       return tile;
     },
+    /* A choice from the start lists: an app's trigger is a step type, a built-in one a kind of trigger. */
+    addStart(value) { return ACTIONS[value] ? this.addStep(value) : this.addTrigger(value); },
     rename(nodeId, name) { remember(`${nodeId}.name`); nodeById(task, nodeId).name = name; changed('config'); },
     updateTask(fields) { remember(`task.${Object.keys(fields)[0]}`); Object.assign(task, fields); changed('meta'); },
     setParameters(parameters) { remember(); task.parameters = parameters; changed('meta'); },
@@ -1332,7 +1355,6 @@ function createStore() {
         const { checksum } = await request(autoSaved ? '/task?autoSaved=true' : '/task', { method: 'POST', body: JSON.stringify(toBackend(task)) });
         task.checksum = checksum;
         task.id = task.name;
-        localStorage.setItem(LAST_TASK_KEY, task.name);
         savedName = task.name;
         /* What a person saves replaces the proposal it started from. */
         if (review && review.checksum !== checksum) await request(`/task/${review.checksum}`, { method: 'DELETE' });
@@ -1366,7 +1388,6 @@ function createStore() {
         const baseline = current ? fromBackend(await request(`/task/${current.checksum}/checksum`)) : { nodes: [], edges: [] };
         review = { checksum, isNewTask: !current, ...compareVersions(baseline, task) };
       }
-      localStorage.setItem(LAST_TASK_KEY, task.name);
       savedName = task.name;
       selectedIds = []; undoStack = []; redoStack = [];
       runner.clear();
@@ -1375,14 +1396,6 @@ function createStore() {
       saveState = showingOlderVersion ? 'unsaved' : 'saved';
       emit('task');
       await loadRuns();
-    },
-    /* Otherwise the empty task keeps a name that is free now that the saved ones are known. */
-    openLastTask() {
-      if (tasks.some((candidate) => candidate.name === localStorage.getItem(LAST_TASK_KEY))) return store.switchTask(localStorage.getItem(LAST_TASK_KEY));
-      const { id, name } = freshTask(tasks.map((candidate) => candidate.name));
-      Object.assign(task, { id, name });
-      emit('meta');
-      return null;
     },
     async switchTask(name) {
       const entry = tasks.find((candidate) => candidate.id === name);
@@ -1556,11 +1569,19 @@ function formatAgo(timestamp) {
   return `${Math.round(minutes / 1440)} d ago`;
 }
 
+/* The ways a task can start, as the lists that offer them show it: the built-in kinds, and each app's own trigger. */
+function startChoices() {
+  const builtIn = ACTIONS.start.fields[0].options.filter((option) => !option.older && option.value !== APP_TRIGGER);
+  const apps = Object.entries(ACTIONS).filter(([, action]) => action.category === 'starts')
+    .map(([type, action]) => ({ value: type, label: action.label, icon: action.icon, detail: action.description }));
+  return { builtIn, apps, appOption: ACTIONS.start.fields[0].options.find((option) => option.value === APP_TRIGGER) };
+}
+
 export default async function bootEngine() {
   loadCatalogue((await request('/task/actions')).actions);
   window.DT = {
     ACTIONS, CATEGORIES, FAILURE_FIELDS, INITIALS, APP_TRIGGER, iconOf,
-    createStore, stepsMatching, portsOf, edgeFrom, nodeById, rootNode, isDeactivated,
+    createStore, stepsMatching, startChoices, portsOf, edgeFrom, nodeById, rootNode, isDeactivated,
     describeNode, summaryText, fieldVisible,
     formatDuration, formatAgo, intervalText, scheduleText,
   };

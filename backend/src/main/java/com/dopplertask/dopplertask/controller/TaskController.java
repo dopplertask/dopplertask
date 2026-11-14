@@ -528,7 +528,7 @@ public class TaskController {
 
     @GetMapping("/executions")
     public ResponseEntity<TaskExecutionListDTO> getExecutions(@RequestParam(required = false) String taskName, @RequestParam(defaultValue = "100") int limit) {
-        List<TaskExecution> executions = taskName == null ? taskService.getExecutions() : taskService.getExecutions(taskName, limit);
+        List<TaskExecution> executions = taskName == null ? taskService.getExecutions(limit) : taskService.getExecutions(taskName, limit);
         List<TaskExecutionDTO> executionDTOList = new ArrayList<>();
         executions.forEach(item -> {
             TaskExecutionDTO dto = new TaskExecutionDTO();
