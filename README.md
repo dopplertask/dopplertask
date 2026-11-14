@@ -71,18 +71,27 @@ People and agents work on the same tasks in the same visual editor, so either on
 
 ## Start in a minute
 
-You need JDK 25.
+On macOS or Linux, paste this in a terminal. Java comes with it, so you need nothing else:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/dopplertask/dopplertask/main/install.sh | sh
+```
+
+DopplerTask opens at **http://localhost:8090**. Choose *try an example you can run right away*. Run the same line again to update.
+
+On Windows or a server, use Docker. Your tasks are kept in the volume `dopplertask`:
+
+```bash
+docker run -d --name dopplertask -p 8090:8090 -v dopplertask:/root dopplertask/dopplertask
+```
+
+To build from source, you need JDK 25:
 
 ```bash
 git clone https://github.com/dopplertask/dopplertask.git
 cd dopplertask/backend
 ./gradlew bootRun
 ```
-
-Open **http://localhost:8090** and choose *try an example you can run right away*. The first build downloads its dependencies, so it takes a little longer.
-
-> [!NOTE]
-> Building from source gives you everything on this page. The image on Docker Hub is from an earlier version until the next release is published.
 
 ## Connect your agent
 

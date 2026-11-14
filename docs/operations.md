@@ -2,12 +2,11 @@
 
 ## Other ways to install
 
-**Docker.** The `Dockerfile` builds the current code:
+**Docker.** `docker compose up -d` runs the image `dopplertask/dopplertask:latest`, restarts it when it stops and keeps your tasks in a named volume. To build the image from the current code instead:
 ```bash
 docker build -t dopplertask/dopplertask .
-docker run -d -p 8090:8090 -v $HOME:/root dopplertask/dopplertask
+docker run -d --name dopplertask -p 8090:8090 -v dopplertask:/root dopplertask/dopplertask
 ```
-`docker compose up -d` runs the image `dopplertask/dopplertask:latest` and keeps your tasks in a named volume. The image on Docker Hub is version 0.14.7 from 2022 until the next release is published.
 
 **Command line.** To run tasks from a terminal, install the tool from the `cli` folder with `npm install -g .`, then use `dopplertask run [taskname]` and `dopplertask --help`.
 
