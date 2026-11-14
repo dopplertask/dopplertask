@@ -92,7 +92,7 @@ public class McpController {
         String requested = params.path("protocolVersion").asText();
         ObjectNode result = mapper.createObjectNode().put("protocolVersion", PROTOCOLS.contains(requested) ? requested : LATEST_PROTOCOL);
         result.putObject("capabilities").putObject("tools");
-        result.putObject("serverInfo").put("name", "dopplertask").put("version", "0.14.7");
+        result.putObject("serverInfo").put("name", "dopplertask").put("version", "0.15.0");
         return result.put("instructions", INSTRUCTIONS);
     }
 
